@@ -1,0 +1,22 @@
+{
+  "name": "@hull-eats/customer-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "expo start",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@hull-eats/types": "workspace:*",
+    "@stripe/stripe-react-native": "^0.64.0",
+    "@supabase/supabase-js": "^2.104.1",
+    "expo": "^53.0.9",
+    "expo-status-bar": "^2.2.3",
+    "react": "^19.1.0",
+    "react-native": "^0.79.2"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.2",
+    "typescript": "^5.8.3"
+  }
+}

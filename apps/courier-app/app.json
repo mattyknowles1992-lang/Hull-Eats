@@ -1,0 +1,9 @@
+﻿{
+  "expo": {
+    "name": "Hull Eats Courier",
+    "slug": "hull-eats-courier",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light"
+  }
+}

@@ -1,0 +1,32 @@
+﻿{
+  "name": "@hull-eats/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/main.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@hull-eats/auth": "workspace:*",
+    "@hull-eats/config": "workspace:*",
+    "@hull-eats/dispatch-engine": "workspace:*",
+    "@hull-eats/printer": "workspace:*",
+    "@hull-eats/types": "workspace:*",
+    "@supabase/supabase-js": "^2.104.1",
+    "@nestjs/common": "^11.1.6",
+    "@nestjs/core": "^11.1.6",
+    "@nestjs/platform-express": "^11.1.6",
+    "@nestjs/platform-socket.io": "^11.1.6",
+    "@nestjs/websockets": "^11.1.6",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "socket.io": "^4.8.1",
+    "stripe": "^18.5.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.4"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "hull-eats-platform",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.11.0",
+  "scripts": {
+    "build": "pnpm exec turbo run build",
+    "dev": "pnpm exec turbo run dev --parallel",
+    "lint": "pnpm exec turbo run lint",
+    "typecheck": "pnpm -r run typecheck",
+    "test": "pnpm -r --if-present run test",
+    "format": "prettier --write .",
+    "db:generate": "pnpm --filter @hull-eats/db prisma:generate",
+    "db:migrate": "pnpm --filter @hull-eats/db prisma:migrate",
+    "db:seed": "pnpm --filter @hull-eats/db seed",
+    "docker:up": "docker compose up -d postgres redis",
+    "docker:down": "docker compose down"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.17",
+    "prettier": "^3.5.3",
+    "turbo": "^2.5.3",
+    "typescript": "^5.8.3"
+  }
+}

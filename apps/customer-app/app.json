@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "name": "Hull Eats",
+    "slug": "hull-eats-customer",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "plugins": ["@stripe/stripe-react-native"],
+    "scheme": "hulleats"
+  }
+}
+

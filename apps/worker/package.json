@@ -1,0 +1,22 @@
+﻿{
+  "name": "@hull-eats/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/main.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@hull-eats/config": "workspace:*",
+    "@hull-eats/printer": "workspace:*",
+    "@hull-eats/types": "workspace:*",
+    "bullmq": "^5.49.1",
+    "ioredis": "^5.6.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.4"
+  }
+}

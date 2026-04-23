@@ -1,0 +1,532 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  PLATFORM_ADMIN
+  MERCHANT_MANAGER
+  MERCHANT_STAFF
+  COURIER
+  CUSTOMER
+}
+
+enum MembershipRole {
+  OWNER
+  MANAGER
+  STAFF
+}
+
+enum StoreType {
+  RESTAURANT
+  TAKEAWAY
+  SHOP
+}
+
+enum FulfillmentType {
+  DELIVERY
+  PICKUP
+}
+
+enum OrderSource {
+  WEB
+  IOS_APP
+  ANDROID_APP
+  ADMIN_PORTAL
+}
+
+enum OrderStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  PREPARING
+  READY_FOR_DISPATCH
+  ASSIGNED
+  COURIER_ACCEPTED
+  PICKED_UP
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  AUTHORIZED
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum DeliveryStatus {
+  UNASSIGNED
+  ASSIGNED
+  ACCEPTED
+  PICKED_UP
+  DELIVERED
+  FAILED
+}
+
+enum DriverStatus {
+  OFFLINE
+  AVAILABLE
+  ON_DELIVERY
+}
+
+enum PrinterAdapterType {
+  MOCK
+  NETWORK_ESC_POS
+  CLOUD_BRIDGE
+}
+
+enum PrintJobStatus {
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum StockStatus {
+  IN_STOCK
+  LOW_STOCK
+  OUT_OF_STOCK
+}
+
+enum CustomerAddressType {
+  HOME
+  WORK
+  OTHER
+}
+
+enum PaymentProvider {
+  STRIPE
+}
+
+enum PaymentRecordStatus {
+  REQUIRES_PAYMENT_METHOD
+  REQUIRES_CONFIRMATION
+  REQUIRES_ACTION
+  PROCESSING
+  SUCCEEDED
+  CANCELED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentMethodType {
+  CARD
+  APPLE_PAY
+  GOOGLE_PAY
+}
+
+enum InventoryAdjustmentReason {
+  MANUAL_ADJUSTMENT
+  ORDER_PLACED
+  ORDER_CANCELLED
+  RESTOCK
+  STOCKTAKE
+}
+
+model User {
+  id                  String                @id @default(cuid())
+  email               String                @unique
+  phone               String?
+  fullName            String
+  role                UserRole
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  merchantMemberships MerchantMembership[]
+  courierProfile      CourierProfile?
+  assignedDeliveries  Delivery[]            @relation("DeliveryAssignedBy")
+  orderStatusHistory  OrderStatusHistory[]
+  deliveryStatusLogs  DeliveryStatusHistory[]
+  inventoryAdjustments InventoryAdjustment[]
+}
+
+model CustomerProfile {
+  id                 String            @id @default(cuid())
+  supabaseAuthUserId String            @unique
+  email              String            @unique
+  fullName           String?
+  phone              String?
+  marketingOptIn     Boolean           @default(false)
+  stripeCustomerId   String?           @unique
+  defaultAddressId   String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  defaultAddress     CustomerAddress?  @relation("CustomerDefaultAddress", fields: [defaultAddressId], references: [id], onDelete: SetNull)
+  addresses          CustomerAddress[]
+  orders             Order[]
+  payments           Payment[]
+}
+
+model CustomerAddress {
+  id                 String            @id @default(cuid())
+  customerProfileId  String
+  label              String
+  type               CustomerAddressType
+  fullName           String
+  phone              String
+  addressLine1       String
+  addressLine2       String?
+  city               String
+  postcode           String
+  deliveryNotes      String?
+  isDefault          Boolean           @default(false)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  customerProfile    CustomerProfile   @relation(fields: [customerProfileId], references: [id], onDelete: Cascade)
+  defaultForProfiles CustomerProfile[] @relation("CustomerDefaultAddress")
+  orders             Order[]
+}
+
+model Merchant {
+  id          String               @id @default(cuid())
+  slug        String               @unique
+  name        String
+  isActive    Boolean              @default(true)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  stores      Store[]
+  memberships MerchantMembership[]
+  mediaAssets MediaAsset[]
+}
+
+model MerchantMembership {
+  id         String         @id @default(cuid())
+  userId     String
+  merchantId String
+  role       MembershipRole
+  createdAt  DateTime       @default(now())
+  merchant   Merchant       @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, merchantId])
+}
+
+model Store {
+  id                String          @id @default(cuid())
+  merchantId        String
+  slug              String          @unique
+  name              String
+  type              StoreType
+  addressLine1      String
+  city              String
+  postcode          String
+  timezone          String          @default("Europe/London")
+  shortDescription  String?
+  cuisineLabel      String?
+  logoAssetId       String?
+  coverAssetId      String?
+  isActive          Boolean         @default(true)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  merchant          Merchant        @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  logoAsset         MediaAsset?     @relation("StoreLogo", fields: [logoAssetId], references: [id], onDelete: SetNull)
+  coverAsset        MediaAsset?     @relation("StoreCover", fields: [coverAssetId], references: [id], onDelete: SetNull)
+  storeHours        StoreHour[]
+  deliveryZones     DeliveryZone[]
+  menuCategories    MenuCategory[]
+  orders            Order[]
+  printers          Printer[]
+  uploadedAssets    MediaAsset[]    @relation("StoreAssets")
+}
+
+model StoreHour {
+  id        String   @id @default(cuid())
+  storeId   String
+  dayOfWeek Int
+  openTime  String
+  closeTime String
+  isClosed  Boolean  @default(false)
+  store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+}
+
+model DeliveryZone {
+  id                 String   @id @default(cuid())
+  storeId            String
+  name               String
+  postcodePatterns   String[]
+  minimumOrderAmount Decimal  @db.Decimal(10, 2)
+  deliveryFee        Decimal  @db.Decimal(10, 2)
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  store              Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  orders             Order[]
+}
+
+model MediaAsset {
+  id                String     @id @default(cuid())
+  merchantId        String?
+  storeId           String?
+  url               String
+  altText           String?
+  mimeType          String?
+  width             Int?
+  height            Int?
+  purpose           String?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  merchant          Merchant?  @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  store             Store?     @relation("StoreAssets", fields: [storeId], references: [id], onDelete: Cascade)
+  logoForStores     Store[]    @relation("StoreLogo")
+  coverForStores    Store[]    @relation("StoreCover")
+  menuItemPrimary   MenuItem[] @relation("MenuItemPrimaryImage")
+}
+
+model MenuCategory {
+  id         String     @id @default(cuid())
+  storeId    String
+  name       String
+  sortOrder  Int        @default(0)
+  isActive   Boolean    @default(true)
+  store      Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  menuItems  MenuItem[]
+}
+
+model MenuItem {
+  id                   String                 @id @default(cuid())
+  categoryId           String
+  primaryImageAssetId  String?
+  sku                  String?
+  name                 String
+  description          String?
+  price                Decimal                @db.Decimal(10, 2)
+  compareAtPrice       Decimal?               @db.Decimal(10, 2)
+  isActive             Boolean                @default(true)
+  isFeatured           Boolean                @default(false)
+  trackStock           Boolean                @default(false)
+  stockQuantity        Int?
+  lowStockThreshold    Int?
+  stockStatus          StockStatus            @default(IN_STOCK)
+  allowBackorder       Boolean                @default(false)
+  maxPerOrder          Int?
+  sortOrder            Int                    @default(0)
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  category             MenuCategory           @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  primaryImageAsset    MediaAsset?            @relation("MenuItemPrimaryImage", fields: [primaryImageAssetId], references: [id], onDelete: SetNull)
+  availability         MenuItemAvailability[]
+  inventoryAdjustments InventoryAdjustment[]
+  orderItems           OrderItem[]
+}
+
+model MenuItemAvailability {
+  id         String   @id @default(cuid())
+  menuItemId String
+  dayOfWeek  Int
+  startTime  String
+  endTime    String
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+}
+
+model Order {
+  id              String            @id @default(cuid())
+  orderNumber     String            @unique
+  customerProfileId String?
+  customerAddressId String?
+  storeId         String
+  deliveryZoneId  String?
+  fulfillmentType FulfillmentType
+  source          OrderSource       @default(WEB)
+  status          OrderStatus
+  paymentStatus   PaymentStatus     @default(PENDING)
+  customerName    String
+  customerPhone   String
+  customerEmail   String?
+  addressLine1    String?
+  city            String?
+  postcode        String?
+  notes           String?
+  subtotalAmount  Decimal           @db.Decimal(10, 2)
+  deliveryFee     Decimal           @db.Decimal(10, 2)
+  totalAmount     Decimal           @db.Decimal(10, 2)
+  currency        String            @db.VarChar(3)
+  prepTimeMinutes Int?
+  placedAt        DateTime          @default(now())
+  acceptedAt      DateTime?
+  rejectedAt      DateTime?
+  pickedUpAt      DateTime?
+  deliveredAt     DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  customerProfile CustomerProfile?  @relation(fields: [customerProfileId], references: [id], onDelete: SetNull)
+  customerAddress CustomerAddress?  @relation(fields: [customerAddressId], references: [id], onDelete: SetNull)
+  store           Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  deliveryZone    DeliveryZone?     @relation(fields: [deliveryZoneId], references: [id], onDelete: SetNull)
+  items           OrderItem[]
+  statusHistory   OrderStatusHistory[]
+  delivery        Delivery?
+  payment         Payment?
+  printJobs       PrintJob[]
+  inventoryAdjustments InventoryAdjustment[]
+}
+
+model OrderItem {
+  id           String   @id @default(cuid())
+  orderId      String
+  menuItemId   String?
+  quantity     Int
+  unitPrice    Decimal  @db.Decimal(10, 2)
+  totalPrice   Decimal  @db.Decimal(10, 2)
+  nameSnapshot String
+  notes        String?
+  order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem     MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
+}
+
+model OrderStatusHistory {
+  id          String      @id @default(cuid())
+  orderId     String
+  actorUserId String?
+  status      OrderStatus
+  note        String?
+  createdAt   DateTime    @default(now())
+  order       Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  actorUser   User?       @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+}
+
+model CourierProfile {
+  id            String         @id @default(cuid())
+  userId        String         @unique
+  vehicleType   String
+  isActive      Boolean        @default(true)
+  currentStatus DriverStatus   @default(OFFLINE)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shifts        DriverShift[]
+  deliveries    Delivery[]
+}
+
+model DriverShift {
+  id               String         @id @default(cuid())
+  courierProfileId String
+  storeId          String?
+  isOnline         Boolean        @default(true)
+  startedAt        DateTime       @default(now())
+  endedAt          DateTime?
+  courierProfile   CourierProfile @relation(fields: [courierProfileId], references: [id], onDelete: Cascade)
+}
+
+model Delivery {
+  id                String                  @id @default(cuid())
+  orderId           String                  @unique
+  courierProfileId  String?
+  assignedByUserId  String?
+  status            DeliveryStatus          @default(UNASSIGNED)
+  assignedAt        DateTime?
+  acceptedAt        DateTime?
+  pickedUpAt        DateTime?
+  deliveredAt       DateTime?
+  externalProvider  String?
+  externalReference String?
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  order             Order                   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  courierProfile    CourierProfile?         @relation(fields: [courierProfileId], references: [id], onDelete: SetNull)
+  assignedByUser    User?                   @relation("DeliveryAssignedBy", fields: [assignedByUserId], references: [id], onDelete: SetNull)
+  statusHistory     DeliveryStatusHistory[]
+}
+
+model DeliveryStatusHistory {
+  id          String         @id @default(cuid())
+  deliveryId  String
+  actorUserId String?
+  status      DeliveryStatus
+  note        String?
+  createdAt   DateTime       @default(now())
+  delivery    Delivery       @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  actorUser   User?          @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+}
+
+model Printer {
+  id          String             @id @default(cuid())
+  storeId     String
+  name        String
+  adapterType PrinterAdapterType
+  config      Json
+  isDefault   Boolean            @default(false)
+  isActive    Boolean            @default(true)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  store       Store              @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  printJobs   PrintJob[]
+}
+
+model PrintJob {
+  id          String         @id @default(cuid())
+  printerId   String
+  orderId     String?
+  status      PrintJobStatus @default(QUEUED)
+  payload     Json
+  attempts    Int            @default(0)
+  lastError   String?
+  createdAt   DateTime       @default(now())
+  processedAt DateTime?
+  completedAt DateTime?
+  printer     Printer        @relation(fields: [printerId], references: [id], onDelete: Cascade)
+  order       Order?         @relation(fields: [orderId], references: [id], onDelete: SetNull)
+}
+
+model Payment {
+  id                    String              @id @default(cuid())
+  orderId               String              @unique
+  customerProfileId     String?
+  provider              PaymentProvider     @default(STRIPE)
+  status                PaymentRecordStatus
+  methodType            PaymentMethodType?
+  stripeCustomerId      String?
+  stripePaymentIntentId String?             @unique
+  stripeChargeId        String?
+  amount                Decimal             @db.Decimal(10, 2)
+  currency              String              @db.VarChar(3)
+  failureCode           String?
+  failureMessage        String?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  order                 Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  customerProfile       CustomerProfile?    @relation(fields: [customerProfileId], references: [id], onDelete: SetNull)
+  events                PaymentEvent[]
+}
+
+model PaymentEvent {
+  id            String               @id @default(cuid())
+  paymentId     String
+  stripeEventId String?              @unique
+  type          String
+  status        PaymentRecordStatus?
+  payload       Json
+  createdAt     DateTime             @default(now())
+  payment       Payment              @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+}
+
+model InventoryAdjustment {
+  id          String                    @id @default(cuid())
+  menuItemId  String
+  actorUserId String?
+  sourceOrderId String?
+  quantityDelta Int
+  reason      InventoryAdjustmentReason
+  note        String?
+  createdAt   DateTime                  @default(now())
+  menuItem     MenuItem                 @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  actorUser    User?                    @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  sourceOrder  Order?                   @relation(fields: [sourceOrderId], references: [id], onDelete: SetNull)
+}
+
+model OutboxEvent {
+  id            String   @id @default(cuid())
+  aggregateType String
+  aggregateId   String
+  eventName     String
+  payload       Json
+  createdAt     DateTime @default(now())
+  publishedAt   DateTime?
+
+  @@index([publishedAt, createdAt])
+  @@index([aggregateType, aggregateId])
+}
