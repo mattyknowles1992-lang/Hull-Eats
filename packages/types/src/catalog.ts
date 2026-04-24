@@ -3,13 +3,16 @@ import { z } from "zod";
 export const storeTypes = ["restaurant", "takeaway", "shop"] as const;
 export const stockStatuses = ["in_stock", "low_stock", "out_of_stock"] as const;
 export const storefrontStatuses = ["onboarding", "live", "paused"] as const;
+export const menuOptionSelectionModes = ["single", "multiple"] as const;
 export type StoreType = (typeof storeTypes)[number];
 export type StockStatus = (typeof stockStatuses)[number];
 export type StorefrontStatus = (typeof storefrontStatuses)[number];
+export type MenuOptionSelectionMode = (typeof menuOptionSelectionModes)[number];
 
 export const storeTypeSchema = z.enum(storeTypes);
 export const stockStatusSchema = z.enum(stockStatuses);
 export const storefrontStatusSchema = z.enum(storefrontStatuses);
+export const menuOptionSelectionModeSchema = z.enum(menuOptionSelectionModes);
 
 export const deliveryZoneSchema = z.object({
   id: z.string().min(1),
@@ -35,6 +38,40 @@ export const menuItemSchema = z.object({
   allowBackorder: z.boolean().default(false),
   maxPerOrder: z.number().int().positive().nullable().default(null),
   sortOrder: z.number().int().default(0),
+  components: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        label: z.string().min(1),
+        quantity: z.number().int().positive().default(1),
+        removable: z.boolean().default(false),
+      }),
+    )
+    .default([]),
+  optionGroups: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        name: z.string().min(1),
+        description: z.string().default(""),
+        selectionMode: menuOptionSelectionModeSchema.default("single"),
+        isRequired: z.boolean().default(false),
+        minSelections: z.number().int().nonnegative().default(0),
+        maxSelections: z.number().int().positive().nullable().default(null),
+        showWhenValueIds: z.array(z.string().min(1)).default([]),
+        options: z.array(
+          z.object({
+            id: z.string().min(1),
+            label: z.string().min(1),
+            description: z.string().default(""),
+            priceDelta: z.number().default(0),
+            isDefault: z.boolean().default(false),
+            maxQuantity: z.number().int().positive().default(1),
+          }),
+        ),
+      }),
+    )
+    .default([]),
 });
 
 export const storeSummarySchema = z.object({

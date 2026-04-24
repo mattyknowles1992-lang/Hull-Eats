@@ -49,6 +49,30 @@ export const orderLineInputSchema = z.object({
   menuItemId: z.string().min(1),
   quantity: z.number().int().positive(),
   notes: z.string().max(280).optional(),
+  removedComponentIds: z.array(z.string().min(1)).default([]),
+  selectedOptionQuantities: z.record(z.string(), z.number().int().positive()).default({}),
+});
+
+export const orderLineRemovedComponentSchema = z.object({
+  componentId: z.string().min(1),
+  label: z.string().min(1),
+  quantity: z.number().int().positive(),
+});
+
+export const orderLineSelectedOptionSchema = z.object({
+  groupId: z.string().min(1),
+  groupName: z.string().min(1),
+  valueId: z.string().min(1),
+  valueName: z.string().min(1),
+  quantity: z.number().int().positive(),
+  priceDelta: z.number(),
+});
+
+export const orderLineComponentSnapshotSchema = z.object({
+  componentId: z.string().min(1),
+  label: z.string().min(1),
+  quantity: z.number().int().positive(),
+  removed: z.boolean().default(false),
 });
 
 export const createOrderInputSchema = z.object({
@@ -94,6 +118,9 @@ export const orderSummarySchema = z.object({
 });
 
 export type CreateOrderInput = z.infer<typeof createOrderInputSchema>;
+export type OrderLineRemovedComponent = z.infer<typeof orderLineRemovedComponentSchema>;
+export type OrderLineSelectedOption = z.infer<typeof orderLineSelectedOptionSchema>;
+export type OrderLineComponentSnapshot = z.infer<typeof orderLineComponentSnapshotSchema>;
 export type MerchantAcceptOrderInput = z.infer<typeof merchantAcceptOrderSchema>;
 export type MerchantRejectOrderInput = z.infer<typeof merchantRejectOrderSchema>;
 export type ManualDriverAssignmentInput = z.infer<typeof manualDriverAssignmentSchema>;

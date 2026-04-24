@@ -255,8 +255,23 @@ export class MerchantController {
       prepTimeMinutes: order.prepTimeMinutes,
       lines: [
         {
-          name: "Margherita",
+          name: "The Piggy Cow",
           quantity: 1,
+          components: [
+            { label: "Bun", quantity: 1, removed: false },
+            { label: "3oz beef burger", quantity: 1, removed: false },
+            { label: "3oz beef burger", quantity: 1, removed: false },
+            { label: "Cheese", quantity: 1, removed: false },
+            { label: "Cheese", quantity: 1, removed: false },
+            { label: "Onions", quantity: 1, removed: true },
+            { label: "Gherkins", quantity: 1, removed: false },
+            { label: "Lettuce", quantity: 1, removed: false },
+          ],
+          selectedOptions: [
+            { groupName: "Make it a meal", valueName: "Make it a meal", quantity: 1, priceDelta: 4.5 },
+            { groupName: "Fries", valueName: "Cheesy fries", quantity: 1, priceDelta: 1.5 },
+            { groupName: "Can", valueName: "Diet Coke", quantity: 1, priceDelta: 0 },
+          ],
         },
       ],
     });

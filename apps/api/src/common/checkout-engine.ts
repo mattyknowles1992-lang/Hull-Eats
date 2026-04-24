@@ -33,13 +33,81 @@ const buildCheckoutSession = (
       throw new BadRequestException(`Menu item ${line.menuItemId} is not available for ${store.name}.`);
     }
 
+    const selectedOptionQuantities = Object.fromEntries(
+      Object.entries(line.selectedOptionQuantities ?? {}).filter(([, quantity]) => quantity > 0),
+    );
+
+    const selectedOptionGroups = menuItem.optionGroups.filter(
+      (group) =>
+        group.showWhenValueIds.length === 0 ||
+        group.showWhenValueIds.some((valueId) => (selectedOptionQuantities[valueId] ?? 0) > 0),
+    );
+
+    const selectedOptions = selectedOptionGroups.flatMap((group) =>
+      group.options
+        .filter((option) => (selectedOptionQuantities[option.id] ?? 0) > 0)
+        .map((option) => ({
+          groupId: group.id,
+          groupName: group.name,
+          valueId: option.id,
+          valueName: option.label,
+          quantity: selectedOptionQuantities[option.id] ?? 0,
+          priceDelta: option.priceDelta,
+        })),
+    );
+
+    selectedOptionGroups.forEach((group) => {
+      const selectedCount = group.options.reduce((sum, option) => sum + (selectedOptionQuantities[option.id] ?? 0), 0);
+      const minimumSelections = group.isRequired ? Math.max(group.minSelections, 1) : group.minSelections;
+      const maximumSelections = group.selectionMode === "single" ? 1 : group.maxSelections;
+
+      if (selectedCount < minimumSelections) {
+        throw new BadRequestException(`${menuItem.name}: ${group.name} requires at least ${minimumSelections} selection(s).`);
+      }
+
+      if (maximumSelections !== null && selectedCount > maximumSelections) {
+        throw new BadRequestException(`${menuItem.name}: ${group.name} allows no more than ${maximumSelections} selection(s).`);
+      }
+    });
+
+    const removedComponents = menuItem.components
+      .filter((component) => (line.removedComponentIds ?? []).includes(component.id))
+      .map((component) => ({
+        componentId: component.id,
+        label: component.label,
+        quantity: component.quantity,
+      }));
+
+    const components = menuItem.components.map((component) => ({
+      componentId: component.id,
+      label: component.label,
+      quantity: component.quantity,
+      removed: (line.removedComponentIds ?? []).includes(component.id),
+    }));
+
+    const customisationTotal = Number(
+      selectedOptions.reduce((sum, option) => sum + option.priceDelta * option.quantity, 0).toFixed(2),
+    );
+    const unitPrice = Number((menuItem.price + customisationTotal).toFixed(2));
+
     return {
+      lineId: JSON.stringify({
+        menuItemId: menuItem.id,
+        removedComponentIds: [...(line.removedComponentIds ?? [])].sort(),
+        selectedOptionQuantities: Object.fromEntries(
+          Object.entries(selectedOptionQuantities).sort(([left], [right]) => left.localeCompare(right)),
+        ),
+      }),
       menuItemId: menuItem.id,
       name: menuItem.name,
       quantity: line.quantity,
-      unitPrice: menuItem.price,
-      lineTotal: Number((menuItem.price * line.quantity).toFixed(2)),
+      unitPrice,
+      customisationTotal,
+      lineTotal: Number((unitPrice * line.quantity).toFixed(2)),
       notes: line.notes,
+      components,
+      removedComponents,
+      selectedOptions,
     };
   });
 

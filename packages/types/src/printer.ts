@@ -22,10 +22,28 @@ export const printJobPayloadSchema = z.object({
       name: z.string().min(1),
       quantity: z.number().int().positive(),
       notes: z.string().optional(),
+      components: z
+        .array(
+          z.object({
+            label: z.string().min(1),
+            quantity: z.number().int().positive(),
+            removed: z.boolean().default(false),
+          }),
+        )
+        .optional(),
+      selectedOptions: z
+        .array(
+          z.object({
+            groupName: z.string().min(1),
+            valueName: z.string().min(1),
+            quantity: z.number().int().positive().default(1),
+            priceDelta: z.number(),
+          }),
+        )
+        .optional(),
     }),
   ),
   notes: z.string().optional(),
 });
 
 export type PrintJobPayload = z.infer<typeof printJobPayloadSchema>;
-

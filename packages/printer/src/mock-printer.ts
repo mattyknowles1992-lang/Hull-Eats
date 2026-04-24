@@ -10,7 +10,16 @@ export class MockPrinterAdapter implements PrinterAdapter {
       `Printer: ${connection.name}`,
       `Order: ${payload.orderNumber}`,
       `Customer: ${payload.customerName}`,
-      ...payload.lines.map((line) => `${line.quantity} x ${line.name}`),
+      ...payload.lines.flatMap((line) => [
+        `${line.quantity} x ${line.name}`,
+        ...(line.components ?? []).map(
+          (component) => `  - ${component.quantity} x ${component.label}${component.removed ? " / removed" : ""}`,
+        ),
+        ...(line.selectedOptions ?? []).map(
+          (option) =>
+            `  - ${option.quantity} x ${option.groupName}: ${option.valueName}${option.priceDelta > 0 ? ` (+${option.priceDelta.toFixed(2)})` : ""}`,
+        ),
+      ]),
     ].join("\n");
 
     return {
@@ -45,4 +54,3 @@ export class InMemoryPrinterRegistry implements PrinterRegistry {
     return adapter;
   }
 }
-

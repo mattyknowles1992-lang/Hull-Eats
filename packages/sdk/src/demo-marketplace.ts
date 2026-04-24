@@ -10,12 +10,248 @@ export type DemoMenuSection = {
 const makeItemId = (categoryId: string, name: string) =>
   `${categoryId}-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}`;
 
+const makeOptionId = (seed: string) => seed.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+
+type CustomisationTemplate = "none" | "burger_meal" | "chicken_burger_meal" | "hotdog_meal";
+
+const createMealOptions = (seed: string) => {
+  const mealYesId = `${seed}-make-it-a-meal`;
+  const cheeseFriesId = `${seed}-meal-fries-cheese`;
+
+  return [
+    {
+      id: `${seed}-meal-upgrade`,
+      name: "Meal choice",
+      description: "Choose this item on its own or upgrade it into a meal.",
+      selectionMode: "single" as const,
+      isRequired: true,
+      minSelections: 1,
+      maxSelections: 1,
+      showWhenValueIds: [],
+      options: [
+        {
+          id: `${seed}-no-meal`,
+          label: "On its Own",
+          description: "",
+          priceDelta: 0,
+          isDefault: true,
+          maxQuantity: 1,
+        },
+        {
+          id: mealYesId,
+          label: "Make it a Meal (Fries & a Can)",
+          description: "Add fries and a can.",
+          priceDelta: 3,
+          isDefault: false,
+          maxQuantity: 1,
+        },
+      ],
+    },
+    {
+      id: `${seed}-fries-salt`,
+      name: "Salt on fries?",
+      description: "Choose how the fries are finished.",
+      selectionMode: "single" as const,
+      isRequired: true,
+      minSelections: 1,
+      maxSelections: 1,
+      showWhenValueIds: [mealYesId],
+      options: [
+        { id: `${seed}-fries-salted`, label: "Salt", description: "", priceDelta: 0, isDefault: true, maxQuantity: 1 },
+        { id: `${seed}-fries-no-salt`, label: "No Salt", description: "", priceDelta: 0, isDefault: false, maxQuantity: 1 },
+      ],
+    },
+    {
+      id: `${seed}-fries-cheese`,
+      name: "Cheese on fries?",
+      description: "Add cheese to the fries if you want it.",
+      selectionMode: "single" as const,
+      isRequired: false,
+      minSelections: 0,
+      maxSelections: 1,
+      showWhenValueIds: [mealYesId],
+      options: [
+        { id: `${seed}-meal-fries-plain`, label: "Without Cheese", description: "", priceDelta: 0, isDefault: true, maxQuantity: 1 },
+        { id: cheeseFriesId, label: "Cheese on Fries", description: "", priceDelta: 0.99, isDefault: false, maxQuantity: 1 },
+      ],
+    },
+    {
+      id: `${seed}-drink-choice`,
+      name: "Choose your can",
+      description: "Choose your drink for the meal.",
+      selectionMode: "single" as const,
+      isRequired: true,
+      minSelections: 1,
+      maxSelections: 1,
+      showWhenValueIds: [mealYesId],
+      options: [
+        { id: `${seed}-drink-coke`, label: "Coke", description: "", priceDelta: 0.29, isDefault: true, maxQuantity: 1 },
+        { id: `${seed}-drink-redbull`, label: "Redbull", description: "", priceDelta: 1.79, isDefault: false, maxQuantity: 1 },
+        { id: `${seed}-drink-water`, label: "Water", description: "", priceDelta: 0, isDefault: false, maxQuantity: 1 },
+        { id: `${seed}-drink-dr-pepper`, label: "Dr Pepper", description: "", priceDelta: 0, isDefault: false, maxQuantity: 1 },
+        { id: `${seed}-drink-fanta-orange`, label: "Fanta Orange", description: "", priceDelta: 0, isDefault: false, maxQuantity: 1 },
+        { id: `${seed}-drink-fanta-fruit-twist`, label: "Fanta Fruit Twist", description: "", priceDelta: 0, isDefault: false, maxQuantity: 1 },
+        { id: `${seed}-drink-fanta-lemon`, label: "Fanta Lemon", description: "", priceDelta: 0, isDefault: false, maxQuantity: 1 },
+        { id: `${seed}-drink-pepsi-max`, label: "Pepsi Max", description: "", priceDelta: 0, isDefault: false, maxQuantity: 1 },
+        { id: `${seed}-drink-cherry-coke-zero`, label: "Cherry Coke Zero", description: "", priceDelta: 0, isDefault: false, maxQuantity: 1 },
+        { id: `${seed}-drink-coke-zero`, label: "Coke Zero", description: "", priceDelta: 0, isDefault: false, maxQuantity: 1 },
+        { id: `${seed}-drink-diet-coke`, label: "Diet Coke", description: "", priceDelta: 0, isDefault: false, maxQuantity: 1 },
+      ],
+    },
+  ];
+};
+
+const createBurgerTemplate = (seed: string, meatLabel = "3oz beef burger") => ({
+  components: [
+    { id: `${seed}-bun`, label: "Bun", quantity: 1, removable: false },
+    { id: `${seed}-patty-1`, label: meatLabel, quantity: 1, removable: false },
+    { id: `${seed}-patty-2`, label: meatLabel, quantity: 1, removable: false },
+    { id: `${seed}-cheese-1`, label: "Cheese", quantity: 1, removable: false },
+    { id: `${seed}-cheese-2`, label: "Cheese", quantity: 1, removable: false },
+    { id: `${seed}-onions`, label: "Onions", quantity: 1, removable: true },
+    { id: `${seed}-gherkins`, label: "Gherkins", quantity: 1, removable: true },
+    { id: `${seed}-lettuce`, label: "Lettuce", quantity: 1, removable: true },
+  ],
+  optionGroups: [
+    {
+      id: `${seed}-extra-patty`,
+      name: "Extra Patty & Cheese?",
+      description: "Add another patty and cheese if you want the stack even bigger.",
+      selectionMode: "single" as const,
+      isRequired: false,
+      minSelections: 0,
+      maxSelections: 1,
+      showWhenValueIds: [],
+      options: [
+        {
+          id: `${seed}-extra-patty-cheese`,
+          label: "Extra Patty & Cheese",
+          description: "",
+          priceDelta: 3.99,
+          isDefault: false,
+          maxQuantity: 1,
+        },
+      ],
+    },
+    {
+      id: `${seed}-extras`,
+      name: "Extras?",
+      description: "Add any extra loaded toppings you want on this burger.",
+      selectionMode: "multiple" as const,
+      isRequired: false,
+      minSelections: 0,
+      maxSelections: null,
+      showWhenValueIds: [],
+      options: [
+        { id: `${seed}-extra-brisket`, label: "Beef Brisket", description: "", priceDelta: 4.79, isDefault: false, maxQuantity: 1 },
+        { id: `${seed}-extra-pulled-pork`, label: "Pulled Pork", description: "", priceDelta: 3.59, isDefault: false, maxQuantity: 1 },
+        { id: `${seed}-extra-tenders`, label: "2 Buttermilk Tenders", description: "", priceDelta: 2.39, isDefault: false, maxQuantity: 1 },
+        { id: `${seed}-extra-bacon`, label: "Streaky Bacon", description: "", priceDelta: 1.99, isDefault: false, maxQuantity: 1 },
+        { id: `${seed}-extra-chorizo`, label: "Chorizo", description: "", priceDelta: 1.99, isDefault: false, maxQuantity: 1 },
+        { id: `${seed}-extra-hash-brown`, label: "Hash Brown", description: "", priceDelta: 1.49, isDefault: false, maxQuantity: 1 },
+        { id: `${seed}-extra-cheese`, label: "Extra Cheese", description: "", priceDelta: 1.2, isDefault: false, maxQuantity: 2 },
+      ],
+    },
+    {
+      id: `${seed}-cheese-choice`,
+      name: "Cheese?",
+      description: "Choose your cheese style.",
+      selectionMode: "single" as const,
+      isRequired: true,
+      minSelections: 1,
+      maxSelections: 1,
+      showWhenValueIds: [],
+      options: [
+        { id: `${seed}-cheese-standard`, label: "Cheese", description: "", priceDelta: 0, isDefault: true, maxQuantity: 1 },
+        { id: `${seed}-cheese-nacho`, label: "Nacho Cheese", description: "", priceDelta: 0.99, isDefault: false, maxQuantity: 1 },
+        { id: `${seed}-cheese-none`, label: "No Cheese", description: "", priceDelta: 0, isDefault: false, maxQuantity: 1 },
+      ],
+    },
+    {
+      id: `${seed}-sauce-choice`,
+      name: "Sauce?",
+      description: "Choose the sauce finish for the burger.",
+      selectionMode: "single" as const,
+      isRequired: true,
+      minSelections: 1,
+      maxSelections: 1,
+      showWhenValueIds: [],
+      options: [
+        { id: `${seed}-sauce-loaded`, label: "Loaded Munch Sauce", description: "", priceDelta: 0, isDefault: true, maxQuantity: 1 },
+        { id: `${seed}-sauce-burger`, label: "Burger Sauce", description: "", priceDelta: 0, isDefault: false, maxQuantity: 1 },
+        { id: `${seed}-sauce-bbq`, label: "BBQ Sauce", description: "", priceDelta: 0, isDefault: false, maxQuantity: 1 },
+        { id: `${seed}-sauce-mayo`, label: "Mayo", description: "", priceDelta: 0, isDefault: false, maxQuantity: 1 },
+        { id: `${seed}-sauce-hot-honey`, label: "Hot Honey", description: "", priceDelta: 0, isDefault: false, maxQuantity: 1 },
+      ],
+    },
+    ...createMealOptions(seed),
+  ],
+});
+
+const createChickenBurgerTemplate = (seed: string) =>
+  createBurgerTemplate(seed, "Buttermilk chicken tender");
+
+const createHotDogTemplate = (seed: string) => ({
+  components: [
+    { id: `${seed}-bun`, label: "Brioche bun", quantity: 1, removable: false },
+    { id: `${seed}-sausage`, label: "Beechwood smoked hot dog", quantity: 1, removable: false },
+    { id: `${seed}-caramelised-onions`, label: "Caramelised onions", quantity: 1, removable: true },
+    { id: `${seed}-nacho-cheese`, label: "Nacho cheese", quantity: 1, removable: true },
+    { id: `${seed}-waffle-fries`, label: "Waffle fries", quantity: 1, removable: false },
+  ],
+  optionGroups: [
+    {
+      id: `${seed}-sauces`,
+      name: "Sauce",
+      description: "Choose your sauce.",
+      selectionMode: "single" as const,
+      isRequired: true,
+      minSelections: 1,
+      maxSelections: 1,
+      showWhenValueIds: [],
+      options: [
+        { id: `${seed}-loaded-sauce`, label: "Loaded Munch sauce", description: "", priceDelta: 0, isDefault: true, maxQuantity: 1 },
+        { id: `${seed}-bbq`, label: "BBQ sauce", description: "", priceDelta: 0, isDefault: false, maxQuantity: 1 },
+        { id: `${seed}-mayo`, label: "Mayo", description: "", priceDelta: 0, isDefault: false, maxQuantity: 1 },
+      ],
+    },
+    {
+      id: `${seed}-extras`,
+      name: "Add extras",
+      description: "Choose any extras to add.",
+      selectionMode: "multiple" as const,
+      isRequired: false,
+      minSelections: 0,
+      maxSelections: null,
+      showWhenValueIds: [],
+      options: [
+        { id: `${seed}-extra-cheese`, label: "Extra nacho cheese", description: "", priceDelta: 1, isDefault: false, maxQuantity: 2 },
+        { id: `${seed}-extra-onions`, label: "Extra onions", description: "", priceDelta: 0.4, isDefault: false, maxQuantity: 1 },
+      ],
+    },
+  ],
+});
+
+const buildCustomisationConfig = (template: CustomisationTemplate, seed: string) => {
+  switch (template) {
+    case "burger_meal":
+      return createBurgerTemplate(seed);
+    case "chicken_burger_meal":
+      return createChickenBurgerTemplate(seed);
+    case "hotdog_meal":
+      return createHotDogTemplate(seed);
+    default:
+      return { components: [], optionGroups: [] };
+  }
+};
+
 const createMenuItem = (
   categoryId: string,
   name: string,
   price: number,
   description: string,
   sortOrder: number,
+  customisationTemplate: CustomisationTemplate = "none",
 ): MenuItem => ({
   id: makeItemId(categoryId, name),
   categoryId,
@@ -29,6 +265,7 @@ const createMenuItem = (
   allowBackorder: false,
   maxPerOrder: null,
   sortOrder,
+  ...buildCustomisationConfig(customisationTemplate, makeOptionId(`${categoryId}-${name}`)),
 });
 
 const buildSection = (
@@ -36,12 +273,13 @@ const buildSection = (
   name: string,
   description: string,
   entries: Array<[name: string, price: number, description: string]>,
+  customisationTemplate: CustomisationTemplate = "none",
 ): DemoMenuSection => ({
   id,
   name,
   description,
   items: entries.map(([entryName, price, entryDescription], index) =>
-    createMenuItem(id, entryName, price, entryDescription, index),
+    createMenuItem(id, entryName, price, entryDescription, index, customisationTemplate),
   ),
 });
 
@@ -113,6 +351,7 @@ export const loadedMunchMenuSections: DemoMenuSection[] = [
         "A single 3oz smashed beef patty with melted cheese, fresh salad, and your choice of sauce.",
       ],
     ],
+    "burger_meal",
   ),
   buildSection(
     "chicken-burgers",
@@ -160,6 +399,7 @@ export const loadedMunchMenuSections: DemoMenuSection[] = [
         "Three buttermilk chicken tenders in a brioche bun with melted cheese, fresh salad, and your choice of sauce.",
       ],
     ],
+    "chicken_burger_meal",
   ),
   buildSection(
     "hot-dogs",
@@ -197,6 +437,7 @@ export const loadedMunchMenuSections: DemoMenuSection[] = [
         "Beechwood smoked hot dog in a brioche bun with caramelised onions, nacho cheese, and your choice of sauce. Served with crispy waffle fries.",
       ],
     ],
+    "hotdog_meal",
   ),
   buildSection(
     "loaded-fries",

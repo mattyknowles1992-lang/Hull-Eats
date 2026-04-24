@@ -1,6 +1,13 @@
 import { z } from "zod";
 
-import { fulfillmentTypeSchema, orderLineInputSchema, orderSourceSchema } from "./orders";
+import {
+  fulfillmentTypeSchema,
+  orderLineComponentSnapshotSchema,
+  orderLineInputSchema,
+  orderLineRemovedComponentSchema,
+  orderLineSelectedOptionSchema,
+  orderSourceSchema,
+} from "./orders";
 
 export const checkoutSessionStatuses = [
   "draft",
@@ -33,12 +40,17 @@ export const createCheckoutSessionInputSchema = z.object({
 });
 
 export const checkoutSessionLineSchema = z.object({
+  lineId: z.string().min(1),
   menuItemId: z.string().min(1),
   name: z.string().min(1),
   quantity: z.number().int().positive(),
   unitPrice: z.number().nonnegative(),
+  customisationTotal: z.number(),
   lineTotal: z.number().nonnegative(),
   notes: z.string().max(280).optional(),
+  components: z.array(orderLineComponentSnapshotSchema).default([]),
+  removedComponents: z.array(orderLineRemovedComponentSchema).default([]),
+  selectedOptions: z.array(orderLineSelectedOptionSchema).default([]),
 });
 
 export const checkoutSessionSchema = z.object({

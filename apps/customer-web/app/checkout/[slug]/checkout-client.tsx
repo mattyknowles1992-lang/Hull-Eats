@@ -40,6 +40,8 @@ const initialFormState: CheckoutFormState = {
   notes: "",
 };
 
+const formatMoney = (value: number) => `£${value.toFixed(2)}`;
+
 export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
   const [basket, setBasket] = useState<StoreBasket | null>(null);
   const [formState, setFormState] = useState<CheckoutFormState>(initialFormState);
@@ -107,6 +109,8 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
         items: basket.items.map((item) => ({
           menuItemId: item.menuItemId,
           quantity: item.quantity,
+          removedComponentIds: item.removedComponentIds,
+          selectedOptionQuantities: item.selectedOptionQuantities,
         })),
       });
 
@@ -142,16 +146,46 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
     }
   };
 
-  if (placedOrder) {
+  const orderLines = checkoutSession?.lineItems ?? enrichedLines;
+
+  if (placedOrder && checkoutSession) {
     return (
       <section className="checkout-grid">
         <section className="feature-panel">
           <p className="eyebrow">Order created</p>
           <h1 className="checkout-title">{placedOrder.order.orderNumber}</h1>
           <p className="checkout-copy">
-            Your Loaded Munch pilot order is now in the system. Payment is still marked as pending so the next step is
-            wiring Stripe PaymentIntents onto this checkout spine.
+            Your Loaded Munch order is now in the system. The customisations below are exactly what should carry into
+            kitchen view and printer output.
           </p>
+
+          <div className="checkout-line-stack">
+            {checkoutSession.lineItems.map((line) => (
+              <article key={line.lineId} className="checkout-line-card">
+                <div className="checkout-line-top">
+                  <div>
+                    <strong>{line.name}</strong>
+                    <p>{line.quantity} x this customised item</p>
+                  </div>
+                  <strong>{formatMoney(line.lineTotal)}</strong>
+                </div>
+                <div className="line-detail-stack">
+                  {line.components.map((component) => (
+                    <span key={component.componentId} className={component.removed ? "line-detail line-detail-removed" : "line-detail"}>
+                      {component.quantity} x {component.label}
+                      {component.removed ? " / removed" : ""}
+                    </span>
+                  ))}
+                  {line.selectedOptions.map((option) => (
+                    <span key={option.valueId} className="line-detail line-detail-selected">
+                      {option.quantity} x {option.groupName}: {option.valueName}
+                      {option.priceDelta > 0 ? ` / +${formatMoney(option.priceDelta)}` : ""}
+                    </span>
+                  ))}
+                </div>
+              </article>
+            ))}
+          </div>
 
           <div className="checkout-summary">
             <div className="glance-row">
@@ -164,9 +198,7 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
             </div>
             <div className="glance-row">
               <span className="muted-copy">Total</span>
-              <strong>
-                {placedOrder.order.currency} {placedOrder.order.totalAmount.toFixed(2)}
-              </strong>
+              <strong>{formatMoney(placedOrder.order.totalAmount)}</strong>
             </div>
             <div className="glance-row">
               <span className="muted-copy">Next step</span>
@@ -194,10 +226,7 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
           <div>
             <p className="eyebrow">Checkout</p>
             <h1 className="checkout-title">Loaded Munch order</h1>
-            <p className="checkout-copy">
-              This is the first real Hull Eats checkout path: basket lines from the storefront, priced in the API, then
-              converted into an order record.
-            </p>
+            <p className="checkout-copy">Review your address, basket, and customisations before placing the order.</p>
           </div>
         </div>
 
@@ -251,32 +280,52 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
           <div className="section-heading compact">
             <div>
               <h2>Basket</h2>
-              <p>{basketCount} item{basketCount === 1 ? "" : "s"} selected from {store.name}.</p>
+              <p>
+                {basketCount} item{basketCount === 1 ? "" : "s"} selected from {store.name}.
+              </p>
             </div>
           </div>
 
-          {enrichedLines.length > 0 ? (
+          {orderLines.length > 0 ? (
             <div className="checkout-line-stack">
-              {enrichedLines.map((line) => (
-                <article key={line.menuItemId} className="checkout-line-card">
+              {orderLines.map((line) => (
+                <article key={line.lineId} className="checkout-line-card">
                   <div className="checkout-line-top">
                     <div>
                       <strong>{line.name}</strong>
-                      <p>{line.description}</p>
+                      <p>{line.quantity} x item</p>
                     </div>
-                        <strong>£{(line.unitPrice * line.quantity).toFixed(2)}</strong>
+                    <strong>{formatMoney(line.unitPrice * line.quantity)}</strong>
                   </div>
+
+                  {line.components.length > 0 || line.selectedOptions.length > 0 ? (
+                    <div className="line-detail-stack">
+                      {line.components.map((component) => (
+                        <span key={component.componentId} className={component.removed ? "line-detail line-detail-removed" : "line-detail"}>
+                          {component.quantity} x {component.label}
+                          {component.removed ? " / removed" : ""}
+                        </span>
+                      ))}
+                      {line.selectedOptions.map((option) => (
+                        <span key={option.valueId} className="line-detail line-detail-selected">
+                          {option.quantity} x {option.groupName}: {option.valueName}
+                          {option.priceDelta > 0 ? ` / +${formatMoney(option.priceDelta)}` : ""}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+
                   <div className="checkout-line-footer">
                     <div className="quantity-stepper">
-                      <button type="button" className="glass-button" onClick={() => updateBasketQuantity(store.slug, line.menuItemId, line.quantity - 1)}>
+                      <button type="button" className="glass-button" onClick={() => updateBasketQuantity(store.slug, line.lineId, line.quantity - 1)}>
                         -
                       </button>
                       <span>{line.quantity}</span>
-                      <button type="button" className="glass-button" onClick={() => updateBasketQuantity(store.slug, line.menuItemId, line.quantity + 1)}>
+                      <button type="button" className="glass-button" onClick={() => updateBasketQuantity(store.slug, line.lineId, line.quantity + 1)}>
                         +
                       </button>
                     </div>
-                        <span className="muted-copy">£{line.unitPrice.toFixed(2)} each</span>
+                    <span className="muted-copy">{formatMoney(line.unitPrice)} each</span>
                   </div>
                 </article>
               ))}
@@ -288,21 +337,19 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
           <div className="checkout-summary">
             <div className="glance-row">
               <span className="muted-copy">Local subtotal</span>
-                  <strong>£{localSubtotal.toFixed(2)}</strong>
+              <strong>{formatMoney(localSubtotal)}</strong>
             </div>
             <div className="glance-row">
               <span className="muted-copy">Delivery fee</span>
-                  <strong>{checkoutSession ? `£${checkoutSession.deliveryFee.toFixed(2)}` : "Review to calculate"}</strong>
+              <strong>{checkoutSession ? formatMoney(checkoutSession.deliveryFee) : "Review to calculate"}</strong>
             </div>
             <div className="glance-row">
               <span className="muted-copy">Minimum order</span>
-              <strong>
-                    £{(checkoutSession?.minimumOrderAmount ?? store.minimumOrderAmount ?? 0).toFixed(2)}
-              </strong>
+              <strong>{formatMoney(checkoutSession?.minimumOrderAmount ?? store.minimumOrderAmount ?? 0)}</strong>
             </div>
             <div className="glance-row">
               <span className="muted-copy">Checkout total</span>
-                  <strong>{checkoutSession ? `£${checkoutSession.totalAmount.toFixed(2)}` : "Review to calculate"}</strong>
+              <strong>{checkoutSession ? formatMoney(checkoutSession.totalAmount) : "Review to calculate"}</strong>
             </div>
           </div>
 
@@ -311,24 +358,11 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
               <strong>{checkoutSession.canPlaceOrder ? "Ready to place" : "Needs attention"}</strong>
               <p>
                 {checkoutSession.canPlaceOrder
-                  ? "The API has validated this basket and address. The next platform step is Stripe payment capture."
+                  ? "The API has validated this basket, address, and customisations."
                   : "Make sure address details are filled and the basket meets any pricing rules before placing the order."}
               </p>
             </div>
           ) : null}
-        </section>
-
-        <section className="feature-panel">
-          <div className="section-heading compact">
-            <div>
-              <h2>Next payment step</h2>
-              <p>Stripe still gets layered onto this flow next.</p>
-            </div>
-          </div>
-          <p className="checkout-copy">
-            This pass creates a real checkout session and order record with payment pending. Once Stripe is wired, the
-            place-order step will confirm a PaymentIntent and let webhooks complete payment status automatically.
-          </p>
         </section>
       </aside>
     </section>

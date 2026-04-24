@@ -354,6 +354,7 @@ model MenuItem {
   price                Decimal?               @db.Decimal(10, 2)
   compareAtPrice       Decimal?               @map("compare_at_price") @db.Decimal(10, 2)
   imageUrl             String?                @map("image_url")
+  customisationConfig  Json?                  @map("customisation_config")
   isActive             Boolean                @default(true) @map("is_active")
   isFeatured           Boolean                @default(false) @map("is_featured")
   trackStock           Boolean                @default(false) @map("track_stock")
