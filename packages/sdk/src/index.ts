@@ -134,3 +134,5 @@ export class HullEatsApiClient {
 
 export const createApiClient = (options: ApiClientOptions): HullEatsApiClient =>
   new HullEatsApiClient(options);
+
+export * from "./demo-marketplace";

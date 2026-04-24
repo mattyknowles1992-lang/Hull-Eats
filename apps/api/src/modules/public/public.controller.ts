@@ -2,7 +2,8 @@ import { Body, Controller, Get, Param, Post } from "@nestjs/common";
 
 import { createOrderInputSchema, orderSummarySchema } from "@hull-eats/types";
 
-import { demoMenuByStore, demoOrders, demoStores } from "../../common/demo-data";
+import { createStoredCheckoutSession } from "../../common/checkout-engine";
+import { demoMenuByStore, demoMenuSectionsByStore, demoOrders, demoStores } from "../../common/demo-data";
 
 @Controller("public")
 export class PublicController {
@@ -21,27 +22,35 @@ export class PublicController {
     const store = demoStores.find((entry) => entry.id === storeId || entry.slug === storeId) ?? demoStores[0]!;
     const key = store.slug;
     const items = demoMenuByStore[key] ?? [];
+    const sections = demoMenuSectionsByStore[key] ?? [];
 
     return {
       storeId: key,
       menuSetupComplete: store.menuSetupComplete,
       onboardingMessage: store.onboardingMessage,
       categories:
-        items.length > 0
-          ? [
-              {
-                id: "cat-primary",
-                name: "Available now",
-                items,
-              },
-            ]
-          : [],
+        sections.length > 0
+          ? sections.map((section: (typeof sections)[number]) => ({
+              id: section.id,
+              name: section.name,
+              description: section.description,
+              items: section.items,
+            }))
+          : items.length > 0
+            ? [
+                {
+                  id: "cat-primary",
+                  name: "Available now",
+                  items,
+                },
+              ]
+            : [],
     };
   }
 
   @Get("stores/:storeId/categories")
   getStoreCategories(@Param("storeId") storeId: string) {
-    return this.getStoreMenu(storeId).categories.map((category) => ({
+    return this.getStoreMenu(storeId).categories.map((category: (ReturnType<PublicController["getStoreMenu"]>["categories"])[number]) => ({
       id: category.id,
       name: category.name,
       itemCount: category.items.length,
@@ -58,31 +67,62 @@ export class PublicController {
   @Post("orders/quote")
   quoteOrder(@Body() body: unknown) {
     const input = createOrderInputSchema.parse(body);
+    const session = createStoredCheckoutSession({
+      storeId: input.storeId,
+      source: input.source,
+      fulfillmentType: input.fulfillmentType,
+      customerName: input.customerName,
+      customerPhone: input.customerPhone,
+      customerEmail: input.customerEmail,
+      customerAddressId: input.customerAddressId,
+      addressLine1: input.addressLine1,
+      city: input.city,
+      postcode: input.postcode,
+      notes: input.notes,
+      items: input.items,
+    });
 
     return {
       storeId: input.storeId,
-      itemCount: input.items.length,
-      subtotalAmount: 12.5,
-      deliveryFee: input.fulfillmentType === "delivery" ? 2.99 : 0,
-      totalAmount: input.fulfillmentType === "delivery" ? 15.49 : 12.5,
-      currency: "GBP",
+      itemCount: session.itemCount,
+      subtotalAmount: session.subtotalAmount,
+      deliveryFee: session.deliveryFee,
+      totalAmount: session.totalAmount,
+      currency: session.currency,
+      minimumOrderAmount: session.minimumOrderAmount,
+      isMinimumOrderMet: session.isMinimumOrderMet,
+      canPlaceOrder: session.canPlaceOrder,
     };
   }
 
   @Post("orders")
   createOrder(@Body() body: unknown) {
     const input = createOrderInputSchema.parse(body);
+    const session = createStoredCheckoutSession({
+      storeId: input.storeId,
+      source: input.source,
+      fulfillmentType: input.fulfillmentType,
+      customerName: input.customerName,
+      customerPhone: input.customerPhone,
+      customerEmail: input.customerEmail,
+      customerAddressId: input.customerAddressId,
+      addressLine1: input.addressLine1,
+      city: input.city,
+      postcode: input.postcode,
+      notes: input.notes,
+      items: input.items,
+    });
 
     return orderSummarySchema.parse({
       id: `order_${Date.now()}`,
       orderNumber: `HE-${Math.floor(Math.random() * 9000) + 1000}`,
       storeId: input.storeId,
       status: "pending",
-      paymentStatus: "paid",
+      paymentStatus: "pending",
       fulfillmentType: input.fulfillmentType,
       source: input.source,
-      totalAmount: 15.49,
-      currency: "GBP",
+      totalAmount: session.totalAmount,
+      currency: session.currency,
       placedAt: new Date().toISOString(),
       prepTimeMinutes: null,
     });

@@ -1,9 +1,10 @@
 import Link from "next/link";
 
 import { featuredStores, storeMenus } from "../../../src/lib/demo";
+import { StoreMenuClient } from "./store-menu-client";
 
 const fallbackStore = featuredStores[0]!;
-const fallbackMenu = storeMenus["harbour-kitchen-hull"]!;
+const fallbackMenu = storeMenus["loaded-munch-hull"]!;
 
 function getStoreStatus(storefrontStatus: string, isOpen: boolean) {
   if (storefrontStatus === "onboarding") {
@@ -17,6 +18,7 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
   const resolvedParams = await params;
   const store = featuredStores.find((entry) => entry.slug === resolvedParams.slug) ?? fallbackStore;
   const menu = storeMenus[store.slug] ?? fallbackMenu;
+  const hasLiveMenu = menu.items.length > 0;
 
   return (
     <main className="shell">
@@ -59,106 +61,84 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
           </div>
         </div>
 
-        <aside className="hero-sidecard compact">
-          <p className="eyebrow">Marketplace state</p>
-          <h2>Storefront is live</h2>
-          <p>Customers can discover this business now while the owner adds categories, prices, stock, and images later.</p>
-          <div className="hero-sidecard-grid">
-            <div className="stat-card">
-              <span>Items</span>
-              <strong>0</strong>
-            </div>
-            <div className="stat-card">
-              <span>Visibility</span>
-              <strong>High</strong>
-            </div>
-          </div>
-        </aside>
       </section>
 
       <section className="detail-grid">
         <div className="content-stack">
-          <section className="feature-panel">
+          <section className="feature-panel feature-panel-contrast">
             <div className="section-heading">
               <div>
-                <h2>Business onboarding status</h2>
-                <p>This empty-state flow should still feel polished and trustworthy to customers.</p>
+                <h2>{hasLiveMenu ? "Store overview" : "Business onboarding status"}</h2>
+                <p>
+                  {hasLiveMenu
+                    ? "Loaded Munch is the launch partner hub, so this storefront now shows a real seeded menu while preserving the same premium mobile-first layout."
+                    : "This empty-state flow should still feel polished and trustworthy to customers."}
+                </p>
               </div>
             </div>
 
             <div className="store-tags">
               <span className="store-tag">Storefront {store.storefrontStatus}</span>
               <span className="store-tag">{store.isOpen ? "Visible to customers" : "Opening soon"}</span>
-              <span className="store-tag">Menu not entered yet</span>
+              <span className="store-tag">{hasLiveMenu ? `${menu.categories.length} live categories` : "Menu not entered yet"}</span>
             </div>
 
             <p className="store-copy">{store.onboardingMessage}</p>
 
             <div className="button-row">
-              <button type="button" className="primary-button">
-                Notify me when ordering opens
-              </button>
-              <button type="button" className="glass-button">
-                Follow this business
-              </button>
+              {hasLiveMenu ? (
+                <>
+                  <Link href={`/checkout/${store.slug}`} className="primary-button">
+                    Start order
+                  </Link>
+                  <button type="button" className="glass-button">
+                    Save Loaded Munch
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button type="button" className="primary-button">
+                    Notify me when ordering opens
+                  </button>
+                  <button type="button" className="glass-button">
+                    Follow this business
+                  </button>
+                </>
+              )}
             </div>
           </section>
 
-          <section className="feature-panel">
+          <section className="feature-panel feature-panel-menu">
             <div className="section-heading">
               <div>
-                <h2>Catalog placeholder</h2>
-                <p>For now this page sells the brand and the store, not the products.</p>
+                <h2>{hasLiveMenu ? "Menu" : "Catalog placeholder"}</h2>
+                <p>{hasLiveMenu ? "Seeded categories and prices for the launch takeaway hub." : "For now this page sells the brand and the store, not the products."}</p>
               </div>
             </div>
 
-            <article className="empty-catalog-card">
-              <div className="empty-catalog-icon">HE</div>
-              <div>
-                <h3>No items added yet</h3>
-                <p>
-                  Once the business finishes setup in the back office, this page can instantly switch into full browse,
-                  basket, checkout, and order tracking mode without redesigning the storefront.
-                </p>
-              </div>
-            </article>
+            {hasLiveMenu ? (
+              <StoreMenuClient
+                storeId={store.id}
+                storeSlug={store.slug}
+                storeName={store.name}
+                categories={menu.categories}
+              />
+            ) : (
+              <article className="empty-catalog-card">
+                <div className="empty-catalog-icon">HE</div>
+                <div>
+                  <h3>No items added yet</h3>
+                  <p>
+                    Once the business finishes setup in the back office, this page can instantly switch into full browse,
+                    basket, checkout, and order tracking mode without redesigning the storefront.
+                  </p>
+                </div>
+              </article>
+            )}
           </section>
         </div>
 
         <aside className="sidebar-stack">
-          <section className="feature-panel">
-            <div className="section-heading compact">
-              <div>
-                <h2>Order readiness</h2>
-                <p>The customer flow is ready to connect when the first items arrive.</p>
-              </div>
-            </div>
-
-            <div className="readiness-list">
-              <div className="readiness-item">
-                <span className="readiness-dot is-ready" />
-                <div>
-                  <strong>Customer account</strong>
-                  <p>Supabase auth, profile, and saved addresses.</p>
-                </div>
-              </div>
-              <div className="readiness-item">
-                <span className="readiness-dot is-ready" />
-                <div>
-                  <strong>Subscription upsell</strong>
-                  <p>Monthly free-delivery plan through Stripe.</p>
-                </div>
-              </div>
-              <div className="readiness-item">
-                <span className="readiness-dot is-pending" />
-                <div>
-                  <strong>Menu entry</strong>
-                  <p>Waiting for business owner to add categories and stock.</p>
-                </div>
-              </div>
-            </div>
-          </section>
-
           <section className="feature-panel">
             <div className="section-heading compact">
               <div>
@@ -183,16 +163,14 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
               <span className="muted-copy">Minimum order</span>
               <strong>GBP {store.minimumOrderAmount?.toFixed(2)}</strong>
             </div>
+            {store.logoImageUrl ? (
+              <div className="store-logo-panel">
+                <img src={store.logoImageUrl} alt={`${store.name} logo`} className="store-logo-preview" />
+              </div>
+            ) : null}
           </section>
         </aside>
       </section>
-
-      <nav className="mobile-dock" aria-label="Primary">
-        <span className="nav-icon">Home</span>
-        <span className="nav-icon is-active">Browse</span>
-        <span className="nav-icon">Orders</span>
-        <span className="nav-icon">Account</span>
-      </nav>
     </main>
   );
 }

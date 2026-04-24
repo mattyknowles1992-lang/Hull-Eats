@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { createOrderInputSchema, fulfillmentTypeSchema, orderSourceSchema } from "./orders";
+import { fulfillmentTypeSchema, orderLineInputSchema, orderSourceSchema } from "./orders";
 
 export const checkoutSessionStatuses = [
   "draft",
@@ -20,30 +20,60 @@ export const createCheckoutSessionInputSchema = z.object({
   storeId: z.string().min(1),
   source: orderSourceSchema.default("web"),
   fulfillmentType: fulfillmentTypeSchema.default("delivery"),
+  customerName: z.string().min(1),
+  customerPhone: z.string().min(1),
+  customerEmail: z.string().email().optional(),
   customerAddressId: z.string().min(1).optional(),
+  addressLine1: z.string().min(1).optional(),
+  city: z.string().min(1).optional(),
+  postcode: z.string().min(1).optional(),
+  promoCode: z.string().max(64).optional(),
   notes: z.string().max(500).optional(),
+  items: z.array(orderLineInputSchema).min(1),
+});
+
+export const checkoutSessionLineSchema = z.object({
+  menuItemId: z.string().min(1),
+  name: z.string().min(1),
+  quantity: z.number().int().positive(),
+  unitPrice: z.number().nonnegative(),
+  lineTotal: z.number().nonnegative(),
+  notes: z.string().max(280).optional(),
 });
 
 export const checkoutSessionSchema = z.object({
   id: z.string().min(1),
   storeId: z.string().min(1),
+  storeName: z.string().min(1),
   source: orderSourceSchema,
   fulfillmentType: fulfillmentTypeSchema,
   status: checkoutSessionStatusSchema,
+  customerName: z.string().min(1),
+  customerPhone: z.string().min(1),
+  customerEmail: z.string().email().optional(),
   customerAddressId: z.string().min(1).optional(),
+  addressLine1: z.string().min(1).optional(),
+  city: z.string().min(1).optional(),
+  postcode: z.string().min(1).optional(),
+  promoCode: z.string().max(64).optional(),
+  notes: z.string().max(500).optional(),
+  lineItems: z.array(checkoutSessionLineSchema),
+  itemCount: z.number().int().nonnegative(),
   subtotalAmount: z.number().nonnegative(),
   deliveryFee: z.number().nonnegative(),
   totalAmount: z.number().nonnegative(),
   currency: z.string().length(3),
   canPlaceOrder: z.boolean(),
   menuSetupComplete: z.boolean(),
+  minimumOrderAmount: z.number().nonnegative(),
+  isMinimumOrderMet: z.boolean(),
 });
 
-export const placeOrderFromCheckoutInputSchema = createOrderInputSchema.extend({
+export const placeOrderFromCheckoutInputSchema = z.object({
   checkoutSessionId: z.string().min(1),
 });
 
 export type CreateCheckoutSessionInput = z.infer<typeof createCheckoutSessionInputSchema>;
 export type CheckoutSession = z.infer<typeof checkoutSessionSchema>;
+export type CheckoutSessionLine = z.infer<typeof checkoutSessionLineSchema>;
 export type PlaceOrderFromCheckoutInput = z.infer<typeof placeOrderFromCheckoutInputSchema>;
-

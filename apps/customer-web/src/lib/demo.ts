@@ -1,113 +1,40 @@
 import type { MenuItem, OrderSummary, StoreSummary } from "@hull-eats/types";
+import { loadedMunchMenuItems, loadedMunchMenuSections, loadedMunchStore } from "@hull-eats/sdk";
+
+type StoreMenuDemo = {
+  headline: string;
+  categories: Array<{
+    id: string;
+    name: string;
+    description?: string;
+    items: MenuItem[];
+  }>;
+  items: MenuItem[];
+};
 
 export const featuredStores: StoreSummary[] = [
-  {
-    id: "store_harbour_kitchen_hull",
-    merchantId: "business_harbour_kitchen",
-    slug: "harbour-kitchen-hull",
-    name: "Harbour Kitchen Hull",
-    type: "restaurant",
-    storefrontStatus: "live",
-    city: "Hull",
-    postcode: "HU1 2AB",
-    isOpen: true,
-    cuisineLabel: "Modern comfort food",
-    etaMinutes: 22,
-    deliveryFee: 2.99,
-    minimumOrderAmount: 12,
-    menuSetupComplete: false,
-    onboardingMessage: "This business is onboarding its menu. Customers can discover the store while products are added.",
-    heroImageUrl:
-      "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=80",
-  },
-  {
-    id: "store_dockside_grocer_hull",
-    merchantId: "business_dockside_grocer",
-    slug: "dockside-grocer-hull",
-    name: "Dockside Grocer Hull",
-    type: "shop",
-    storefrontStatus: "live",
-    city: "Hull",
-    postcode: "HU1 1TU",
-    isOpen: true,
-    cuisineLabel: "Groceries and convenience",
-    etaMinutes: 18,
-    deliveryFee: 3.49,
-    minimumOrderAmount: 10,
-    menuSetupComplete: false,
-    onboardingMessage: "Stock and items are being entered by the business owner.",
-    heroImageUrl:
-      "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1200&q=80",
-  },
-  {
-    id: "store_ember_burger_hull",
-    merchantId: "business_ember_burger",
-    slug: "ember-burger-hull",
-    name: "Ember Burger Hull",
-    type: "takeaway",
-    storefrontStatus: "onboarding",
-    city: "Hull",
-    postcode: "HU3 1XL",
-    isOpen: false,
-    cuisineLabel: "Burgers",
-    etaMinutes: 24,
-    deliveryFee: 2.49,
-    minimumOrderAmount: 11,
-    menuSetupComplete: false,
-    onboardingMessage: "Business setup is in progress. Menu entry has not started yet.",
-    heroImageUrl:
-      "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=1200&q=80",
-  },
-  {
-    id: "store_north_point_takeaway_hull",
-    merchantId: "business_north_point_takeaway",
-    slug: "north-point-takeaway-hull",
-    name: "North Point Takeaway Hull",
-    type: "takeaway",
-    storefrontStatus: "live",
-    city: "Hull",
-    postcode: "HU3 1BH",
-    isOpen: true,
-    cuisineLabel: "Takeaway favourites",
-    etaMinutes: 19,
-    deliveryFee: 2.79,
-    minimumOrderAmount: 9.5,
-    menuSetupComplete: false,
-    onboardingMessage: "Store is live in the marketplace and ready for menu entry.",
-    heroImageUrl:
-      "https://images.unsplash.com/photo-1515003197210-e0cd71810b5f?auto=format&fit=crop&w=1200&q=80",
-  },
+  loadedMunchStore,
 ];
 
-export const storeMenus: Record<string, { headline: string; items: MenuItem[] }> = {
-  "harbour-kitchen-hull": {
-    headline: "The storefront is live first so the business can onboard smoothly without needing to upload every item on day one.",
-    items: [],
-  },
-  "dockside-grocer-hull": {
-    headline: "Convenience stores can join the marketplace first and add stock in batches as they get set up.",
-    items: [],
-  },
-  "ember-burger-hull": {
-    headline: "This business is still onboarding and has not entered any items yet.",
-    items: [],
-  },
-  "north-point-takeaway-hull": {
-    headline: "The marketplace base app is ready for this business to enter categories, items, prices, and stock later.",
-    items: [],
+export const storeMenus: Record<string, StoreMenuDemo> = {
+  "loaded-munch-hull": {
+    headline:
+      "Loaded Munch is set up as a live partner hub with a seeded menu so Hull Eats can launch from a real takeaway base while future menu edits still belong in the merchant portal.",
+    categories: loadedMunchMenuSections,
+    items: loadedMunchMenuItems,
   },
 };
 
 export const trackedOrder: OrderSummary = {
   id: "order_HE_1002",
   orderNumber: "HE-1002",
-  storeId: "store_dockside_grocer_hull",
+  storeId: loadedMunchStore.id,
   status: "assigned",
   paymentStatus: "paid",
   fulfillmentType: "delivery",
   source: "ios_app",
-  totalAmount: 8.99,
+  totalAmount: 24.98,
   currency: "GBP",
   placedAt: new Date().toISOString(),
-  prepTimeMinutes: 10,
+  prepTimeMinutes: 18,
 };

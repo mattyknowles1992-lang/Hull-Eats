@@ -1,39 +1,38 @@
 import { Body, Controller, Param, Post } from "@nestjs/common";
 
-import { checkoutSessionSchema, createCheckoutSessionInputSchema } from "@hull-eats/types";
+import { createCheckoutSessionInputSchema, placeOrderFromCheckoutInputSchema } from "@hull-eats/types";
 
-import { demoStores } from "../../common/demo-data";
+import {
+  createStoredCheckoutSession,
+  placeStoredCheckoutOrder,
+  refreshStoredCheckoutSession,
+} from "../../common/checkout-engine";
 
 @Controller("checkout")
 export class CheckoutController {
   @Post("sessions")
   createCheckoutSession(@Body() body: unknown) {
     const input = createCheckoutSessionInputSchema.parse(body);
-    const store = demoStores.find((entry) => entry.id === input.storeId || entry.slug === input.storeId) ?? demoStores[0]!;
-
-    return checkoutSessionSchema.parse({
-      id: `checkout_${Date.now()}`,
-      storeId: store.id,
-      source: input.source,
-      fulfillmentType: input.fulfillmentType,
-      status: input.customerAddressId ? "pricing_pending" : "address_pending",
-      customerAddressId: input.customerAddressId,
-      subtotalAmount: 0,
-      deliveryFee: Number(store.deliveryFee ?? 0),
-      totalAmount: Number(store.deliveryFee ?? 0),
-      currency: "GBP",
-      canPlaceOrder: false,
-      menuSetupComplete: store.menuSetupComplete,
-    });
+    return createStoredCheckoutSession(input);
   }
 
   @Post("sessions/:checkoutSessionId/refresh")
   refreshCheckoutSession(@Param("checkoutSessionId") checkoutSessionId: string) {
-    return {
+    return refreshStoredCheckoutSession(checkoutSessionId);
+  }
+
+  @Post("sessions/:checkoutSessionId/place-order")
+  placeOrderFromCheckout(@Param("checkoutSessionId") checkoutSessionId: string, @Body() body: unknown) {
+    const input = placeOrderFromCheckoutInputSchema.parse({
+      ...(typeof body === "object" && body !== null ? body : {}),
       checkoutSessionId,
-      status: "pricing_pending",
-      message: "Checkout pricing refresh placeholder. Real stock and pricing logic will attach here next.",
+    });
+
+    return {
+      checkoutSessionId: input.checkoutSessionId,
+      order: placeStoredCheckoutOrder(input.checkoutSessionId),
+      paymentRequired: true,
+      nextStep: "stripe_payment_intent",
     };
   }
 }
-

@@ -3,6 +3,12 @@ import Link from "next/link";
 import { featuredStores, trackedOrder } from "../src/lib/demo";
 
 const filters = ["All", "Restaurants", "Takeaways", "Deli & Cafe", "Shops", "Opening soon"];
+const quickPicks = [
+  { title: "Burgers", detail: "Smash stacks and loaded trays" },
+  { title: "Chicken", detail: "Buttermilk burgers and strips" },
+  { title: "Desserts", detail: "Cookie dough, shakes, refreshers" },
+  { title: "Shops", detail: "Groceries and convenience" },
+];
 
 function getStoreStatus(storefrontStatus: string, isOpen: boolean) {
   if (storefrontStatus === "onboarding") {
@@ -25,21 +31,48 @@ export default function CustomerHomePage() {
         </div>
 
         <div className="topbar-actions">
-          <button type="button" className="glass-button">
+          <Link href="/register" className="glass-button">
             Hull Eats+
-          </button>
-          <button type="button" className="icon-button">
+          </Link>
+          <Link href="/register" className="icon-button">
             Account
-          </button>
+          </Link>
         </div>
       </header>
 
       <section className="search-panel">
+        <div className="search-heading">
+          <div>
+            <p className="eyebrow">Start your order</p>
+            <h1 className="search-title">Search for a business or pick what you feel like eating.</h1>
+            <p className="search-copy">
+              The fastest path to conversion should be obvious: search, tap a food type, then open a live menu.
+            </p>
+          </div>
+          <div className="search-highlight-card">
+            <span className="search-highlight-label">Featured live now</span>
+            <strong>Loaded Munch</strong>
+            <p>Seeded menu, real pricing, and the first checkout flow on Hull Eats.</p>
+            <Link href="/stores/loaded-munch-hull" className="primary-button" style={{ width: "100%" }}>
+              Open Loaded Munch
+            </Link>
+          </div>
+        </div>
+
         <div className="search-row">
           <input className="search-input" aria-label="Search businesses" defaultValue="Search takeaways, cafes, shops..." />
           <button type="button" className="primary-button">
             Explore Hull
           </button>
+        </div>
+
+        <div className="quick-pick-grid" aria-label="Quick food choices">
+          {quickPicks.map((pick) => (
+            <button key={pick.title} type="button" className="quick-pick-card">
+              <strong>{pick.title}</strong>
+              <span>{pick.detail}</span>
+            </button>
+          ))}
         </div>
 
         <div className="search-meta-row">
@@ -61,7 +94,7 @@ export default function CustomerHomePage() {
           <div className="section-heading">
             <div>
               <h2>Businesses on Hull Eats</h2>
-              <p>Every storefront looks launch-ready even before the merchant enters a single item.</p>
+              <p>Open a live menu fast, compare delivery details quickly, and move straight into checkout.</p>
             </div>
           </div>
 
@@ -99,7 +132,7 @@ export default function CustomerHomePage() {
                   <p className="store-copy">{store.onboardingMessage}</p>
 
                   <div className="store-card-footer">
-                    <span className="ghost-link">Preview storefront</span>
+                    <span className="card-cta">{store.menuSetupComplete ? "Order now" : "Preview storefront"}</span>
                     <span className="ghost-link">Save business</span>
                   </div>
                 </div>
@@ -109,7 +142,7 @@ export default function CustomerHomePage() {
         </div>
 
         <aside className="sidebar-stack">
-          <section className="feature-panel">
+          <section className="feature-panel feature-panel-dark">
             <div className="section-heading compact">
               <div>
                 <h2>Hull Eats+</h2>
@@ -120,47 +153,39 @@ export default function CustomerHomePage() {
             <div className="membership-card">
               <div className="membership-price">GBP 9.99/mo</div>
               <p>Unlimited free delivery on eligible orders, account perks, and priority launch access for new stores.</p>
-              <button type="button" className="primary-button" style={{ width: "100%" }}>
+              <Link href="/register" className="primary-button" style={{ width: "100%" }}>
                 Join membership
-              </button>
+              </Link>
             </div>
           </section>
 
-          <section className="feature-panel">
+          <section className="feature-panel feature-panel-contrast">
             <div className="section-heading compact">
               <div>
-                <h2>Account snapshot</h2>
+                <h2>Popular right now</h2>
+                <p>Fast routes into the parts of the marketplace most likely to convert.</p>
               </div>
             </div>
 
             <div className="glance-row">
-              <span className="muted-copy">Latest order</span>
-              <strong>{trackedOrder.orderNumber}</strong>
+              <span className="muted-copy">Featured live menu</span>
+              <strong>Loaded Munch</strong>
             </div>
             <div className="glance-row">
-              <span className="muted-copy">Status</span>
+              <span className="muted-copy">Best for</span>
+              <strong>Burgers and loaded fries</strong>
+            </div>
+            <div className="glance-row">
+              <span className="muted-copy">Fastest action</span>
+              <strong>Search or tap a quick pick</strong>
+            </div>
+            <div className="glance-row">
+              <span className="muted-copy">Current order status demo</span>
               <span className="status-chip assigned">{trackedOrder.status.replaceAll("_", " ")}</span>
-            </div>
-            <div className="glance-row">
-              <span className="muted-copy">Channel</span>
-              <strong>{trackedOrder.source.replaceAll("_", " ")}</strong>
-            </div>
-            <div className="glance-row">
-              <span className="muted-copy">Total</span>
-              <strong>
-                {trackedOrder.currency} {trackedOrder.totalAmount.toFixed(2)}
-              </strong>
             </div>
           </section>
         </aside>
       </section>
-
-      <nav className="mobile-dock" aria-label="Primary">
-        <span className="nav-icon is-active">Home</span>
-        <span className="nav-icon">Browse</span>
-        <span className="nav-icon">Orders</span>
-        <span className="nav-icon">Account</span>
-      </nav>
     </main>
   );
 }

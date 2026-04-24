@@ -1,96 +1,36 @@
 import type { MenuItem, OrderSummary, StoreSummary } from "@hull-eats/types";
+import { loadedMunchMenuItems, loadedMunchMenuSections, loadedMunchStore, type DemoMenuSection } from "@hull-eats/sdk";
 
 export const demoStores: StoreSummary[] = [
-  {
-    id: "store_harbour_kitchen_hull",
-    merchantId: "business_harbour_kitchen",
-    slug: "harbour-kitchen-hull",
-    name: "Harbour Kitchen Hull",
-    type: "restaurant",
-    storefrontStatus: "live",
-    city: "Hull",
-    postcode: "HU1 2AB",
-    isOpen: true,
-    cuisineLabel: "Modern comfort food",
-    etaMinutes: 22,
-    deliveryFee: 2.99,
-    minimumOrderAmount: 12,
-    menuSetupComplete: false,
-    onboardingMessage: "This business is onboarding its menu. Customers can discover the store while products are added.",
-    heroImageUrl:
-      "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=80",
-  },
-  {
-    id: "store_dockside_grocer_hull",
-    merchantId: "business_dockside_grocer",
-    slug: "dockside-grocer-hull",
-    name: "Dockside Grocer Hull",
-    type: "shop",
-    storefrontStatus: "live",
-    city: "Hull",
-    postcode: "HU1 1TU",
-    isOpen: true,
-    cuisineLabel: "Groceries and convenience",
-    etaMinutes: 18,
-    deliveryFee: 3.49,
-    minimumOrderAmount: 10,
-    menuSetupComplete: false,
-    onboardingMessage: "Stock and items are being entered by the business owner.",
-    heroImageUrl:
-      "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1200&q=80",
-  },
-  {
-    id: "store_ember_burger_hull",
-    merchantId: "business_ember_burger",
-    slug: "ember-burger-hull",
-    name: "Ember Burger Hull",
-    type: "takeaway",
-    storefrontStatus: "onboarding",
-    city: "Hull",
-    postcode: "HU3 1XL",
-    isOpen: false,
-    cuisineLabel: "Burgers",
-    etaMinutes: 24,
-    deliveryFee: 2.49,
-    minimumOrderAmount: 11,
-    menuSetupComplete: false,
-    onboardingMessage: "Business setup is in progress. Menu entry has not started yet.",
-    heroImageUrl:
-      "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=1200&q=80",
-  },
-  {
-    id: "store_north_point_takeaway_hull",
-    merchantId: "business_north_point_takeaway",
-    slug: "north-point-takeaway-hull",
-    name: "North Point Takeaway Hull",
-    type: "takeaway",
-    storefrontStatus: "live",
-    city: "Hull",
-    postcode: "HU3 1BH",
-    isOpen: true,
-    cuisineLabel: "Takeaway favourites",
-    etaMinutes: 19,
-    deliveryFee: 2.79,
-    minimumOrderAmount: 9.5,
-    menuSetupComplete: false,
-    onboardingMessage: "Store is live in the marketplace and ready for menu entry.",
-    heroImageUrl:
-      "https://images.unsplash.com/photo-1515003197210-e0cd71810b5f?auto=format&fit=crop&w=1200&q=80",
-  },
+  loadedMunchStore,
 ];
 
 export const demoMenuByStore: Record<string, MenuItem[]> = {
-  "harbour-kitchen-hull": [],
-  "dockside-grocer-hull": [],
-  "ember-burger-hull": [],
-  "north-point-takeaway-hull": [],
+  "loaded-munch-hull": loadedMunchMenuItems,
+};
+
+export const demoMenuSectionsByStore: Record<string, DemoMenuSection[]> = {
+  "loaded-munch-hull": loadedMunchMenuSections,
 };
 
 export const demoOrders: OrderSummary[] = [
   {
+    id: "order_HE_0998",
+    orderNumber: "HE-0998",
+    storeId: loadedMunchStore.id,
+    status: "preparing",
+    paymentStatus: "paid",
+    fulfillmentType: "delivery",
+    source: "web",
+    totalAmount: 27.97,
+    currency: "GBP",
+    placedAt: new Date().toISOString(),
+    prepTimeMinutes: 18,
+  },
+  {
     id: "order_HE_1001",
     orderNumber: "HE-1001",
-    storeId: "store_harbour_kitchen_hull",
+    storeId: loadedMunchStore.id,
     status: "pending",
     paymentStatus: "paid",
     fulfillmentType: "delivery",
@@ -103,14 +43,14 @@ export const demoOrders: OrderSummary[] = [
   {
     id: "order_HE_1002",
     orderNumber: "HE-1002",
-    storeId: "store_dockside_grocer_hull",
+    storeId: loadedMunchStore.id,
     status: "assigned",
     paymentStatus: "paid",
     fulfillmentType: "delivery",
     source: "ios_app",
-    totalAmount: 8.99,
+    totalAmount: 24.98,
     currency: "GBP",
     placedAt: new Date().toISOString(),
-    prepTimeMinutes: 10,
+    prepTimeMinutes: 18,
   },
 ];
