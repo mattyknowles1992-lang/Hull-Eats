@@ -215,11 +215,12 @@ export class HubRegistryService {
     await this.ensurePilotHub();
 
     const slug = slugify(input.businessName) || `hub-${Date.now()}`;
-    const ownerName = `${input.businessName} Owner`;
-    const ownerEmail = `${slug}@hub.local`;
+    const ownerName = input.ownerName.trim();
+    const ownerEmail = input.ownerEmail.trim().toLowerCase();
+    const hubUsername = input.hubUsername.trim();
 
     const [usernameExists, emailExists, slugExists] = await Promise.all([
-      prisma.hubUser.findUnique({ where: { username: input.hubUsername.trim() } }),
+      prisma.hubUser.findUnique({ where: { username: hubUsername } }),
       prisma.hubUser.findUnique({ where: { email: ownerEmail } }),
       prisma.merchant.findUnique({ where: { slug } }),
     ]);
@@ -266,7 +267,7 @@ export class HubRegistryService {
           merchantId: merchant.id,
           fullName: ownerName,
           email: ownerEmail,
-          username: input.hubUsername.trim(),
+          username: hubUsername,
           passwordHash: hashPassword(input.hubPassword),
           role: "OWNER",
           status: "ACTIVE",
@@ -305,11 +306,14 @@ export class HubRegistryService {
     };
   }
 
-  async authenticate(username: string, password: string) {
+  async authenticate(usernameOrEmail: string, password: string) {
     await this.ensurePilotHub();
 
-    const hubUser = await prisma.hubUser.findUnique({
-      where: { username: username.trim() },
+    const login = usernameOrEmail.trim();
+    const hubUser = await prisma.hubUser.findFirst({
+      where: {
+        OR: [{ username: login }, { email: login.toLowerCase() }],
+      },
     });
 
     if (!hubUser || !hubUser.isActive || hubUser.status === "DISABLED" || !verifyPassword(password, hubUser.passwordHash)) {
@@ -395,6 +399,7 @@ export class HubRegistryService {
               description: item.description,
               price: item.price,
               imageUrl: item.imageUrl,
+              customisationConfig: this.buildCustomisationConfig(item),
               isActive: item.isActive,
               trackStock: item.trackStock,
               stockQuantity: item.stockQuantity,
@@ -410,6 +415,7 @@ export class HubRegistryService {
               description: item.description,
               price: item.price,
               imageUrl: item.imageUrl,
+              customisationConfig: this.buildCustomisationConfig(item),
               isActive: item.isActive,
               trackStock: item.trackStock,
               stockQuantity: item.stockQuantity,
@@ -566,6 +572,7 @@ export class HubRegistryService {
         name: input.name,
         description: input.description,
         price: input.price,
+        customisationConfig: this.buildCustomisationConfig(input),
         isActive: true,
         isFeatured: false,
         trackStock: false,
@@ -741,13 +748,14 @@ export class HubRegistryService {
           where: { categoryId: section.id },
         });
 
-        await tx.menuItem.create({
-          data: {
-            categoryId: section.id,
-            name: candidate.itemName,
-            description: candidate.description,
-            price: candidate.price,
-            isActive: true,
+          await tx.menuItem.create({
+            data: {
+              categoryId: section.id,
+              name: candidate.itemName,
+              description: candidate.description,
+              price: candidate.price,
+              customisationConfig: this.buildCustomisationConfig({ components: [], optionGroups: [] }),
+              isActive: true,
             isFeatured: false,
             trackStock: false,
             stockQuantity: null,
@@ -888,6 +896,7 @@ export class HubRegistryService {
               name: item.name,
               description: item.description,
               price: item.price,
+              customisationConfig: this.buildCustomisationConfig(item),
               isActive: item.isActive,
               trackStock: item.trackStock,
               stockQuantity: item.stockQuantity,
@@ -1048,7 +1057,17 @@ export class HubRegistryService {
     };
   }
 
+  private buildCustomisationConfig(item: { components?: unknown; optionGroups?: unknown }) {
+    return {
+      components: Array.isArray(item.components) ? item.components : [],
+      optionGroups: Array.isArray(item.optionGroups) ? item.optionGroups : [],
+    };
+  }
+
   private mapMenuItem(item: any) {
+    const customisationConfig =
+      item.customisationConfig && typeof item.customisationConfig === "object" ? item.customisationConfig : {};
+
     return {
       id: item.id,
       categoryId: item.categoryId,
@@ -1063,6 +1082,8 @@ export class HubRegistryService {
       allowBackorder: item.allowBackorder,
       maxPerOrder: item.maxPerOrder,
       sortOrder: item.sortOrder,
+      components: Array.isArray(customisationConfig.components) ? customisationConfig.components : [],
+      optionGroups: Array.isArray(customisationConfig.optionGroups) ? customisationConfig.optionGroups : [],
     };
   }
 

@@ -87,6 +87,8 @@ export const merchantWorkspaceSchema = z.object({
 
 export const createHubInputSchema = z.object({
   businessName: z.string().min(1),
+  ownerName: z.string().min(1),
+  ownerEmail: z.string().email(),
   type: storeTypeSchema,
   hubUsername: z.string().min(1),
   hubPassword: z.string().min(1),
@@ -120,6 +122,8 @@ export const createHubMenuItemInputSchema = z.object({
   name: z.string().min(1),
   description: z.string().default(""),
   price: z.number().nonnegative(),
+  components: menuItemSchema.shape.components.default([]),
+  optionGroups: menuItemSchema.shape.optionGroups.default([]),
 });
 
 export const previewMenuImportInputSchema = z.object({

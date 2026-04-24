@@ -5,6 +5,8 @@
 - GitHub for source control, pull requests, and Render auto-deploy integration
 - Render for:
   - `apps/customer-web`
+  - `apps/merchant-portal`
+  - `apps/admin-portal`
   - `apps/api`
   - `apps/worker`
   - Redis-compatible Key Value for queues and realtime fan-out
@@ -51,6 +53,8 @@ Do not store:
 Defined in [render.yaml](/C:/Hull_Eats/render.yaml):
 
 - `hull-eats-customer-web`
+- `hull-eats-merchant-portal`
+- `hull-eats-admin-portal`
 - `hull-eats-api`
 - `hull-eats-worker`
 - `hull-eats-redis`
@@ -73,6 +77,12 @@ Defined in [render.yaml](/C:/Hull_Eats/render.yaml):
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
+
+### Software portal env
+
+- `NEXT_PUBLIC_API_URL`
+
+The admin portal and merchant portal are deployed as separate web services. They do not own customer storefront state directly; they authenticate against the API and read/write hub, user, business settings, menu, import, order, and printer data through API routes backed by Postgres.
 
 ### Mobile app env
 

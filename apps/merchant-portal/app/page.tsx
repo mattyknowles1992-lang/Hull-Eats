@@ -2,10 +2,14 @@
 
 import { useMemo, useState } from "react";
 
-import type { HubMenuSection, HubSettings, HubUser, MerchantWorkspace } from "@hull-eats/types";
+import type { HubMenuSection, HubSettings, HubUser, MerchantWorkspace, MenuItem } from "@hull-eats/types";
 
 type HubRole = "owner" | "manager" | "staff";
 type StockStatus = "in_stock" | "low_stock" | "out_of_stock";
+type MenuComponent = MenuItem["components"][number];
+type MenuOptionGroup = MenuItem["optionGroups"][number];
+type MenuOption = MenuOptionGroup["options"][number];
+
 const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000").replace(/\/$/, "");
 
 type MerchantLoginResponse = {
@@ -69,14 +73,51 @@ const emptyHubSettings: HubSettings = {
 };
 
 const moneyInput = (value: number) => value.toFixed(2);
+const formatMoney = (value: number) => `£${value.toFixed(2)}`;
 
-async function loginToHub(username: string, password: string): Promise<MerchantLoginResponse> {
+const createDraftId = (prefix: string) => `${prefix}-${Math.random().toString(36).slice(2, 8)}-${Date.now().toString(36)}`;
+
+const parseCsv = (value: string) =>
+  value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+const createEmptyComponent = (): MenuComponent => ({
+  id: createDraftId("component"),
+  label: "",
+  quantity: 1,
+  removable: false,
+});
+
+const createEmptyOption = (): MenuOption => ({
+  id: createDraftId("option"),
+  label: "",
+  description: "",
+  priceDelta: 0,
+  isDefault: false,
+  maxQuantity: 1,
+});
+
+const createEmptyOptionGroup = (): MenuOptionGroup => ({
+  id: createDraftId("group"),
+  name: "",
+  description: "",
+  selectionMode: "single",
+  isRequired: false,
+  minSelections: 0,
+  maxSelections: 1,
+  showWhenValueIds: [],
+  options: [createEmptyOption()],
+});
+
+async function loginToHub(usernameOrEmail: string, password: string): Promise<MerchantLoginResponse> {
   const response = await fetch(`${apiBaseUrl}/v1/merchant/auth/login`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
     },
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ username: usernameOrEmail, password }),
   });
 
   if (!response.ok) {
@@ -175,7 +216,13 @@ async function createMenuItem(
   token: string,
   hubId: string,
   sectionId: string,
-  input: { name: string; description: string; price: number },
+  input: {
+    name: string;
+    description: string;
+    price: number;
+    components: MenuItem["components"];
+    optionGroups: MenuItem["optionGroups"];
+  },
 ) {
   const response = await fetch(`${apiBaseUrl}/v1/merchant/hubs/${hubId}/menu-sections/${sectionId}/items`, {
     method: "POST",
@@ -259,6 +306,313 @@ async function applyMenuImport(token: string, hubId: string, importId: string, a
   return (await response.json()) as MerchantWorkspace;
 }
 
+type CustomisationBuilderProps = {
+  item: MenuItem;
+  onChangeComponents: (components: MenuItem["components"]) => void;
+  onChangeOptionGroups: (optionGroups: MenuItem["optionGroups"]) => void;
+};
+
+function CustomisationBuilder({ item, onChangeComponents, onChangeOptionGroups }: CustomisationBuilderProps) {
+  const optionReferenceList = item.optionGroups.flatMap((group) =>
+    group.options.map((option) => ({
+      id: option.id,
+      label: option.label || option.id,
+      groupName: group.name || "Unnamed group",
+    })),
+  );
+
+  const updateComponent = (componentId: string, patch: Partial<MenuComponent>) => {
+    onChangeComponents(item.components.map((component) => (component.id === componentId ? { ...component, ...patch } : component)));
+  };
+
+  const updateGroup = (groupId: string, patch: Partial<MenuOptionGroup>) => {
+    onChangeOptionGroups(item.optionGroups.map((group) => (group.id === groupId ? { ...group, ...patch } : group)));
+  };
+
+  const updateOption = (groupId: string, optionId: string, patch: Partial<MenuOption>) => {
+    onChangeOptionGroups(
+      item.optionGroups.map((group) =>
+        group.id === groupId
+          ? {
+              ...group,
+              options: group.options.map((option) => (option.id === optionId ? { ...option, ...patch } : option)),
+            }
+          : group,
+      ),
+    );
+  };
+
+  return (
+    <div style={{ display: "grid", gap: 14 }}>
+      <section style={subBuilderCard}>
+        <div style={subBuilderHeader}>
+          <div>
+            <strong style={builderTitle}>Included ingredients</strong>
+            <p style={builderCopy}>Set what comes in the item by default and whether the customer can remove it.</p>
+          </div>
+          <button type="button" style={secondaryButtonSmall} onClick={() => onChangeComponents([...item.components, createEmptyComponent()])}>
+            Add ingredient
+          </button>
+        </div>
+
+        {item.components.length === 0 ? <div style={emptyStateCard}>No ingredients yet. Add bun, patties, cheese, salad, sauces, or sides here.</div> : null}
+
+        <div style={{ display: "grid", gap: 10 }}>
+          {item.components.map((component) => (
+            <div key={component.id} style={builderRow}>
+              <input
+                style={lightInput}
+                value={component.label}
+                onChange={(event) => updateComponent(component.id, { label: event.target.value })}
+                placeholder="Ingredient name"
+              />
+              <input
+                type="number"
+                min={1}
+                style={lightInput}
+                value={component.quantity}
+                onChange={(event) => updateComponent(component.id, { quantity: Math.max(1, Number(event.target.value) || 1) })}
+              />
+              <label style={toggleLabel}>
+                <input
+                  type="checkbox"
+                  checked={component.removable}
+                  onChange={(event) => updateComponent(component.id, { removable: event.target.checked })}
+                />
+                <span>Customer can remove</span>
+              </label>
+              <button
+                type="button"
+                style={secondaryButtonSmall}
+                onClick={() => onChangeComponents(item.components.filter((entry) => entry.id !== component.id))}
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section style={subBuilderCard}>
+        <div style={subBuilderHeader}>
+          <div>
+            <strong style={builderTitle}>Option groups</strong>
+            <p style={builderCopy}>Build meal choices, drink selectors, extra toppings, sauces, and dependent follow-up options.</p>
+          </div>
+          <button type="button" style={secondaryButtonSmall} onClick={() => onChangeOptionGroups([...item.optionGroups, createEmptyOptionGroup()])}>
+            Add option group
+          </button>
+        </div>
+
+        {item.optionGroups.length === 0 ? (
+          <div style={emptyStateCard}>No option groups yet. Add groups like Meal Choice, Choose Your Can, Extras, Sauce, or Salad.</div>
+        ) : null}
+
+        <div style={{ display: "grid", gap: 14 }}>
+          {item.optionGroups.map((group) => (
+            <article key={group.id} style={optionGroupCard}>
+              <div style={subBuilderHeader}>
+                <div>
+                  <strong style={builderTitle}>{group.name || "Untitled group"}</strong>
+                  <p style={builderCopy}>Group id: {group.id}</p>
+                </div>
+                <button
+                  type="button"
+                  style={secondaryButtonSmall}
+                  onClick={() => onChangeOptionGroups(item.optionGroups.filter((entry) => entry.id !== group.id))}
+                >
+                  Remove group
+                </button>
+              </div>
+
+              <div style={builderGrid}>
+                <label style={field}>
+                  <span style={darkFieldLabel}>Group name</span>
+                  <input
+                    style={lightInput}
+                    value={group.name}
+                    onChange={(event) => updateGroup(group.id, { name: event.target.value })}
+                    placeholder="Meal choice"
+                  />
+                </label>
+                <label style={field}>
+                  <span style={darkFieldLabel}>Selection type</span>
+                  <select
+                    style={lightInput}
+                    value={group.selectionMode}
+                    onChange={(event) =>
+                      updateGroup(group.id, {
+                        selectionMode: event.target.value as MenuOptionGroup["selectionMode"],
+                        maxSelections: event.target.value === "single" ? 1 : group.maxSelections,
+                      })
+                    }
+                  >
+                    <option value="single">Single choice</option>
+                    <option value="multiple">Multiple choice</option>
+                  </select>
+                </label>
+                <label style={field}>
+                  <span style={darkFieldLabel}>Minimum selections</span>
+                  <input
+                    type="number"
+                    min={0}
+                    style={lightInput}
+                    value={group.minSelections}
+                    onChange={(event) => updateGroup(group.id, { minSelections: Math.max(0, Number(event.target.value) || 0) })}
+                  />
+                </label>
+                <label style={field}>
+                  <span style={darkFieldLabel}>Maximum selections</span>
+                  <input
+                    type="number"
+                    min={1}
+                    style={lightInput}
+                    value={group.maxSelections ?? ""}
+                    onChange={(event) =>
+                      updateGroup(group.id, {
+                        maxSelections: event.target.value ? Math.max(1, Number(event.target.value) || 1) : null,
+                      })
+                    }
+                    placeholder={group.selectionMode === "single" ? "1" : "Leave blank for no max"}
+                  />
+                </label>
+                <label style={field}>
+                  <span style={darkFieldLabel}>Description</span>
+                  <input
+                    style={lightInput}
+                    value={group.description}
+                    onChange={(event) => updateGroup(group.id, { description: event.target.value })}
+                    placeholder="Choose your can for the meal"
+                  />
+                </label>
+                <label style={field}>
+                  <span style={darkFieldLabel}>Show only after these option ids</span>
+                  <input
+                    style={lightInput}
+                    value={group.showWhenValueIds.join(", ")}
+                    onChange={(event) => updateGroup(group.id, { showWhenValueIds: parseCsv(event.target.value) })}
+                    placeholder="meal-choice-make-it-a-meal"
+                  />
+                </label>
+              </div>
+
+              <label style={toggleLabel}>
+                <input
+                  type="checkbox"
+                  checked={group.isRequired}
+                  onChange={(event) => updateGroup(group.id, { isRequired: event.target.checked })}
+                />
+                <span>Customer must choose from this group</span>
+              </label>
+
+              {optionReferenceList.length > 0 ? (
+                <div style={referenceStrip}>
+                  {optionReferenceList.map((reference) => (
+                    <span key={reference.id} style={referenceChip}>
+                      {reference.groupName}: {reference.label} / {reference.id}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+
+              <div style={{ display: "grid", gap: 10 }}>
+                {group.options.map((option) => (
+                  <div key={option.id} style={optionRow}>
+                    <div style={builderGrid}>
+                      <label style={field}>
+                        <span style={darkFieldLabel}>Option label</span>
+                        <input
+                          style={lightInput}
+                          value={option.label}
+                          onChange={(event) => updateOption(group.id, option.id, { label: event.target.value })}
+                          placeholder="Coke"
+                        />
+                      </label>
+                      <label style={field}>
+                        <span style={darkFieldLabel}>Description</span>
+                        <input
+                          style={lightInput}
+                          value={option.description}
+                          onChange={(event) => updateOption(group.id, option.id, { description: event.target.value })}
+                          placeholder="330ml can"
+                        />
+                      </label>
+                      <label style={field}>
+                        <span style={darkFieldLabel}>Price change</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          style={lightInput}
+                          value={option.priceDelta}
+                          onChange={(event) => updateOption(group.id, option.id, { priceDelta: Number(event.target.value) || 0 })}
+                        />
+                      </label>
+                      <label style={field}>
+                        <span style={darkFieldLabel}>Max quantity</span>
+                        <input
+                          type="number"
+                          min={1}
+                          style={lightInput}
+                          value={option.maxQuantity}
+                          onChange={(event) => updateOption(group.id, option.id, { maxQuantity: Math.max(1, Number(event.target.value) || 1) })}
+                        />
+                      </label>
+                    </div>
+
+                    <div style={optionActionRow}>
+                      <label style={toggleLabel}>
+                        <input
+                          type="checkbox"
+                          checked={option.isDefault}
+                          onChange={(event) => updateOption(group.id, option.id, { isDefault: event.target.checked })}
+                        />
+                        <span>Preselected by default</span>
+                      </label>
+                      <span style={subtleInfo}>Option id: {option.id}</span>
+                      <button
+                        type="button"
+                        style={secondaryButtonSmall}
+                        onClick={() =>
+                          onChangeOptionGroups(
+                            item.optionGroups.map((entry) =>
+                              entry.id === group.id
+                                ? {
+                                    ...entry,
+                                    options: entry.options.filter((existingOption) => existingOption.id !== option.id),
+                                  }
+                                : entry,
+                            ),
+                          )
+                        }
+                      >
+                        Remove option
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                <button
+                  type="button"
+                  style={secondaryButtonSmall}
+                  onClick={() =>
+                    onChangeOptionGroups(
+                      item.optionGroups.map((entry) =>
+                        entry.id === group.id ? { ...entry, options: [...entry.options, createEmptyOption()] } : entry,
+                      ),
+                    )
+                  }
+                >
+                  Add option
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export default function MerchantPortalPage() {
   const [merchantToken, setMerchantToken] = useState("");
   const [loginUsername, setLoginUsername] = useState("");
@@ -282,16 +636,24 @@ export default function MerchantPortalPage() {
 
   const menuStats = useMemo(() => {
     const totalItems = menuSections.reduce((sum, section) => sum + section.items.length, 0);
-    const activeItems = menuSections.reduce(
-      (sum, section) => sum + section.items.filter((item) => item.isActive).length,
+    const activeItems = menuSections.reduce((sum, section) => sum + section.items.filter((item) => item.isActive).length, 0);
+    const customisableItems = menuSections.reduce(
+      (sum, section) => sum + section.items.filter((item) => item.components.length > 0 || item.optionGroups.length > 0).length,
       0,
     );
+
     return {
       totalItems,
       activeItems,
       categories: menuSections.length,
+      customisableItems,
     };
   }, [menuSections]);
+
+  const updateMenuSections = (updater: (current: HubMenuSection[]) => HubMenuSection[]) => {
+    setMenuSections((current) => updater(current));
+    setSaveNotice("");
+  };
 
   const handleLogin = async () => {
     try {
@@ -326,7 +688,7 @@ export default function MerchantPortalPage() {
   };
 
   const updateSection = (sectionId: string, field: keyof HubMenuSection, value: string) => {
-    setMenuSections((current) =>
+    updateMenuSections((current) =>
       current.map((section) =>
         section.id === sectionId
           ? {
@@ -336,33 +698,19 @@ export default function MerchantPortalPage() {
           : section,
       ),
     );
-    setSaveNotice("");
   };
 
-  const updateItem = (
-    sectionId: string,
-    itemId: string,
-    field: "name" | "description" | "price" | "isActive" | "stockStatus" | "stockQuantity",
-    value: string | number | boolean | null,
-  ) => {
-    setMenuSections((current) =>
+  const updateItem = (sectionId: string, itemId: string, updater: (item: MenuItem) => MenuItem) => {
+    updateMenuSections((current) =>
       current.map((section) =>
         section.id === sectionId
           ? {
               ...section,
-              items: section.items.map((item) =>
-                item.id === itemId
-                  ? {
-                      ...item,
-                      [field]: value,
-                    }
-                  : item,
-              ),
+              items: section.items.map((item) => (item.id === itemId ? updater(item) : item)),
             }
           : section,
       ),
     );
-    setSaveNotice("");
   };
 
   const handleSaveHub = async () => {
@@ -433,33 +781,38 @@ export default function MerchantPortalPage() {
     try {
       await deleteBusinessUser(merchantToken, activeHubId, userId);
       setHubUsers((current) => current.filter((user) => user.id !== userId));
-      setUserNotice(`User removed: ${username}`);
+      setUserNotice(`${username} has been removed from this hub.`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Business user deletion failed.";
+      const message = error instanceof Error ? error.message : "Business user delete failed.";
       setUserNotice(message);
     }
   };
 
   const handleCreateCategory = async () => {
-    if (!merchantToken || !activeHubId || !newCategory.name.trim()) {
-      setMenuNotice("Enter a category name first.");
+    if (!merchantToken || !activeHubId) {
+      return;
+    }
+
+    if (!newCategory.name.trim()) {
+      setMenuNotice("Enter a category name before creating it.");
       return;
     }
 
     try {
-      const section = await createMenuCategory(merchantToken, activeHubId, {
+      const createdCategory = await createMenuCategory(merchantToken, activeHubId, {
         name: newCategory.name.trim(),
         description: newCategory.description.trim(),
       });
-      setMenuSections((current) => [...current, section]);
+
+      setMenuSections((current) => [...current, createdCategory]);
       setNewCategory(initialCreateCategoryState);
       setNewItem((current) => ({
         ...current,
-        sectionId: current.sectionId || section.id,
+        sectionId: current.sectionId || createdCategory.id,
       }));
-      setMenuNotice(`Category created: ${section.name}`);
+      setMenuNotice(`Created ${createdCategory.name}.`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Category creation failed.";
+      const message = error instanceof Error ? error.message : "Menu category create failed.";
       setMenuNotice(message);
     }
   };
@@ -472,16 +825,20 @@ export default function MerchantPortalPage() {
     try {
       await deleteMenuCategory(merchantToken, activeHubId, sectionId);
       setMenuSections((current) => current.filter((section) => section.id !== sectionId));
-      setMenuNotice(`Category removed: ${sectionName}`);
+      setMenuNotice(`${sectionName} removed.`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Category deletion failed.";
+      const message = error instanceof Error ? error.message : "Menu category delete failed.";
       setMenuNotice(message);
     }
   };
 
   const handleCreateItem = async () => {
-    if (!merchantToken || !activeHubId || !newItem.sectionId || !newItem.name.trim() || !newItem.price.trim()) {
-      setMenuNotice("Choose a category, then add item name and price.");
+    if (!merchantToken || !activeHubId) {
+      return;
+    }
+
+    if (!newItem.sectionId || !newItem.name.trim() || !newItem.price.trim()) {
+      setMenuNotice("Choose a category, item name, and price before creating the item.");
       return;
     }
 
@@ -490,30 +847,27 @@ export default function MerchantPortalPage() {
         name: newItem.name.trim(),
         description: newItem.description.trim(),
         price: Number(newItem.price),
+        components: [],
+        optionGroups: [],
       });
 
       setMenuSections((current) =>
         current.map((section) =>
-          section.id === newItem.sectionId
-            ? {
-                ...section,
-                items: [...section.items, createdItem],
-              }
-            : section,
+          section.id === newItem.sectionId ? { ...section, items: [...section.items, createdItem] } : section,
         ),
       );
       setNewItem((current) => ({
         ...initialCreateItemState,
         sectionId: current.sectionId,
       }));
-      setMenuNotice(`Item created: ${createdItem.name}`);
+      setMenuNotice(`Created ${createdItem.name}. Build its ingredients and options below.`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Item creation failed.";
+      const message = error instanceof Error ? error.message : "Menu item create failed.";
       setMenuNotice(message);
     }
   };
 
-  const handleDeleteItem = async (sectionId: string, itemId: string, itemName: string) => {
+  const handleDeleteItem = async (itemId: string, itemName: string) => {
     if (!merchantToken || !activeHubId) {
       return;
     }
@@ -521,53 +875,50 @@ export default function MerchantPortalPage() {
     try {
       await deleteMenuItem(merchantToken, activeHubId, itemId);
       setMenuSections((current) =>
-        current.map((section) =>
-          section.id === sectionId
-            ? {
-                ...section,
-                items: section.items.filter((item) => item.id !== itemId),
-              }
-            : section,
-        ),
+        current.map((section) => ({
+          ...section,
+          items: section.items.filter((item) => item.id !== itemId),
+        })),
       );
-      setMenuNotice(`Item removed: ${itemName}`);
+      setMenuNotice(`${itemName} removed.`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Item deletion failed.";
+      const message = error instanceof Error ? error.message : "Menu item delete failed.";
       setMenuNotice(message);
     }
   };
 
   const handlePreviewImport = async () => {
-    if (!merchantToken || !activeHubId || !selectedImportImageName.trim()) {
-      setMenuNotice("Choose a menu image first.");
+    if (!merchantToken || !activeHubId || !selectedImportImageName) {
+      setMenuNotice("Choose an image file before previewing a menu import.");
       return;
     }
 
     try {
-      const batch = await previewMenuImport(merchantToken, activeHubId, selectedImportImageName.trim());
-      setPendingImports((current) => [batch, ...current]);
-      setSelectedImportCandidateIds(batch.candidates.map((candidate) => candidate.id));
-      setMenuNotice(`Menu image queued for review: ${batch.imageName}`);
+      const createdBatch = await previewMenuImport(merchantToken, activeHubId, selectedImportImageName);
+      setPendingImports((current) => [createdBatch, ...current]);
+      setSelectedImportImageName("");
+      setSelectedImportCandidateIds(createdBatch.candidates.map((candidate) => candidate.id));
+      setMenuNotice(`Created preview batch for ${createdBatch.imageName}. Tick the right items before applying.`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Menu image import failed.";
+      const message = error instanceof Error ? error.message : "Menu import preview failed.";
       setMenuNotice(message);
     }
   };
 
   const handlePreviewPastedMenu = async () => {
     if (!merchantToken || !activeHubId || !pastedMenuText.trim()) {
-      setMenuNotice("Paste menu text first.");
+      setMenuNotice("Paste menu text before previewing imported items.");
       return;
     }
 
     try {
-      const batch = await previewMenuTextImport(merchantToken, activeHubId, pastedMenuText.trim());
-      setPendingImports((current) => [batch, ...current]);
-      setSelectedImportCandidateIds(batch.candidates.map((candidate) => candidate.id));
-      setMenuNotice(`Pasted menu text split into ${batch.candidates.length} review candidates.`);
+      const createdBatch = await previewMenuTextImport(merchantToken, activeHubId, pastedMenuText.trim());
+      setPendingImports((current) => [createdBatch, ...current]);
       setPastedMenuText("");
+      setSelectedImportCandidateIds(createdBatch.candidates.map((candidate) => candidate.id));
+      setMenuNotice("Parsed pasted menu text into review candidates.");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Menu text import failed.";
+      const message = error instanceof Error ? error.message : "Menu text import preview failed.";
       setMenuNotice(message);
     }
   };
@@ -581,149 +932,94 @@ export default function MerchantPortalPage() {
       const workspace = await applyMenuImport(merchantToken, activeHubId, importId, selectedImportCandidateIds);
       setMenuSections(workspace.menuSections);
       setPendingImports(workspace.pendingImports ?? []);
-      setMenuNotice("Selected import candidates accepted into the live menu.");
       setSelectedImportCandidateIds([]);
+      setMenuNotice("Accepted import candidates were added into the live menu builder.");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Menu import apply failed.";
       setMenuNotice(message);
     }
   };
 
-  if (!activeUser) {
+  if (!merchantToken) {
     return (
       <main style={pageShell}>
-        <div style={{ width: "min(100%, 1120px)", margin: "0 auto" }}>
-          <section style={loginHero}>
-            <div style={{ display: "grid", gap: 18 }}>
-              <div>
-                <p style={eyebrow}>Merchant hub portal</p>
-                <h1 style={heroTitle}>Business portal login</h1>
-                <p style={heroCopy}>
-                  This is the separate in-house system for business owners and staff. Admin provisions the hub, then
-                  business users sign in here to manage the storefront data that feeds the customer marketplace.
-                </p>
-              </div>
+        <section style={loginHero}>
+          <div style={{ display: "grid", gap: 16 }}>
+            <p style={eyebrow}>Merchant hub</p>
+            <h1 style={heroTitle}>Build your live menu without presets.</h1>
+            <p style={heroCopy}>
+              This hub is the real control layer for each business. Log in, create menu categories and items, and
+              build the included ingredients and customer options exactly the way the marketplace should sell them.
+            </p>
+          </div>
 
-              <div style={heroSummaryGrid}>
-                <div style={summaryCard}>
-                  <span style={summaryLabel}>Provisioning</span>
-                  <strong style={summaryValue}>Admin created</strong>
-                </div>
-                <div style={summaryCard}>
-                  <span style={summaryLabel}>Product</span>
-                  <strong style={summaryValue}>Separate hub</strong>
-                </div>
-                <div style={summaryCard}>
-                  <span style={summaryLabel}>Marketplace sync</span>
-                  <strong style={summaryValue}>Live source</strong>
-                </div>
-              </div>
+          <section style={loginPanel}>
+            <p style={eyebrowDark}>Hub login</p>
+            <h2 style={panelTitle}>Business access</h2>
+            <p style={panelCopy}>Sign in with the hub credentials created from the admin panel.</p>
+
+            <div style={{ display: "grid", gap: 14, marginTop: 18 }}>
+              <label style={field}>
+                <span style={darkFieldLabel}>Email or username</span>
+                <input style={lightInput} value={loginUsername} onChange={(event) => setLoginUsername(event.target.value)} />
+              </label>
+              <label style={field}>
+                <span style={darkFieldLabel}>Password</span>
+                <input type="password" style={lightInput} value={loginPassword} onChange={(event) => setLoginPassword(event.target.value)} />
+              </label>
+              <button type="button" style={primaryButton} onClick={handleLogin}>
+                Open hub
+              </button>
             </div>
 
-            <section style={loginPanel}>
-              <div style={{ marginBottom: 18 }}>
-                <p style={eyebrow}>Sign in</p>
-                <h2 style={panelTitle}>Open the hub</h2>
-                <p style={panelCopy}>Use the business username and password created for this hub.</p>
-              </div>
-
-              <label style={field}>
-                <span style={fieldLabel}>Username</span>
-                <input
-                  style={fieldInput}
-                  value={loginUsername}
-                  onChange={(event) => setLoginUsername(event.target.value)}
-                  placeholder="loaded-munch-admin"
-                />
-              </label>
-
-              <label style={field}>
-                <span style={fieldLabel}>Password</span>
-                <input
-                  type="password"
-                  style={fieldInput}
-                  value={loginPassword}
-                  onChange={(event) => setLoginPassword(event.target.value)}
-                  placeholder="Hub password"
-                />
-              </label>
-
-              <button type="button" onClick={handleLogin} style={primaryButton}>
-                Sign in to hub
-              </button>
-
-              {loginError ? <p style={errorMessageStyle}>{loginError}</p> : null}
-            </section>
+            {loginError ? <p style={errorMessageStyle}>{loginError}</p> : null}
           </section>
-        </div>
+        </section>
       </main>
     );
   }
 
   return (
     <main style={pageShell}>
-      <div style={{ width: "min(100%, 1300px)", margin: "0 auto", display: "grid", gap: 18 }}>
+      <div style={{ display: "grid", gap: 18 }}>
         <header style={topHeader}>
-          <div style={{ display: "grid", gap: 10 }}>
-            <p style={eyebrow}>Merchant hub workspace</p>
-            <h1 style={heroTitle}>Manage storefront, menu, prices, and users</h1>
+          <div style={{ display: "grid", gap: 8 }}>
+            <p style={eyebrow}>Hub workspace</p>
+            <h1 style={heroTitle}>{hubSettings.name || "Merchant hub"}</h1>
             <p style={heroCopy}>
-              Everything customers see for Loaded Munch should be controlled here. This page maps the business details,
-              categories, items, pricing, and user access into clearly separated editable sections.
+              Build categories, items, included ingredients, meal choices, dependent option groups, drink selectors,
+              sauces, extras, and removal rules directly from this portal.
             </p>
           </div>
 
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <div style={activeUserChip}>
-              Signed in as {activeUser.fullName} / {activeUser.role}
-            </div>
-            <button type="button" onClick={handleSaveHub} style={primaryButton}>
+          <div style={{ display: "grid", gap: 12, justifyItems: "start" }}>
+            {activeUser ? <span style={activeUserChip}>{activeUser.fullName} / {activeUser.role}</span> : null}
+            <button type="button" style={primaryButton} onClick={handleSaveHub}>
               Save hub changes
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMerchantToken("");
-                setActiveUser(null);
-                setActiveHubId("");
-                setHubUsers([]);
-                setMenuSections([]);
-                setPendingImports([]);
-                setHubSettings(emptyHubSettings);
-                setSelectedImportCandidateIds([]);
-                setSelectedImportImageName("");
-                setPastedMenuText("");
-                setLoginPassword("");
-              }}
-              style={secondaryButton}
-            >
-              Sign out
             </button>
           </div>
         </header>
 
         {saveNotice ? <p style={successMessageStyle}>{saveNotice}</p> : null}
-        {userNotice ? <p style={successMessageStyle}>{userNotice}</p> : null}
         {menuNotice ? <p style={successMessageStyle}>{menuNotice}</p> : null}
+        {userNotice ? <p style={successMessageStyle}>{userNotice}</p> : null}
 
         <section style={summaryGrid}>
-          <article style={overviewCard}>
-            <span style={summaryLabel}>Store name</span>
-            <strong style={summaryValue}>{hubSettings.name}</strong>
-          </article>
           <article style={overviewCard}>
             <span style={summaryLabel}>Categories</span>
             <strong style={summaryValue}>{menuStats.categories}</strong>
           </article>
           <article style={overviewCard}>
-            <span style={summaryLabel}>Live items</span>
-            <strong style={summaryValue}>
-              {menuStats.activeItems} / {menuStats.totalItems}
-            </strong>
+            <span style={summaryLabel}>Menu items</span>
+            <strong style={summaryValue}>{menuStats.totalItems}</strong>
           </article>
           <article style={overviewCard}>
-            <span style={summaryLabel}>Hub users</span>
-            <strong style={summaryValue}>{hubUsers.length}</strong>
+            <span style={summaryLabel}>Customisable items</span>
+            <strong style={summaryValue}>{menuStats.customisableItems}</strong>
+          </article>
+          <article style={overviewCard}>
+            <span style={summaryLabel}>Live items</span>
+            <strong style={summaryValue}>{menuStats.activeItems}</strong>
           </article>
         </section>
 
@@ -731,92 +1027,64 @@ export default function MerchantPortalPage() {
           <div style={{ display: "grid", gap: 18 }}>
             <section style={panelCard}>
               <div style={panelHeader}>
-                <div>
-                  <p style={eyebrowDark}>Business details</p>
-                  <h2 style={sectionTitle}>Storefront information</h2>
-                </div>
+                <p style={eyebrowDark}>Hub settings</p>
+                <h2 style={sectionTitle}>Business details</h2>
+                <p style={panelCopyDark}>This is the core storefront information pushed into the marketplace.</p>
               </div>
 
               <div style={twoColumnGrid}>
                 <label style={field}>
                   <span style={darkFieldLabel}>Business name</span>
-                  <input
-                    style={lightInput}
-                    value={hubSettings.name}
-                    onChange={(event) => handleHubFieldChange("name", event.target.value)}
-                  />
+                  <input style={lightInput} value={hubSettings.name} onChange={(event) => handleHubFieldChange("name", event.target.value)} />
                 </label>
-
                 <label style={field}>
-                  <span style={darkFieldLabel}>Cuisine / summary</span>
+                  <span style={darkFieldLabel}>Cuisine label</span>
                   <input
                     style={lightInput}
                     value={hubSettings.cuisineLabel}
                     onChange={(event) => handleHubFieldChange("cuisineLabel", event.target.value)}
                   />
                 </label>
-
-                <label style={{ ...field, gridColumn: "1 / -1" }}>
-                  <span style={darkFieldLabel}>Marketplace description</span>
-                  <textarea
-                    style={{ ...lightInput, minHeight: 108, paddingTop: 14, paddingBottom: 14, resize: "vertical" }}
-                    value={hubSettings.onboardingMessage}
-                    onChange={(event) => handleHubFieldChange("onboardingMessage", event.target.value)}
-                  />
-                </label>
-
                 <label style={field}>
                   <span style={darkFieldLabel}>City</span>
-                  <input
-                    style={lightInput}
-                    value={hubSettings.city}
-                    onChange={(event) => handleHubFieldChange("city", event.target.value)}
-                  />
+                  <input style={lightInput} value={hubSettings.city} onChange={(event) => handleHubFieldChange("city", event.target.value)} />
                 </label>
-
                 <label style={field}>
                   <span style={darkFieldLabel}>Postcode</span>
-                  <input
-                    style={lightInput}
-                    value={hubSettings.postcode}
-                    onChange={(event) => handleHubFieldChange("postcode", event.target.value)}
-                  />
+                  <input style={lightInput} value={hubSettings.postcode} onChange={(event) => handleHubFieldChange("postcode", event.target.value)} />
                 </label>
-
                 <label style={field}>
-                  <span style={darkFieldLabel}>Delivery ETA (mins)</span>
+                  <span style={darkFieldLabel}>Delivery ETA (minutes)</span>
                   <input
                     type="number"
+                    min={1}
                     style={lightInput}
                     value={hubSettings.etaMinutes}
-                    onChange={(event) => handleHubFieldChange("etaMinutes", Number(event.target.value))}
+                    onChange={(event) => handleHubFieldChange("etaMinutes", Math.max(1, Number(event.target.value) || 1))}
                   />
                 </label>
-
                 <label style={field}>
                   <span style={darkFieldLabel}>Delivery fee</span>
                   <input
                     type="number"
                     step="0.01"
                     style={lightInput}
-                    value={moneyInput(hubSettings.deliveryFee)}
-                    onChange={(event) => handleHubFieldChange("deliveryFee", Number(event.target.value))}
+                    value={hubSettings.deliveryFee}
+                    onChange={(event) => handleHubFieldChange("deliveryFee", Number(event.target.value) || 0)}
                   />
                 </label>
-
                 <label style={field}>
                   <span style={darkFieldLabel}>Minimum order</span>
                   <input
                     type="number"
                     step="0.01"
                     style={lightInput}
-                    value={moneyInput(hubSettings.minimumOrderAmount)}
-                    onChange={(event) => handleHubFieldChange("minimumOrderAmount", Number(event.target.value))}
+                    value={hubSettings.minimumOrderAmount}
+                    onChange={(event) => handleHubFieldChange("minimumOrderAmount", Number(event.target.value) || 0)}
                   />
                 </label>
-
                 <label style={field}>
-                  <span style={darkFieldLabel}>Store status</span>
+                  <span style={darkFieldLabel}>Open now</span>
                   <select
                     style={lightInput}
                     value={hubSettings.isOpen ? "open" : "closed"}
@@ -826,16 +1094,14 @@ export default function MerchantPortalPage() {
                     <option value="closed">Closed</option>
                   </select>
                 </label>
-
                 <label style={{ ...field, gridColumn: "1 / -1" }}>
-                  <span style={darkFieldLabel}>Logo image URL</span>
-                  <input
-                    style={lightInput}
-                    value={hubSettings.logoImageUrl}
-                    onChange={(event) => handleHubFieldChange("logoImageUrl", event.target.value)}
+                  <span style={darkFieldLabel}>Marketplace description</span>
+                  <textarea
+                    style={{ ...lightInput, minHeight: 110, paddingTop: 14, paddingBottom: 14, resize: "vertical" }}
+                    value={hubSettings.onboardingMessage}
+                    onChange={(event) => handleHubFieldChange("onboardingMessage", event.target.value)}
                   />
                 </label>
-
                 <label style={{ ...field, gridColumn: "1 / -1" }}>
                   <span style={darkFieldLabel}>Hero image URL</span>
                   <input
@@ -849,137 +1115,114 @@ export default function MerchantPortalPage() {
 
             <section style={panelCard}>
               <div style={panelHeader}>
-                <div>
-                  <p style={eyebrowDark}>Quick add</p>
-                  <h2 style={sectionTitle}>Create categories and items fast</h2>
-                  <p style={panelCopyDark}>
-                    Keep onboarding simple: add a category, then add the first items into it. Use a “Meal Deals”
-                    category when needed instead of a more complex builder for now.
-                  </p>
-                </div>
+                <p style={eyebrowDark}>Menu structure</p>
+                <h2 style={sectionTitle}>Create categories and items</h2>
+                <p style={panelCopyDark}>Create the category first, then create the item shell and configure ingredients and options underneath.</p>
               </div>
 
-              <div style={{ display: "grid", gap: 18 }}>
-                <div style={quickAddGrid}>
-                  <div style={quickAddCard}>
-                    <h3 style={quickAddTitle}>Add category</h3>
-                    <label style={field}>
-                      <span style={darkFieldLabel}>Category name</span>
-                      <input
-                        style={lightInput}
-                        value={newCategory.name}
-                        onChange={(event) => setNewCategory((current) => ({ ...current, name: event.target.value }))}
-                        placeholder="Burgers"
-                      />
-                    </label>
-                    <label style={field}>
-                      <span style={darkFieldLabel}>Description</span>
-                      <textarea
-                        style={{ ...lightInput, minHeight: 90, paddingTop: 14, paddingBottom: 14, resize: "vertical" }}
-                        value={newCategory.description}
-                        onChange={(event) =>
-                          setNewCategory((current) => ({ ...current, description: event.target.value }))
-                        }
-                        placeholder="Short category description"
-                      />
-                    </label>
-                    <button type="button" onClick={handleCreateCategory} style={primaryButton}>
-                      Create category
-                    </button>
-                  </div>
+              <div style={quickAddGrid}>
+                <div style={quickAddCard}>
+                  <h3 style={quickAddTitle}>New category</h3>
+                  <label style={field}>
+                    <span style={darkFieldLabel}>Category name</span>
+                    <input
+                      style={lightInput}
+                      value={newCategory.name}
+                      onChange={(event) => setNewCategory((current) => ({ ...current, name: event.target.value }))}
+                      placeholder="Smash Burgers"
+                    />
+                  </label>
+                  <label style={field}>
+                    <span style={darkFieldLabel}>Category description</span>
+                    <textarea
+                      style={{ ...lightInput, minHeight: 96, paddingTop: 14, paddingBottom: 14, resize: "vertical" }}
+                      value={newCategory.description}
+                      onChange={(event) => setNewCategory((current) => ({ ...current, description: event.target.value }))}
+                      placeholder="Signature smashed burgers"
+                    />
+                  </label>
+                  <button type="button" style={primaryButton} onClick={handleCreateCategory}>
+                    Create category
+                  </button>
+                </div>
 
-                  <div style={quickAddCard}>
-                    <h3 style={quickAddTitle}>Add item</h3>
-                    <label style={field}>
-                      <span style={darkFieldLabel}>Category</span>
-                      <select
-                        style={lightInput}
-                        value={newItem.sectionId}
-                        onChange={(event) => setNewItem((current) => ({ ...current, sectionId: event.target.value }))}
-                      >
-                        <option value="">Select category</option>
-                        {menuSections.map((section) => (
-                          <option key={section.id} value={section.id}>
-                            {section.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label style={field}>
-                      <span style={darkFieldLabel}>Item name</span>
-                      <input
-                        style={lightInput}
-                        value={newItem.name}
-                        onChange={(event) => setNewItem((current) => ({ ...current, name: event.target.value }))}
-                        placeholder="Classic Smash Burger"
-                      />
-                    </label>
-                    <label style={field}>
-                      <span style={darkFieldLabel}>Price</span>
-                      <input
-                        style={lightInput}
-                        value={newItem.price}
-                        onChange={(event) => setNewItem((current) => ({ ...current, price: event.target.value }))}
-                        placeholder="8.99"
-                      />
-                    </label>
-                    <label style={field}>
-                      <span style={darkFieldLabel}>Description</span>
-                      <textarea
-                        style={{ ...lightInput, minHeight: 90, paddingTop: 14, paddingBottom: 14, resize: "vertical" }}
-                        value={newItem.description}
-                        onChange={(event) =>
-                          setNewItem((current) => ({ ...current, description: event.target.value }))
-                        }
-                        placeholder="Short item description"
-                      />
-                    </label>
-                    <button type="button" onClick={handleCreateItem} style={primaryButton}>
-                      Create item
-                    </button>
-                  </div>
+                <div style={quickAddCard}>
+                  <h3 style={quickAddTitle}>New item shell</h3>
+                  <label style={field}>
+                    <span style={darkFieldLabel}>Category</span>
+                    <select
+                      style={lightInput}
+                      value={newItem.sectionId}
+                      onChange={(event) => setNewItem((current) => ({ ...current, sectionId: event.target.value }))}
+                    >
+                      <option value="">Choose category</option>
+                      {menuSections.map((section) => (
+                        <option key={section.id} value={section.id}>
+                          {section.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label style={field}>
+                    <span style={darkFieldLabel}>Item name</span>
+                    <input
+                      style={lightInput}
+                      value={newItem.name}
+                      onChange={(event) => setNewItem((current) => ({ ...current, name: event.target.value }))}
+                      placeholder="The Piggy Cow"
+                    />
+                  </label>
+                  <label style={field}>
+                    <span style={darkFieldLabel}>Price</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      style={lightInput}
+                      value={newItem.price}
+                      onChange={(event) => setNewItem((current) => ({ ...current, price: event.target.value }))}
+                      placeholder="14.99"
+                    />
+                  </label>
+                  <label style={field}>
+                    <span style={darkFieldLabel}>Description</span>
+                    <textarea
+                      style={{ ...lightInput, minHeight: 96, paddingTop: 14, paddingBottom: 14, resize: "vertical" }}
+                      value={newItem.description}
+                      onChange={(event) => setNewItem((current) => ({ ...current, description: event.target.value }))}
+                      placeholder="Two 3oz smashed beef patties with melted cheese..."
+                    />
+                  </label>
+                  <button type="button" style={primaryButton} onClick={handleCreateItem}>
+                    Create item shell
+                  </button>
                 </div>
               </div>
             </section>
 
             <section style={panelCard}>
               <div style={panelHeader}>
-                <div>
-                  <p style={eyebrowDark}>Menu editor</p>
-                  <h2 style={sectionTitle}>Categories and items</h2>
-                  <p style={panelCopyDark}>
-                    Every category and item is separated below so name, price, description, status, and stock are easy
-                    to edit.
-                  </p>
-                </div>
+                <p style={eyebrowDark}>Menu builder</p>
+                <h2 style={sectionTitle}>Build every item by hand</h2>
+                <p style={panelCopyDark}>
+                  Each business can have a different structure. Use ingredients for what comes in the item and option groups for meal upgrades, extras, drinks, sauces, removals, and follow-up choices.
+                </p>
               </div>
 
               <div style={{ display: "grid", gap: 18 }}>
-                {menuSections.length === 0 ? (
-                  <article style={categoryCard}>
-                    <h3 style={itemTitle}>No categories added yet</h3>
-                    <p style={panelCopyDark}>
-                      This new hub is ready for onboarding. Add the first category and items here next, then wire image
-                      upload and stock rules after that.
-                    </p>
-                  </article>
-                ) : null}
+                {menuSections.length === 0 ? <div style={emptyStateCard}>No categories yet. Create one above to start building the menu.</div> : null}
+
                 {menuSections.map((section) => (
                   <article key={section.id} style={categoryCard}>
                     <div style={categoryHeader}>
-                      <div style={{ display: "grid", gap: 12, flex: 1 }}>
+                      <div style={{ display: "grid", gap: 8, flex: 1 }}>
                         <label style={field}>
                           <span style={darkFieldLabel}>Category name</span>
-                          <input
-                            style={lightInput}
-                            value={section.name}
-                            onChange={(event) => updateSection(section.id, "name", event.target.value)}
-                          />
+                          <input style={lightInput} value={section.name} onChange={(event) => updateSection(section.id, "name", event.target.value)} />
                         </label>
                         <label style={field}>
                           <span style={darkFieldLabel}>Category description</span>
                           <textarea
-                            style={{ ...lightInput, minHeight: 92, paddingTop: 14, paddingBottom: 14, resize: "vertical" }}
+                            style={{ ...lightInput, minHeight: 84, paddingTop: 14, paddingBottom: 14, resize: "vertical" }}
                             value={section.description ?? ""}
                             onChange={(event) => updateSection(section.id, "description", event.target.value)}
                           />
@@ -987,45 +1230,44 @@ export default function MerchantPortalPage() {
                       </div>
                       <div style={categoryStat}>
                         <span style={summaryLabel}>Items</span>
-                        <strong style={{ ...summaryValue, color: "#0f1115" }}>{section.items.length}</strong>
+                        <strong style={{ ...summaryValue, fontSize: 22 }}>{section.items.length}</strong>
                         <button
                           type="button"
+                          style={{ ...secondaryButtonSmall, marginTop: 12, width: "100%" }}
                           onClick={() => handleDeleteCategory(section.id, section.name)}
-                          style={{ ...secondaryButton, minHeight: 38, marginTop: 12, padding: "0 12px", fontSize: 13 }}
                         >
-                          Delete category
+                          Remove category
                         </button>
                       </div>
                     </div>
 
-                    <div style={{ display: "grid", gap: 14 }}>
+                    <div style={{ display: "grid", gap: 16 }}>
                       {section.items.map((item) => (
-                        <div key={item.id} style={itemEditorCard}>
+                        <article key={item.id} style={itemEditorCard}>
                           <div style={itemTopRow}>
-                            <h3 style={itemTitle}>{item.name}</h3>
-                            <div style={itemBadgeRow}>
-                              <span style={darkBadge}>{item.isActive ? "Active" : "Hidden"}</span>
-                              <span style={orangeBadge}>{String(item.stockStatus).replaceAll("_", " ")}</span>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteItem(section.id, item.id, item.name)}
-                                style={{ ...secondaryButton, minHeight: 34, padding: "0 12px", fontSize: 13 }}
-                              >
-                                Remove
-                              </button>
+                            <div>
+                              <h3 style={itemTitle}>{item.name || "Untitled item"}</h3>
+                              <div style={itemBadgeRow}>
+                                <span style={darkBadge}>{formatMoney(item.price)}</span>
+                                <span style={orangeBadge}>
+                                  {item.components.length} ingredients / {item.optionGroups.length} groups
+                                </span>
+                              </div>
                             </div>
+                            <button type="button" style={secondaryButtonSmall} onClick={() => handleDeleteItem(item.id, item.name)}>
+                              Remove item
+                            </button>
                           </div>
 
-                          <div style={twoColumnGrid}>
+                          <div style={builderGrid}>
                             <label style={field}>
                               <span style={darkFieldLabel}>Item name</span>
                               <input
                                 style={lightInput}
                                 value={item.name}
-                                onChange={(event) => updateItem(section.id, item.id, "name", event.target.value)}
+                                onChange={(event) => updateItem(section.id, item.id, (current) => ({ ...current, name: event.target.value }))}
                               />
                             </label>
-
                             <label style={field}>
                               <span style={darkFieldLabel}>Price</span>
                               <input
@@ -1033,40 +1275,16 @@ export default function MerchantPortalPage() {
                                 step="0.01"
                                 style={lightInput}
                                 value={moneyInput(item.price)}
-                                onChange={(event) => updateItem(section.id, item.id, "price", Number(event.target.value))}
+                                onChange={(event) => updateItem(section.id, item.id, (current) => ({ ...current, price: Number(event.target.value) || 0 }))}
                               />
                             </label>
-
-                            <label style={{ ...field, gridColumn: "1 / -1" }}>
-                              <span style={darkFieldLabel}>Description</span>
-                              <textarea
-                                style={{ ...lightInput, minHeight: 96, paddingTop: 14, paddingBottom: 14, resize: "vertical" }}
-                                value={item.description}
-                                onChange={(event) => updateItem(section.id, item.id, "description", event.target.value)}
-                              />
-                            </label>
-
-                            <label style={field}>
-                              <span style={darkFieldLabel}>Visibility</span>
-                              <select
-                                style={lightInput}
-                                value={item.isActive ? "active" : "hidden"}
-                                onChange={(event) =>
-                                  updateItem(section.id, item.id, "isActive", event.target.value === "active")
-                                }
-                              >
-                                <option value="active">Active</option>
-                                <option value="hidden">Hidden</option>
-                              </select>
-                            </label>
-
                             <label style={field}>
                               <span style={darkFieldLabel}>Stock status</span>
                               <select
                                 style={lightInput}
                                 value={item.stockStatus}
                                 onChange={(event) =>
-                                  updateItem(section.id, item.id, "stockStatus", event.target.value as StockStatus)
+                                  updateItem(section.id, item.id, (current) => ({ ...current, stockStatus: event.target.value as StockStatus }))
                                 }
                               >
                                 <option value="in_stock">In stock</option>
@@ -1074,34 +1292,65 @@ export default function MerchantPortalPage() {
                                 <option value="out_of_stock">Out of stock</option>
                               </select>
                             </label>
-
-                            <label style={field}>
-                              <span style={darkFieldLabel}>Track stock</span>
-                              <select
-                                style={lightInput}
-                                value={item.trackStock ? "yes" : "no"}
-                                onChange={(event) =>
-                                  updateItem(section.id, item.id, "stockQuantity", event.target.value === "yes" ? item.stockQuantity ?? 0 : null)
-                                }
-                              >
-                                <option value="no">No</option>
-                                <option value="yes">Yes</option>
-                              </select>
-                            </label>
-
                             <label style={field}>
                               <span style={darkFieldLabel}>Stock quantity</span>
                               <input
                                 type="number"
+                                min={0}
                                 style={lightInput}
-                                value={item.stockQuantity ?? 0}
+                                value={item.stockQuantity ?? ""}
                                 onChange={(event) =>
-                                  updateItem(section.id, item.id, "stockQuantity", Number(event.target.value))
+                                  updateItem(section.id, item.id, (current) => ({
+                                    ...current,
+                                    stockQuantity: event.target.value === "" ? null : Math.max(0, Number(event.target.value) || 0),
+                                  }))
                                 }
                               />
                             </label>
                           </div>
-                        </div>
+
+                          <label style={field}>
+                            <span style={darkFieldLabel}>Description</span>
+                            <textarea
+                              style={{ ...lightInput, minHeight: 96, paddingTop: 14, paddingBottom: 14, resize: "vertical" }}
+                              value={item.description}
+                              onChange={(event) => updateItem(section.id, item.id, (current) => ({ ...current, description: event.target.value }))}
+                            />
+                          </label>
+
+                          <div style={toggleRow}>
+                            <label style={toggleLabel}>
+                              <input
+                                type="checkbox"
+                                checked={item.isActive}
+                                onChange={(event) => updateItem(section.id, item.id, (current) => ({ ...current, isActive: event.target.checked }))}
+                              />
+                              <span>Show item live in marketplace</span>
+                            </label>
+                            <label style={toggleLabel}>
+                              <input
+                                type="checkbox"
+                                checked={item.trackStock}
+                                onChange={(event) => updateItem(section.id, item.id, (current) => ({ ...current, trackStock: event.target.checked }))}
+                              />
+                              <span>Track stock quantity</span>
+                            </label>
+                            <label style={toggleLabel}>
+                              <input
+                                type="checkbox"
+                                checked={item.allowBackorder}
+                                onChange={(event) => updateItem(section.id, item.id, (current) => ({ ...current, allowBackorder: event.target.checked }))}
+                              />
+                              <span>Allow backorder</span>
+                            </label>
+                          </div>
+
+                          <CustomisationBuilder
+                            item={item}
+                            onChangeComponents={(components) => updateItem(section.id, item.id, (current) => ({ ...current, components }))}
+                            onChangeOptionGroups={(optionGroups) => updateItem(section.id, item.id, (current) => ({ ...current, optionGroups }))}
+                          />
+                        </article>
                       ))}
                     </div>
                   </article>
@@ -1116,8 +1365,7 @@ export default function MerchantPortalPage() {
                   <p style={eyebrowDark}>Menu import</p>
                   <h2 style={sectionTitle}>Upload or paste and review</h2>
                   <p style={panelCopyDark}>
-                    Upload a menu page image or paste menu text from another storefront, then tick only the correct
-                    categories and items before applying them.
+                    Upload a menu page image or paste menu text from another storefront, then tick only the correct categories and items before applying them.
                   </p>
                 </div>
               </div>
@@ -1155,8 +1403,7 @@ export default function MerchantPortalPage() {
               <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
                 {pendingImports.length === 0 ? (
                   <div style={emptyStateCard}>
-                    No pending menu imports. Upload an image or paste menu text to stage categories and items for
-                    review.
+                    No pending menu imports. Upload an image or paste menu text to stage categories and items for review.
                   </div>
                 ) : null}
 
@@ -1170,6 +1417,7 @@ export default function MerchantPortalPage() {
                     <div style={{ display: "grid", gap: 10 }}>
                       {batch.candidates.map((candidate) => {
                         const checked = selectedImportCandidateIds.includes(candidate.id);
+
                         return (
                           <label key={candidate.id} style={candidateRow}>
                             <input
@@ -1177,9 +1425,7 @@ export default function MerchantPortalPage() {
                               checked={checked}
                               onChange={(event) =>
                                 setSelectedImportCandidateIds((current) =>
-                                  event.target.checked
-                                    ? [...current, candidate.id]
-                                    : current.filter((id) => id !== candidate.id),
+                                  event.target.checked ? [...current, candidate.id] : current.filter((id) => id !== candidate.id),
                                 )
                               }
                             />
@@ -1188,7 +1434,7 @@ export default function MerchantPortalPage() {
                                 {candidate.suggestedCategoryName} / {candidate.itemName}
                               </strong>
                               <span style={subtleInfo}>
-                                £{candidate.price.toFixed(2)} / {candidate.sourceLine}
+                                {formatMoney(candidate.price)} / {candidate.sourceLine}
                               </span>
                             </div>
                           </label>
@@ -1209,9 +1455,7 @@ export default function MerchantPortalPage() {
                 <div>
                   <p style={eyebrowDark}>Business users</p>
                   <h2 style={sectionTitle}>Create hub login</h2>
-                  <p style={panelCopyDark}>
-                    Create a username and password for the business owner or other team members inside the hub.
-                  </p>
+                  <p style={panelCopyDark}>Create a username and password for the business owner or team members inside the hub.</p>
                 </div>
               </div>
 
@@ -1294,7 +1538,7 @@ export default function MerchantPortalPage() {
                       <button
                         type="button"
                         onClick={() => handleDeleteUser(user.id, user.username)}
-                        style={{ ...secondaryButton, minHeight: 34, padding: "0 12px", fontSize: 13 }}
+                        style={{ ...secondaryButtonSmall, minHeight: 34, padding: "0 12px", fontSize: 13 }}
                       >
                         Remove user
                       </button>
@@ -1307,17 +1551,17 @@ export default function MerchantPortalPage() {
             <section style={panelCard}>
               <div style={panelHeader}>
                 <div>
-                  <p style={eyebrowDark}>Next integration</p>
-                  <h2 style={sectionTitle}>What gets wired next</h2>
+                  <p style={eyebrowDark}>How to build items</p>
+                  <h2 style={sectionTitle}>Builder logic</h2>
                 </div>
               </div>
 
               <div style={{ display: "grid", gap: 10 }}>
                 {[
-                  "Move internal auth from bootstrap env users into persistent internal accounts",
-                  "Add real OCR extraction for uploaded menu images",
-                  "Add image upload for items and categories",
-                  "Connect this hub directly to the live marketplace menu",
+                  "Use ingredients for the parts already in the item, like bun, patties, cheese, onions, or lettuce.",
+                  "Use option groups for customer decisions like meal choice, sauces, drinks, fries, and extra toppings.",
+                  "Use minimum and maximum selections to force exact choices or allow multiple extras.",
+                  "Use show-only-after value ids for dependent groups like fries and can only after Make it a Meal is chosen.",
                 ].map((entry) => (
                   <div key={entry} style={listRow}>
                     <span style={orangeDot} />
@@ -1354,7 +1598,7 @@ const loginPanel: React.CSSProperties = {
   background: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(249,244,237,0.96))",
   boxShadow: "0 28px 54px rgba(15, 17, 21, 0.1)",
   padding: 24,
-  width: "min(100%, 480px)",
+  width: "min(100%, 520px)",
 };
 
 const eyebrow: React.CSSProperties = {
@@ -1373,8 +1617,8 @@ const eyebrowDark: React.CSSProperties = {
 
 const heroTitle: React.CSSProperties = {
   margin: "8px 0 0",
-  fontSize: "clamp(2.4rem, 5vw, 4.8rem)",
-  lineHeight: 0.92,
+  fontSize: "clamp(2.3rem, 4vw, 4.8rem)",
+  lineHeight: 0.94,
   fontFamily: "Georgia, serif",
   letterSpacing: "-0.05em",
 };
@@ -1383,7 +1627,7 @@ const heroCopy: React.CSSProperties = {
   margin: "14px 0 0",
   color: "#596271",
   lineHeight: 1.7,
-  maxWidth: 780,
+  maxWidth: 840,
 };
 
 const panelTitle: React.CSSProperties = {
@@ -1406,46 +1650,9 @@ const panelCopyDark: React.CSSProperties = {
   lineHeight: 1.6,
 };
 
-const heroSummaryGrid: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-  gap: 14,
-  maxWidth: 760,
-};
-
-const summaryCard: React.CSSProperties = {
-  padding: 18,
-  borderRadius: 22,
-  border: "1px solid rgba(15, 17, 21, 0.12)",
-  background: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,243,236,0.96))",
-  boxShadow: "0 16px 28px rgba(15, 17, 21, 0.08)",
-};
-
-const summaryLabel: React.CSSProperties = {
-  display: "block",
-  color: "#7b8595",
-  fontSize: 12,
-  fontWeight: 800,
-  letterSpacing: "0.12em",
-  textTransform: "uppercase",
-};
-
-const summaryValue: React.CSSProperties = {
-  display: "block",
-  marginTop: 8,
-  fontSize: 28,
-  color: "#0f1115",
-};
-
 const field: React.CSSProperties = {
   display: "grid",
   gap: 8,
-};
-
-const fieldLabel: React.CSSProperties = {
-  fontSize: 14,
-  fontWeight: 800,
-  color: "#101216",
 };
 
 const darkFieldLabel: React.CSSProperties = {
@@ -1488,6 +1695,17 @@ const secondaryButton: React.CSSProperties = {
   padding: "0 18px",
   borderRadius: 16,
   border: "1px solid rgba(15, 17, 21, 0.16)",
+  color: "#101216",
+  fontWeight: 800,
+  background: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(247,241,234,0.96))",
+  cursor: "pointer",
+};
+
+const secondaryButtonSmall: React.CSSProperties = {
+  minHeight: 40,
+  padding: "0 14px",
+  borderRadius: 14,
+  border: "1px solid rgba(15, 17, 21, 0.14)",
   color: "#101216",
   fontWeight: 800,
   background: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(247,241,234,0.96))",
@@ -1537,9 +1755,33 @@ const summaryGrid: React.CSSProperties = {
   gap: 14,
 };
 
+const summaryCard: React.CSSProperties = {
+  padding: 18,
+  borderRadius: 22,
+  border: "1px solid rgba(15, 17, 21, 0.12)",
+  background: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,243,236,0.96))",
+  boxShadow: "0 16px 28px rgba(15, 17, 21, 0.08)",
+};
+
 const overviewCard: React.CSSProperties = {
   ...summaryCard,
   background: "linear-gradient(180deg, rgba(255,255,255,1), rgba(249,244,237,0.98))",
+};
+
+const summaryLabel: React.CSSProperties = {
+  display: "block",
+  color: "#7b8595",
+  fontSize: 12,
+  fontWeight: 800,
+  letterSpacing: "0.12em",
+  textTransform: "uppercase",
+};
+
+const summaryValue: React.CSSProperties = {
+  display: "block",
+  marginTop: 8,
+  fontSize: 28,
+  color: "#0f1115",
 };
 
 const portalGrid: React.CSSProperties = {
@@ -1578,7 +1820,7 @@ const twoColumnGrid: React.CSSProperties = {
 
 const quickAddGrid: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+  gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
   gap: 16,
 };
 
@@ -1616,7 +1858,7 @@ const categoryHeader: React.CSSProperties = {
 };
 
 const categoryStat: React.CSSProperties = {
-  minWidth: 120,
+  minWidth: 150,
   padding: 16,
   borderRadius: 18,
   border: "1px solid rgba(15, 17, 21, 0.1)",
@@ -1652,6 +1894,7 @@ const itemBadgeRow: React.CSSProperties = {
   display: "flex",
   gap: 8,
   flexWrap: "wrap",
+  marginTop: 8,
 };
 
 const darkBadge: React.CSSProperties = {
@@ -1678,7 +1921,107 @@ const orangeBadge: React.CSSProperties = {
   border: "1px solid rgba(255, 106, 0, 0.22)",
   fontWeight: 800,
   fontSize: 13,
-  textTransform: "capitalize",
+};
+
+const builderGrid: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+  gap: 12,
+};
+
+const toggleRow: React.CSSProperties = {
+  display: "flex",
+  gap: 14,
+  flexWrap: "wrap",
+};
+
+const toggleLabel: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 8,
+  fontWeight: 700,
+  color: "#485260",
+  flexWrap: "wrap",
+};
+
+const subBuilderCard: React.CSSProperties = {
+  display: "grid",
+  gap: 14,
+  padding: 16,
+  borderRadius: 20,
+  border: "1px solid rgba(15, 17, 21, 0.1)",
+  background: "linear-gradient(180deg, #fff, #fbf7f1)",
+};
+
+const subBuilderHeader: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 12,
+  alignItems: "flex-start",
+  flexWrap: "wrap",
+};
+
+const builderTitle: React.CSSProperties = {
+  color: "#0f1115",
+  fontSize: 18,
+};
+
+const builderCopy: React.CSSProperties = {
+  margin: "6px 0 0",
+  color: "#6a7280",
+  lineHeight: 1.5,
+};
+
+const builderRow: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: 10,
+  alignItems: "center",
+};
+
+const optionGroupCard: React.CSSProperties = {
+  display: "grid",
+  gap: 14,
+  padding: 14,
+  borderRadius: 18,
+  border: "1px solid rgba(15, 17, 21, 0.1)",
+  background: "#fff",
+};
+
+const optionRow: React.CSSProperties = {
+  display: "grid",
+  gap: 10,
+  padding: 12,
+  borderRadius: 16,
+  border: "1px solid rgba(15, 17, 21, 0.09)",
+  background: "rgba(250, 246, 239, 0.9)",
+};
+
+const optionActionRow: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 12,
+  alignItems: "center",
+  flexWrap: "wrap",
+};
+
+const referenceStrip: React.CSSProperties = {
+  display: "flex",
+  gap: 8,
+  flexWrap: "wrap",
+};
+
+const referenceChip: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  minHeight: 32,
+  padding: "0 12px",
+  borderRadius: 999,
+  border: "1px solid rgba(15, 17, 21, 0.1)",
+  background: "#fff",
+  color: "#596271",
+  fontSize: 12,
+  fontWeight: 700,
 };
 
 const userCard: React.CSSProperties = {

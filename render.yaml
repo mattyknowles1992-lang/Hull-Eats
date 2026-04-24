@@ -141,3 +141,33 @@ services:
         sync: false
       - key: DEFAULT_CURRENCY
         value: GBP
+
+  - type: web
+    name: hull-eats-merchant-portal
+    runtime: node
+    plan: starter
+    region: frankfurt
+    rootDir: .
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @hull-eats/merchant-portal build
+    startCommand: corepack pnpm --filter @hull-eats/merchant-portal exec next start --port $PORT
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_API_URL
+        sync: false
+
+  - type: web
+    name: hull-eats-admin-portal
+    runtime: node
+    plan: starter
+    region: frankfurt
+    rootDir: .
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @hull-eats/admin-portal build
+    startCommand: corepack pnpm --filter @hull-eats/admin-portal exec next start --port $PORT
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_API_URL
+        sync: false

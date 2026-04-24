@@ -125,6 +125,8 @@ async function createAdminHub(
   token: string,
   input: {
     businessName: string;
+    ownerName: string;
+    ownerEmail: string;
     type: BusinessType;
     hubUsername: string;
     hubPassword: string;
@@ -381,6 +383,8 @@ export function AdminConsole() {
   ]);
 
   const [businessName, setBusinessName] = useState("");
+  const [ownerName, setOwnerName] = useState("");
+  const [ownerEmail, setOwnerEmail] = useState("");
   const [businessType, setBusinessType] = useState<BusinessType>("restaurant");
   const [hubUsername, setHubUsername] = useState("");
   const [hubPassword, setHubPassword] = useState("");
@@ -494,13 +498,15 @@ export function AdminConsole() {
   }, [newUserRole, selectedHub]);
 
   const handleCreateHub = async () => {
-    if (!authToken || !businessName.trim() || !hubUsername.trim() || !hubPassword.trim()) {
+    if (!authToken || !businessName.trim() || !ownerName.trim() || !ownerEmail.trim() || !hubUsername.trim() || !hubPassword.trim()) {
       return;
     }
 
     try {
       const created = await createAdminHub(authToken, {
         businessName: businessName.trim(),
+        ownerName: ownerName.trim(),
+        ownerEmail: ownerEmail.trim().toLowerCase(),
         type: businessType,
         hubUsername: hubUsername.trim(),
         hubPassword,
@@ -526,13 +532,15 @@ export function AdminConsole() {
           id: `notice_${current.length + 1}`,
           audience: created.hub.businessName,
           channel: "Hub message",
-          body: `Hub provisioned. Username: ${created.ownerUser.username} / Temporary password: ${created.temporaryPassword}`,
+          body: `Hub provisioned. Email: ${created.ownerUser.email} / Username: ${created.ownerUser.username} / Temporary password: ${created.temporaryPassword}`,
           sentAt: "Just now",
         },
         ...current,
       ]);
       setSelectedHub(created.hub.businessName);
       setBusinessName("");
+      setOwnerName("");
+      setOwnerEmail("");
       setHubUsername("");
       setHubPassword("");
       setDeliveryLeadTime("20 min");
@@ -1187,6 +1195,19 @@ export function AdminConsole() {
                 <label style={{ display: "grid", gap: 8 }}>
                   <span style={{ fontWeight: 800, color: "#dce9ff" }}>Business name</span>
                   <input style={styles.input} value={businessName} onChange={(event) => setBusinessName(event.target.value)} />
+                </label>
+                <label style={{ display: "grid", gap: 8 }}>
+                  <span style={{ fontWeight: 800, color: "#dce9ff" }}>Owner name</span>
+                  <input style={styles.input} value={ownerName} onChange={(event) => setOwnerName(event.target.value)} />
+                </label>
+                <label style={{ display: "grid", gap: 8 }}>
+                  <span style={{ fontWeight: 800, color: "#dce9ff" }}>Owner email</span>
+                  <input
+                    style={styles.input}
+                    type="email"
+                    value={ownerEmail}
+                    onChange={(event) => setOwnerEmail(event.target.value)}
+                  />
                 </label>
                 <label style={{ display: "grid", gap: 8 }}>
                   <span style={{ fontWeight: 800, color: "#dce9ff" }}>Business type</span>
