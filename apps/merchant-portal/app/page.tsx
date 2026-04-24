@@ -124,6 +124,21 @@ async function createBusinessUser(
   return (await response.json()) as HubUser;
 }
 
+async function deleteBusinessUser(token: string, hubId: string, userId: string) {
+  const response = await fetch(`${apiBaseUrl}/v1/merchant/hubs/${hubId}/users/${userId}`, {
+    method: "DELETE",
+    headers: {
+      authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Business user delete failed with status ${response.status}`);
+  }
+
+  return (await response.json()) as { deletedUserId: string };
+}
+
 async function createMenuCategory(token: string, hubId: string, input: CreateCategoryFormState): Promise<HubMenuSection> {
   const response = await fetch(`${apiBaseUrl}/v1/merchant/hubs/${hubId}/menu-sections`, {
     method: "POST",
@@ -139,6 +154,21 @@ async function createMenuCategory(token: string, hubId: string, input: CreateCat
   }
 
   return (await response.json()) as HubMenuSection;
+}
+
+async function deleteMenuCategory(token: string, hubId: string, sectionId: string) {
+  const response = await fetch(`${apiBaseUrl}/v1/merchant/hubs/${hubId}/menu-sections/${sectionId}`, {
+    method: "DELETE",
+    headers: {
+      authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Menu category delete failed with status ${response.status}`);
+  }
+
+  return (await response.json()) as { deletedSectionId: string };
 }
 
 async function createMenuItem(
@@ -161,6 +191,21 @@ async function createMenuItem(
   }
 
   return (await response.json()) as HubMenuSection["items"][number];
+}
+
+async function deleteMenuItem(token: string, hubId: string, itemId: string) {
+  const response = await fetch(`${apiBaseUrl}/v1/merchant/hubs/${hubId}/menu-items/${itemId}`, {
+    method: "DELETE",
+    headers: {
+      authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Menu item delete failed with status ${response.status}`);
+  }
+
+  return (await response.json()) as { deletedItemId: string };
 }
 
 async function previewMenuImport(token: string, hubId: string, imageName: string) {
@@ -380,6 +425,21 @@ export default function MerchantPortalPage() {
     }
   };
 
+  const handleDeleteUser = async (userId: string, username: string) => {
+    if (!merchantToken || !activeHubId) {
+      return;
+    }
+
+    try {
+      await deleteBusinessUser(merchantToken, activeHubId, userId);
+      setHubUsers((current) => current.filter((user) => user.id !== userId));
+      setUserNotice(`User removed: ${username}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Business user deletion failed.";
+      setUserNotice(message);
+    }
+  };
+
   const handleCreateCategory = async () => {
     if (!merchantToken || !activeHubId || !newCategory.name.trim()) {
       setMenuNotice("Enter a category name first.");
@@ -400,6 +460,21 @@ export default function MerchantPortalPage() {
       setMenuNotice(`Category created: ${section.name}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Category creation failed.";
+      setMenuNotice(message);
+    }
+  };
+
+  const handleDeleteCategory = async (sectionId: string, sectionName: string) => {
+    if (!merchantToken || !activeHubId) {
+      return;
+    }
+
+    try {
+      await deleteMenuCategory(merchantToken, activeHubId, sectionId);
+      setMenuSections((current) => current.filter((section) => section.id !== sectionId));
+      setMenuNotice(`Category removed: ${sectionName}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Category deletion failed.";
       setMenuNotice(message);
     }
   };
@@ -434,6 +509,30 @@ export default function MerchantPortalPage() {
       setMenuNotice(`Item created: ${createdItem.name}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Item creation failed.";
+      setMenuNotice(message);
+    }
+  };
+
+  const handleDeleteItem = async (sectionId: string, itemId: string, itemName: string) => {
+    if (!merchantToken || !activeHubId) {
+      return;
+    }
+
+    try {
+      await deleteMenuItem(merchantToken, activeHubId, itemId);
+      setMenuSections((current) =>
+        current.map((section) =>
+          section.id === sectionId
+            ? {
+                ...section,
+                items: section.items.filter((item) => item.id !== itemId),
+              }
+            : section,
+        ),
+      );
+      setMenuNotice(`Item removed: ${itemName}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Item deletion failed.";
       setMenuNotice(message);
     }
   };
@@ -889,6 +988,13 @@ export default function MerchantPortalPage() {
                       <div style={categoryStat}>
                         <span style={summaryLabel}>Items</span>
                         <strong style={{ ...summaryValue, color: "#0f1115" }}>{section.items.length}</strong>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteCategory(section.id, section.name)}
+                          style={{ ...secondaryButton, minHeight: 38, marginTop: 12, padding: "0 12px", fontSize: 13 }}
+                        >
+                          Delete category
+                        </button>
                       </div>
                     </div>
 
@@ -900,6 +1006,13 @@ export default function MerchantPortalPage() {
                             <div style={itemBadgeRow}>
                               <span style={darkBadge}>{item.isActive ? "Active" : "Hidden"}</span>
                               <span style={orangeBadge}>{String(item.stockStatus).replaceAll("_", " ")}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteItem(section.id, item.id, item.name)}
+                                style={{ ...secondaryButton, minHeight: 34, padding: "0 12px", fontSize: 13 }}
+                              >
+                                Remove
+                              </button>
                             </div>
                           </div>
 
@@ -1178,6 +1291,13 @@ export default function MerchantPortalPage() {
                     <div style={{ display: "grid", gap: 8, justifyItems: "start" }}>
                       <span style={darkBadge}>{user.role}</span>
                       <span style={subtleInfo}>Username: {user.username}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteUser(user.id, user.username)}
+                        style={{ ...secondaryButton, minHeight: 34, padding: "0 12px", fontSize: 13 }}
+                      >
+                        Remove user
+                      </button>
                     </div>
                   </article>
                 ))}
@@ -1194,8 +1314,8 @@ export default function MerchantPortalPage() {
 
               <div style={{ display: "grid", gap: 10 }}>
                 {[
-                  "Persist hub settings and users to Supabase",
-                  "Save menu edits to database tables",
+                  "Move internal auth from bootstrap env users into persistent internal accounts",
+                  "Add real OCR extraction for uploaded menu images",
                   "Add image upload for items and categories",
                   "Connect this hub directly to the live marketplace menu",
                 ].map((entry) => (

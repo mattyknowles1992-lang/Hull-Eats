@@ -42,6 +42,26 @@ begin
     create type public.storefront_status as enum ('onboarding', 'live', 'paused');
   end if;
 
+  if not exists (select 1 from pg_type where typname = 'membership_role') then
+    create type public.membership_role as enum ('owner', 'manager', 'staff');
+  end if;
+
+  if not exists (select 1 from pg_type where typname = 'hub_user_status') then
+    create type public.hub_user_status as enum ('active', 'invited', 'disabled');
+  end if;
+
+  if not exists (select 1 from pg_type where typname = 'stock_status') then
+    create type public.stock_status as enum ('in_stock', 'low_stock', 'out_of_stock');
+  end if;
+
+  if not exists (select 1 from pg_type where typname = 'menu_import_source_type') then
+    create type public.menu_import_source_type as enum ('image', 'text');
+  end if;
+
+  if not exists (select 1 from pg_type where typname = 'menu_import_status') then
+    create type public.menu_import_status as enum ('pending_review', 'applied', 'discarded');
+  end if;
+
   if not exists (select 1 from pg_type where typname = 'order_source') then
     create type public.order_source as enum ('web', 'ios_app', 'android_app', 'admin_portal');
   end if;
@@ -159,31 +179,97 @@ create table if not exists public.stores (
   delivery_fee numeric(10,2) not null default 0,
   minimum_order_amount numeric(10,2) not null default 0,
   eta_minutes integer,
+  timezone text not null default 'Europe/London',
+  logo_asset_id uuid,
+  cover_asset_id uuid,
   is_active boolean not null default true,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
 );
 
+alter table public.stores
+  add column if not exists timezone text not null default 'Europe/London',
+  add column if not exists logo_asset_id uuid,
+  add column if not exists cover_asset_id uuid;
+
 create table if not exists public.menu_categories (
   id uuid primary key default gen_random_uuid(),
   store_id uuid not null references public.stores(id) on delete cascade,
   name text not null,
+  description text,
   sort_order integer not null default 0,
   is_active boolean not null default true,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
 );
 
+alter table public.menu_categories
+  add column if not exists description text;
+
 create table if not exists public.menu_items (
   id uuid primary key default gen_random_uuid(),
   category_id uuid not null references public.menu_categories(id) on delete cascade,
+  primary_image_asset_id uuid,
+  sku text,
   name text not null,
   description text,
   price numeric(10,2),
+  compare_at_price numeric(10,2),
   image_url text,
   is_active boolean not null default false,
+  is_featured boolean not null default false,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
+);
+
+alter table public.menu_items
+  add column if not exists primary_image_asset_id uuid,
+  add column if not exists sku text,
+  add column if not exists compare_at_price numeric(10,2),
+  add column if not exists is_featured boolean not null default false,
+  add column if not exists track_stock boolean not null default false,
+  add column if not exists stock_quantity integer,
+  add column if not exists low_stock_threshold integer,
+  add column if not exists stock_status public.stock_status not null default 'in_stock',
+  add column if not exists allow_backorder boolean not null default false,
+  add column if not exists max_per_order integer,
+  add column if not exists sort_order integer not null default 0;
+
+create table if not exists public.hub_users (
+  id uuid primary key default gen_random_uuid(),
+  business_id uuid not null references public.businesses(id) on delete cascade,
+  full_name text not null,
+  email text not null unique,
+  username text not null unique,
+  password_hash text not null,
+  role public.membership_role not null default 'manager',
+  status public.hub_user_status not null default 'active',
+  is_active boolean not null default true,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create table if not exists public.menu_import_batches (
+  id uuid primary key default gen_random_uuid(),
+  store_id uuid not null references public.stores(id) on delete cascade,
+  created_by_user_id uuid references public.hub_users(id) on delete set null,
+  source_type public.menu_import_source_type not null,
+  source_label text not null,
+  status public.menu_import_status not null default 'pending_review',
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create table if not exists public.menu_import_candidates (
+  id uuid primary key default gen_random_uuid(),
+  batch_id uuid not null references public.menu_import_batches(id) on delete cascade,
+  suggested_category_name text not null,
+  item_name text not null,
+  description text,
+  price numeric(10,2) not null default 0,
+  source_line text not null,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default timezone('utc', now())
 );
 
 create table if not exists public.customer_favourites (
@@ -303,6 +389,9 @@ create index if not exists idx_stores_business on public.stores(business_id);
 create index if not exists idx_stores_status on public.stores(storefront_status, is_active);
 create index if not exists idx_menu_categories_store on public.menu_categories(store_id);
 create index if not exists idx_menu_items_category on public.menu_items(category_id);
+create index if not exists idx_hub_users_business on public.hub_users(business_id, role);
+create index if not exists idx_menu_import_batches_store on public.menu_import_batches(store_id, created_at desc);
+create index if not exists idx_menu_import_candidates_batch on public.menu_import_candidates(batch_id, sort_order);
 create index if not exists idx_orders_customer on public.orders(customer_profile_id, placed_at desc);
 create index if not exists idx_orders_store on public.orders(store_id, placed_at desc);
 create index if not exists idx_payments_customer on public.payments(customer_profile_id, created_at desc);
@@ -324,6 +413,12 @@ create trigger set_menu_categories_updated_at before update on public.menu_categ
 
 drop trigger if exists set_menu_items_updated_at on public.menu_items;
 create trigger set_menu_items_updated_at before update on public.menu_items for each row execute function public.set_updated_at();
+
+drop trigger if exists set_hub_users_updated_at on public.hub_users;
+create trigger set_hub_users_updated_at before update on public.hub_users for each row execute function public.set_updated_at();
+
+drop trigger if exists set_menu_import_batches_updated_at on public.menu_import_batches;
+create trigger set_menu_import_batches_updated_at before update on public.menu_import_batches for each row execute function public.set_updated_at();
 
 drop trigger if exists set_subscriptions_updated_at on public.subscriptions;
 create trigger set_subscriptions_updated_at before update on public.subscriptions for each row execute function public.set_updated_at();
@@ -487,6 +582,7 @@ alter table public.customer_favourites enable row level security;
 alter table public.subscriptions enable row level security;
 alter table public.subscription_events enable row level security;
 alter table public.businesses enable row level security;
+alter table public.hub_users enable row level security;
 alter table public.orders enable row level security;
 alter table public.order_items enable row level security;
 alter table public.order_status_history enable row level security;
@@ -495,6 +591,8 @@ alter table public.payment_events enable row level security;
 alter table public.stores enable row level security;
 alter table public.menu_categories enable row level security;
 alter table public.menu_items enable row level security;
+alter table public.menu_import_batches enable row level security;
+alter table public.menu_import_candidates enable row level security;
 
 drop policy if exists "customer can read own profile" on public.customer_profiles;
 create policy "customer can read own profile" on public.customer_profiles for select to authenticated using (auth.uid() = supabase_auth_user_id);

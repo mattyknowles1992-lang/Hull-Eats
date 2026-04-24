@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Param, Patch, Post } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Headers, Param, Patch, Post } from "@nestjs/common";
 
 import { MockPrinterAdapter } from "@hull-eats/printer";
 import {
@@ -30,9 +30,9 @@ export class MerchantController {
   ) {}
 
   @Post("auth/login")
-  login(@Body() body: unknown) {
+  async login(@Body() body: unknown) {
     const input = merchantLoginInputSchema.parse(body);
-    const authenticated = this.hubRegistry.authenticate(input.username, input.password);
+    const authenticated = await this.hubRegistry.authenticate(input.username, input.password);
     return {
       token: this.internalAuth.issueMerchantToken(authenticated.user),
       ...authenticated,
@@ -67,6 +67,16 @@ export class MerchantController {
     return this.hubRegistry.createHubUser(hubId, input);
   }
 
+  @Delete("hubs/:hubId/users/:userId")
+  deleteHubUser(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("hubId") hubId: string,
+    @Param("userId") userId: string,
+  ) {
+    this.internalAuth.requireMerchantToken(authorization, hubId);
+    return this.hubRegistry.deleteHubUser(hubId, userId);
+  }
+
   @Post("hubs/:hubId/menu-sections")
   createMenuSection(
     @Headers("authorization") authorization: string | undefined,
@@ -76,6 +86,16 @@ export class MerchantController {
     this.internalAuth.requireMerchantToken(authorization, hubId);
     const input = createHubMenuSectionInputSchema.parse(body);
     return this.hubRegistry.createMenuSection(hubId, input);
+  }
+
+  @Delete("hubs/:hubId/menu-sections/:sectionId")
+  deleteMenuSection(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("hubId") hubId: string,
+    @Param("sectionId") sectionId: string,
+  ) {
+    this.internalAuth.requireMerchantToken(authorization, hubId);
+    return this.hubRegistry.deleteMenuSection(hubId, sectionId);
   }
 
   @Post("hubs/:hubId/menu-sections/:sectionId/items")
@@ -88,6 +108,16 @@ export class MerchantController {
     this.internalAuth.requireMerchantToken(authorization, hubId);
     const input = createHubMenuItemInputSchema.parse(body);
     return this.hubRegistry.createMenuItem(hubId, sectionId, input);
+  }
+
+  @Delete("hubs/:hubId/menu-items/:itemId")
+  deleteMenuItem(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("hubId") hubId: string,
+    @Param("itemId") itemId: string,
+  ) {
+    this.internalAuth.requireMerchantToken(authorization, hubId);
+    return this.hubRegistry.deleteMenuItem(hubId, itemId);
   }
 
   @Post("hubs/:hubId/menu-imports/preview")

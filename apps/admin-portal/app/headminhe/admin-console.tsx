@@ -50,6 +50,17 @@ type AdminCreateHubResponse = {
   temporaryPassword: string;
 };
 
+type AdminHubUserSummary = {
+  id: string;
+  hubId: string;
+  hubBusinessName: string;
+  fullName: string;
+  email: string;
+  username: string;
+  role: "owner" | "manager" | "staff";
+  status: "active" | "invited" | "disabled";
+};
+
 type AdminLoginResponse = {
   token: string;
   admin: {
@@ -95,6 +106,21 @@ async function fetchAdminHubs(token: string): Promise<AdminHubSummary[]> {
   return (await response.json()) as AdminHubSummary[];
 }
 
+async function fetchAdminUsers(token: string): Promise<AdminHubUserSummary[]> {
+  const response = await fetch(`${apiBaseUrl}/v1/admin/users`, {
+    cache: "no-store",
+    headers: {
+      authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Admin user fetch failed with status ${response.status}`);
+  }
+
+  return (await response.json()) as AdminHubUserSummary[];
+}
+
 async function createAdminHub(
   token: string,
   input: {
@@ -119,6 +145,75 @@ async function createAdminHub(
   }
 
   return (await response.json()) as AdminCreateHubResponse;
+}
+
+async function deleteAdminHub(token: string, hubId: string) {
+  const response = await fetch(`${apiBaseUrl}/v1/admin/hubs/${hubId}`, {
+    method: "DELETE",
+    headers: {
+      authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Admin hub delete failed with status ${response.status}`);
+  }
+
+  return (await response.json()) as { deletedHubId: string; deletedBusinessName: string };
+}
+
+async function createAdminHubUser(
+  token: string,
+  hubId: string,
+  input: {
+    fullName: string;
+    email: string;
+    username: string;
+    password: string;
+    role: "owner" | "manager" | "staff";
+  },
+) {
+  const response = await fetch(`${apiBaseUrl}/v1/admin/hubs/${hubId}/users`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Admin hub user create failed with status ${response.status}`);
+  }
+
+  return (await response.json()) as {
+    id: string;
+    hubId: string;
+    fullName: string;
+    email: string;
+    username: string;
+    role: "owner" | "manager" | "staff";
+    status: "active" | "invited";
+  };
+}
+
+function mapHubRoleToPlatformRole(role: AdminHubUserSummary["role"]) {
+  if (role === "owner") {
+    return "business_owner" as const;
+  }
+
+  return "business_manager" as const;
+}
+
+function mapApiUserToRecord(user: AdminHubUserSummary) {
+  return {
+    id: user.id,
+    fullName: user.fullName,
+    email: user.email,
+    role: mapHubRoleToPlatformRole(user.role),
+    hub: user.hubBusinessName,
+    loginType: "hub" as const,
+  };
 }
 
 const styles = {
@@ -273,7 +368,7 @@ export function AdminConsole() {
   const [loginError, setLoginError] = useState("");
 
   const [hubs, setHubs] = useState(initialHubs);
-  const [users, setUsers] = useState(initialUsers);
+  const [users, setUsers] = useState(initialUsers.filter((user) => user.loginType === "platform"));
   const [couriers, setCouriers] = useState(initialCouriers);
   const [notifications, setNotifications] = useState<NotificationRecord[]>([
     {
@@ -376,13 +471,27 @@ export function AdminConsole() {
 
     void (async () => {
       try {
-        const apiHubs = await fetchAdminHubs(authToken);
+        const [apiHubs, apiUsers] = await Promise.all([fetchAdminHubs(authToken), fetchAdminUsers(authToken)]);
         setHubs(apiHubs.map(mapApiHubToRecord));
+        setUsers([
+          ...initialUsers.filter((user) => user.loginType === "platform"),
+          ...apiUsers.map(mapApiUserToRecord),
+        ]);
       } catch (error) {
         console.error(error);
       }
     })();
   }, [authToken, isLoggedIn]);
+
+  useEffect(() => {
+    if (selectedHub === "Hull Eats HQ" && (newUserRole === "business_owner" || newUserRole === "business_manager")) {
+      setNewUserRole("platform_staff");
+    }
+
+    if (selectedHub !== "Hull Eats HQ" && (newUserRole === "platform_admin" || newUserRole === "platform_staff")) {
+      setNewUserRole("business_manager");
+    }
+  }, [newUserRole, selectedHub]);
 
   const handleCreateHub = async () => {
     if (!authToken || !businessName.trim() || !hubUsername.trim() || !hubPassword.trim()) {
@@ -402,6 +511,7 @@ export function AdminConsole() {
 
       setHubs((current) => [hubRecord, ...current.filter((hub) => hub.id !== hubRecord.id)]);
       setUsers((current) => [
+        ...current.filter((user) => user.email !== created.ownerUser.email),
         {
           id: created.ownerUser.id,
           fullName: created.ownerUser.fullName,
@@ -410,7 +520,6 @@ export function AdminConsole() {
           hub: created.hub.businessName,
           loginType: "hub",
         },
-        ...current,
       ]);
       setNotifications((current) => [
         {
@@ -434,37 +543,91 @@ export function AdminConsole() {
     }
   };
 
+  const handleDeleteHub = async (hubId: string, businessName: string) => {
+    if (!authToken) {
+      return;
+    }
+
+    try {
+      await deleteAdminHub(authToken, hubId);
+      setHubs((current) => current.filter((hub) => hub.id !== hubId));
+      setUsers((current) => current.filter((user) => user.hub !== businessName));
+      setNotifications((current) => [
+        {
+          id: `notice_${current.length + 1}`,
+          audience: businessName,
+          channel: "Hub message",
+          body: `${businessName} hub was removed from the internal system.`,
+          sentAt: "Just now",
+        },
+        ...current,
+      ]);
+      setHubNotice(`Hub deleted: ${businessName}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Hub deletion failed.";
+      setHubNotice(message);
+    }
+  };
+
   const handleCreateUser = () => {
     if (!newUserName.trim() || !newUserEmail.trim() || !newUserPassword.trim()) {
       return;
     }
 
-    setUsers((current) => [
-      {
-        id: `user_${current.length + 1}`,
-        fullName: newUserName.trim(),
-        email: newUserEmail.trim(),
-        role: newUserRole,
-        hub: selectedHub,
-        loginType: selectedHub === "Hull Eats HQ" ? "platform" : "hub",
-      },
-      ...current,
-    ]);
+    if (selectedHub === "Hull Eats HQ") {
+      setHubNotice("HQ internal user persistence is not wired yet. Hub-user creation is persistent and ready.");
+      return;
+    }
 
-    setNotifications((current) => [
-      {
-        id: `notice_${current.length + 1}`,
-        audience: selectedHub,
-        channel: "Operational notice",
-        body: `${newUserName.trim()} was provisioned with ${newUserRole.replaceAll("_", " ")} access.`,
-        sentAt: "Just now",
-      },
-      ...current,
-    ]);
+    if (newUserRole !== "business_owner" && newUserRole !== "business_manager") {
+      setHubNotice("Hub users must use business owner or business manager access.");
+      return;
+    }
 
-    setNewUserName("");
-    setNewUserEmail("");
-    setNewUserPassword("");
+    const targetHub = hubs.find((hub) => hub.businessName === selectedHub);
+    if (!authToken || !targetHub) {
+      setHubNotice("Pick a valid hub before creating a business user.");
+      return;
+    }
+
+    void (async () => {
+      try {
+        const createdUser = await createAdminHubUser(authToken, targetHub.id, {
+          fullName: newUserName.trim(),
+          email: newUserEmail.trim(),
+          username: newUserEmail.trim().split("@")[0] || newUserName.trim().toLowerCase().replace(/\s+/g, "-"),
+          password: newUserPassword,
+          role: newUserRole === "business_owner" ? "owner" : "manager",
+        });
+
+        setUsers((current) => [
+          mapApiUserToRecord({
+            ...createdUser,
+            hubBusinessName: selectedHub,
+          }),
+          ...current.filter((user) => user.email !== createdUser.email),
+        ]);
+
+        setNotifications((current) => [
+          {
+            id: `notice_${current.length + 1}`,
+            audience: selectedHub,
+            channel: "Operational notice",
+            body: `${newUserName.trim()} was provisioned with ${newUserRole.replaceAll("_", " ")} access.`,
+            sentAt: "Just now",
+          },
+          ...current,
+        ]);
+
+        setNewUserName("");
+        setNewUserEmail("");
+        setNewUserPassword("");
+        setHubNotice(`Business user created for ${selectedHub}.`);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Business user creation failed.";
+        setHubNotice(message);
+      }
+    })();
   };
 
   const handleCreateCourier = () => {
@@ -1077,7 +1240,7 @@ export function AdminConsole() {
                     fontSize: 14,
                   }}
                 >
-                  Next phase: persist hub records and issue secure invites
+                  Hub records now persist in the database and can be provisioned or removed from admin
                 </div>
               </div>
 
@@ -1129,10 +1292,17 @@ export function AdminConsole() {
                     value={newUserRole}
                     onChange={(event) => setNewUserRole(event.target.value as PlatformRole)}
                   >
-                    <option value="platform_admin">Platform admin</option>
-                    <option value="platform_staff">Platform staff</option>
-                    <option value="business_owner">Business owner</option>
-                    <option value="business_manager">Business manager</option>
+                    {selectedHub === "Hull Eats HQ" ? (
+                      <>
+                        <option value="platform_admin">Platform admin</option>
+                        <option value="platform_staff">Platform staff</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="business_owner">Business owner</option>
+                        <option value="business_manager">Business manager</option>
+                      </>
+                    )}
                   </select>
                 </label>
                 <label style={{ display: "grid", gap: 8 }}>
@@ -1168,11 +1338,9 @@ export function AdminConsole() {
 
               <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
                 {hubs.map((hub) => (
-                  <Link
-                    href={`/headminhe/hubs/${hub.slug}`}
+                  <div
                     key={hub.id}
                     style={{
-                      textDecoration: "none",
                       borderRadius: 20,
                       border: "1px solid rgba(255,255,255,0.1)",
                       background: "rgba(255,255,255,0.04)",
@@ -1180,14 +1348,23 @@ export function AdminConsole() {
                       color: "#f7fbff",
                     }}
                   >
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "flex-start" }}>
                       <div>
-                        <strong style={{ fontSize: 18 }}>{hub.businessName}</strong>
-                        <p style={{ margin: "6px 0 0", color: "#9fb2c9" }}>
-                          {hub.type} / {hub.orderVolumeWeek} orders this week
-                        </p>
+                        <Link href={`/headminhe/hubs/${hub.slug}`} style={{ textDecoration: "none", color: "#f7fbff" }}>
+                          <strong style={{ fontSize: 18 }}>{hub.businessName}</strong>
+                        </Link>
+                        <p style={{ margin: "6px 0 0", color: "#9fb2c9" }}>{hub.type} / {hub.orderVolumeWeek} orders this week</p>
                       </div>
-                      <StatusPill value={hub.status} />
+                      <div style={{ display: "grid", gap: 8, justifyItems: "end" }}>
+                        <StatusPill value={hub.status} />
+                        <button
+                          type="button"
+                          style={{ ...styles.buttonGlass, minHeight: 38, padding: "0 12px", fontSize: 13 }}
+                          onClick={() => handleDeleteHub(hub.id, hub.businessName)}
+                        >
+                          Delete hub
+                        </button>
+                      </div>
                     </div>
 
                     <div
@@ -1215,7 +1392,7 @@ export function AdminConsole() {
                         <strong>{hub.activeOrders.length}</strong>
                       </div>
                     </div>
-                  </Link>
+                  </div>
                 ))}
               </div>
             </section>

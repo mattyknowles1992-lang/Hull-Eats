@@ -54,6 +54,9 @@ importers:
       '@hull-eats/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@hull-eats/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@hull-eats/dispatch-engine':
         specifier: workspace:*
         version: link:../../packages/dispatch-engine
@@ -193,6 +196,9 @@ importers:
 
   apps/merchant-portal:
     dependencies:
+      '@hull-eats/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
       '@hull-eats/types':
         specifier: workspace:*
         version: link:../../packages/types

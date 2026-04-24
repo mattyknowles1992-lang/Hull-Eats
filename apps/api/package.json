@@ -12,6 +12,7 @@
   "dependencies": {
     "@hull-eats/auth": "workspace:*",
     "@hull-eats/config": "workspace:*",
+    "@hull-eats/db": "workspace:*",
     "@hull-eats/dispatch-engine": "workspace:*",
     "@hull-eats/printer": "workspace:*",
     "@hull-eats/types": "workspace:*",

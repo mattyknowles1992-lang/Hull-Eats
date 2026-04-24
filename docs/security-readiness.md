@@ -18,42 +18,35 @@
 
 ## Still required before using real production data
 
-1. Move internal users and hubs into Supabase
-   - hubs
-   - hub users
-   - hashed passwords or Supabase Auth identities
-   - menu sections and items
-   - import batches and review history
-
-2. Replace bootstrap admin credentials with real internal accounts
+1. Replace bootstrap admin credentials with real internal accounts
    - current env-based bootstrap admin is safer than hardcoded frontend login
    - but it should become a real stored admin identity next
 
-3. Add audit logging
+2. Add audit logging
    - admin login attempts
    - hub creation
    - user creation
    - menu edits
    - import approvals
 
-4. Add rate limiting and lockout rules
+3. Add rate limiting and lockout rules
    - admin login
    - merchant login
    - sensitive write endpoints
 
-5. Add secure file upload flow
+4. Add secure file upload flow
    - storage bucket rules
    - file type checks
    - size limits
    - malware scanning later if needed
 
-6. Add proper secret management in deployment
+5. Add proper secret management in deployment
    - Render env vars only
    - no secrets in repo
    - rotate bootstrap and token secrets before launch
 
 ## Recommended next secure milestone
 
-Persist the internal system in Supabase and replace the in-memory hub registry.
+Persist internal admin identities and add audit/rate-limit protections around the now database-backed hub system.
 
-That is the main blocker between a secure prototype and a secure live internal operations product.
+The main blocker has moved from data persistence to operational hardening around who can sign in, what they can change, and how those changes are tracked.

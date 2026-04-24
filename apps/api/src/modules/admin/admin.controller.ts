@@ -1,7 +1,7 @@
-import { Body, Controller, Get, Headers, Param, Patch, Post } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Headers, Param, Patch, Post } from "@nestjs/common";
 
 import { MvpDispatchEngine } from "@hull-eats/dispatch-engine";
-import { createHubInputSchema, manualDriverAssignmentSchema } from "@hull-eats/types";
+import { createHubInputSchema, createHubUserInputSchema, manualDriverAssignmentSchema } from "@hull-eats/types";
 
 import { demoOrders } from "../../common/demo-data";
 import { HubRegistryService } from "../../common/hub-registry.service";
@@ -26,11 +26,34 @@ export class AdminController {
     return this.hubRegistry.listHubs();
   }
 
+  @Get("users")
+  listHubUsers(@Headers("authorization") authorization?: string) {
+    this.internalAuth.requireAdminToken(authorization);
+    return this.hubRegistry.listHubUsers();
+  }
+
   @Post("hubs")
   createHub(@Headers("authorization") authorization: string | undefined, @Body() body: unknown) {
     this.internalAuth.requireAdminToken(authorization);
     const input = createHubInputSchema.parse(body);
     return this.hubRegistry.createHub(input);
+  }
+
+  @Delete("hubs/:hubId")
+  deleteHub(@Headers("authorization") authorization: string | undefined, @Param("hubId") hubId: string) {
+    this.internalAuth.requireAdminToken(authorization);
+    return this.hubRegistry.deleteHub(hubId);
+  }
+
+  @Post("hubs/:hubId/users")
+  createHubUser(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("hubId") hubId: string,
+    @Body() body: unknown,
+  ) {
+    this.internalAuth.requireAdminToken(authorization);
+    const input = createHubUserInputSchema.parse(body);
+    return this.hubRegistry.createHubUser(hubId, input);
   }
 
   @Post("merchants")

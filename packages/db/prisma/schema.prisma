@@ -16,15 +16,35 @@ enum UserRole {
 }
 
 enum MembershipRole {
-  OWNER
-  MANAGER
-  STAFF
+  OWNER   @map("owner")
+  MANAGER @map("manager")
+  STAFF   @map("staff")
+
+  @@map("membership_role")
+}
+
+enum HubUserStatus {
+  ACTIVE   @map("active")
+  INVITED  @map("invited")
+  DISABLED @map("disabled")
+
+  @@map("hub_user_status")
 }
 
 enum StoreType {
-  RESTAURANT
-  TAKEAWAY
-  SHOP
+  RESTAURANT @map("restaurant")
+  TAKEAWAY   @map("takeaway")
+  SHOP       @map("shop")
+
+  @@map("store_type")
+}
+
+enum StorefrontStatus {
+  ONBOARDING @map("onboarding")
+  LIVE       @map("live")
+  PAUSED     @map("paused")
+
+  @@map("storefront_status")
 }
 
 enum FulfillmentType {
@@ -89,9 +109,26 @@ enum PrintJobStatus {
 }
 
 enum StockStatus {
-  IN_STOCK
-  LOW_STOCK
-  OUT_OF_STOCK
+  IN_STOCK     @map("in_stock")
+  LOW_STOCK    @map("low_stock")
+  OUT_OF_STOCK @map("out_of_stock")
+
+  @@map("stock_status")
+}
+
+enum MenuImportSourceType {
+  IMAGE @map("image")
+  TEXT  @map("text")
+
+  @@map("menu_import_source_type")
+}
+
+enum MenuImportStatus {
+  PENDING_REVIEW @map("pending_review")
+  APPLIED        @map("applied")
+  DISCARDED      @map("discarded")
+
+  @@map("menu_import_status")
 }
 
 enum CustomerAddressType {
@@ -183,15 +220,20 @@ model CustomerAddress {
 }
 
 model Merchant {
-  id          String               @id @default(cuid())
-  slug        String               @unique
-  name        String
-  isActive    Boolean              @default(true)
-  createdAt   DateTime             @default(now())
-  updatedAt   DateTime             @updatedAt
-  stores      Store[]
-  memberships MerchantMembership[]
-  mediaAssets MediaAsset[]
+  id           String                @id @default(uuid()) @db.Uuid
+  slug         String                @unique
+  name         String
+  supportEmail String?               @map("support_email")
+  supportPhone String?               @map("support_phone")
+  isActive     Boolean               @default(true) @map("is_active")
+  createdAt    DateTime              @default(now()) @map("created_at")
+  updatedAt    DateTime              @updatedAt @map("updated_at")
+  stores       Store[]
+  memberships  MerchantMembership[]
+  mediaAssets  MediaAsset[]
+  hubUsers     HubUser[]
+
+  @@map("businesses")
 }
 
 model MerchantMembership {
@@ -207,31 +249,41 @@ model MerchantMembership {
 }
 
 model Store {
-  id                String          @id @default(cuid())
-  merchantId        String
-  slug              String          @unique
+  id                String             @id @default(uuid()) @db.Uuid
+  merchantId        String             @map("business_id") @db.Uuid
+  slug              String             @unique
   name              String
   type              StoreType
-  addressLine1      String
+  storefrontStatus  StorefrontStatus   @default(ONBOARDING) @map("storefront_status")
+  menuSetupComplete Boolean            @default(false) @map("menu_setup_complete")
+  addressLine1      String             @map("address_line_1")
   city              String
   postcode          String
-  timezone          String          @default("Europe/London")
-  shortDescription  String?
-  cuisineLabel      String?
-  logoAssetId       String?
-  coverAssetId      String?
-  isActive          Boolean         @default(true)
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
-  merchant          Merchant        @relation(fields: [merchantId], references: [id], onDelete: Cascade)
-  logoAsset         MediaAsset?     @relation("StoreLogo", fields: [logoAssetId], references: [id], onDelete: SetNull)
-  coverAsset        MediaAsset?     @relation("StoreCover", fields: [coverAssetId], references: [id], onDelete: SetNull)
+  timezone          String             @default("Europe/London")
+  shortDescription  String?            @map("short_description")
+  cuisineLabel      String?            @map("cuisine_label")
+  onboardingMessage String?            @map("onboarding_message")
+  heroImageUrl      String?            @map("hero_image_url")
+  deliveryFee       Decimal            @default(0) @map("delivery_fee") @db.Decimal(10, 2)
+  minimumOrderAmount Decimal           @default(0) @map("minimum_order_amount") @db.Decimal(10, 2)
+  etaMinutes        Int?               @map("eta_minutes")
+  logoAssetId       String?            @map("logo_asset_id")
+  coverAssetId      String?            @map("cover_asset_id")
+  isActive          Boolean            @default(true) @map("is_active")
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+  merchant          Merchant           @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  logoAsset         MediaAsset?        @relation("StoreLogo", fields: [logoAssetId], references: [id], onDelete: SetNull)
+  coverAsset        MediaAsset?        @relation("StoreCover", fields: [coverAssetId], references: [id], onDelete: SetNull)
   storeHours        StoreHour[]
   deliveryZones     DeliveryZone[]
   menuCategories    MenuCategory[]
   orders            Order[]
   printers          Printer[]
-  uploadedAssets    MediaAsset[]    @relation("StoreAssets")
+  uploadedAssets    MediaAsset[]       @relation("StoreAssets")
+  menuImportBatches MenuImportBatch[]
+
+  @@map("stores")
 }
 
 model StoreHour {
@@ -278,40 +330,97 @@ model MediaAsset {
 }
 
 model MenuCategory {
-  id         String     @id @default(cuid())
-  storeId    String
+  id         String     @id @default(uuid()) @db.Uuid
+  storeId    String     @map("store_id") @db.Uuid
   name       String
-  sortOrder  Int        @default(0)
-  isActive   Boolean    @default(true)
+  description String?
+  sortOrder  Int        @default(0) @map("sort_order")
+  isActive   Boolean    @default(true) @map("is_active")
+  createdAt  DateTime   @default(now()) @map("created_at")
+  updatedAt  DateTime   @updatedAt @map("updated_at")
   store      Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
   menuItems  MenuItem[]
+
+  @@map("menu_categories")
 }
 
 model MenuItem {
-  id                   String                 @id @default(cuid())
-  categoryId           String
-  primaryImageAssetId  String?
+  id                   String                 @id @default(uuid()) @db.Uuid
+  categoryId           String                 @map("category_id") @db.Uuid
+  primaryImageAssetId  String?                @map("primary_image_asset_id")
   sku                  String?
   name                 String
   description          String?
-  price                Decimal                @db.Decimal(10, 2)
-  compareAtPrice       Decimal?               @db.Decimal(10, 2)
-  isActive             Boolean                @default(true)
-  isFeatured           Boolean                @default(false)
-  trackStock           Boolean                @default(false)
-  stockQuantity        Int?
-  lowStockThreshold    Int?
-  stockStatus          StockStatus            @default(IN_STOCK)
-  allowBackorder       Boolean                @default(false)
-  maxPerOrder          Int?
-  sortOrder            Int                    @default(0)
-  createdAt            DateTime               @default(now())
-  updatedAt            DateTime               @updatedAt
+  price                Decimal?               @db.Decimal(10, 2)
+  compareAtPrice       Decimal?               @map("compare_at_price") @db.Decimal(10, 2)
+  imageUrl             String?                @map("image_url")
+  isActive             Boolean                @default(true) @map("is_active")
+  isFeatured           Boolean                @default(false) @map("is_featured")
+  trackStock           Boolean                @default(false) @map("track_stock")
+  stockQuantity        Int?                   @map("stock_quantity")
+  lowStockThreshold    Int?                   @map("low_stock_threshold")
+  stockStatus          StockStatus            @default(IN_STOCK) @map("stock_status")
+  allowBackorder       Boolean                @default(false) @map("allow_backorder")
+  maxPerOrder          Int?                   @map("max_per_order")
+  sortOrder            Int                    @default(0) @map("sort_order")
+  createdAt            DateTime               @default(now()) @map("created_at")
+  updatedAt            DateTime               @updatedAt @map("updated_at")
   category             MenuCategory           @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   primaryImageAsset    MediaAsset?            @relation("MenuItemPrimaryImage", fields: [primaryImageAssetId], references: [id], onDelete: SetNull)
   availability         MenuItemAvailability[]
   inventoryAdjustments InventoryAdjustment[]
   orderItems           OrderItem[]
+
+  @@map("menu_items")
+}
+
+model HubUser {
+  id           String         @id @default(uuid()) @db.Uuid
+  merchantId   String         @map("business_id") @db.Uuid
+  fullName     String         @map("full_name")
+  email        String         @unique
+  username     String         @unique
+  passwordHash String         @map("password_hash")
+  role         MembershipRole
+  status       HubUserStatus  @default(ACTIVE)
+  isActive     Boolean        @default(true) @map("is_active")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+  merchant     Merchant       @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  menuImportBatches MenuImportBatch[] @relation("HubUserImportBatches")
+
+  @@map("hub_users")
+}
+
+model MenuImportBatch {
+  id            String              @id @default(uuid()) @db.Uuid
+  storeId       String              @map("store_id") @db.Uuid
+  createdByUserId String?           @map("created_by_user_id") @db.Uuid
+  sourceType    MenuImportSourceType @map("source_type")
+  sourceLabel   String              @map("source_label")
+  status        MenuImportStatus    @default(PENDING_REVIEW)
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime            @updatedAt @map("updated_at")
+  store         Store               @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  createdByUser HubUser?            @relation("HubUserImportBatches", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  candidates    MenuImportCandidate[]
+
+  @@map("menu_import_batches")
+}
+
+model MenuImportCandidate {
+  id                    String          @id @default(uuid()) @db.Uuid
+  batchId               String          @map("batch_id") @db.Uuid
+  suggestedCategoryName String          @map("suggested_category_name")
+  itemName              String          @map("item_name")
+  description           String?
+  price                 Decimal         @db.Decimal(10, 2)
+  sourceLine            String          @map("source_line")
+  sortOrder             Int             @default(0) @map("sort_order")
+  createdAt             DateTime        @default(now()) @map("created_at")
+  batch                 MenuImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@map("menu_import_candidates")
 }
 
 model MenuItemAvailability {

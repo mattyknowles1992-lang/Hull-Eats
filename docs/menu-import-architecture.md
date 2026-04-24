@@ -56,9 +56,9 @@ To make image import production-ready, add an async extraction pipeline:
 4. Parse OCR output into candidate categories/items/prices
 5. Return reviewed candidates back to the merchant hub
 
-## Persistence target
+## Persistence model
 
-The next persistence layer should store:
+The internal system now stores:
 
 - hubs
 - hub users
@@ -67,6 +67,6 @@ The next persistence layer should store:
 - menu items
 - import batches
 - import candidates
-- accepted/rejected review decisions
+- accepted menu changes after review
 
-For now, the flow is wired through the API in memory so the product flow can be tested quickly before moving it into Supabase.
+This flow is now database-backed through the API, so hub users, menu changes, and pending imports survive API restarts. The next production step is replacing the mocked image extraction with a real OCR/parser pipeline.
