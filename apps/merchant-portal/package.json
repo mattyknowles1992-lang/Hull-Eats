@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@hull-eats/sdk": "workspace:*",
     "@hull-eats/types": "workspace:*",
     "@hull-eats/ui": "workspace:*",
     "next": "^15.3.2",

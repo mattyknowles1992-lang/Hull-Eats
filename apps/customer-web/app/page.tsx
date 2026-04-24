@@ -77,7 +77,7 @@ export default function CustomerHomePage() {
 
         <div className="search-meta-row">
           <div className="delivery-pill">Delivering to Hull city centre</div>
-          <div className="delivery-pill is-highlighted">Free delivery with Hull Eats+ from GBP 9.99/month</div>
+        <div className="delivery-pill is-highlighted">Free delivery with Hull Eats+ from £9.99/month</div>
         </div>
 
         <div className="filter-row" aria-label="Marketplace filters">
@@ -125,8 +125,8 @@ export default function CustomerHomePage() {
 
                   <div className="store-tags">
                     <span className="store-tag">{store.etaMinutes} min</span>
-                    <span className="store-tag">Min GBP {store.minimumOrderAmount?.toFixed(2)}</span>
-                    <span className="store-tag">Delivery GBP {store.deliveryFee?.toFixed(2)}</span>
+                    <span className="store-tag">Min £{store.minimumOrderAmount?.toFixed(2)}</span>
+                    <span className="store-tag">Delivery £{store.deliveryFee?.toFixed(2)}</span>
                   </div>
 
                   <p className="store-copy">{store.onboardingMessage}</p>
@@ -151,7 +151,7 @@ export default function CustomerHomePage() {
             </div>
 
             <div className="membership-card">
-              <div className="membership-price">GBP 9.99/mo</div>
+              <div className="membership-price">£9.99/mo</div>
               <p>Unlimited free delivery on eligible orders, account perks, and priority launch access for new stores.</p>
               <Link href="/register" className="primary-button" style={{ width: "100%" }}>
                 Join membership

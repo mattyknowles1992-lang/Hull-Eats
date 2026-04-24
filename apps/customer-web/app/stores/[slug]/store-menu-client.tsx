@@ -45,7 +45,7 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
           <div>
             <p className="eyebrow">Basket ready</p>
             <h3>
-              {itemCount} item{itemCount === 1 ? "" : "s"} / GBP {subtotal.toFixed(2)}
+              {itemCount} item{itemCount === 1 ? "" : "s"} / £{subtotal.toFixed(2)}
             </h3>
           </div>
           <Link href={`/checkout/${storeSlug}`} className="primary-button">
@@ -73,7 +73,7 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
                     <h4>{item.name}</h4>
                     <p>{item.description}</p>
                   </div>
-                  <strong>GBP {item.price.toFixed(2)}</strong>
+                  <strong>£{item.price.toFixed(2)}</strong>
                 </div>
                 <div className="menu-item-footer">
                   <button

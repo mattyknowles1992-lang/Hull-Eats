@@ -2,17 +2,6 @@ import Link from "next/link";
 
 import { RegisterForm } from "./register-form";
 
-const storedDetails = [
-  "Full name",
-  "Phone number",
-  "Email address",
-  "Saved delivery address",
-  "Selected delivery plan",
-  "Promo code used at signup",
-  "Email verification status",
-  "Order history and payment references",
-];
-
 export default function RegisterPage() {
   return (
     <main className="shell">
@@ -35,58 +24,48 @@ export default function RegisterPage() {
         </div>
       </header>
 
-      <section className="register-grid">
-        <div className="content-stack">
-          <section className="feature-panel register-hero">
-            <div className="hero-badge">New account</div>
-            <h1 className="hero-title">Register once, save your address, then choose plan or pay as you go.</h1>
-            <p className="hero-subtitle">
-              Customers can sign up with their details, set a default delivery address, and decide whether they want
-              standard delivery charging or Hull Eats+ free delivery membership.
-            </p>
+      <section className="register-grid register-grid-simple">
+        <section className="feature-panel feature-panel-contrast register-intro">
+          <div className="hero-badge register-badge">Create account</div>
+          <h1 className="register-title">Create your account, add your address, and start ordering.</h1>
+          <p className="register-copy">
+            Fill in your details below. We will create your Hull Eats account and ask you to verify your email after sign up.
+          </p>
 
-            <div className="hero-meta">
-              <span className="meta-pill">Email stays unverified until confirmed</span>
-              <span className="meta-pill">Hull Eats+ requires verified email</span>
-              <span className="meta-pill">No card details stored by Hull Eats</span>
+          <div className="register-step-list" aria-label="Signup steps">
+            <article className="register-step">
+              <strong>1. Enter your details</strong>
+              <p>Name, mobile number, email, password, and delivery address.</p>
+            </article>
+            <article className="register-step">
+              <strong>2. Pick your plan</strong>
+              <p>Choose pay as you go or Hull Eats+ for free delivery.</p>
+            </article>
+            <article className="register-step">
+              <strong>3. Verify your email</strong>
+              <p>You can create your account now, but Hull Eats+ stays inactive until verified.</p>
+            </article>
+          </div>
+
+          <div className="register-note">
+            No card details are stored by Hull Eats. Payments and subscriptions are handled by Stripe.
+          </div>
+        </section>
+
+        <section className="feature-panel register-form-panel">
+          <div className="section-heading compact">
+            <div>
+              <h2>Create your Hull Eats account</h2>
+              <p>Complete the form below to continue.</p>
             </div>
-          </section>
+          </div>
 
-          <section className="feature-panel">
-            <div className="section-heading compact">
-              <div>
-                <h2>What we store</h2>
-                <p>Only the customer details needed for ordering, addresses, account management, and subscriptions.</p>
-              </div>
-            </div>
+          <RegisterForm />
 
-            <div className="collection-list">
-              {storedDetails.map((detail) => (
-                <article className="collection-card" key={detail}>
-                  <h3>{detail}</h3>
-                  <p>Saved in your customer account so the marketplace and checkout can recognise you across orders.</p>
-                </article>
-              ))}
-            </div>
-          </section>
-        </div>
-
-        <aside className="sidebar-stack">
-          <section className="feature-panel">
-            <div className="section-heading compact">
-              <div>
-                <h2>Register details</h2>
-                <p>Designed to map cleanly into Supabase Auth and your customer profile schema.</p>
-              </div>
-            </div>
-
-            <RegisterForm />
-
-            <p className="form-footer" style={{ marginTop: 18 }}>
-              Already have an account? <Link href="/" className="ghost-link">Return to storefront</Link>
-            </p>
-          </section>
-        </aside>
+          <p className="form-footer" style={{ marginTop: 18 }}>
+            Already have an account? <Link href="/" className="ghost-link">Return to storefront</Link>
+          </p>
+        </section>
       </section>
     </main>
   );

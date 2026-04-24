@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   initialCouriers,
@@ -13,8 +13,113 @@ import {
   type PlatformRole,
 } from "./data";
 
-const ADMIN_EMAIL = "matty.knowles1992@hotmail.com";
-const ADMIN_PASSWORD = "letmein";
+const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000").replace(/\/$/, "");
+
+type AdminHubSummary = {
+  id: string;
+  businessName: string;
+  slug: string;
+  type: BusinessType;
+  hubUsername: string;
+  deliveryLeadTime: string;
+  status: "live" | "onboarding" | "paused";
+  ownerName: string;
+  orderVolumeToday: number;
+  orderVolumeWeek: number;
+  grossSalesWeek: string;
+  averageOrderValue: string;
+  activeOrders: Array<{
+    id: string;
+    customerName: string;
+    status: string;
+    total: string;
+    placedAgo: string;
+  }>;
+  notes: string[];
+};
+
+type AdminCreateHubResponse = {
+  hub: AdminHubSummary;
+  ownerUser: {
+    id: string;
+    fullName: string;
+    email: string;
+    username: string;
+    role: "owner" | "manager" | "staff";
+  };
+  temporaryPassword: string;
+};
+
+type AdminLoginResponse = {
+  token: string;
+  admin: {
+    email: string;
+  };
+};
+
+function mapApiHubToRecord(hub: AdminHubSummary) {
+  return {
+    ...hub,
+    status: hub.status === "onboarding" ? "setup" : hub.status,
+  } as const;
+}
+
+async function loginToAdmin(email: string, password: string): Promise<AdminLoginResponse> {
+  const response = await fetch(`${apiBaseUrl}/v1/admin/auth/login`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ email, password }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Admin login failed with status ${response.status}`);
+  }
+
+  return (await response.json()) as AdminLoginResponse;
+}
+
+async function fetchAdminHubs(token: string): Promise<AdminHubSummary[]> {
+  const response = await fetch(`${apiBaseUrl}/v1/admin/hubs`, {
+    cache: "no-store",
+    headers: {
+      authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Admin hub fetch failed with status ${response.status}`);
+  }
+
+  return (await response.json()) as AdminHubSummary[];
+}
+
+async function createAdminHub(
+  token: string,
+  input: {
+    businessName: string;
+    type: BusinessType;
+    hubUsername: string;
+    hubPassword: string;
+    deliveryLeadTime: string;
+  },
+): Promise<AdminCreateHubResponse> {
+  const response = await fetch(`${apiBaseUrl}/v1/admin/hubs`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Admin hub create failed with status ${response.status}`);
+  }
+
+  return (await response.json()) as AdminCreateHubResponse;
+}
 
 const styles = {
   page: {
@@ -162,8 +267,9 @@ function SectionHeading({
 
 export function AdminConsole() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [loginEmail, setLoginEmail] = useState(ADMIN_EMAIL);
-  const [loginPassword, setLoginPassword] = useState(ADMIN_PASSWORD);
+  const [authToken, setAuthToken] = useState("");
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
 
   const [hubs, setHubs] = useState(initialHubs);
@@ -199,6 +305,7 @@ export function AdminConsole() {
   const [messageAudience, setMessageAudience] = useState("All hubs");
   const [messageChannel, setMessageChannel] = useState("Operational notice");
   const [messageBody, setMessageBody] = useState("");
+  const [hubNotice, setHubNotice] = useState("");
 
   const metrics = useMemo(
     () => [
@@ -209,7 +316,7 @@ export function AdminConsole() {
       { label: "Open orders", value: String(hubs.reduce((count, hub) => count + hub.activeOrders.length, 0)) },
       {
         label: "Weekly GMV",
-        value: `GBP ${hubs
+        value: `£${hubs
           .reduce((sum, hub) => sum + Number(hub.grossSalesWeek.replace(/[^\d.]/g, "")), 0)
           .toLocaleString("en-GB")}`,
       },
@@ -250,79 +357,81 @@ export function AdminConsole() {
     [couriers, hubs],
   );
 
-  const handleLogin = () => {
-    if (loginEmail === ADMIN_EMAIL && loginPassword === ADMIN_PASSWORD) {
+  const handleLogin = async () => {
+    try {
+      const response = await loginToAdmin(loginEmail.trim(), loginPassword);
+      setAuthToken(response.token);
       setIsLoggedIn(true);
       setLoginError("");
-      return;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Admin sign-in failed.";
+      setLoginError(message);
     }
-
-    setLoginError("Those temporary admin credentials did not match the current demo shell.");
   };
 
-  const handleCreateHub = () => {
-    if (!businessName.trim() || !hubUsername.trim() || !hubPassword.trim()) {
+  useEffect(() => {
+    if (!isLoggedIn || !authToken) {
       return;
     }
 
-    const hubName = businessName.trim();
-    const slug =
-      hubName
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/(^-|-$)/g, "") || `hub-${hubs.length + 1}`;
+    void (async () => {
+      try {
+        const apiHubs = await fetchAdminHubs(authToken);
+        setHubs(apiHubs.map(mapApiHubToRecord));
+      } catch (error) {
+        console.error(error);
+      }
+    })();
+  }, [authToken, isLoggedIn]);
 
-    setHubs((current) => [
-      {
-        id: `hub_${current.length + 1}`,
-        businessName: hubName,
-        slug,
+  const handleCreateHub = async () => {
+    if (!authToken || !businessName.trim() || !hubUsername.trim() || !hubPassword.trim()) {
+      return;
+    }
+
+    try {
+      const created = await createAdminHub(authToken, {
+        businessName: businessName.trim(),
         type: businessType,
         hubUsername: hubUsername.trim(),
+        hubPassword,
         deliveryLeadTime: deliveryLeadTime.trim() || "20 min",
-        status: "setup",
-        ownerName: `${hubName} Owner`,
-        orderVolumeToday: 0,
-        orderVolumeWeek: 0,
-        grossSalesWeek: "GBP 0",
-        averageOrderValue: "GBP 0.00",
-        activeOrders: [],
-        notes: [
-          "New hub created from admin operations console.",
-          "Next step is merchant sign-in and onboarding the first menu structure.",
-        ],
-      },
-      ...current,
-    ]);
+      });
 
-    setUsers((current) => [
-      {
-        id: `user_hub_${current.length + 1}`,
-        fullName: `${hubName} Owner`,
-        email: `${slug}@hub.local`,
-        role: "business_owner",
-        hub: hubName,
-        loginType: "hub",
-      },
-      ...current,
-    ]);
+      const hubRecord = mapApiHubToRecord(created.hub);
 
-    setNotifications((current) => [
-      {
-        id: `notice_${current.length + 1}`,
-        audience: hubName,
-        channel: "Hub message",
-        body: `Hub provisioned with temporary login ${hubUsername.trim()}. Next step is portal onboarding.`,
-        sentAt: "Just now",
-      },
-      ...current,
-    ]);
-
-    setSelectedHub(hubName);
-    setBusinessName("");
-    setHubUsername("");
-    setHubPassword("");
-    setDeliveryLeadTime("20 min");
+      setHubs((current) => [hubRecord, ...current.filter((hub) => hub.id !== hubRecord.id)]);
+      setUsers((current) => [
+        {
+          id: created.ownerUser.id,
+          fullName: created.ownerUser.fullName,
+          email: created.ownerUser.email,
+          role: "business_owner",
+          hub: created.hub.businessName,
+          loginType: "hub",
+        },
+        ...current,
+      ]);
+      setNotifications((current) => [
+        {
+          id: `notice_${current.length + 1}`,
+          audience: created.hub.businessName,
+          channel: "Hub message",
+          body: `Hub provisioned. Username: ${created.ownerUser.username} / Temporary password: ${created.temporaryPassword}`,
+          sentAt: "Just now",
+        },
+        ...current,
+      ]);
+      setSelectedHub(created.hub.businessName);
+      setBusinessName("");
+      setHubUsername("");
+      setHubPassword("");
+      setDeliveryLeadTime("20 min");
+      setHubNotice(`Hub created and provisioned for ${created.hub.businessName}.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Hub creation failed.";
+      setHubNotice(message);
+    }
   };
 
   const handleCreateUser = () => {
@@ -830,7 +939,15 @@ export function AdminConsole() {
             </p>
           </div>
 
-          <button type="button" style={styles.buttonGlass} onClick={() => setIsLoggedIn(false)}>
+          <button
+            type="button"
+            style={styles.buttonGlass}
+            onClick={() => {
+              setIsLoggedIn(false);
+              setAuthToken("");
+              setLoginPassword("");
+            }}
+          >
             Sign out
           </button>
         </header>
@@ -963,6 +1080,21 @@ export function AdminConsole() {
                   Next phase: persist hub records and issue secure invites
                 </div>
               </div>
+
+              {hubNotice ? (
+                <p
+                  style={{
+                    marginTop: 14,
+                    padding: "14px 16px",
+                    borderRadius: 16,
+                    color: "#dce9ff",
+                    background: "rgba(255,255,255,0.06)",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                  }}
+                >
+                  {hubNotice}
+                </p>
+              ) : null}
             </section>
 
             <section style={styles.sectionCard}>

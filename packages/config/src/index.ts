@@ -8,6 +8,9 @@ export const envSchema = z.object({
   REDIS_PASSWORD: z.string().min(1).optional(),
   SUPABASE_URL: z.string().url(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
+  INTERNAL_AUTH_TOKEN_SECRET: z.string().min(32),
+  ADMIN_BOOTSTRAP_EMAIL: z.string().email(),
+  ADMIN_BOOTSTRAP_PASSWORD: z.string().min(12),
   NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
   EXPO_PUBLIC_SUPABASE_URL: z.string().url(),
@@ -21,6 +24,7 @@ export const envSchema = z.object({
   EXPO_PUBLIC_API_URL: z.string().url(),
   API_PORT: z.coerce.number().int().positive().default(4000),
   WORKER_CONCURRENCY: z.coerce.number().int().positive().default(5),
+  INTERNAL_SESSION_TTL_HOURS: z.coerce.number().int().positive().default(12),
   DEFAULT_CURRENCY: z.string().length(3).default("GBP"),
 }).superRefine((env, ctx) => {
   if (!env.REDIS_URL && !(env.REDIS_HOST && env.REDIS_PORT)) {

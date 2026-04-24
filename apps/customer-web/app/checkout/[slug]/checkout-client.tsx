@@ -264,7 +264,7 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
                       <strong>{line.name}</strong>
                       <p>{line.description}</p>
                     </div>
-                    <strong>GBP {(line.unitPrice * line.quantity).toFixed(2)}</strong>
+                        <strong>£{(line.unitPrice * line.quantity).toFixed(2)}</strong>
                   </div>
                   <div className="checkout-line-footer">
                     <div className="quantity-stepper">
@@ -276,7 +276,7 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
                         +
                       </button>
                     </div>
-                    <span className="muted-copy">GBP {line.unitPrice.toFixed(2)} each</span>
+                        <span className="muted-copy">£{line.unitPrice.toFixed(2)} each</span>
                   </div>
                 </article>
               ))}
@@ -288,21 +288,21 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
           <div className="checkout-summary">
             <div className="glance-row">
               <span className="muted-copy">Local subtotal</span>
-              <strong>GBP {localSubtotal.toFixed(2)}</strong>
+                  <strong>£{localSubtotal.toFixed(2)}</strong>
             </div>
             <div className="glance-row">
               <span className="muted-copy">Delivery fee</span>
-              <strong>{checkoutSession ? `GBP ${checkoutSession.deliveryFee.toFixed(2)}` : "Review to calculate"}</strong>
+                  <strong>{checkoutSession ? `£${checkoutSession.deliveryFee.toFixed(2)}` : "Review to calculate"}</strong>
             </div>
             <div className="glance-row">
               <span className="muted-copy">Minimum order</span>
               <strong>
-                GBP {(checkoutSession?.minimumOrderAmount ?? store.minimumOrderAmount ?? 0).toFixed(2)}
+                    £{(checkoutSession?.minimumOrderAmount ?? store.minimumOrderAmount ?? 0).toFixed(2)}
               </strong>
             </div>
             <div className="glance-row">
               <span className="muted-copy">Checkout total</span>
-              <strong>{checkoutSession ? `GBP ${checkoutSession.totalAmount.toFixed(2)}` : "Review to calculate"}</strong>
+                  <strong>{checkoutSession ? `£${checkoutSession.totalAmount.toFixed(2)}` : "Review to calculate"}</strong>
             </div>
           </div>
 

@@ -102,6 +102,12 @@ export function RegisterForm() {
 
   return (
     <form className="register-form" onSubmit={handleSubmit}>
+      <div className="register-form-block">
+        <div className="register-form-heading">
+          <h3>Your details</h3>
+          <p>Use the details you want to order with.</p>
+        </div>
+
       <div className="form-grid">
         <label className="form-field">
           <span>Full name</span>
@@ -151,7 +157,16 @@ export function RegisterForm() {
             required
           />
         </label>
+      </div>
+      </div>
 
+      <div className="register-form-block">
+        <div className="register-form-heading">
+          <h3>Delivery address</h3>
+          <p>This becomes your saved address for ordering.</p>
+        </div>
+
+      <div className="form-grid">
         <label className="form-field">
           <span>Address label</span>
           <input
@@ -232,11 +247,12 @@ export function RegisterForm() {
           />
         </label>
       </div>
+      </div>
 
       <div className="section-heading compact register-subheading">
         <div>
           <h2>Choose delivery plan</h2>
-          <p>Customers can register on either plan and change later, but Hull Eats+ activates only after email verification.</p>
+          <p>Pick the option you want to start with. You can change this later.</p>
         </div>
       </div>
 
@@ -267,7 +283,7 @@ export function RegisterForm() {
           <div className="plan-card-copy">
             <div className="plan-card-top">
               <strong>Hull Eats+</strong>
-              <span>GBP 9.99 / month</span>
+              <span>£9.99 / month</span>
             </div>
             <p>Unlimited free delivery on eligible orders after your email address is verified.</p>
           </div>
@@ -283,16 +299,13 @@ export function RegisterForm() {
         <span>Send me offers, launch updates, and local business promotions.</span>
       </label>
 
-      <p className="form-helper">
-        Your password is handled by Supabase Auth, not stored in Hull Eats customer tables. The marketplace records your
-        profile, address, plan choice, promo code, and future order history.
-      </p>
+      <p className="form-helper">Your password is handled securely by Supabase Auth. Hull Eats does not store card details.</p>
 
       {errorMessage ? <p className="form-message form-message-error">{errorMessage}</p> : null}
       {successMessage ? <p className="form-message form-message-success">{successMessage}</p> : null}
 
       <button type="submit" className="primary-button" style={{ width: "100%" }} disabled={isSubmitting}>
-        {isSubmitting ? "Creating account..." : "Create account"}
+        {isSubmitting ? "Creating account..." : "Create account and continue"}
       </button>
     </form>
   );

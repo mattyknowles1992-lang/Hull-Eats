@@ -57,7 +57,7 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
           <div className="hero-meta">
             <span className="meta-pill">{store.cuisineLabel}</span>
             <span className="meta-pill">{store.etaMinutes} min delivery</span>
-            <span className="meta-pill">Delivery GBP {store.deliveryFee?.toFixed(2)}</span>
+            <span className="meta-pill">Delivery £{store.deliveryFee?.toFixed(2)}</span>
           </div>
         </div>
 
@@ -161,7 +161,7 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
             </div>
             <div className="glance-row">
               <span className="muted-copy">Minimum order</span>
-              <strong>GBP {store.minimumOrderAmount?.toFixed(2)}</strong>
+              <strong>£{store.minimumOrderAmount?.toFixed(2)}</strong>
             </div>
             {store.logoImageUrl ? (
               <div className="store-logo-panel">

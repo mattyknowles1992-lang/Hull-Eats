@@ -1,43 +1,174 @@
-import { Body, Controller, Get, Param, Patch, Post } from "@nestjs/common";
+import { Body, Controller, Get, Headers, Param, Patch, Post } from "@nestjs/common";
 
 import { MockPrinterAdapter } from "@hull-eats/printer";
-import { merchantAcceptOrderSchema, merchantRejectOrderSchema, printJobPayloadSchema } from "@hull-eats/types";
+import {
+  applyMenuImportInputSchema,
+  createHubMenuItemInputSchema,
+  createHubMenuSectionInputSchema,
+  createHubUserInputSchema,
+  merchantAcceptOrderSchema,
+  merchantLoginInputSchema,
+  merchantRejectOrderSchema,
+  merchantWorkspaceUpdateInputSchema,
+  previewMenuImportInputSchema,
+  previewMenuTextImportInputSchema,
+  printJobPayloadSchema,
+} from "@hull-eats/types";
 
 import { demoMenuByStore, demoOrders } from "../../common/demo-data";
+import { HubRegistryService } from "../../common/hub-registry.service";
+import { InternalAuthService } from "../../common/internal-auth.service";
 
 const fallbackOrder = demoOrders[0]!;
 
 @Controller("merchant")
 export class MerchantController {
   private readonly printer = new MockPrinterAdapter();
+  constructor(
+    private readonly hubRegistry: HubRegistryService,
+    private readonly internalAuth: InternalAuthService,
+  ) {}
+
+  @Post("auth/login")
+  login(@Body() body: unknown) {
+    const input = merchantLoginInputSchema.parse(body);
+    const authenticated = this.hubRegistry.authenticate(input.username, input.password);
+    return {
+      token: this.internalAuth.issueMerchantToken(authenticated.user),
+      ...authenticated,
+    };
+  }
+
+  @Get("hubs/:hubId/workspace")
+  getWorkspace(@Headers("authorization") authorization: string | undefined, @Param("hubId") hubId: string) {
+    this.internalAuth.requireMerchantToken(authorization, hubId);
+    return this.hubRegistry.getWorkspaceById(hubId);
+  }
+
+  @Patch("hubs/:hubId/workspace")
+  updateWorkspace(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("hubId") hubId: string,
+    @Body() body: unknown,
+  ) {
+    this.internalAuth.requireMerchantToken(authorization, hubId);
+    const input = merchantWorkspaceUpdateInputSchema.parse(body);
+    return this.hubRegistry.updateWorkspace(hubId, input);
+  }
+
+  @Post("hubs/:hubId/users")
+  createHubUser(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("hubId") hubId: string,
+    @Body() body: unknown,
+  ) {
+    this.internalAuth.requireMerchantToken(authorization, hubId);
+    const input = createHubUserInputSchema.parse(body);
+    return this.hubRegistry.createHubUser(hubId, input);
+  }
+
+  @Post("hubs/:hubId/menu-sections")
+  createMenuSection(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("hubId") hubId: string,
+    @Body() body: unknown,
+  ) {
+    this.internalAuth.requireMerchantToken(authorization, hubId);
+    const input = createHubMenuSectionInputSchema.parse(body);
+    return this.hubRegistry.createMenuSection(hubId, input);
+  }
+
+  @Post("hubs/:hubId/menu-sections/:sectionId/items")
+  createMenuItem(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("hubId") hubId: string,
+    @Param("sectionId") sectionId: string,
+    @Body() body: unknown,
+  ) {
+    this.internalAuth.requireMerchantToken(authorization, hubId);
+    const input = createHubMenuItemInputSchema.parse(body);
+    return this.hubRegistry.createMenuItem(hubId, sectionId, input);
+  }
+
+  @Post("hubs/:hubId/menu-imports/preview")
+  previewMenuImport(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("hubId") hubId: string,
+    @Body() body: unknown,
+  ) {
+    this.internalAuth.requireMerchantToken(authorization, hubId);
+    const input = previewMenuImportInputSchema.parse(body);
+    return this.hubRegistry.previewMenuImport(hubId, input);
+  }
+
+  @Post("hubs/:hubId/menu-imports/text-preview")
+  previewMenuTextImport(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("hubId") hubId: string,
+    @Body() body: unknown,
+  ) {
+    this.internalAuth.requireMerchantToken(authorization, hubId);
+    const input = previewMenuTextImportInputSchema.parse(body);
+    return this.hubRegistry.previewMenuTextImport(hubId, input);
+  }
+
+  @Post("hubs/:hubId/menu-imports/:importId/apply")
+  applyMenuImport(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("hubId") hubId: string,
+    @Param("importId") importId: string,
+    @Body() body: unknown,
+  ) {
+    this.internalAuth.requireMerchantToken(authorization, hubId);
+    const input = applyMenuImportInputSchema.parse(body);
+    return this.hubRegistry.applyMenuImport(hubId, importId, input);
+  }
 
   @Get("orders")
-  listOrders() {
+  listOrders(@Headers("authorization") authorization?: string) {
+    this.internalAuth.requireMerchantToken(authorization);
     return demoOrders;
   }
 
   @Get("orders/:orderId")
-  getOrder(@Param("orderId") orderId: string) {
+  getOrder(@Headers("authorization") authorization: string | undefined, @Param("orderId") orderId: string) {
+    this.internalAuth.requireMerchantToken(authorization);
     return demoOrders.find((order) => order.id === orderId || order.orderNumber === orderId) ?? fallbackOrder;
   }
 
   @Get("catalog/items")
-  listCatalogItems() {
+  listCatalogItems(@Headers("authorization") authorization?: string) {
+    this.internalAuth.requireMerchantToken(authorization);
     return Object.values(demoMenuByStore).flat();
   }
 
   @Patch("catalog/items/:itemId")
-  updateCatalogItem(@Param("itemId") itemId: string, @Body() body: Record<string, unknown>) {
+  updateCatalogItem(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("itemId") itemId: string,
+    @Body() body: Record<string, unknown>,
+  ) {
+    this.internalAuth.requireMerchantToken(authorization);
     return { status: "updated", entity: "menu-item", itemId, payload: body };
   }
 
   @Patch("catalog/items/:itemId/stock")
-  updateCatalogItemStock(@Param("itemId") itemId: string, @Body() body: Record<string, unknown>) {
+  updateCatalogItemStock(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("itemId") itemId: string,
+    @Body() body: Record<string, unknown>,
+  ) {
+    this.internalAuth.requireMerchantToken(authorization);
     return { status: "updated", entity: "menu-item-stock", itemId, payload: body };
   }
 
   @Post("orders/:orderId/accept")
-  acceptOrder(@Param("orderId") orderId: string, @Body() body: unknown) {
+  acceptOrder(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("orderId") orderId: string,
+    @Body() body: unknown,
+  ) {
+    this.internalAuth.requireMerchantToken(authorization);
     const input = merchantAcceptOrderSchema.parse(body);
     const order = demoOrders.find((entry) => entry.id === orderId || entry.orderNumber === orderId) ?? fallbackOrder;
 
@@ -49,7 +180,12 @@ export class MerchantController {
   }
 
   @Post("orders/:orderId/reject")
-  rejectOrder(@Param("orderId") orderId: string, @Body() body: unknown) {
+  rejectOrder(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("orderId") orderId: string,
+    @Body() body: unknown,
+  ) {
+    this.internalAuth.requireMerchantToken(authorization);
     merchantRejectOrderSchema.parse(body);
     const order = demoOrders.find((entry) => entry.id === orderId || entry.orderNumber === orderId) ?? fallbackOrder;
 
@@ -60,7 +196,12 @@ export class MerchantController {
   }
 
   @Post("orders/:orderId/prep-time")
-  updatePrepTime(@Param("orderId") orderId: string, @Body() body: { prepTimeMinutes: number }) {
+  updatePrepTime(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("orderId") orderId: string,
+    @Body() body: { prepTimeMinutes: number },
+  ) {
+    this.internalAuth.requireMerchantToken(authorization);
     const order = demoOrders.find((entry) => entry.id === orderId || entry.orderNumber === orderId) ?? fallbackOrder;
 
     return {
@@ -71,7 +212,8 @@ export class MerchantController {
   }
 
   @Post("orders/:orderId/print")
-  async printOrder(@Param("orderId") orderId: string) {
+  async printOrder(@Headers("authorization") authorization: string | undefined, @Param("orderId") orderId: string) {
+    this.internalAuth.requireMerchantToken(authorization);
     const order = demoOrders.find((entry) => entry.id === orderId || entry.orderNumber === orderId) ?? fallbackOrder;
     const payload = printJobPayloadSchema.parse({
       orderId,

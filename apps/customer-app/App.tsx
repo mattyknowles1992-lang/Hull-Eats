@@ -18,7 +18,7 @@ const stores = [
     name: "Harbour Kitchen Hull",
     subtitle: "Modern comfort food",
     eta: "22 min",
-    fee: "GBP 2.99",
+    fee: "£2.99",
     status: "Storefront live",
     summary: "Beautiful launch-ready storefront while the business finishes menu setup.",
     image:
@@ -29,7 +29,7 @@ const stores = [
     name: "Dockside Grocer Hull",
     subtitle: "Groceries and convenience",
     eta: "18 min",
-    fee: "GBP 3.49",
+    fee: "£3.49",
     status: "Stock onboarding",
     summary: "Perfect for businesses adding inventory in batches without breaking the customer app.",
     image:
@@ -40,7 +40,7 @@ const stores = [
     name: "Ember Burger Hull",
     subtitle: "Burgers",
     eta: "24 min",
-    fee: "GBP 2.49",
+    fee: "£2.49",
     status: "Opening soon",
     summary: "Customers can follow the brand now and order the moment the first items go live.",
     image:
@@ -75,7 +75,7 @@ export default function App() {
               <Text style={styles.deliveryPillText}>Delivering to Hull city centre</Text>
             </View>
             <View style={[styles.deliveryPill, styles.deliveryPillAccent]}>
-              <Text style={[styles.deliveryPillText, styles.deliveryPillAccentText]}>Free delivery from GBP 9.99/mo</Text>
+          <Text style={[styles.deliveryPillText, styles.deliveryPillAccentText]}>Free delivery from £9.99/mo</Text>
             </View>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.lanesRow}>
@@ -121,7 +121,7 @@ export default function App() {
 
         <View style={styles.membershipCard}>
           <Text style={styles.membershipEyebrow}>Hull Eats+</Text>
-          <Text style={styles.membershipPrice}>GBP 9.99/mo</Text>
+              <Text style={styles.membershipPrice}>£9.99/mo</Text>
           <Text style={styles.membershipCopy}>
             Monthly Stripe subscription for free delivery, account perks, and launch access to new local businesses.
           </Text>

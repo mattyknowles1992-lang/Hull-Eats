@@ -60,12 +60,12 @@ export const initialHubs: HubRecord[] = [
     ownerName: "Loaded Munch Owner",
     orderVolumeToday: 27,
     orderVolumeWeek: 186,
-    grossSalesWeek: "GBP 3,244",
-    averageOrderValue: "GBP 17.44",
+    grossSalesWeek: "£3,244",
+    averageOrderValue: "£17.44",
     activeOrders: [
-      { id: "HE-2033", customerName: "Tia L", status: "preparing", total: "GBP 24.98", placedAgo: "3 min ago" },
-      { id: "HE-2034", customerName: "Ben R", status: "assigned", total: "GBP 31.47", placedAgo: "6 min ago" },
-      { id: "HE-2035", customerName: "Ava J", status: "pending", total: "GBP 18.76", placedAgo: "1 min ago" },
+      { id: "HE-2033", customerName: "Tia L", status: "preparing", total: "£24.98", placedAgo: "3 min ago" },
+      { id: "HE-2034", customerName: "Ben R", status: "assigned", total: "£31.47", placedAgo: "6 min ago" },
+      { id: "HE-2035", customerName: "Ava J", status: "pending", total: "£18.76", placedAgo: "1 min ago" },
     ],
     notes: [
       "Launch partner hub for Hull Eats rollout and live testing.",
@@ -78,7 +78,7 @@ export const initialUsers: PlatformUserRecord[] = [
   {
     id: "user_admin_1",
     fullName: "Matty Knowles",
-    email: "matty.knowles1992@hotmail.com",
+    email: "admin@hulleats.local",
     role: "platform_admin",
     hub: "Hull Eats HQ",
     loginType: "platform",

@@ -1,61 +1,115 @@
-import { Body, Controller, Get, Param, Patch, Post } from "@nestjs/common";
+import { Body, Controller, Get, Headers, Param, Patch, Post } from "@nestjs/common";
 
 import { MvpDispatchEngine } from "@hull-eats/dispatch-engine";
-import { manualDriverAssignmentSchema } from "@hull-eats/types";
+import { createHubInputSchema, manualDriverAssignmentSchema } from "@hull-eats/types";
 
 import { demoOrders } from "../../common/demo-data";
+import { HubRegistryService } from "../../common/hub-registry.service";
+import { InternalAuthService } from "../../common/internal-auth.service";
 
 @Controller("admin")
 export class AdminController {
   private readonly dispatchEngine = new MvpDispatchEngine();
+  constructor(
+    private readonly hubRegistry: HubRegistryService,
+    private readonly internalAuth: InternalAuthService,
+  ) {}
+
+  @Post("auth/login")
+  login(@Body() body: { email?: string; password?: string }) {
+    return this.internalAuth.loginAdmin(body.email ?? "", body.password ?? "");
+  }
+
+  @Get("hubs")
+  listHubs(@Headers("authorization") authorization?: string) {
+    this.internalAuth.requireAdminToken(authorization);
+    return this.hubRegistry.listHubs();
+  }
+
+  @Post("hubs")
+  createHub(@Headers("authorization") authorization: string | undefined, @Body() body: unknown) {
+    this.internalAuth.requireAdminToken(authorization);
+    const input = createHubInputSchema.parse(body);
+    return this.hubRegistry.createHub(input);
+  }
 
   @Post("merchants")
-  createMerchant(@Body() body: Record<string, unknown>) {
+  createMerchant(@Headers("authorization") authorization: string | undefined, @Body() body: Record<string, unknown>) {
+    this.internalAuth.requireAdminToken(authorization);
     return { status: "created", entity: "merchant", payload: body };
   }
 
   @Post("stores")
-  createStore(@Body() body: Record<string, unknown>) {
+  createStore(@Headers("authorization") authorization: string | undefined, @Body() body: Record<string, unknown>) {
+    this.internalAuth.requireAdminToken(authorization);
     return { status: "created", entity: "store", payload: body };
   }
 
   @Patch("stores/:storeId")
-  updateStore(@Param("storeId") storeId: string, @Body() body: Record<string, unknown>) {
+  updateStore(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("storeId") storeId: string,
+    @Body() body: Record<string, unknown>,
+  ) {
+    this.internalAuth.requireAdminToken(authorization);
     return { status: "updated", entity: "store", storeId, payload: body };
   }
 
   @Post("stores/:storeId/menu-items")
-  createMenuItem(@Param("storeId") storeId: string, @Body() body: Record<string, unknown>) {
+  createMenuItem(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("storeId") storeId: string,
+    @Body() body: Record<string, unknown>,
+  ) {
+    this.internalAuth.requireAdminToken(authorization);
     return { status: "created", entity: "menu-item", storeId, payload: body };
   }
 
   @Patch("menu-items/:itemId")
-  updateMenuItem(@Param("itemId") itemId: string, @Body() body: Record<string, unknown>) {
+  updateMenuItem(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("itemId") itemId: string,
+    @Body() body: Record<string, unknown>,
+  ) {
+    this.internalAuth.requireAdminToken(authorization);
     return { status: "updated", entity: "menu-item", itemId, payload: body };
   }
 
   @Post("media")
-  createMediaAsset(@Body() body: Record<string, unknown>) {
+  createMediaAsset(@Headers("authorization") authorization: string | undefined, @Body() body: Record<string, unknown>) {
+    this.internalAuth.requireAdminToken(authorization);
     return { status: "created", entity: "media-asset", payload: body };
   }
 
   @Post("stores/:storeId/zones")
-  createZone(@Param("storeId") storeId: string, @Body() body: Record<string, unknown>) {
+  createZone(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("storeId") storeId: string,
+    @Body() body: Record<string, unknown>,
+  ) {
+    this.internalAuth.requireAdminToken(authorization);
     return { status: "created", entity: "delivery-zone", storeId, payload: body };
   }
 
   @Post("drivers")
-  createDriver(@Body() body: Record<string, unknown>) {
+  createDriver(@Headers("authorization") authorization: string | undefined, @Body() body: Record<string, unknown>) {
+    this.internalAuth.requireAdminToken(authorization);
     return { status: "created", entity: "driver", payload: body };
   }
 
   @Get("orders")
-  listOrders() {
+  listOrders(@Headers("authorization") authorization?: string) {
+    this.internalAuth.requireAdminToken(authorization);
     return demoOrders;
   }
 
   @Post("orders/:orderId/assign-driver")
-  assignDriver(@Param("orderId") orderId: string, @Body() body: unknown) {
+  assignDriver(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("orderId") orderId: string,
+    @Body() body: unknown,
+  ) {
+    this.internalAuth.requireAdminToken(authorization);
     const input = manualDriverAssignmentSchema.parse(body);
     const decision = this.dispatchEngine.assignManually({
       orderId,

@@ -741,9 +741,101 @@ textarea {
   max-width: 13ch;
 }
 
+.register-grid-simple {
+  grid-template-columns: 1fr;
+}
+
+.register-intro,
+.register-form-panel {
+  box-shadow: 0 22px 40px rgba(15, 17, 21, 0.08);
+}
+
+.register-badge {
+  width: fit-content;
+  color: #fff7ef;
+  background: linear-gradient(180deg, #1b1f27, #101216);
+  border-color: rgba(15, 17, 21, 0.18);
+}
+
+.register-title {
+  margin: 18px 0 0;
+  font-family: var(--font-heading), serif;
+  font-size: clamp(2.1rem, 5vw, 3.8rem);
+  line-height: 0.98;
+  letter-spacing: -0.05em;
+  max-width: 11ch;
+  color: var(--ink-strong);
+}
+
+.register-copy {
+  margin: 14px 0 0;
+  max-width: 42rem;
+  color: var(--muted);
+  line-height: 1.7;
+  font-size: 1rem;
+}
+
+.register-step-list {
+  display: grid;
+  gap: 14px;
+  margin-top: 22px;
+}
+
+.register-step {
+  padding: 16px 18px;
+  border-radius: 22px;
+  border: 1px solid rgba(15, 17, 21, 0.1);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(248, 243, 236, 0.96));
+}
+
+.register-step strong {
+  display: block;
+  color: var(--ink-strong);
+  font-size: 1rem;
+}
+
+.register-step p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.register-note {
+  margin-top: 18px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 106, 0, 0.16);
+  background: linear-gradient(180deg, rgba(255, 241, 229, 0.98), rgba(255, 248, 240, 0.96));
+  color: #7a3200;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
 .register-form {
   display: grid;
   gap: 18px;
+}
+
+.register-form-block {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 24px;
+  border: 1px solid rgba(15, 17, 21, 0.1);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(249, 244, 237, 0.97));
+}
+
+.register-form-heading h3 {
+  margin: 0;
+  font-family: var(--font-heading), serif;
+  font-size: 1.45rem;
+  letter-spacing: -0.03em;
+  color: var(--ink-strong);
+}
+
+.register-form-heading p {
+  margin: 6px 0 0;
+  color: var(--muted);
 }
 
 .register-subheading {
@@ -768,7 +860,7 @@ textarea {
 .form-field span {
   font-size: 0.9rem;
   font-weight: 800;
-  color: #dce9ff;
+  color: var(--ink-strong);
 }
 
 .form-field-full {
@@ -778,18 +870,20 @@ textarea {
 .form-input {
   width: 100%;
   min-height: 54px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(15, 17, 21, 0.14);
   outline: 0;
   border-radius: 18px;
   padding: 0 16px;
   color: var(--ink);
-  background: rgba(255, 255, 255, 0.07);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(247, 242, 235, 0.98));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    0 8px 16px rgba(15, 17, 21, 0.04);
 }
 
 .form-input::placeholder,
 .form-textarea::placeholder {
-  color: rgba(222, 235, 255, 0.5);
+  color: rgba(91, 100, 112, 0.7);
 }
 
 .form-textarea {
@@ -806,9 +900,9 @@ textarea {
   align-items: start;
   padding: 16px;
   border-radius: 22px;
-  border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.05);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(15, 17, 21, 0.12);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(248, 243, 236, 0.97));
+  box-shadow: 0 12px 22px rgba(15, 17, 21, 0.05);
 }
 
 .plan-card input {
@@ -817,8 +911,8 @@ textarea {
 }
 
 .plan-card.is-featured {
-  border-color: rgba(255, 107, 0, 0.28);
-  background: linear-gradient(180deg, rgba(255, 107, 0, 0.12), rgba(255, 255, 255, 0.05));
+  border-color: rgba(255, 107, 0, 0.32);
+  background: linear-gradient(180deg, rgba(255, 242, 232, 1), rgba(255, 248, 242, 0.98));
 }
 
 .plan-card-copy {
@@ -838,7 +932,7 @@ textarea {
 }
 
 .plan-card-top span {
-  color: #ffd6ba;
+  color: #c95d12;
   font-size: 0.9rem;
   font-weight: 800;
   text-align: right;
@@ -877,7 +971,7 @@ textarea {
   grid-template-columns: 20px 1fr;
   gap: 12px;
   align-items: start;
-  color: #dce9ff;
+  color: var(--ink-strong);
   font-size: 0.95rem;
 }
 
@@ -1237,6 +1331,11 @@ textarea {
   .detail-grid,
   .register-grid {
     grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.85fr);
+    align-items: start;
+  }
+
+  .register-grid-simple {
+    grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
     align-items: start;
   }
 
