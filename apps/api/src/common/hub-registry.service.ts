@@ -9,6 +9,7 @@ import type {
   CreateHubMenuItemInput,
   CreateHubMenuSectionInput,
   CreateHubUserInput,
+  ChangeHubPasswordInput,
   HubMenuImportBatch,
   HubMenuImportCandidate,
   HubMenuSection,
@@ -466,6 +467,34 @@ export class HubRegistryService {
     return this.mapHubUser(createdUser);
   }
 
+  async changeHubUserPassword(hubId: string, userId: string, input: ChangeHubPasswordInput) {
+    await this.ensurePilotHub();
+
+    const user = await prisma.hubUser.findFirst({
+      where: {
+        id: userId,
+        merchantId: hubId,
+        isActive: true,
+      },
+    });
+
+    if (!user || user.status === "DISABLED" || !verifyPassword(input.currentPassword, user.passwordHash)) {
+      throw new UnauthorizedException("Current password did not match this hub account.");
+    }
+
+    await prisma.hubUser.update({
+      where: { id: user.id },
+      data: {
+        passwordHash: hashPassword(input.newPassword),
+      },
+    });
+
+    return {
+      changed: true,
+      user: this.mapHubUser(user),
+    };
+  }
+
   async deleteHubUser(hubId: string, userId: string) {
     await this.ensurePilotHub();
 
@@ -838,28 +867,39 @@ export class HubRegistryService {
       },
     });
 
-    await prisma.hubUser.upsert({
+    const loadedMunchUser = await prisma.hubUser.findUnique({
       where: { username: "loaded-munch-admin" },
-      update: {
-        merchantId: merchant.id,
-        fullName: "Loaded Munch Owner",
-        email: "owner@loadedmunch.co.uk",
-        passwordHash: hashPassword("temp-hub-pass"),
-        role: "OWNER",
-        status: "ACTIVE",
-        isActive: true,
-      },
-      create: {
-        merchantId: merchant.id,
-        fullName: "Loaded Munch Owner",
-        email: "owner@loadedmunch.co.uk",
-        username: "loaded-munch-admin",
-        passwordHash: hashPassword("temp-hub-pass"),
-        role: "OWNER",
-        status: "ACTIVE",
-        isActive: true,
-      },
     });
+
+    if (loadedMunchUser) {
+      const needsDefaultCredentialBootstrap = loadedMunchUser.email.toLowerCase() !== "kai-lo@hotmail.com";
+
+      await prisma.hubUser.update({
+        where: { id: loadedMunchUser.id },
+        data: {
+          merchantId: merchant.id,
+          fullName: "Loaded Munch Owner",
+          email: "kai-lo@hotmail.com",
+          ...(needsDefaultCredentialBootstrap ? { passwordHash: hashPassword("letmein") } : {}),
+          role: "OWNER",
+          status: "ACTIVE",
+          isActive: true,
+        },
+      });
+    } else {
+      await prisma.hubUser.create({
+        data: {
+          merchantId: merchant.id,
+          fullName: "Loaded Munch Owner",
+          email: "kai-lo@hotmail.com",
+          username: "loaded-munch-admin",
+          passwordHash: hashPassword("letmein"),
+          role: "OWNER",
+          status: "ACTIVE",
+          isActive: true,
+        },
+      });
+    }
 
     for (const [sectionIndex, section] of loadedMunchMenuSections.entries()) {
       let category = await prisma.menuCategory.findFirst({

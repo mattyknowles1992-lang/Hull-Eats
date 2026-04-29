@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import type { HubMenuSection, HubSettings, HubUser, MerchantWorkspace, MenuItem } from "@hull-eats/types";
 
@@ -11,6 +11,7 @@ type MenuOptionGroup = MenuItem["optionGroups"][number];
 type MenuOption = MenuOptionGroup["options"][number];
 
 const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000").replace(/\/$/, "");
+const merchantSessionStorageKey = "hull-eats-merchant-session";
 
 type MerchantLoginResponse = {
   token: string;
@@ -38,12 +39,30 @@ type CreateUserFormState = {
   role: HubRole;
 };
 
+type PasswordFormState = {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+};
+
+type StoredMerchantSession = {
+  token: string;
+  hubId: string;
+  user: HubUser;
+};
+
 const initialCreateUserState: CreateUserFormState = {
   fullName: "",
   email: "",
   username: "",
   password: "",
   role: "owner",
+};
+
+const initialPasswordFormState: PasswordFormState = {
+  currentPassword: "",
+  newPassword: "",
+  confirmPassword: "",
 };
 
 const initialCreateCategoryState: CreateCategoryFormState = {
@@ -127,6 +146,21 @@ async function loginToHub(usernameOrEmail: string, password: string): Promise<Me
   return (await response.json()) as MerchantLoginResponse;
 }
 
+async function fetchWorkspace(token: string, hubId: string) {
+  const response = await fetch(`${apiBaseUrl}/v1/merchant/hubs/${hubId}/workspace`, {
+    cache: "no-store",
+    headers: {
+      authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Hub workspace fetch failed with status ${response.status}`);
+  }
+
+  return (await response.json()) as MerchantWorkspace;
+}
+
 async function saveWorkspace(token: string, hubId: string, input: { settings: HubSettings; menuSections: HubMenuSection[] }) {
   const response = await fetch(`${apiBaseUrl}/v1/merchant/hubs/${hubId}/workspace`, {
     method: "PATCH",
@@ -142,6 +176,23 @@ async function saveWorkspace(token: string, hubId: string, input: { settings: Hu
   }
 
   return (await response.json()) as MerchantWorkspace;
+}
+
+async function changeHubPassword(token: string, hubId: string, input: { currentPassword: string; newPassword: string }) {
+  const response = await fetch(`${apiBaseUrl}/v1/merchant/hubs/${hubId}/password`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Password change failed with status ${response.status}`);
+  }
+
+  return (await response.json()) as { changed: boolean; user: HubUser };
 }
 
 async function createBusinessUser(
@@ -624,6 +675,7 @@ export default function MerchantPortalPage() {
   const [menuSections, setMenuSections] = useState<HubMenuSection[]>([]);
   const [pendingImports, setPendingImports] = useState<MerchantWorkspace["pendingImports"]>([]);
   const [newUser, setNewUser] = useState<CreateUserFormState>(initialCreateUserState);
+  const [passwordForm, setPasswordForm] = useState<PasswordFormState>(initialPasswordFormState);
   const [newCategory, setNewCategory] = useState<CreateCategoryFormState>(initialCreateCategoryState);
   const [newItem, setNewItem] = useState<CreateItemFormState>(initialCreateItemState);
   const [selectedImportCandidateIds, setSelectedImportCandidateIds] = useState<string[]>([]);
@@ -633,6 +685,7 @@ export default function MerchantPortalPage() {
   const [saveNotice, setSaveNotice] = useState("");
   const [userNotice, setUserNotice] = useState("");
   const [menuNotice, setMenuNotice] = useState("");
+  const [passwordNotice, setPasswordNotice] = useState("");
 
   const menuStats = useMemo(() => {
     const totalItems = menuSections.reduce((sum, section) => sum + section.items.length, 0);
@@ -655,27 +708,108 @@ export default function MerchantPortalPage() {
     setSaveNotice("");
   };
 
+  const applyWorkspace = (workspace: MerchantWorkspace, user: HubUser | null) => {
+    setActiveHubId(workspace.hub.id);
+    setActiveUser(user);
+    setHubUsers(workspace.users);
+    setHubSettings(workspace.settings);
+    setMenuSections(workspace.menuSections);
+    setPendingImports(workspace.pendingImports ?? []);
+    setNewItem((current) => ({
+      ...current,
+      sectionId: workspace.menuSections[0]?.id ?? "",
+    }));
+  };
+
+  useEffect(() => {
+    const storedSession = window.localStorage.getItem(merchantSessionStorageKey);
+    if (!storedSession) {
+      return;
+    }
+
+    void (async () => {
+      try {
+        const parsed = JSON.parse(storedSession) as StoredMerchantSession;
+        if (!parsed.token || !parsed.hubId || !parsed.user) {
+          throw new Error("Stored merchant session is incomplete.");
+        }
+
+        const workspace = await fetchWorkspace(parsed.token, parsed.hubId);
+        setMerchantToken(parsed.token);
+        applyWorkspace(workspace, parsed.user);
+      } catch {
+        window.localStorage.removeItem(merchantSessionStorageKey);
+      }
+    })();
+  }, []);
+
   const handleLogin = async () => {
     try {
       const response = await loginToHub(loginUsername, loginPassword);
       setMerchantToken(response.token);
-      setActiveHubId(response.workspace.hub.id);
-      setActiveUser(response.user);
-      setHubUsers(response.workspace.users);
-      setHubSettings(response.workspace.settings);
-      setMenuSections(response.workspace.menuSections);
-      setPendingImports(response.workspace.pendingImports ?? []);
-      setNewItem((current) => ({
-        ...current,
-        sectionId: response.workspace.menuSections[0]?.id ?? "",
-      }));
+      applyWorkspace(response.workspace, response.user);
+      window.localStorage.setItem(
+        merchantSessionStorageKey,
+        JSON.stringify({
+          token: response.token,
+          hubId: response.workspace.hub.id,
+          user: response.user,
+        } satisfies StoredMerchantSession),
+      );
       setLoginError("");
       setSaveNotice("");
       setUserNotice("");
       setMenuNotice("");
+      setPasswordNotice("");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Hub login failed.";
       setLoginError(message);
+    }
+  };
+
+  const handleSignOut = () => {
+    window.localStorage.removeItem(merchantSessionStorageKey);
+    setMerchantToken("");
+    setLoginUsername("");
+    setLoginPassword("");
+    setActiveHubId("");
+    setHubUsers([]);
+    setActiveUser(null);
+    setHubSettings(emptyHubSettings);
+    setMenuSections([]);
+    setPendingImports([]);
+    setPasswordForm(initialPasswordFormState);
+    setSaveNotice("");
+    setUserNotice("");
+    setMenuNotice("");
+    setPasswordNotice("");
+  };
+
+  const handleChangePassword = async () => {
+    if (!merchantToken || !activeHubId) {
+      return;
+    }
+
+    if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
+      setPasswordNotice("Enter your current password and the new password twice.");
+      return;
+    }
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordNotice("The new password confirmation does not match.");
+      return;
+    }
+
+    try {
+      await changeHubPassword(merchantToken, activeHubId, {
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword,
+      });
+      setPasswordForm(initialPasswordFormState);
+      setPasswordNotice("Password changed. This browser will stay signed in until you sign out or the session expires.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Password change failed.";
+      setPasswordNotice(message);
     }
   };
 
@@ -994,15 +1128,21 @@ export default function MerchantPortalPage() {
 
           <div style={{ display: "grid", gap: 12, justifyItems: "start" }}>
             {activeUser ? <span style={activeUserChip}>{activeUser.fullName} / {activeUser.role}</span> : null}
-            <button type="button" style={primaryButton} onClick={handleSaveHub}>
-              Save hub changes
-            </button>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <button type="button" style={primaryButton} onClick={handleSaveHub}>
+                Save hub changes
+              </button>
+              <button type="button" style={secondaryButton} onClick={handleSignOut}>
+                Sign out
+              </button>
+            </div>
           </div>
         </header>
 
         {saveNotice ? <p style={successMessageStyle}>{saveNotice}</p> : null}
         {menuNotice ? <p style={successMessageStyle}>{menuNotice}</p> : null}
         {userNotice ? <p style={successMessageStyle}>{userNotice}</p> : null}
+        {passwordNotice ? <p style={successMessageStyle}>{passwordNotice}</p> : null}
 
         <section style={summaryGrid}>
           <article style={overviewCard}>
@@ -1513,6 +1653,49 @@ export default function MerchantPortalPage() {
 
                 <button type="button" onClick={handleCreateUser} style={primaryButton}>
                   Create business user
+                </button>
+              </div>
+            </section>
+
+            <section style={panelCard}>
+              <div style={panelHeader}>
+                <div>
+                  <p style={eyebrowDark}>Account security</p>
+                  <h2 style={sectionTitle}>Change password</h2>
+                  <p style={panelCopyDark}>Update the password for the signed-in hub account.</p>
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gap: 12 }}>
+                <label style={field}>
+                  <span style={darkFieldLabel}>Current password</span>
+                  <input
+                    type="password"
+                    style={lightInput}
+                    value={passwordForm.currentPassword}
+                    onChange={(event) => setPasswordForm((current) => ({ ...current, currentPassword: event.target.value }))}
+                  />
+                </label>
+                <label style={field}>
+                  <span style={darkFieldLabel}>New password</span>
+                  <input
+                    type="password"
+                    style={lightInput}
+                    value={passwordForm.newPassword}
+                    onChange={(event) => setPasswordForm((current) => ({ ...current, newPassword: event.target.value }))}
+                  />
+                </label>
+                <label style={field}>
+                  <span style={darkFieldLabel}>Confirm new password</span>
+                  <input
+                    type="password"
+                    style={lightInput}
+                    value={passwordForm.confirmPassword}
+                    onChange={(event) => setPasswordForm((current) => ({ ...current, confirmPassword: event.target.value }))}
+                  />
+                </label>
+                <button type="button" onClick={handleChangePassword} style={primaryButton}>
+                  Change password
                 </button>
               </div>
             </section>

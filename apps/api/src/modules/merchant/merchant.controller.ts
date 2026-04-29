@@ -3,6 +3,7 @@ import { Body, Controller, Delete, Get, Headers, Param, Patch, Post } from "@nes
 import { MockPrinterAdapter } from "@hull-eats/printer";
 import {
   applyMenuImportInputSchema,
+  changeHubPasswordInputSchema,
   createHubMenuItemInputSchema,
   createHubMenuSectionInputSchema,
   createHubUserInputSchema,
@@ -65,6 +66,17 @@ export class MerchantController {
     this.internalAuth.requireMerchantToken(authorization, hubId);
     const input = createHubUserInputSchema.parse(body);
     return this.hubRegistry.createHubUser(hubId, input);
+  }
+
+  @Post("hubs/:hubId/password")
+  changePassword(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("hubId") hubId: string,
+    @Body() body: unknown,
+  ) {
+    const session = this.internalAuth.requireMerchantToken(authorization, hubId);
+    const input = changeHubPasswordInputSchema.parse(body);
+    return this.hubRegistry.changeHubUserPassword(hubId, session.sub, input);
   }
 
   @Delete("hubs/:hubId/users/:userId")

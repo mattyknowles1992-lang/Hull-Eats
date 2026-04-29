@@ -24,7 +24,7 @@ export const envSchema = z.object({
   EXPO_PUBLIC_API_URL: z.string().url(),
   API_PORT: z.coerce.number().int().positive().default(4000),
   WORKER_CONCURRENCY: z.coerce.number().int().positive().default(5),
-  INTERNAL_SESSION_TTL_HOURS: z.coerce.number().int().positive().default(12),
+  INTERNAL_SESSION_TTL_HOURS: z.coerce.number().int().positive().default(720),
   DEFAULT_CURRENCY: z.string().length(3).default("GBP"),
 }).superRefine((env, ctx) => {
   if (!env.REDIS_URL && !(env.REDIS_HOST && env.REDIS_PORT)) {

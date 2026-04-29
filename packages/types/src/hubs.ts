@@ -108,6 +108,11 @@ export const merchantLoginInputSchema = z.object({
   password: z.string().min(1),
 });
 
+export const changeHubPasswordInputSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: z.string().min(6),
+});
+
 export const merchantWorkspaceUpdateInputSchema = z.object({
   settings: hubSettingsSchema,
   menuSections: z.array(hubMenuSectionSchema),
@@ -149,6 +154,7 @@ export type MerchantWorkspace = z.infer<typeof merchantWorkspaceSchema>;
 export type CreateHubInput = z.infer<typeof createHubInputSchema>;
 export type CreateHubUserInput = z.infer<typeof createHubUserInputSchema>;
 export type MerchantLoginInput = z.infer<typeof merchantLoginInputSchema>;
+export type ChangeHubPasswordInput = z.infer<typeof changeHubPasswordInputSchema>;
 export type MerchantWorkspaceUpdateInput = z.infer<typeof merchantWorkspaceUpdateInputSchema>;
 export type CreateHubMenuSectionInput = z.infer<typeof createHubMenuSectionInputSchema>;
 export type CreateHubMenuItemInput = z.infer<typeof createHubMenuItemInputSchema>;
