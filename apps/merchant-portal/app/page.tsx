@@ -1078,19 +1078,8 @@ export default function MerchantPortalPage() {
     return (
       <main style={pageShell}>
         <section style={loginHero}>
-          <div style={{ display: "grid", gap: 16 }}>
-            <p style={eyebrow}>Merchant hub</p>
-            <h1 style={heroTitle}>Build your live menu without presets.</h1>
-            <p style={heroCopy}>
-              This hub is the real control layer for each business. Log in, create menu categories and items, and
-              build the included ingredients and customer options exactly the way the marketplace should sell them.
-            </p>
-          </div>
-
           <section style={loginPanel}>
-            <p style={eyebrowDark}>Hub login</p>
-            <h2 style={panelTitle}>Business access</h2>
-            <p style={panelCopy}>Sign in with the hub credentials created from the admin panel.</p>
+            <h1 style={panelTitle}>Login to your hub</h1>
 
             <div style={{ display: "grid", gap: 14, marginTop: 18 }}>
               <label style={field}>
@@ -1771,8 +1760,8 @@ const pageShell: React.CSSProperties = {
 
 const loginHero: React.CSSProperties = {
   display: "grid",
-  gap: 18,
-  alignItems: "start",
+  minHeight: "calc(100vh - 80px)",
+  placeItems: "center",
 };
 
 const loginPanel: React.CSSProperties = {
