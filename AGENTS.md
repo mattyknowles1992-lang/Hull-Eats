@@ -190,10 +190,10 @@ Shared UI primitives.
 The intended flow is:
 
 1. Hull Eats admin signs into `apps/admin-portal`.
-2. Admin creates a business hub with business name, owner name, owner email, username, temporary password, business type, and default delivery lead time.
+2. Admin creates a business hub with only the business name, login email, and temporary password.
 3. API creates a persisted business, store, and owner `HubUser`.
-4. Password is hashed before storage.
-5. Business owner signs into `apps/merchant-portal` with email or username and password.
+4. The login email is also used as the hub username, and the password is hashed before storage.
+5. Business owner signs into `apps/merchant-portal` with email and password.
 6. API returns a merchant session token and the hub workspace.
 7. Merchant portal fetches/saves hub settings, users, categories, menu items, and menu imports through the API.
 8. Customer apps read the resulting live marketplace/store/menu data from the API/database.
@@ -371,4 +371,4 @@ These areas are not complete and should be treated as future work unless the use
 
 ## User Direction To Preserve
 
-The user wants the software portal separated so it can be introduced/deployed only into businesses. Hull Eats admins should be able to create a hub, set the business name, owner/login details, and let that business log into its hub from any machine. The portal may remain a web app first, but it should be treated as standalone software that is configured and deployed in its own right.
+The user wants the software portal separated so it can be introduced/deployed only into businesses. Hull Eats admins should create a hub using only business name, login email, and temporary password; all business setup such as menu, delivery lead time, pricing, descriptions, and other settings belongs inside the hub portal after login. The portal may remain a web app first, but it should be treated as standalone software that is configured and deployed in its own right.

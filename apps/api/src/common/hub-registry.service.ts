@@ -216,9 +216,9 @@ export class HubRegistryService {
     await this.ensurePilotHub();
 
     const slug = slugify(input.businessName) || `hub-${Date.now()}`;
-    const ownerName = input.ownerName.trim();
+    const ownerName = `${input.businessName.trim()} Owner`;
     const ownerEmail = input.ownerEmail.trim().toLowerCase();
-    const hubUsername = input.hubUsername.trim();
+    const hubUsername = ownerEmail;
 
     const [usernameExists, emailExists, slugExists] = await Promise.all([
       prisma.hubUser.findUnique({ where: { username: hubUsername } }),
@@ -227,7 +227,7 @@ export class HubRegistryService {
     ]);
 
     if (usernameExists) {
-      throw new BadRequestException("That hub username is already in use.");
+      throw new BadRequestException("That login email is already in use.");
     }
 
     if (emailExists || slugExists) {
@@ -248,7 +248,7 @@ export class HubRegistryService {
           merchantId: merchant.id,
           slug,
           name: input.businessName,
-          type: this.mapStoreTypeToDb(input.type),
+          type: "TAKEAWAY",
           storefrontStatus: "ONBOARDING",
           menuSetupComplete: false,
           addressLine1: "",
@@ -258,7 +258,7 @@ export class HubRegistryService {
           onboardingMessage: "New hub created from the admin panel. Add categories, items, pricing, and images here.",
           deliveryFee: 0,
           minimumOrderAmount: 0,
-          etaMinutes: this.parseLeadMinutes(input.deliveryLeadTime),
+          etaMinutes: 25,
           isActive: true,
         },
       });
@@ -318,7 +318,7 @@ export class HubRegistryService {
     });
 
     if (!hubUser || !hubUser.isActive || hubUser.status === "DISABLED" || !verifyPassword(password, hubUser.passwordHash)) {
-      throw new UnauthorizedException("Hub username or password did not match a provisioned business account.");
+      throw new UnauthorizedException("Hub email or password did not match a provisioned business account.");
     }
 
     const workspace = await this.getWorkspaceById(hubUser.merchantId);

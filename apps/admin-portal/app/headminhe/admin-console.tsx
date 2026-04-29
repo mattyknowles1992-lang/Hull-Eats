@@ -125,12 +125,8 @@ async function createAdminHub(
   token: string,
   input: {
     businessName: string;
-    ownerName: string;
     ownerEmail: string;
-    type: BusinessType;
-    hubUsername: string;
     hubPassword: string;
-    deliveryLeadTime: string;
   },
 ): Promise<AdminCreateHubResponse> {
   const response = await fetch(`${apiBaseUrl}/v1/admin/hubs`, {
@@ -383,12 +379,8 @@ export function AdminConsole() {
   ]);
 
   const [businessName, setBusinessName] = useState("");
-  const [ownerName, setOwnerName] = useState("");
   const [ownerEmail, setOwnerEmail] = useState("");
-  const [businessType, setBusinessType] = useState<BusinessType>("restaurant");
-  const [hubUsername, setHubUsername] = useState("");
   const [hubPassword, setHubPassword] = useState("");
-  const [deliveryLeadTime, setDeliveryLeadTime] = useState("20 min");
 
   const [newUserName, setNewUserName] = useState("");
   const [newUserEmail, setNewUserEmail] = useState("");
@@ -498,19 +490,15 @@ export function AdminConsole() {
   }, [newUserRole, selectedHub]);
 
   const handleCreateHub = async () => {
-    if (!authToken || !businessName.trim() || !ownerName.trim() || !ownerEmail.trim() || !hubUsername.trim() || !hubPassword.trim()) {
+    if (!authToken || !businessName.trim() || !ownerEmail.trim() || !hubPassword.trim()) {
       return;
     }
 
     try {
       const created = await createAdminHub(authToken, {
         businessName: businessName.trim(),
-        ownerName: ownerName.trim(),
         ownerEmail: ownerEmail.trim().toLowerCase(),
-        type: businessType,
-        hubUsername: hubUsername.trim(),
         hubPassword,
-        deliveryLeadTime: deliveryLeadTime.trim() || "20 min",
       });
 
       const hubRecord = mapApiHubToRecord(created.hub);
@@ -539,11 +527,8 @@ export function AdminConsole() {
       ]);
       setSelectedHub(created.hub.businessName);
       setBusinessName("");
-      setOwnerName("");
       setOwnerEmail("");
-      setHubUsername("");
       setHubPassword("");
-      setDeliveryLeadTime("20 min");
       setHubNotice(`Hub created and provisioned for ${created.hub.businessName}.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Hub creation failed.";
@@ -1197,11 +1182,7 @@ export function AdminConsole() {
                   <input style={styles.input} value={businessName} onChange={(event) => setBusinessName(event.target.value)} />
                 </label>
                 <label style={{ display: "grid", gap: 8 }}>
-                  <span style={{ fontWeight: 800, color: "#dce9ff" }}>Owner name</span>
-                  <input style={styles.input} value={ownerName} onChange={(event) => setOwnerName(event.target.value)} />
-                </label>
-                <label style={{ display: "grid", gap: 8 }}>
-                  <span style={{ fontWeight: 800, color: "#dce9ff" }}>Owner email</span>
+                  <span style={{ fontWeight: 800, color: "#dce9ff" }}>Login email</span>
                   <input
                     style={styles.input}
                     type="email"
@@ -1210,36 +1191,12 @@ export function AdminConsole() {
                   />
                 </label>
                 <label style={{ display: "grid", gap: 8 }}>
-                  <span style={{ fontWeight: 800, color: "#dce9ff" }}>Business type</span>
-                  <select
-                    style={{ ...styles.input, appearance: "none" }}
-                    value={businessType}
-                    onChange={(event) => setBusinessType(event.target.value as BusinessType)}
-                  >
-                    <option value="restaurant">Restaurant</option>
-                    <option value="takeaway">Takeaway</option>
-                    <option value="shop">Shop</option>
-                  </select>
-                </label>
-                <label style={{ display: "grid", gap: 8 }}>
-                  <span style={{ fontWeight: 800, color: "#dce9ff" }}>Hub username</span>
-                  <input style={styles.input} value={hubUsername} onChange={(event) => setHubUsername(event.target.value)} />
-                </label>
-                <label style={{ display: "grid", gap: 8 }}>
                   <span style={{ fontWeight: 800, color: "#dce9ff" }}>Temporary hub password</span>
                   <input
                     style={styles.input}
                     type="password"
                     value={hubPassword}
                     onChange={(event) => setHubPassword(event.target.value)}
-                  />
-                </label>
-                <label style={{ display: "grid", gap: 8 }}>
-                  <span style={{ fontWeight: 800, color: "#dce9ff" }}>Default delivery lead time</span>
-                  <input
-                    style={styles.input}
-                    value={deliveryLeadTime}
-                    onChange={(event) => setDeliveryLeadTime(event.target.value)}
                   />
                 </label>
               </div>
