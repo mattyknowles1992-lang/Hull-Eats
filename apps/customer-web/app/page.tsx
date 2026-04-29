@@ -31,6 +31,9 @@ export default function CustomerHomePage() {
         </div>
 
         <div className="topbar-actions">
+          <Link href="/about" className="glass-button">
+            About Hull Eats
+          </Link>
           <Link href="/register" className="glass-button">
             Hull Eats+
           </Link>
