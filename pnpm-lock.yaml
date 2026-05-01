@@ -63,6 +63,9 @@ importers:
       '@hull-eats/printer':
         specifier: workspace:*
         version: link:../../packages/printer
+      '@hull-eats/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
       '@hull-eats/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -96,7 +99,6 @@ importers:
       stripe:
         specifier: ^18.5.0
         version: 18.5.0(@types/node@22.19.17)
-    devDependencies:
       tsx:
         specifier: ^4.19.4
         version: 4.21.0
@@ -239,7 +241,6 @@ importers:
       ioredis:
         specifier: ^5.6.1
         version: 5.10.1
-    devDependencies:
       tsx:
         specifier: ^4.19.4
         version: 4.21.0

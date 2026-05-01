@@ -12,7 +12,7 @@ services:
     plan: starter
     region: frankfurt
     rootDir: .
-    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @hull-eats/db exec prisma generate && pnpm --filter @hull-eats/api build
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @hull-eats/db exec prisma generate && pnpm --filter @hull-eats/api... build
     startCommand: corepack pnpm --filter @hull-eats/api start
     healthCheckPath: /v1/health
     autoDeployTrigger: commit
@@ -68,7 +68,7 @@ services:
     plan: starter
     region: frankfurt
     rootDir: .
-    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @hull-eats/db exec prisma generate && pnpm --filter @hull-eats/worker build
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @hull-eats/db exec prisma generate && pnpm --filter @hull-eats/worker... build
     startCommand: corepack pnpm --filter @hull-eats/worker start
     autoDeployTrigger: commit
     envVars:

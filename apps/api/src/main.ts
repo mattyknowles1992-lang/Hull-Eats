@@ -1,5 +1,7 @@
 import "reflect-metadata";
 
+import { existsSync } from "node:fs";
+
 import { Logger } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 
@@ -8,7 +10,9 @@ import { loadEnv } from "@hull-eats/config";
 import { AppModule } from "./app.module";
 
 async function bootstrap(): Promise<void> {
-  process.loadEnvFile?.();
+  if (existsSync(".env")) {
+    process.loadEnvFile?.();
+  }
 
   const env = loadEnv(process.env);
   const app = await NestFactory.create(AppModule, { cors: true });
