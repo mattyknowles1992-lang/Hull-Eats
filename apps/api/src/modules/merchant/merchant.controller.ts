@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Headers, Param, Patch, Post } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Headers, Inject, Param, Patch, Post } from "@nestjs/common";
 
 import { MockPrinterAdapter } from "@hull-eats/printer";
 import {
@@ -26,7 +26,9 @@ const fallbackOrder = demoOrders[0]!;
 export class MerchantController {
   private readonly printer = new MockPrinterAdapter();
   constructor(
+    @Inject(HubRegistryService)
     private readonly hubRegistry: HubRegistryService,
+    @Inject(InternalAuthService)
     private readonly internalAuth: InternalAuthService,
   ) {}
 

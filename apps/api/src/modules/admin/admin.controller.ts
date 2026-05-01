@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Headers, Param, Patch, Post } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Headers, Inject, Param, Patch, Post } from "@nestjs/common";
 
 import { MvpDispatchEngine } from "@hull-eats/dispatch-engine";
 import { createHubInputSchema, createHubUserInputSchema, manualDriverAssignmentSchema } from "@hull-eats/types";
@@ -11,7 +11,9 @@ import { InternalAuthService } from "../../common/internal-auth.service";
 export class AdminController {
   private readonly dispatchEngine = new MvpDispatchEngine();
   constructor(
+    @Inject(HubRegistryService)
     private readonly hubRegistry: HubRegistryService,
+    @Inject(InternalAuthService)
     private readonly internalAuth: InternalAuthService,
   ) {}
 
