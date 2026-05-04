@@ -22,7 +22,7 @@ import type {
   PreviewMenuTextImportInput,
 } from "@hull-eats/types";
 
-const categoryLikeLine = /^[A-Za-z][A-Za-z\s&/+'-]{1,40}$/;
+const categoryLikeLine = /^[A-Za-z][A-Za-z\s&/+'->]{1,60}$/;
 const ignoredImportLines = [
   /^read more$/i,
   /^show less$/i,
@@ -61,6 +61,32 @@ function shouldIgnoreImportLine(value: string) {
   return ignoredImportLines.some((pattern) => pattern.test(value));
 }
 
+function normaliseMenuPathPart(value: string) {
+  return cleanImportLine(value.replace(/\b(main|category|section|sub|subcategory)\b/gi, ""))
+    .replace(/(^[-:>]+|[-:>]+$)/g, "")
+    .trim();
+}
+
+function splitMenuPath(value: string) {
+  return value
+    .split(/\s*(?:>|\/|::)\s*/)
+    .flatMap((part) => {
+      const cleaned = cleanImportLine(part);
+
+      if (/^[A-Za-z][A-Za-z\s&']*(?:-(?:main|category|section|sub|subcategory)|-[A-Za-z][A-Za-z\s&']*)+$/i.test(cleaned)) {
+        return cleaned.split(/\s*-\s*/);
+      }
+
+      return [cleaned];
+    })
+    .map(normaliseMenuPathPart)
+    .filter(Boolean);
+}
+
+function formatMenuPath(parts: string[]) {
+  return parts.length > 0 ? parts.join(" / ") : "Imported items";
+}
+
 function parsePastedMenuText(rawText: string, seed: string): HubMenuImportCandidate[] {
   const lines = rawText
     .split(/\r?\n/)
@@ -68,7 +94,7 @@ function parsePastedMenuText(rawText: string, seed: string): HubMenuImportCandid
     .filter(Boolean);
 
   const candidates: HubMenuImportCandidate[] = [];
-  let currentCategory = "Imported items";
+  let currentPath = ["Imported items"];
   let pendingItemName = "";
 
   for (const line of lines) {
@@ -76,32 +102,39 @@ function parsePastedMenuText(rawText: string, seed: string): HubMenuImportCandid
       continue;
     }
 
-    const slashParts = line
-      .split("/")
-      .map((part) => cleanImportLine(part))
-      .filter(Boolean);
+    const price = extractPrice(line);
+    const lineWithoutPrice = cleanImportLine(line.replace(/\s*(?:from\s*)?[\u00A3$]?\s*\d+(?:\.\d{1,2})?.*$/i, ""));
+    const pathParts = splitMenuPath(lineWithoutPrice);
 
-    if (slashParts.length >= 3) {
-      const slashPrice = extractPrice(slashParts.at(-1) ?? "");
-      if (slashPrice !== null) {
-        candidates.push(
-          createImportCandidate(seed, candidates.length + 1, {
-            suggestedCategoryName: slashParts[0] ?? currentCategory,
-            itemName: slashParts[1] ?? "Imported item",
-            description: "Parsed from pasted storefront text. Review before publishing.",
-            price: slashPrice,
-            sourceLine: line,
-          }),
-        );
-        pendingItemName = "";
-        continue;
-      }
+    if (price !== null && pathParts.length >= 3) {
+      candidates.push(
+        createImportCandidate(seed, candidates.length + 1, {
+          suggestedCategoryName: formatMenuPath(pathParts.slice(0, -1)),
+          itemName: pathParts.at(-1) ?? "Imported item",
+          description: "Parsed from pasted storefront text. Review before publishing.",
+          price,
+          sourceLine: line,
+        }),
+      );
+      pendingItemName = "";
+      continue;
     }
 
-    const price = extractPrice(line);
+    if (price === null && pathParts.length >= 2 && /[>/]|-[A-Za-z]/.test(line)) {
+      currentPath = pathParts;
+      pendingItemName = "";
+      continue;
+    }
 
     if (categoryLikeLine.test(line) && price === null) {
-      currentCategory = line;
+      const markerMatch = line.match(/^(.*?)-\s*(main|category|section|sub|subcategory)$/i);
+      if (markerMatch) {
+        const label = normaliseMenuPathPart(markerMatch[1] ?? "");
+        const marker = markerMatch[2]?.toLowerCase();
+        currentPath = marker === "main" || marker === "category" || marker === "section" ? [label] : [...currentPath.slice(0, 1), label];
+      } else {
+        currentPath = [line];
+      }
       pendingItemName = "";
       continue;
     }
@@ -110,7 +143,7 @@ function parsePastedMenuText(rawText: string, seed: string): HubMenuImportCandid
       if (pendingItemName && price !== null) {
         candidates.push(
           createImportCandidate(seed, candidates.length + 1, {
-            suggestedCategoryName: currentCategory,
+            suggestedCategoryName: formatMenuPath(currentPath),
             itemName: pendingItemName,
             description: "Parsed from pasted storefront text. Review before publishing.",
             price,
@@ -124,11 +157,12 @@ function parsePastedMenuText(rawText: string, seed: string): HubMenuImportCandid
 
     if (price !== null) {
       const itemName =
-        cleanImportLine(line.replace(/\s*(?:from\s*)?[\u00A3$]?\s*\d+(?:\.\d{1,2})?.*$/i, "")) || pendingItemName;
+        pathParts.length >= 2 ? pathParts.at(-1) : lineWithoutPrice || pendingItemName;
+      const categoryName = pathParts.length >= 2 ? formatMenuPath(pathParts.slice(0, -1)) : formatMenuPath(currentPath);
       if (itemName) {
         candidates.push(
           createImportCandidate(seed, candidates.length + 1, {
-            suggestedCategoryName: currentCategory,
+            suggestedCategoryName: categoryName,
             itemName,
             description: "Parsed from pasted storefront text. Review before publishing.",
             price,
@@ -305,6 +339,36 @@ export class HubRegistryService {
       deletedHubId: hubId,
       deletedBusinessName: merchant.name,
     };
+  }
+
+  async publishHub(hubId: string) {
+    await this.ensurePilotHub();
+
+    const store = await this.findPrimaryStore(hubId);
+    const activeItemCount = await prisma.menuItem.count({
+      where: {
+        isActive: true,
+        category: {
+          storeId: store.id,
+          isActive: true,
+        },
+      },
+    });
+
+    await prisma.store.update({
+      where: { id: store.id },
+      data: {
+        storefrontStatus: "LIVE",
+        menuSetupComplete: activeItemCount > 0,
+        isActive: true,
+        onboardingMessage:
+          activeItemCount > 0
+            ? "This hub is live on Hull Eats."
+            : "This hub is live, but no active menu items have been added yet.",
+      },
+    });
+
+    return this.getWorkspaceById(hubId);
   }
 
   async authenticate(usernameOrEmail: string, password: string) {

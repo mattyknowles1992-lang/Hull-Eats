@@ -1227,7 +1227,7 @@ export default function MerchantPortalPage() {
                     style={compactInput}
                     value={newCategory.name}
                     onChange={(event) => setNewCategory((current) => ({ ...current, name: event.target.value }))}
-                    placeholder="Create custom category"
+                    placeholder="Create category or path, e.g. Drinks / Fizzy"
                   />
                   <button type="button" style={primaryButton} onClick={handleCreateCategory}>
                     Add category
@@ -1425,7 +1425,10 @@ export default function MerchantPortalPage() {
               <div style={panelHeader}>
                 <p style={eyebrowDark}>Fastest setup</p>
                 <h2 style={sectionTitle}>Paste an existing menu</h2>
-                <p style={panelCopyDark}>Paste category names and item lines, preview, tick what is right, then add them to the menu.</p>
+                <p style={panelCopyDark}>
+                  Paste from Just Eat, Uber Eats, Deliveroo, a PDF, or your own notes. Use category paths like
+                  Drinks / Fizzy / Coke, Drinks &gt; Milkshakes &gt; Oreo, or Drinks-main then Fizzy-sub.
+                </p>
               </div>
               <div style={fastActionGrid}>
                 <label style={field}>

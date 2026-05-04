@@ -47,6 +47,12 @@ export class AdminController {
     return this.hubRegistry.deleteHub(hubId);
   }
 
+  @Post("hubs/:hubId/publish")
+  publishHub(@Headers("authorization") authorization: string | undefined, @Param("hubId") hubId: string) {
+    this.internalAuth.requireAdminToken(authorization);
+    return this.hubRegistry.publishHub(hubId);
+  }
+
   @Post("hubs/:hubId/users")
   createHubUser(
     @Headers("authorization") authorization: string | undefined,

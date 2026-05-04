@@ -160,6 +160,21 @@ async function deleteAdminHub(token: string, hubId: string) {
   return (await response.json()) as { deletedHubId: string; deletedBusinessName: string };
 }
 
+async function publishAdminHub(token: string, hubId: string) {
+  const response = await fetch(`${apiBaseUrl}/v1/admin/hubs/${hubId}/publish`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Admin hub publish failed with status ${response.status}`);
+  }
+
+  return (await response.json()) as { hub: AdminHubSummary };
+}
+
 async function createAdminHubUser(
   token: string,
   hubId: string,
@@ -578,6 +593,22 @@ export function AdminConsole() {
       setHubNotice(`Hub deleted: ${businessName}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Hub deletion failed.";
+      setHubNotice(message);
+    }
+  };
+
+  const handlePublishHub = async (hubId: string) => {
+    if (!authToken) {
+      return;
+    }
+
+    try {
+      const workspace = await publishAdminHub(authToken, hubId);
+      const hubRecord = mapApiHubToRecord(workspace.hub);
+      setHubs((current) => current.map((hub) => (hub.id === hubId ? hubRecord : hub)));
+      setHubNotice(`${workspace.hub.businessName} is now live on Hull Eats.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Hub publish failed.";
       setHubNotice(message);
     }
   };
@@ -1369,6 +1400,15 @@ export function AdminConsole() {
                       </div>
                       <div style={{ display: "grid", gap: 8, justifyItems: "end" }}>
                         <StatusPill value={hub.status} />
+                        {hub.status !== "live" ? (
+                          <button
+                            type="button"
+                            style={{ ...styles.buttonPrimary, minHeight: 38, padding: "0 12px", fontSize: 13 }}
+                            onClick={() => handlePublishHub(hub.id)}
+                          >
+                            Make live
+                          </button>
+                        ) : null}
                         <button
                           type="button"
                           style={{ ...styles.buttonGlass, minHeight: 38, padding: "0 12px", fontSize: 13 }}
