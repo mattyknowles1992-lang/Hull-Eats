@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "@hull-eats/courier-app",
   "version": "0.1.0",
   "private": true,
@@ -9,6 +9,8 @@
   "dependencies": {
     "@hull-eats/types": "workspace:*",
     "expo": "^53.0.9",
+    "expo-camera": "~16.1.11",
+    "expo-location": "~18.1.6",
     "expo-status-bar": "^2.2.3",
     "react": "^19.1.0",
     "react-native": "^0.79.2"

@@ -210,6 +210,9 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
             <Link href={`/stores/${store.slug}`} className="primary-button">
               Back to storefront
             </Link>
+            <Link href={`/track/${placedOrder.order.orderNumber}`} className="primary-button">
+              Track delivery
+            </Link>
             <Link href="/" className="glass-button">
               Browse more stores
             </Link>

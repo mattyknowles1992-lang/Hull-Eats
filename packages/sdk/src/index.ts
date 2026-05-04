@@ -1,5 +1,9 @@
 import type {
   CheckoutSession,
+  CourierCompleteDeliveryInput,
+  CourierDelivery,
+  CourierLocationInput,
+  CourierStartDeliveryInput,
   CreateCheckoutSessionInput,
   CreateCustomerAddressInput,
   CreateOrderInput,
@@ -12,6 +16,7 @@ import type {
   OrderSummary,
   PaymentRecord,
   StoreSummary,
+  TrackedOrder,
 } from "@hull-eats/types";
 
 type Fetcher = typeof fetch;
@@ -81,8 +86,8 @@ export class HullEatsApiClient {
     });
   }
 
-  async trackOrder(orderId: string): Promise<OrderSummary> {
-    return this.request<OrderSummary>(`/v1/public/orders/${orderId}/track`);
+  async trackOrder(orderId: string): Promise<TrackedOrder> {
+    return this.request<TrackedOrder>(`/v1/public/orders/${orderId}/track`);
   }
 
   async listMerchantOrders(): Promise<OrderSummary[]> {
@@ -110,8 +115,29 @@ export class HullEatsApiClient {
     });
   }
 
-  async listCourierJobs(): Promise<OrderSummary[]> {
-    return this.request<OrderSummary[]>("/v1/courier/jobs");
+  async listCourierJobs(): Promise<CourierDelivery[]> {
+    return this.request<CourierDelivery[]>("/v1/courier/jobs");
+  }
+
+  async startCourierDelivery(input: CourierStartDeliveryInput): Promise<CourierDelivery> {
+    return this.request<CourierDelivery>("/v1/courier/deliveries/start", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
+  async sendCourierLocation(deliveryId: string, input: CourierLocationInput): Promise<CourierDelivery> {
+    return this.request<CourierDelivery>(`/v1/courier/deliveries/${deliveryId}/location`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
+  async completeCourierDelivery(deliveryId: string, input: CourierCompleteDeliveryInput): Promise<CourierDelivery> {
+    return this.request<CourierDelivery>(`/v1/courier/deliveries/${deliveryId}/complete`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
   }
 
   private async request<T>(path: string, init?: RequestInit): Promise<T> {

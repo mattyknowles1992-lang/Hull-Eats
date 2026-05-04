@@ -1,32 +1,40 @@
-﻿import { Controller, Get, Param, Post } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post } from "@nestjs/common";
+
+import {
+  courierCompleteDeliveryInputSchema,
+  courierLocationInputSchema,
+  courierStartDeliveryInputSchema,
+} from "@hull-eats/types";
+
+import {
+  completeDeliveryWithCode,
+  listCourierJobs,
+  startDeliveryFromScan,
+  updateCourierLocation,
+} from "../../common/courier-delivery-store";
 
 @Controller("courier")
 export class CourierController {
   @Get("jobs")
   listJobs() {
-    return [
-      {
-        deliveryId: "delivery_HE_1002",
-        orderNumber: "HE-1002",
-        status: "assigned",
-        pickupAddress: "88 Beverley Road, Hull",
-        dropoffAddress: "99 Spring Bank, Hull",
-      },
-    ];
+    return listCourierJobs();
   }
 
-  @Post("deliveries/:deliveryId/accept")
-  acceptDelivery(@Param("deliveryId") deliveryId: string) {
-    return { deliveryId, status: "accepted", acceptedAt: new Date().toISOString() };
+  @Post("deliveries/start")
+  startDelivery(@Body() body: unknown) {
+    const input = courierStartDeliveryInputSchema.parse(body);
+    return startDeliveryFromScan(input);
   }
 
-  @Post("deliveries/:deliveryId/picked-up")
-  markPickedUp(@Param("deliveryId") deliveryId: string) {
-    return { deliveryId, status: "picked_up", pickedUpAt: new Date().toISOString() };
+  @Post("deliveries/:deliveryId/location")
+  sendLocation(@Param("deliveryId") deliveryId: string, @Body() body: unknown) {
+    const input = courierLocationInputSchema.parse(body);
+    return updateCourierLocation(deliveryId, input);
   }
 
-  @Post("deliveries/:deliveryId/delivered")
-  markDelivered(@Param("deliveryId") deliveryId: string) {
-    return { deliveryId, status: "delivered", deliveredAt: new Date().toISOString() };
+  @Post("deliveries/:deliveryId/complete")
+  completeDelivery(@Param("deliveryId") deliveryId: string, @Body() body: unknown) {
+    const input = courierCompleteDeliveryInputSchema.parse(body);
+    return completeDeliveryWithCode(deliveryId, input.confirmationCode);
   }
 }

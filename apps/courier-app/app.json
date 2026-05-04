@@ -4,6 +4,19 @@
     "slug": "hull-eats-courier",
     "version": "0.1.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "light"
+    "userInterfaceStyle": "light",
+    "ios": {
+      "infoPlist": {
+        "NSCameraUsageDescription": "Drivers scan the order receipt QR code to start a Hull Eats delivery.",
+        "NSLocationWhenInUseUsageDescription": "Drivers share live location while an active Hull Eats delivery is on the way."
+      }
+    },
+    "android": {
+      "permissions": [
+        "CAMERA",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ]
+    }
   }
 }

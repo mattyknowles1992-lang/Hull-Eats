@@ -1,4 +1,4 @@
-import type { CheckoutSession, CreateCheckoutSessionInput } from "@hull-eats/types";
+import type { CheckoutSession, CreateCheckoutSessionInput, TrackedOrder } from "@hull-eats/types";
 
 const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000").replace(/\/$/, "");
 
@@ -54,4 +54,16 @@ export async function placeCheckoutOrder(checkoutSessionId: string): Promise<{
       status: string;
     };
   };
+}
+
+export async function trackOrder(orderId: string): Promise<TrackedOrder> {
+  const response = await fetch(`${apiBaseUrl}/v1/public/orders/${encodeURIComponent(orderId)}/track`, {
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Order tracking request failed with status ${response.status}`);
+  }
+
+  return (await response.json()) as TrackedOrder;
 }

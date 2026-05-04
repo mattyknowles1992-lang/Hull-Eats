@@ -117,6 +117,55 @@ export const orderSummarySchema = z.object({
   prepTimeMinutes: z.number().int().nullable(),
 });
 
+export const courierLocationSchema = z.object({
+  latitude: z.number(),
+  longitude: z.number(),
+  accuracyMeters: z.number().nonnegative().optional(),
+  heading: z.number().optional(),
+  updatedAt: z.string().datetime(),
+});
+
+export const courierDeliverySchema = z.object({
+  deliveryId: z.string().min(1),
+  orderId: z.string().min(1),
+  orderNumber: z.string().min(1),
+  status: deliveryStatusSchema,
+  storeName: z.string().min(1),
+  pickupAddress: z.string().min(1),
+  dropoffAddress: z.string().min(1),
+  customerName: z.string().min(1),
+  customerPhone: z.string().min(1),
+  confirmationCode: z.string().min(4).max(8),
+  navigationUrl: z.string().url(),
+  startedAt: z.string().datetime().optional(),
+  pickedUpAt: z.string().datetime().optional(),
+  deliveredAt: z.string().datetime().optional(),
+  courierLocation: courierLocationSchema.optional(),
+});
+
+export const courierStartDeliveryInputSchema = z.object({
+  scanCode: z.string().min(1).optional(),
+  orderNumber: z.string().min(1).optional(),
+  driverId: z.string().min(1).optional(),
+}).refine((input) => input.scanCode || input.orderNumber, {
+  message: "Scan code or order number is required.",
+});
+
+export const courierLocationInputSchema = z.object({
+  latitude: z.number(),
+  longitude: z.number(),
+  accuracyMeters: z.number().nonnegative().optional(),
+  heading: z.number().optional(),
+});
+
+export const courierCompleteDeliveryInputSchema = z.object({
+  confirmationCode: z.string().min(4).max(8),
+});
+
+export const trackedOrderSchema = orderSummarySchema.extend({
+  delivery: courierDeliverySchema.optional(),
+});
+
 export type CreateOrderInput = z.infer<typeof createOrderInputSchema>;
 export type OrderLineRemovedComponent = z.infer<typeof orderLineRemovedComponentSchema>;
 export type OrderLineSelectedOption = z.infer<typeof orderLineSelectedOptionSchema>;
@@ -125,3 +174,9 @@ export type MerchantAcceptOrderInput = z.infer<typeof merchantAcceptOrderSchema>
 export type MerchantRejectOrderInput = z.infer<typeof merchantRejectOrderSchema>;
 export type ManualDriverAssignmentInput = z.infer<typeof manualDriverAssignmentSchema>;
 export type OrderSummary = z.infer<typeof orderSummarySchema>;
+export type CourierLocation = z.infer<typeof courierLocationSchema>;
+export type CourierDelivery = z.infer<typeof courierDeliverySchema>;
+export type CourierStartDeliveryInput = z.infer<typeof courierStartDeliveryInputSchema>;
+export type CourierLocationInput = z.infer<typeof courierLocationInputSchema>;
+export type CourierCompleteDeliveryInput = z.infer<typeof courierCompleteDeliveryInputSchema>;
+export type TrackedOrder = z.infer<typeof trackedOrderSchema>;

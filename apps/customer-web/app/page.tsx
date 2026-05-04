@@ -224,7 +224,9 @@ export default function CustomerHomePage() {
             </div>
             <div className="glance-row">
               <span className="muted-copy">Order tracking</span>
-              <span className="status-chip assigned">{trackedOrder.status.replaceAll("_", " ")}</span>
+              <Link href={`/track/${trackedOrder.orderNumber}`} className="status-chip assigned">
+                {trackedOrder.status.replaceAll("_", " ")}
+              </Link>
             </div>
           </section>
         </aside>

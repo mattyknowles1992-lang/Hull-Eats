@@ -3,7 +3,8 @@ import { Body, Controller, Get, Param, Post } from "@nestjs/common";
 import { createOrderInputSchema, orderSummarySchema } from "@hull-eats/types";
 
 import { createStoredCheckoutSession } from "../../common/checkout-engine";
-import { demoMenuByStore, demoMenuSectionsByStore, demoOrders, demoStores } from "../../common/demo-data";
+import { findTrackedOrder } from "../../common/courier-delivery-store";
+import { demoMenuByStore, demoMenuSectionsByStore, demoStores } from "../../common/demo-data";
 
 @Controller("public")
 export class PublicController {
@@ -130,6 +131,6 @@ export class PublicController {
 
   @Get("orders/:orderId/track")
   trackOrder(@Param("orderId") orderId: string) {
-    return demoOrders.find((order) => order.id === orderId || order.orderNumber === orderId) ?? demoOrders[0];
+    return findTrackedOrder(orderId);
   }
 }
