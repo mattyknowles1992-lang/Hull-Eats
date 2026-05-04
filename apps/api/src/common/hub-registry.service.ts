@@ -601,6 +601,7 @@ export class HubRegistryService {
         name: input.name,
         description: input.description,
         price: input.price,
+        imageUrl: input.imageUrl ?? null,
         customisationConfig: this.buildCustomisationConfig(input),
         isActive: true,
         isFeatured: false,

@@ -29,6 +29,7 @@ type CreateItemFormState = {
   name: string;
   description: string;
   price: string;
+  imageUrl: string;
 };
 
 type CreateUserFormState = {
@@ -75,6 +76,7 @@ const initialCreateItemState: CreateItemFormState = {
   name: "",
   description: "",
   price: "",
+  imageUrl: "",
 };
 
 const emptyHubSettings: HubSettings = {
@@ -271,6 +273,7 @@ async function createMenuItem(
     name: string;
     description: string;
     price: number;
+    imageUrl?: string;
     components: MenuItem["components"];
     optionGroups: MenuItem["optionGroups"];
   },
@@ -981,6 +984,7 @@ export default function MerchantPortalPage() {
         name: newItem.name.trim(),
         description: newItem.description.trim(),
         price: Number(newItem.price),
+        imageUrl: newItem.imageUrl.trim() || undefined,
         components: [],
         optionGroups: [],
       });
@@ -1295,6 +1299,15 @@ export default function MerchantPortalPage() {
                     placeholder="7.99"
                   />
                 </label>
+                <label style={field}>
+                  <span style={darkFieldLabel}>Product image URL</span>
+                  <input
+                    style={lightInput}
+                    value={newItem.imageUrl}
+                    onChange={(event) => setNewItem((current) => ({ ...current, imageUrl: event.target.value }))}
+                    placeholder="https://..."
+                  />
+                </label>
                 <button type="button" style={primaryButton} onClick={handleCreateItem}>
                   Add item
                 </button>
@@ -1513,6 +1526,15 @@ export default function MerchantPortalPage() {
                       placeholder="Two 3oz smashed beef patties with melted cheese..."
                     />
                   </label>
+                  <label style={field}>
+                    <span style={darkFieldLabel}>Product image URL</span>
+                    <input
+                      style={lightInput}
+                      value={newItem.imageUrl}
+                      onChange={(event) => setNewItem((current) => ({ ...current, imageUrl: event.target.value }))}
+                      placeholder="https://..."
+                    />
+                  </label>
                   <button type="button" style={primaryButton} onClick={handleCreateItem}>
                     Create item shell
                   </button>
@@ -1636,6 +1658,18 @@ export default function MerchantPortalPage() {
                               style={{ ...lightInput, minHeight: 96, paddingTop: 14, paddingBottom: 14, resize: "vertical" }}
                               value={item.description}
                               onChange={(event) => updateItem(section.id, item.id, (current) => ({ ...current, description: event.target.value }))}
+                            />
+                          </label>
+
+                          <label style={field}>
+                            <span style={darkFieldLabel}>Product image URL</span>
+                            <input
+                              style={lightInput}
+                              value={item.imageUrl ?? ""}
+                              onChange={(event) =>
+                                updateItem(section.id, item.id, (current) => ({ ...current, imageUrl: event.target.value || undefined }))
+                              }
+                              placeholder="https://..."
                             />
                           </label>
 

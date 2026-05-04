@@ -123,6 +123,7 @@ export const createHubMenuItemInputSchema = z.object({
   name: z.string().min(1),
   description: z.string().default(""),
   price: z.number().nonnegative(),
+  imageUrl: menuItemSchema.shape.imageUrl,
   components: menuItemSchema.shape.components.default([]),
   optionGroups: menuItemSchema.shape.optionGroups.default([]),
 });

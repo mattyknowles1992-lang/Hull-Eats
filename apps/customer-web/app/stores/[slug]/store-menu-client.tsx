@@ -36,6 +36,47 @@ type StoreMenuClientProps = {
 
 const formatMoney = (value: number) => `£${value.toFixed(2)}`;
 
+const categoryImageRules = [
+  {
+    pattern: /burger|smash|patty|beef/i,
+    imageUrl: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=1200&q=82",
+  },
+  {
+    pattern: /pizza|slice|pepperoni/i,
+    imageUrl: "https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=1200&q=82",
+  },
+  {
+    pattern: /chicken|wings|strips|tenders/i,
+    imageUrl: "https://images.unsplash.com/photo-1562967914-608f82629710?auto=format&fit=crop&w=1200&q=82",
+  },
+  {
+    pattern: /fries|loaded|munch|tray|chips/i,
+    imageUrl: "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?auto=format&fit=crop&w=1200&q=82",
+  },
+  {
+    pattern: /dessert|sweet|cookie|waffle|shake|cake|brownie/i,
+    imageUrl: "https://images.unsplash.com/photo-1551024506-0bccd828d307?auto=format&fit=crop&w=1200&q=82",
+  },
+  {
+    pattern: /drink|refresh|soda|juice/i,
+    imageUrl: "https://images.unsplash.com/photo-1544145945-f90425340c7e?auto=format&fit=crop&w=1200&q=82",
+  },
+  {
+    pattern: /hot dog|hotdog|dog/i,
+    imageUrl: "https://images.unsplash.com/photo-1619740455993-9e612b1af08a?auto=format&fit=crop&w=1200&q=82",
+  },
+];
+
+const defaultCategoryImageUrl =
+  "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=82";
+
+const getCategoryImageUrl = (category: MenuCategory) => {
+  const searchableText = `${category.name} ${category.description ?? ""}`;
+  return categoryImageRules.find((rule) => rule.pattern.test(searchableText))?.imageUrl ?? defaultCategoryImageUrl;
+};
+
+const getItemImageUrl = (item: MenuItem, category: MenuCategory) => item.imageUrl ?? getCategoryImageUrl(category);
+
 const getGroupCountLabel = (group: MenuItem["optionGroups"][number]) => {
   const minimum = group.isRequired ? Math.max(group.minSelections, 1) : group.minSelections;
   const requirementLabel = minimum > 0 ? `${minimum} required` : "Optional";
@@ -232,38 +273,52 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
       ) : null}
 
       {categories.map((category) => (
-        <section key={category.id} className="menu-section-card">
-          <div className="menu-section-header">
-            <div>
+        <section key={category.id} className="menu-section-card menu-section-card-visual">
+          <div
+            className="menu-category-visual"
+            style={{
+              backgroundImage: `linear-gradient(90deg, rgba(7, 9, 13, 0.72), rgba(7, 9, 13, 0.18)), url(${getCategoryImageUrl(category)})`,
+            }}
+          >
+            <div className="menu-category-copy">
               <p className="eyebrow">{storeName}</p>
               <h3>{category.name}</h3>
+              {category.description ? <p className="menu-section-copy">{category.description}</p> : null}
             </div>
-            <span className="store-tag">{category.items.length} items</span>
+            <span className="store-tag menu-category-count">{category.items.length} items</span>
           </div>
-          {category.description ? <p className="menu-section-copy">{category.description}</p> : null}
 
           <div className="menu-item-grid">
             {category.items.map((item) => (
-              <article key={item.id} className="menu-item-card">
-                <div className="menu-item-top">
-                  <div>
-                    <h4>{item.name}</h4>
-                    <p>{item.description}</p>
+              <article key={item.id} className="menu-item-card menu-item-card-visual">
+                <div
+                  className="menu-item-image"
+                  style={{
+                    backgroundImage: `url(${getItemImageUrl(item, category)})`,
+                  }}
+                  aria-hidden="true"
+                />
+                <div className="menu-item-content-panel">
+                  <div className="menu-item-top">
+                    <div>
+                      <h4>{item.name}</h4>
+                      <p>{item.description}</p>
+                    </div>
+                    <strong>{formatMoney(item.price)}</strong>
                   </div>
-                  <strong>{formatMoney(item.price)}</strong>
-                </div>
 
-                {item.components.length > 0 || item.optionGroups.length > 0 ? (
-                  <div className="menu-item-customise-summary">
-                    {item.components.length > 0 ? <span>{item.components.length} included ingredients</span> : null}
-                    {item.optionGroups.length > 0 ? <span>{item.optionGroups.length} customisation groups</span> : null}
+                  {item.components.length > 0 || item.optionGroups.length > 0 ? (
+                    <div className="menu-item-customise-summary">
+                      {item.components.length > 0 ? <span>{item.components.length} included ingredients</span> : null}
+                      {item.optionGroups.length > 0 ? <span>{item.optionGroups.length} customisation groups</span> : null}
+                    </div>
+                  ) : null}
+
+                  <div className="menu-item-footer">
+                    <button type="button" className="glass-button" onClick={() => openCustomise(item)}>
+                      {item.components.length > 0 || item.optionGroups.length > 0 ? "Customise and add" : "Add"}
+                    </button>
                   </div>
-                ) : null}
-
-                <div className="menu-item-footer">
-                  <button type="button" className="glass-button" onClick={() => openCustomise(item)}>
-                    {item.components.length > 0 || item.optionGroups.length > 0 ? "Customise and add" : "Add"}
-                  </button>
                 </div>
               </article>
             ))}
