@@ -689,6 +689,9 @@ export default function MerchantPortalPage() {
   const [userNotice, setUserNotice] = useState("");
   const [menuNotice, setMenuNotice] = useState("");
   const [passwordNotice, setPasswordNotice] = useState("");
+  const [activeHubPanel, setActiveHubPanel] = useState<"menu" | "import" | "settings" | "account">("menu");
+  const [selectedCategoryId, setSelectedCategoryId] = useState("");
+  const [selectedItemId, setSelectedItemId] = useState("");
 
   const menuStats = useMemo(() => {
     const totalItems = menuSections.reduce((sum, section) => sum + section.items.length, 0);
@@ -706,6 +709,39 @@ export default function MerchantPortalPage() {
     };
   }, [menuSections]);
 
+  const selectedCategory = useMemo(
+    () => menuSections.find((section) => section.id === selectedCategoryId) ?? menuSections[0] ?? null,
+    [menuSections, selectedCategoryId],
+  );
+
+  const selectedItem = useMemo(
+    () => selectedCategory?.items.find((item) => item.id === selectedItemId) ?? selectedCategory?.items[0] ?? null,
+    [selectedCategory, selectedItemId],
+  );
+
+  useEffect(() => {
+    if (!menuSections.length) {
+      setSelectedCategoryId("");
+      setSelectedItemId("");
+      return;
+    }
+
+    const nextCategory = menuSections.find((section) => section.id === selectedCategoryId) ?? menuSections[0]!;
+    if (nextCategory.id !== selectedCategoryId) {
+      setSelectedCategoryId(nextCategory.id);
+    }
+
+    if (!nextCategory.items.length) {
+      setSelectedItemId("");
+      return;
+    }
+
+    const nextItem = nextCategory.items.find((item) => item.id === selectedItemId) ?? nextCategory.items[0]!;
+    if (nextItem.id !== selectedItemId) {
+      setSelectedItemId(nextItem.id);
+    }
+  }, [menuSections, selectedCategoryId, selectedItemId]);
+
   const updateMenuSections = (updater: (current: HubMenuSection[]) => HubMenuSection[]) => {
     setMenuSections((current) => updater(current));
     setSaveNotice("");
@@ -718,6 +754,8 @@ export default function MerchantPortalPage() {
     setHubSettings(workspace.settings);
     setMenuSections(workspace.menuSections);
     setPendingImports(workspace.pendingImports ?? []);
+    setSelectedCategoryId(workspace.menuSections[0]?.id ?? "");
+    setSelectedItemId(workspace.menuSections[0]?.items[0]?.id ?? "");
     setNewItem((current) => ({
       ...current,
       sectionId: workspace.menuSections[0]?.id ?? "",
@@ -781,6 +819,8 @@ export default function MerchantPortalPage() {
     setHubSettings(emptyHubSettings);
     setMenuSections([]);
     setPendingImports([]);
+    setSelectedCategoryId("");
+    setSelectedItemId("");
     setPasswordForm(initialPasswordFormState);
     setSaveNotice("");
     setUserNotice("");
@@ -942,6 +982,8 @@ export default function MerchantPortalPage() {
       });
 
       setMenuSections((current) => [...current, createdCategory]);
+      setSelectedCategoryId(createdCategory.id);
+      setSelectedItemId("");
       setNewCategory(initialCreateCategoryState);
       setNewItem((current) => ({
         ...current,
@@ -994,6 +1036,8 @@ export default function MerchantPortalPage() {
           section.id === newItem.sectionId ? { ...section, items: [...section.items, createdItem] } : section,
         ),
       );
+      setSelectedCategoryId(newItem.sectionId);
+      setSelectedItemId(createdItem.id);
       setNewItem((current) => ({
         ...initialCreateItemState,
         sectionId: current.sectionId,
@@ -1137,6 +1181,334 @@ export default function MerchantPortalPage() {
         {userNotice ? <p style={successMessageStyle}>{userNotice}</p> : null}
         {passwordNotice ? <p style={successMessageStyle}>{passwordNotice}</p> : null}
 
+        <section style={workbenchShell}>
+          <div style={workbenchNav}>
+            {[
+              ["menu", "Menu"],
+              ["import", "Import"],
+              ["settings", "Store"],
+              ["account", "Account"],
+            ].map(([panel, label]) => (
+              <button
+                key={panel}
+                type="button"
+                style={activeHubPanel === panel ? workbenchTabActive : workbenchTab}
+                onClick={() => setActiveHubPanel(panel as typeof activeHubPanel)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {activeHubPanel === "menu" ? (
+            <section style={menuWorkbenchGrid}>
+              <aside style={compactColumn}>
+                <div style={compactHeader}>
+                  <div>
+                    <p style={eyebrowDark}>Categories</p>
+                    <h2 style={compactTitle}>{menuStats.categories} sections</h2>
+                  </div>
+                </div>
+                <div style={compactList}>
+                  {menuSections.map((section) => (
+                    <button
+                      key={section.id}
+                      type="button"
+                      style={section.id === selectedCategory?.id ? compactListButtonActive : compactListButton}
+                      onClick={() => {
+                        setSelectedCategoryId(section.id);
+                        setSelectedItemId(section.items[0]?.id ?? "");
+                        setNewItem((current) => ({ ...current, sectionId: section.id }));
+                      }}
+                    >
+                      <strong>{section.name}</strong>
+                      <span>{section.items.length} items</span>
+                    </button>
+                  ))}
+                </div>
+                <div style={compactCreateBox}>
+                  <input
+                    style={compactInput}
+                    value={newCategory.name}
+                    onChange={(event) => setNewCategory((current) => ({ ...current, name: event.target.value }))}
+                    placeholder="New category"
+                  />
+                  <button type="button" style={primaryButton} onClick={handleCreateCategory}>
+                    Add
+                  </button>
+                </div>
+              </aside>
+
+              <aside style={compactColumn}>
+                <div style={compactHeader}>
+                  <div>
+                    <p style={eyebrowDark}>Items</p>
+                    <h2 style={compactTitle}>{selectedCategory?.name ?? "Choose category"}</h2>
+                  </div>
+                </div>
+                <div style={compactList}>
+                  {selectedCategory?.items.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      style={item.id === selectedItem?.id ? compactListButtonActive : compactListButton}
+                      onClick={() => setSelectedItemId(item.id)}
+                    >
+                      <strong>{item.name}</strong>
+                      <span>
+                        {formatMoney(item.price)} / {item.isActive ? "live" : "hidden"}
+                      </span>
+                    </button>
+                  ))}
+                  {selectedCategory && selectedCategory.items.length === 0 ? <div style={emptyStateCard}>No items in this category yet.</div> : null}
+                </div>
+                <div style={compactCreateBox}>
+                  <input
+                    style={compactInput}
+                    value={newItem.name}
+                    onChange={(event) => setNewItem((current) => ({ ...current, name: event.target.value, sectionId: selectedCategory?.id ?? current.sectionId }))}
+                    placeholder="New item"
+                  />
+                  <input
+                    type="number"
+                    step="0.01"
+                    style={{ ...compactInput, maxWidth: 110 }}
+                    value={newItem.price}
+                    onChange={(event) => setNewItem((current) => ({ ...current, price: event.target.value, sectionId: selectedCategory?.id ?? current.sectionId }))}
+                    placeholder="Price"
+                  />
+                  <button type="button" style={primaryButton} onClick={handleCreateItem}>
+                    Add
+                  </button>
+                </div>
+              </aside>
+
+              <section style={compactEditorCard}>
+                {selectedCategory && selectedItem ? (
+                  <>
+                    <div style={itemTopRow}>
+                      <div>
+                        <p style={eyebrowDark}>Editing item</p>
+                        <h2 style={sectionTitle}>{selectedItem.name}</h2>
+                      </div>
+                      <button type="button" style={secondaryButtonSmall} onClick={() => handleDeleteItem(selectedItem.id, selectedItem.name)}>
+                        Remove
+                      </button>
+                    </div>
+
+                    <div style={builderGrid}>
+                      <label style={field}>
+                        <span style={darkFieldLabel}>Name</span>
+                        <input
+                          style={lightInput}
+                          value={selectedItem.name}
+                          onChange={(event) => updateItem(selectedCategory.id, selectedItem.id, (current) => ({ ...current, name: event.target.value }))}
+                        />
+                      </label>
+                      <label style={field}>
+                        <span style={darkFieldLabel}>Price</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          style={lightInput}
+                          value={moneyInput(selectedItem.price)}
+                          onChange={(event) => updateItem(selectedCategory.id, selectedItem.id, (current) => ({ ...current, price: Number(event.target.value) || 0 }))}
+                        />
+                      </label>
+                      <label style={field}>
+                        <span style={darkFieldLabel}>Stock</span>
+                        <select
+                          style={lightInput}
+                          value={selectedItem.stockStatus}
+                          onChange={(event) =>
+                            updateItem(selectedCategory.id, selectedItem.id, (current) => ({ ...current, stockStatus: event.target.value as StockStatus }))
+                          }
+                        >
+                          <option value="in_stock">In stock</option>
+                          <option value="low_stock">Low stock</option>
+                          <option value="out_of_stock">Out of stock</option>
+                        </select>
+                      </label>
+                    </div>
+
+                    <label style={field}>
+                      <span style={darkFieldLabel}>Description</span>
+                      <textarea
+                        style={{ ...lightInput, minHeight: 92, paddingTop: 14, paddingBottom: 14, resize: "vertical" }}
+                        value={selectedItem.description}
+                        onChange={(event) => updateItem(selectedCategory.id, selectedItem.id, (current) => ({ ...current, description: event.target.value }))}
+                      />
+                    </label>
+
+                    <label style={field}>
+                      <span style={darkFieldLabel}>Product image URL</span>
+                      <input
+                        style={lightInput}
+                        value={selectedItem.imageUrl ?? ""}
+                        onChange={(event) => updateItem(selectedCategory.id, selectedItem.id, (current) => ({ ...current, imageUrl: event.target.value || undefined }))}
+                        placeholder="https://..."
+                      />
+                    </label>
+
+                    <div style={toggleRow}>
+                      <label style={toggleLabel}>
+                        <input
+                          type="checkbox"
+                          checked={selectedItem.isActive}
+                          onChange={(event) => updateItem(selectedCategory.id, selectedItem.id, (current) => ({ ...current, isActive: event.target.checked }))}
+                        />
+                        <span>Live on marketplace</span>
+                      </label>
+                      <label style={toggleLabel}>
+                        <input
+                          type="checkbox"
+                          checked={selectedItem.trackStock}
+                          onChange={(event) => updateItem(selectedCategory.id, selectedItem.id, (current) => ({ ...current, trackStock: event.target.checked }))}
+                        />
+                        <span>Track stock</span>
+                      </label>
+                    </div>
+
+                    <details style={advancedDrawer}>
+                      <summary style={advancedSummary}>Meals, extras, removals and custom choices</summary>
+                      <CustomisationBuilder
+                        item={selectedItem}
+                        onChangeComponents={(components) => updateItem(selectedCategory.id, selectedItem.id, (current) => ({ ...current, components }))}
+                        onChangeOptionGroups={(optionGroups) => updateItem(selectedCategory.id, selectedItem.id, (current) => ({ ...current, optionGroups }))}
+                      />
+                    </details>
+                  </>
+                ) : (
+                  <div style={emptyStateCard}>Choose an item, or add one with the quick field on the left.</div>
+                )}
+              </section>
+            </section>
+          ) : null}
+
+          {activeHubPanel === "import" ? (
+            <section style={compactEditorCard}>
+              <div style={panelHeader}>
+                <p style={eyebrowDark}>Fastest setup</p>
+                <h2 style={sectionTitle}>Paste an existing menu</h2>
+                <p style={panelCopyDark}>Paste category names and item lines, preview, tick what is right, then add them to the menu.</p>
+              </div>
+              <div style={fastActionGrid}>
+                <label style={field}>
+                  <span style={darkFieldLabel}>Menu text</span>
+                  <textarea
+                    style={{ ...lightInput, minHeight: 190, paddingTop: 14, paddingBottom: 14, resize: "vertical" }}
+                    value={pastedMenuText}
+                    onChange={(event) => setPastedMenuText(event.target.value)}
+                    placeholder={"Loaded Fries\nSalt & Pepper Loaded Fries\nfrom £8.49\n\nSmash Burgers\nClassic Smash\nfrom £7.99"}
+                  />
+                </label>
+                <div style={{ display: "grid", gap: 12, alignContent: "start" }}>
+                  <button type="button" onClick={handlePreviewPastedMenu} style={primaryButton}>
+                    Preview pasted menu
+                  </button>
+                  <label style={field}>
+                    <span style={darkFieldLabel}>Menu page image</span>
+                    <input type="file" accept="image/*" style={lightInput} onChange={(event) => setSelectedImportImageName(event.target.files?.[0]?.name ?? "")} />
+                  </label>
+                  <button type="button" onClick={handlePreviewImport} style={secondaryButton}>
+                    Preview image
+                  </button>
+                </div>
+              </div>
+              <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
+                {pendingImports.map((batch) => (
+                  <article key={batch.id} style={importBatchCard}>
+                    <strong style={{ color: "#0f1115" }}>{batch.imageName}</strong>
+                    <div style={{ display: "grid", gap: 10, maxHeight: 360, overflow: "auto" }}>
+                      {batch.candidates.map((candidate) => (
+                        <label key={candidate.id} style={candidateRow}>
+                          <input
+                            type="checkbox"
+                            checked={selectedImportCandidateIds.includes(candidate.id)}
+                            onChange={(event) =>
+                              setSelectedImportCandidateIds((current) =>
+                                event.target.checked ? [...current, candidate.id] : current.filter((id) => id !== candidate.id),
+                              )
+                            }
+                          />
+                          <span>
+                            <strong>{candidate.suggestedCategoryName} / {candidate.itemName}</strong>
+                            <br />
+                            <span style={subtleInfo}>{formatMoney(candidate.price)}</span>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                    <button type="button" onClick={() => handleApplyImport(batch.id)} style={primaryButton}>
+                      Add ticked items
+                    </button>
+                  </article>
+                ))}
+                {pendingImports.length === 0 ? <div style={emptyStateCard}>No imports waiting for review.</div> : null}
+              </div>
+            </section>
+          ) : null}
+
+          {activeHubPanel === "settings" ? (
+            <section style={compactEditorCard}>
+              <div style={twoColumnGrid}>
+                <label style={field}>
+                  <span style={darkFieldLabel}>Business name</span>
+                  <input style={lightInput} value={hubSettings.name} onChange={(event) => handleHubFieldChange("name", event.target.value)} />
+                </label>
+                <label style={field}>
+                  <span style={darkFieldLabel}>Cuisine label</span>
+                  <input style={lightInput} value={hubSettings.cuisineLabel} onChange={(event) => handleHubFieldChange("cuisineLabel", event.target.value)} />
+                </label>
+                <label style={field}>
+                  <span style={darkFieldLabel}>ETA minutes</span>
+                  <input type="number" min={1} style={lightInput} value={hubSettings.etaMinutes} onChange={(event) => handleHubFieldChange("etaMinutes", Math.max(1, Number(event.target.value) || 1))} />
+                </label>
+                <label style={field}>
+                  <span style={darkFieldLabel}>Delivery fee</span>
+                  <input type="number" step="0.01" style={lightInput} value={hubSettings.deliveryFee} onChange={(event) => handleHubFieldChange("deliveryFee", Number(event.target.value) || 0)} />
+                </label>
+                <label style={field}>
+                  <span style={darkFieldLabel}>Minimum order</span>
+                  <input type="number" step="0.01" style={lightInput} value={hubSettings.minimumOrderAmount} onChange={(event) => handleHubFieldChange("minimumOrderAmount", Number(event.target.value) || 0)} />
+                </label>
+                <label style={field}>
+                  <span style={darkFieldLabel}>Open now</span>
+                  <select style={lightInput} value={hubSettings.isOpen ? "open" : "closed"} onChange={(event) => handleHubFieldChange("isOpen", event.target.value === "open")}>
+                    <option value="open">Open</option>
+                    <option value="closed">Closed</option>
+                  </select>
+                </label>
+              </div>
+            </section>
+          ) : null}
+
+          {activeHubPanel === "account" ? (
+            <section style={compactEditorCard}>
+              <div style={quickAddGrid}>
+                <div style={quickAddCard}>
+                  <h3 style={quickAddTitle}>Change password</h3>
+                  <input type="password" style={lightInput} value={passwordForm.currentPassword} onChange={(event) => setPasswordForm((current) => ({ ...current, currentPassword: event.target.value }))} placeholder="Current password" />
+                  <input type="password" style={lightInput} value={passwordForm.newPassword} onChange={(event) => setPasswordForm((current) => ({ ...current, newPassword: event.target.value }))} placeholder="New password" />
+                  <input type="password" style={lightInput} value={passwordForm.confirmPassword} onChange={(event) => setPasswordForm((current) => ({ ...current, confirmPassword: event.target.value }))} placeholder="Confirm password" />
+                  <button type="button" onClick={handleChangePassword} style={primaryButton}>Change password</button>
+                </div>
+                <div style={quickAddCard}>
+                  <h3 style={quickAddTitle}>Hub users</h3>
+                  {hubUsers.map((user) => (
+                    <div key={user.id} style={listRow}>
+                      <span style={{ color: "#101216", fontWeight: 800 }}>{user.fullName}</span>
+                      <span style={subtleInfo}>{user.role}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+          ) : null}
+        </section>
+
+        <details style={legacyDetails}>
+          <summary style={legacySummary}>Advanced full-page editor</summary>
         <section style={summaryGrid}>
           <article style={overviewCard}>
             <span style={summaryLabel}>Categories</span>
@@ -1970,6 +2342,7 @@ export default function MerchantPortalPage() {
             </section>
           </aside>
         </section>
+        </details>
       </div>
     </main>
   );
@@ -2145,6 +2518,154 @@ const activeUserChip: React.CSSProperties = {
   border: "1px solid rgba(15, 17, 21, 0.12)",
   background: "rgba(255,255,255,0.9)",
   fontWeight: 800,
+};
+
+const workbenchShell: React.CSSProperties = {
+  display: "grid",
+  gap: 16,
+  borderRadius: 28,
+  border: "1px solid rgba(15, 17, 21, 0.12)",
+  background: "linear-gradient(180deg, rgba(255,255,255,1), rgba(248,242,235,0.97))",
+  boxShadow: "0 24px 44px rgba(15, 17, 21, 0.08)",
+  padding: 16,
+};
+
+const workbenchNav: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
+  gap: 10,
+};
+
+const workbenchTab: React.CSSProperties = {
+  minHeight: 46,
+  borderRadius: 14,
+  border: "1px solid rgba(15, 17, 21, 0.12)",
+  background: "rgba(255,255,255,0.82)",
+  color: "#101216",
+  fontWeight: 900,
+  cursor: "pointer",
+};
+
+const workbenchTabActive: React.CSSProperties = {
+  ...workbenchTab,
+  color: "#fff",
+  borderColor: "rgba(15, 17, 21, 0.18)",
+  background: "linear-gradient(180deg, #1d2027, #101216)",
+};
+
+const menuWorkbenchGrid: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+  gap: 14,
+  alignItems: "start",
+};
+
+const compactColumn: React.CSSProperties = {
+  display: "grid",
+  gap: 12,
+  minHeight: 520,
+  borderRadius: 22,
+  border: "1px solid rgba(15, 17, 21, 0.1)",
+  background: "rgba(255,255,255,0.78)",
+  padding: 14,
+};
+
+const compactHeader: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 12,
+  alignItems: "flex-start",
+};
+
+const compactTitle: React.CSSProperties = {
+  margin: "4px 0 0",
+  fontSize: 22,
+  lineHeight: 1,
+  fontFamily: "Georgia, serif",
+  color: "#0f1115",
+};
+
+const compactList: React.CSSProperties = {
+  display: "grid",
+  gap: 8,
+  alignContent: "start",
+  maxHeight: 390,
+  overflow: "auto",
+  paddingRight: 4,
+};
+
+const compactListButton: React.CSSProperties = {
+  display: "grid",
+  gap: 5,
+  width: "100%",
+  minHeight: 64,
+  padding: 12,
+  borderRadius: 16,
+  border: "1px solid rgba(15, 17, 21, 0.1)",
+  color: "#101216",
+  background: "#fff",
+  textAlign: "left",
+  cursor: "pointer",
+};
+
+const compactListButtonActive: React.CSSProperties = {
+  ...compactListButton,
+  borderColor: "rgba(255, 106, 0, 0.34)",
+  background: "linear-gradient(180deg, rgba(255, 244, 233, 1), rgba(255,255,255,0.98))",
+  boxShadow: "0 14px 24px rgba(255, 106, 0, 0.1)",
+};
+
+const compactCreateBox: React.CSSProperties = {
+  display: "flex",
+  gap: 8,
+  alignItems: "center",
+  flexWrap: "wrap",
+  marginTop: "auto",
+};
+
+const compactInput: React.CSSProperties = {
+  ...lightInput,
+  flex: "1 1 130px",
+  minWidth: 0,
+};
+
+const compactEditorCard: React.CSSProperties = {
+  display: "grid",
+  gap: 14,
+  minHeight: 520,
+  borderRadius: 22,
+  border: "1px solid rgba(15, 17, 21, 0.1)",
+  background: "#fff",
+  padding: 16,
+};
+
+const advancedDrawer: React.CSSProperties = {
+  borderRadius: 18,
+  border: "1px solid rgba(15, 17, 21, 0.1)",
+  background: "rgba(248, 242, 235, 0.74)",
+  padding: 14,
+};
+
+const advancedSummary: React.CSSProperties = {
+  cursor: "pointer",
+  color: "#101216",
+  fontWeight: 900,
+};
+
+const legacyDetails: React.CSSProperties = {
+  borderRadius: 22,
+  border: "1px solid rgba(15, 17, 21, 0.12)",
+  background: "rgba(255,255,255,0.64)",
+  padding: 14,
+};
+
+const legacySummary: React.CSSProperties = {
+  cursor: "pointer",
+  color: "#101216",
+  fontWeight: 900,
+  minHeight: 44,
+  display: "flex",
+  alignItems: "center",
 };
 
 const summaryGrid: React.CSSProperties = {
