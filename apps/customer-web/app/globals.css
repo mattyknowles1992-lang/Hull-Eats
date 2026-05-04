@@ -1,6 +1,6 @@
 :root {
-  --bg: #fbf6ef;
-  --bg-deep: #f3e6d3;
+  --bg: #ffffff;
+  --bg-deep: #f4f7fb;
   --surface: rgba(255, 255, 255, 0.95);
   --surface-strong: rgba(255, 255, 255, 1);
   --surface-soft: rgba(255, 255, 255, 0.84);
@@ -28,7 +28,7 @@
 
 html {
   scroll-behavior: smooth;
-  background: linear-gradient(180deg, #fff8f0 0%, #f7efe5 46%, #ece3d7 100%);
+  background: linear-gradient(180deg, #ffffff 0%, #ffffff 48%, #f4f7fb 100%);
   color: var(--ink);
 }
 
