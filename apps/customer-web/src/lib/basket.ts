@@ -303,7 +303,19 @@ export const loadBasket = (storeSlug: string): StoreBasket | null => {
   }
 
   try {
-    return JSON.parse(raw) as StoreBasket;
+    const parsed = JSON.parse(raw) as StoreBasket;
+
+    return {
+      ...parsed,
+      items: (parsed.items ?? []).map((line) => ({
+        ...line,
+        selectedOptionQuantities: line.selectedOptionQuantities ?? {},
+        removedComponentIds: line.removedComponentIds ?? [],
+        selectedOptions: line.selectedOptions ?? [],
+        removedComponents: line.removedComponents ?? [],
+        components: line.components ?? [],
+      })),
+    };
   } catch {
     return null;
   }

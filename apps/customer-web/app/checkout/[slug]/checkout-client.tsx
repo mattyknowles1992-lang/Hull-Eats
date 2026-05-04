@@ -42,6 +42,10 @@ const initialFormState: CheckoutFormState = {
 
 const formatMoney = (value: number) => `£${value.toFixed(2)}`;
 
+const getLineComponents = <T extends { components?: unknown }>(line: T) => (Array.isArray(line.components) ? line.components : []);
+const getLineSelectedOptions = <T extends { selectedOptions?: unknown }>(line: T) =>
+  Array.isArray(line.selectedOptions) ? line.selectedOptions : [];
+
 export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
   const [basket, setBasket] = useState<StoreBasket | null>(null);
   const [formState, setFormState] = useState<CheckoutFormState>(initialFormState);
@@ -170,13 +174,13 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
                   <strong>{formatMoney(line.lineTotal)}</strong>
                 </div>
                 <div className="line-detail-stack">
-                  {line.components.map((component) => (
+                  {getLineComponents(line).map((component) => (
                     <span key={component.componentId} className={component.removed ? "line-detail line-detail-removed" : "line-detail"}>
                       {component.quantity} x {component.label}
                       {component.removed ? " / removed" : ""}
                     </span>
                   ))}
-                  {line.selectedOptions.map((option) => (
+                  {getLineSelectedOptions(line).map((option) => (
                     <span key={option.valueId} className="line-detail line-detail-selected">
                       {option.quantity} x {option.groupName}: {option.valueName}
                       {option.priceDelta > 0 ? ` / +${formatMoney(option.priceDelta)}` : ""}
@@ -301,15 +305,15 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
                     <strong>{formatMoney(line.unitPrice * line.quantity)}</strong>
                   </div>
 
-                  {line.components.length > 0 || line.selectedOptions.length > 0 ? (
+                  {getLineComponents(line).length > 0 || getLineSelectedOptions(line).length > 0 ? (
                     <div className="line-detail-stack">
-                      {line.components.map((component) => (
+                      {getLineComponents(line).map((component) => (
                         <span key={component.componentId} className={component.removed ? "line-detail line-detail-removed" : "line-detail"}>
                           {component.quantity} x {component.label}
                           {component.removed ? " / removed" : ""}
                         </span>
                       ))}
-                      {line.selectedOptions.map((option) => (
+                      {getLineSelectedOptions(line).map((option) => (
                         <span key={option.valueId} className="line-detail line-detail-selected">
                           {option.quantity} x {option.groupName}: {option.valueName}
                           {option.priceDelta > 0 ? ` / +${formatMoney(option.priceDelta)}` : ""}
