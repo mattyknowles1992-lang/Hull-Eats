@@ -2,12 +2,12 @@
 
 import { featuredStores, trackedOrder } from "../src/lib/demo";
 
-const filters = ["All", "Loaded fries", "Smash burgers", "Chicken", "Desserts", "Shops"];
+const filters = ["All", "Restaurants", "Takeaways", "Groceries", "Desserts", "Late night"];
 const quickPicks = [
-  { title: "Loaded fries", detail: "Hot trays, molten cheese, crispy toppings" },
-  { title: "Smash burgers", detail: "Pressed patties, toasted buns, proper sauce" },
-  { title: "Chicken", detail: "Buttermilk burgers, strips, wings, dips" },
-  { title: "Sweet finish", detail: "Cookie dough, shakes, waffles, refreshers" },
+  { title: "Dinner now", detail: "Restaurants, takeaways, and local kitchens ready to cook" },
+  { title: "Quick essentials", detail: "Corner-shop staples, snacks, drinks, and convenience runs" },
+  { title: "Late-night cravings", detail: "Hot food, sweet fixes, and comfort orders after dark" },
+  { title: "Family favourites", detail: "Pizza, burgers, curries, chicken, noodles, wraps, and more" },
 ];
 const appetiteSignals = ["Live Hull menus", "Real-time order tracking", "Local courier delivery", "Hull Eats+ perks"];
 
@@ -58,14 +58,14 @@ export default function CustomerHomePage() {
           <p className="hero-badge">Hull's food marketplace</p>
           <h1>From local kitchens to your door.</h1>
           <p>
-            Open the door to loaded fries, smash burgers, late-night trays, sweet fixes, and local favourites moving
-            from kitchen to doorstep on Hull Eats.
+            Discover Hull's independent restaurants, takeaways, dessert spots, corner shops, and everyday favourites,
+            all moving from local counters to your doorstep.
           </p>
 
           <div className="marketplace-search">
-            <input className="search-input" aria-label="Search businesses" placeholder="Search loaded fries, burgers, chicken, desserts..." />
+            <input className="search-input" aria-label="Search businesses" placeholder="Search restaurants, takeaways, shops, desserts..." />
             <Link href="/stores/loaded-munch-hull" className="primary-button">
-              Order now
+              Browse live menus
             </Link>
           </div>
 
@@ -78,9 +78,9 @@ export default function CustomerHomePage() {
 
         <Link href="/stores/loaded-munch-hull" className="hero-food-stage" aria-label="Open Loaded Munch menu">
           <div className="hero-food-card">
-            <span className="status-chip pending">Live now</span>
+            <span className="status-chip pending">Featured launch kitchen</span>
             <strong>Loaded Munch</strong>
-            <p>Loaded fries, burgers, wraps, chicken, desserts, and drinks ready to order.</p>
+            <p>One of the first live menus on Hull Eats, with more local kitchens and shops joining the marketplace.</p>
             <div className="hero-food-meta">
               <span>25 min</span>
               <span>£2.50 delivery</span>
@@ -111,7 +111,7 @@ export default function CustomerHomePage() {
           <div className="search-highlight-card live-menu-card">
             <span className="search-highlight-label">Featured kitchen</span>
             <strong>Loaded Munch</strong>
-            <p>Hot, indulgent, built for sharing, and already wired into the Hull Eats checkout.</p>
+            <p>A live example of how every local business can show its menu, options, delivery, and checkout.</p>
             <Link href="/stores/loaded-munch-hull" className="primary-button" style={{ width: "100%" }}>
               View the menu
             </Link>
@@ -137,7 +137,7 @@ export default function CustomerHomePage() {
           <div className="section-heading">
             <div>
               <h2>Order from Hull's local food scene</h2>
-              <p>Bold menus, clear delivery details, and checkout that gets out of the way.</p>
+              <p>Food, drinks, essentials, sweet treats, and local favourites with clear delivery details.</p>
             </div>
           </div>
 
@@ -206,17 +206,17 @@ export default function CustomerHomePage() {
             <div className="section-heading compact">
               <div>
                 <h2>Popular right now</h2>
-                <p>What customers can jump into first as the marketplace fills out.</p>
+                <p>What customers can jump into while new local businesses come online.</p>
               </div>
             </div>
 
             <div className="glance-row">
-              <span className="muted-copy">Featured live menu</span>
+              <span className="muted-copy">Live example</span>
               <strong>Loaded Munch</strong>
             </div>
             <div className="glance-row">
-              <span className="muted-copy">Best for</span>
-              <strong>Burgers and loaded fries</strong>
+              <span className="muted-copy">Marketplace mix</span>
+              <strong>Food, shops, desserts</strong>
             </div>
             <div className="glance-row">
               <span className="muted-copy">Fastest route</span>

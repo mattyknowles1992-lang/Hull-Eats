@@ -71,7 +71,7 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
                 <h2>{hasLiveMenu ? "Store overview" : "Business onboarding status"}</h2>
                 <p>
                   {hasLiveMenu
-                    ? "Loaded Munch is the launch partner hub, so this storefront now shows a real seeded menu while preserving the same premium mobile-first layout."
+                    ? "This storefront shows the live Hull Eats ordering flow: browse, customise, basket, checkout, and tracking."
                     : "This empty-state flow should still feel polished and trustworthy to customers."}
                 </p>
               </div>
@@ -92,7 +92,7 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
                     Start order
                   </Link>
                   <button type="button" className="glass-button">
-                    Save Loaded Munch
+                    Save this store
                   </button>
                 </>
               ) : (

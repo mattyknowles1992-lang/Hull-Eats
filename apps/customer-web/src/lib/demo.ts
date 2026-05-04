@@ -19,7 +19,7 @@ export const featuredStores: StoreSummary[] = [
 export const storeMenus: Record<string, StoreMenuDemo> = {
   "loaded-munch-hull": {
     headline:
-      "Loaded Munch is set up as a live partner hub with a seeded menu so Hull Eats can launch from a real takeaway base while future menu edits still belong in the merchant portal.",
+      "A live Hull Eats storefront with menu browsing, item customisation, basket, checkout, and tracking. More restaurants, takeaways, shops, and dessert spots can plug into the same marketplace flow.",
     categories: loadedMunchMenuSections,
     items: loadedMunchMenuItems,
   },
