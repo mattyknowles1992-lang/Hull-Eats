@@ -632,27 +632,101 @@ textarea {
   overflow: hidden;
   border-radius: 30px;
   border: 1px solid rgba(16, 18, 24, 0.18);
-  background:
-    linear-gradient(90deg, rgba(8, 10, 14, 0.96) 0%, rgba(8, 10, 14, 0.78) 43%, rgba(8, 10, 14, 0.18) 100%),
-    url("/stores/loaded-munch/hero.webp") center/cover;
+  background: #080a0e;
   box-shadow: 0 34px 80px rgba(15, 17, 21, 0.28);
   transition:
     transform 260ms ease,
     box-shadow 260ms ease;
 }
 
+.marketplace-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background:
+    linear-gradient(90deg, rgba(8, 10, 14, 0.96) 0%, rgba(8, 10, 14, 0.78) 43%, rgba(8, 10, 14, 0.16) 100%),
+    radial-gradient(circle at 74% 28%, rgba(240, 191, 97, 0.2), transparent 34%);
+  pointer-events: none;
+}
+
 .marketplace-hero::after {
   content: "";
   position: absolute;
   inset: auto 0 0;
+  z-index: 1;
   height: 44%;
   background: linear-gradient(180deg, transparent, rgba(8, 10, 14, 0.86));
   pointer-events: none;
 }
 
+.hero-slideshow,
+.hero-slide {
+  position: absolute;
+  inset: 0;
+}
+
+.hero-slideshow {
+  z-index: 0;
+}
+
+.hero-slideshow-portrait {
+  display: none;
+}
+
+.hero-slide {
+  opacity: 0;
+  background-position: center;
+  background-size: cover;
+  animation: hero-image-cycle 18s infinite;
+  transform: scale(1.04);
+}
+
+.hero-slide-one {
+  background-image: url("/brand/hero/landscape1.png");
+}
+
+.hero-slide-two {
+  background-image: url("/brand/hero/landscape2.png");
+  animation-delay: 6s;
+}
+
+.hero-slide-three {
+  background-image: url("/brand/hero/landscape3.png");
+  animation-delay: 12s;
+}
+
+.hero-slide-portrait-one {
+  background-image: url("/brand/hero/portrait/portrait1.png");
+}
+
+.hero-slide-portrait-two {
+  background-image: url("/brand/hero/portrait/portrait2.png");
+  animation-delay: 6s;
+}
+
+@keyframes hero-image-cycle {
+  0%,
+  5% {
+    opacity: 0;
+    transform: scale(1.04);
+  }
+
+  12%,
+  34% {
+    opacity: 1;
+  }
+
+  42%,
+  100% {
+    opacity: 0;
+    transform: scale(1.1);
+  }
+}
+
 .marketplace-hero-copy {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   display: grid;
   align-content: center;
   gap: 20px;
@@ -722,7 +796,7 @@ textarea {
   position: absolute;
   right: clamp(18px, 4vw, 46px);
   bottom: clamp(18px, 4vw, 44px);
-  z-index: 1;
+  z-index: 2;
   width: min(360px, calc(100% - 36px));
 }
 
@@ -2344,9 +2418,25 @@ textarea {
 
   .marketplace-hero {
     min-height: auto;
+    background: #080a0e;
+  }
+
+  .marketplace-hero::before {
     background:
-      linear-gradient(180deg, rgba(8, 10, 14, 0.94) 0%, rgba(8, 10, 14, 0.64) 48%, rgba(8, 10, 14, 0.9) 100%),
-      url("/stores/loaded-munch/hero.webp") center/cover;
+      linear-gradient(180deg, rgba(8, 10, 14, 0.94) 0%, rgba(8, 10, 14, 0.66) 48%, rgba(8, 10, 14, 0.94) 100%),
+      radial-gradient(circle at 50% 22%, rgba(240, 191, 97, 0.16), transparent 44%);
+  }
+
+  .hero-slideshow-landscape {
+    display: none;
+  }
+
+  .hero-slideshow-portrait {
+    display: block;
+  }
+
+  .hero-slideshow-portrait .hero-slide {
+    animation-duration: 12s;
   }
 
   .marketplace-hero-copy {

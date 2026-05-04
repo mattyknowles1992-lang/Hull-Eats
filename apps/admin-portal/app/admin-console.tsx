@@ -999,7 +999,7 @@ export function AdminConsole() {
                         lineHeight: 1.6,
                       }}
                     >
-                      Demo only: hardcoded credentials for first internal workflow pass
+                      Internal admin access uses the Render bootstrap email and password.
                     </div>
                   </div>
 

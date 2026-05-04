@@ -45,6 +45,15 @@ export default function CustomerHomePage() {
       </header>
 
       <section className="marketplace-hero marketplace-scene">
+        <div className="hero-slideshow hero-slideshow-landscape" aria-hidden="true">
+          <span className="hero-slide hero-slide-one" />
+          <span className="hero-slide hero-slide-two" />
+          <span className="hero-slide hero-slide-three" />
+        </div>
+        <div className="hero-slideshow hero-slideshow-portrait" aria-hidden="true">
+          <span className="hero-slide hero-slide-portrait-one" />
+          <span className="hero-slide hero-slide-portrait-two" />
+        </div>
         <div className="marketplace-hero-copy">
           <p className="hero-badge">Hull's food marketplace</p>
           <h1>From local kitchens to your door.</h1>
