@@ -250,6 +250,23 @@ const styles = {
     padding: "0 14px",
     outline: "none",
   } as const,
+  passwordWrap: {
+    position: "relative",
+    display: "block",
+  } as const,
+  passwordReveal: {
+    position: "absolute",
+    top: 7,
+    right: 8,
+    minHeight: 36,
+    padding: "0 12px",
+    borderRadius: 12,
+    border: "1px solid rgba(255, 255, 255, 0.16)",
+    color: "#f7fbff",
+    background: "rgba(255,255,255,0.1)",
+    fontWeight: 900,
+    cursor: "pointer",
+  } as const,
   textarea: {
     width: "100%",
     minHeight: 108,
@@ -364,6 +381,9 @@ export function AdminConsole() {
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showHubPassword, setShowHubPassword] = useState(false);
+  const [showUserPassword, setShowUserPassword] = useState(false);
 
   const [hubs, setHubs] = useState(initialHubs);
   const [users, setUsers] = useState(initialUsers.filter((user) => user.loginType === "platform"));
@@ -971,12 +991,17 @@ export function AdminConsole() {
                     </label>
                     <label style={{ display: "grid", gap: 8 }}>
                       <span style={{ fontWeight: 800, color: "#dce9ff" }}>Password</span>
-                      <input
-                        style={styles.input}
-                        type="password"
-                        value={loginPassword}
-                        onChange={(event) => setLoginPassword(event.target.value)}
-                      />
+                      <span style={styles.passwordWrap}>
+                        <input
+                          style={{ ...styles.input, paddingRight: 88 }}
+                          type={showLoginPassword ? "text" : "password"}
+                          value={loginPassword}
+                          onChange={(event) => setLoginPassword(event.target.value)}
+                        />
+                        <button type="button" style={styles.passwordReveal} onClick={() => setShowLoginPassword((current) => !current)}>
+                          {showLoginPassword ? "Hide" : "Show"}
+                        </button>
+                      </span>
                     </label>
                   </div>
 
@@ -1191,12 +1216,17 @@ export function AdminConsole() {
                 </label>
                 <label style={{ display: "grid", gap: 8 }}>
                   <span style={{ fontWeight: 800, color: "#dce9ff" }}>Temporary hub password</span>
-                  <input
-                    style={styles.input}
-                    type="password"
-                    value={hubPassword}
-                    onChange={(event) => setHubPassword(event.target.value)}
-                  />
+                  <span style={styles.passwordWrap}>
+                    <input
+                      style={{ ...styles.input, paddingRight: 88 }}
+                      type={showHubPassword ? "text" : "password"}
+                      value={hubPassword}
+                      onChange={(event) => setHubPassword(event.target.value)}
+                    />
+                    <button type="button" style={styles.passwordReveal} onClick={() => setShowHubPassword((current) => !current)}>
+                      {showHubPassword ? "Hide" : "Show"}
+                    </button>
+                  </span>
                 </label>
               </div>
 
@@ -1255,12 +1285,17 @@ export function AdminConsole() {
                 </label>
                 <label style={{ display: "grid", gap: 8 }}>
                   <span style={{ fontWeight: 800, color: "#dce9ff" }}>Temporary password</span>
-                  <input
-                    style={styles.input}
-                    type="password"
-                    value={newUserPassword}
-                    onChange={(event) => setNewUserPassword(event.target.value)}
-                  />
+                  <span style={styles.passwordWrap}>
+                    <input
+                      style={{ ...styles.input, paddingRight: 88 }}
+                      type={showUserPassword ? "text" : "password"}
+                      value={newUserPassword}
+                      onChange={(event) => setNewUserPassword(event.target.value)}
+                    />
+                    <button type="button" style={styles.passwordReveal} onClick={() => setShowUserPassword((current) => !current)}>
+                      {showUserPassword ? "Hide" : "Show"}
+                    </button>
+                  </span>
                 </label>
                 <label style={{ display: "grid", gap: 8 }}>
                   <span style={{ fontWeight: 800, color: "#dce9ff" }}>Role</span>

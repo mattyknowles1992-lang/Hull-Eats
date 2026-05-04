@@ -692,6 +692,8 @@ export default function MerchantPortalPage() {
   const [activeHubPanel, setActiveHubPanel] = useState<"menu" | "import" | "settings" | "account">("menu");
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
   const [selectedItemId, setSelectedItemId] = useState("");
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showAccountPasswords, setShowAccountPasswords] = useState(false);
 
   const menuStats = useMemo(() => {
     const totalItems = menuSections.reduce((sum, section) => sum + section.items.length, 0);
@@ -1136,7 +1138,17 @@ export default function MerchantPortalPage() {
               </label>
               <label style={field}>
                 <span style={darkFieldLabel}>Password</span>
-                <input type="password" style={lightInput} value={loginPassword} onChange={(event) => setLoginPassword(event.target.value)} />
+                <span style={passwordFieldWrap}>
+                  <input
+                    type={showLoginPassword ? "text" : "password"}
+                    style={{ ...lightInput, paddingRight: 88 }}
+                    value={loginPassword}
+                    onChange={(event) => setLoginPassword(event.target.value)}
+                  />
+                  <button type="button" style={passwordRevealButton} onClick={() => setShowLoginPassword((current) => !current)}>
+                    {showLoginPassword ? "Hide" : "Show"}
+                  </button>
+                </span>
               </label>
               <button type="button" style={primaryButton} onClick={handleLogin}>
                 Open hub
@@ -1202,86 +1214,109 @@ export default function MerchantPortalPage() {
 
           {activeHubPanel === "menu" ? (
             <section style={menuWorkbenchGrid}>
-              <aside style={compactColumn}>
+              <section style={categoryAccordionPanel}>
                 <div style={compactHeader}>
                   <div>
                     <p style={eyebrowDark}>Categories</p>
-                    <h2 style={compactTitle}>{menuStats.categories} sections</h2>
+                    <h2 style={compactTitle}>Open one section, edit fast</h2>
                   </div>
                 </div>
-                <div style={compactList}>
-                  {menuSections.map((section) => (
-                    <button
-                      key={section.id}
-                      type="button"
-                      style={section.id === selectedCategory?.id ? compactListButtonActive : compactListButton}
-                      onClick={() => {
-                        setSelectedCategoryId(section.id);
-                        setSelectedItemId(section.items[0]?.id ?? "");
-                        setNewItem((current) => ({ ...current, sectionId: section.id }));
-                      }}
-                    >
-                      <strong>{section.name}</strong>
-                      <span>{section.items.length} items</span>
-                    </button>
-                  ))}
-                </div>
+
                 <div style={compactCreateBox}>
                   <input
                     style={compactInput}
                     value={newCategory.name}
                     onChange={(event) => setNewCategory((current) => ({ ...current, name: event.target.value }))}
-                    placeholder="New category"
+                    placeholder="Create custom category"
                   />
                   <button type="button" style={primaryButton} onClick={handleCreateCategory}>
-                    Add
+                    Add category
                   </button>
                 </div>
-              </aside>
 
-              <aside style={compactColumn}>
-                <div style={compactHeader}>
-                  <div>
-                    <p style={eyebrowDark}>Items</p>
-                    <h2 style={compactTitle}>{selectedCategory?.name ?? "Choose category"}</h2>
-                  </div>
-                </div>
-                <div style={compactList}>
-                  {selectedCategory?.items.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      style={item.id === selectedItem?.id ? compactListButtonActive : compactListButton}
-                      onClick={() => setSelectedItemId(item.id)}
+                <div style={categoryAccordionList}>
+                  {menuSections.map((section) => (
+                    <details
+                      key={section.id}
+                      open={section.id === selectedCategory?.id}
+                      style={categoryAccordionCard}
+                      onToggle={(event) => {
+                        if (event.currentTarget.open) {
+                          setSelectedCategoryId(section.id);
+                          setSelectedItemId(section.items[0]?.id ?? "");
+                          setNewItem((current) => ({ ...current, sectionId: section.id }));
+                        }
+                      }}
                     >
-                      <strong>{item.name}</strong>
-                      <span>
-                        {formatMoney(item.price)} / {item.isActive ? "live" : "hidden"}
-                      </span>
-                    </button>
+                      <summary style={categoryAccordionSummary}>
+                        <span>
+                          <strong>{section.name}</strong>
+                          <small>{section.items.length} items</small>
+                        </span>
+                        <span style={orangeBadge}>{section.id === selectedCategory?.id ? "Open" : "Edit"}</span>
+                      </summary>
+
+                      <div style={categoryAccordionBody}>
+                        <div style={builderGrid}>
+                          <label style={field}>
+                            <span style={darkFieldLabel}>Category name</span>
+                            <input style={lightInput} value={section.name} onChange={(event) => updateSection(section.id, "name", event.target.value)} />
+                          </label>
+                          <label style={field}>
+                            <span style={darkFieldLabel}>Category note</span>
+                            <input
+                              style={lightInput}
+                              value={section.description ?? ""}
+                              onChange={(event) => updateSection(section.id, "description", event.target.value)}
+                              placeholder="Optional short description"
+                            />
+                          </label>
+                        </div>
+
+                        <div style={compactCreateBox}>
+                          <input
+                            style={compactInput}
+                            value={newItem.sectionId === section.id ? newItem.name : ""}
+                            onChange={(event) => setNewItem((current) => ({ ...current, name: event.target.value, sectionId: section.id }))}
+                            placeholder="New item name"
+                          />
+                          <input
+                            type="number"
+                            step="0.01"
+                            style={{ ...compactInput, maxWidth: 120 }}
+                            value={newItem.sectionId === section.id ? newItem.price : ""}
+                            onChange={(event) => setNewItem((current) => ({ ...current, price: event.target.value, sectionId: section.id }))}
+                            placeholder="Price"
+                          />
+                          <button type="button" style={primaryButton} onClick={handleCreateItem}>
+                            Add item
+                          </button>
+                        </div>
+
+                        <div style={compactList}>
+                          {section.items.map((item) => (
+                            <button
+                              key={item.id}
+                              type="button"
+                              style={item.id === selectedItem?.id ? compactListButtonActive : compactListButton}
+                              onClick={() => {
+                                setSelectedCategoryId(section.id);
+                                setSelectedItemId(item.id);
+                              }}
+                            >
+                              <strong>{item.name}</strong>
+                              <span>
+                                {formatMoney(item.price)} / {item.isActive ? "live" : "hidden"}
+                              </span>
+                            </button>
+                          ))}
+                          {section.items.length === 0 ? <div style={emptyStateCard}>No items in this category yet.</div> : null}
+                        </div>
+                      </div>
+                    </details>
                   ))}
-                  {selectedCategory && selectedCategory.items.length === 0 ? <div style={emptyStateCard}>No items in this category yet.</div> : null}
                 </div>
-                <div style={compactCreateBox}>
-                  <input
-                    style={compactInput}
-                    value={newItem.name}
-                    onChange={(event) => setNewItem((current) => ({ ...current, name: event.target.value, sectionId: selectedCategory?.id ?? current.sectionId }))}
-                    placeholder="New item"
-                  />
-                  <input
-                    type="number"
-                    step="0.01"
-                    style={{ ...compactInput, maxWidth: 110 }}
-                    value={newItem.price}
-                    onChange={(event) => setNewItem((current) => ({ ...current, price: event.target.value, sectionId: selectedCategory?.id ?? current.sectionId }))}
-                    placeholder="Price"
-                  />
-                  <button type="button" style={primaryButton} onClick={handleCreateItem}>
-                    Add
-                  </button>
-                </div>
-              </aside>
+              </section>
 
               <section style={compactEditorCard}>
                 {selectedCategory && selectedItem ? (
@@ -1488,9 +1523,12 @@ export default function MerchantPortalPage() {
               <div style={quickAddGrid}>
                 <div style={quickAddCard}>
                   <h3 style={quickAddTitle}>Change password</h3>
-                  <input type="password" style={lightInput} value={passwordForm.currentPassword} onChange={(event) => setPasswordForm((current) => ({ ...current, currentPassword: event.target.value }))} placeholder="Current password" />
-                  <input type="password" style={lightInput} value={passwordForm.newPassword} onChange={(event) => setPasswordForm((current) => ({ ...current, newPassword: event.target.value }))} placeholder="New password" />
-                  <input type="password" style={lightInput} value={passwordForm.confirmPassword} onChange={(event) => setPasswordForm((current) => ({ ...current, confirmPassword: event.target.value }))} placeholder="Confirm password" />
+                  <button type="button" style={secondaryButtonSmall} onClick={() => setShowAccountPasswords((current) => !current)}>
+                    {showAccountPasswords ? "Hide passwords" : "Show passwords"}
+                  </button>
+                  <input type={showAccountPasswords ? "text" : "password"} style={lightInput} value={passwordForm.currentPassword} onChange={(event) => setPasswordForm((current) => ({ ...current, currentPassword: event.target.value }))} placeholder="Current password" />
+                  <input type={showAccountPasswords ? "text" : "password"} style={lightInput} value={passwordForm.newPassword} onChange={(event) => setPasswordForm((current) => ({ ...current, newPassword: event.target.value }))} placeholder="New password" />
+                  <input type={showAccountPasswords ? "text" : "password"} style={lightInput} value={passwordForm.confirmPassword} onChange={(event) => setPasswordForm((current) => ({ ...current, confirmPassword: event.target.value }))} placeholder="Confirm password" />
                   <button type="button" onClick={handleChangePassword} style={primaryButton}>Change password</button>
                 </div>
                 <div style={quickAddCard}>
@@ -1507,7 +1545,7 @@ export default function MerchantPortalPage() {
           ) : null}
         </section>
 
-        <details style={legacyDetails}>
+        <details style={{ display: "none" }}>
           <summary style={legacySummary}>Advanced full-page editor</summary>
         <section style={summaryGrid}>
           <article style={overviewCard}>
@@ -2449,6 +2487,25 @@ const lightInput: React.CSSProperties = {
   minHeight: 50,
 };
 
+const passwordFieldWrap: React.CSSProperties = {
+  position: "relative",
+  display: "block",
+};
+
+const passwordRevealButton: React.CSSProperties = {
+  position: "absolute",
+  top: 7,
+  right: 8,
+  minHeight: 36,
+  padding: "0 12px",
+  borderRadius: 12,
+  border: "1px solid rgba(15, 17, 21, 0.12)",
+  color: "#101216",
+  background: "#fff",
+  fontWeight: 900,
+  cursor: "pointer",
+};
+
 const primaryButton: React.CSSProperties = {
   minHeight: 52,
   padding: "0 18px",
@@ -2555,9 +2612,48 @@ const workbenchTabActive: React.CSSProperties = {
 
 const menuWorkbenchGrid: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+  gridTemplateColumns: "minmax(280px, 0.85fr) minmax(320px, 1.15fr)",
   gap: 14,
   alignItems: "start",
+};
+
+const categoryAccordionPanel: React.CSSProperties = {
+  display: "grid",
+  gap: 14,
+  minHeight: 520,
+  borderRadius: 22,
+  border: "1px solid rgba(15, 17, 21, 0.1)",
+  background: "rgba(255,255,255,0.78)",
+  padding: 14,
+};
+
+const categoryAccordionList: React.CSSProperties = {
+  display: "grid",
+  gap: 10,
+  alignContent: "start",
+};
+
+const categoryAccordionCard: React.CSSProperties = {
+  borderRadius: 18,
+  border: "1px solid rgba(15, 17, 21, 0.1)",
+  background: "#fff",
+  overflow: "hidden",
+};
+
+const categoryAccordionSummary: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 12,
+  alignItems: "center",
+  cursor: "pointer",
+  padding: 14,
+  color: "#101216",
+};
+
+const categoryAccordionBody: React.CSSProperties = {
+  display: "grid",
+  gap: 12,
+  padding: "0 14px 14px",
 };
 
 const compactColumn: React.CSSProperties = {
@@ -2589,7 +2685,7 @@ const compactList: React.CSSProperties = {
   display: "grid",
   gap: 8,
   alignContent: "start",
-  maxHeight: 390,
+  maxHeight: 320,
   overflow: "auto",
   paddingRight: 4,
 };
