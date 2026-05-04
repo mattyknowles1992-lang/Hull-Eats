@@ -1110,8 +1110,8 @@ export default function MerchantPortalPage() {
             <p style={eyebrow}>Hub workspace</p>
             <h1 style={heroTitle}>{hubSettings.name || "Merchant hub"}</h1>
             <p style={heroCopy}>
-              Build categories, items, included ingredients, meal choices, dependent option groups, drink selectors,
-              sauces, extras, and removal rules directly from this portal.
+              Start with a pasted menu or quick item entry, then use advanced options only when an item needs meals,
+              sauces, drinks, removals, or extras.
             </p>
           </div>
 
@@ -1149,6 +1149,198 @@ export default function MerchantPortalPage() {
           <article style={overviewCard}>
             <span style={summaryLabel}>Live items</span>
             <strong style={summaryValue}>{menuStats.activeItems}</strong>
+          </article>
+        </section>
+
+        <section style={fastStartGrid}>
+          <article style={fastStartCard}>
+            <div style={panelHeader}>
+              <p style={eyebrowDark}>Start here</p>
+              <h2 style={sectionTitle}>Fast menu setup</h2>
+              <p style={panelCopyDark}>
+                The quickest route is to paste an existing menu, review the detected items, then save. Use quick add for
+                small changes like a new burger, tray, drink, or dessert.
+              </p>
+            </div>
+
+            <div style={fastActionGrid}>
+              <label style={field}>
+                <span style={darkFieldLabel}>Paste menu text</span>
+                <textarea
+                  style={{ ...lightInput, minHeight: 170, paddingTop: 14, paddingBottom: 14, resize: "vertical" }}
+                  value={pastedMenuText}
+                  onChange={(event) => setPastedMenuText(event.target.value)}
+                  placeholder={"Loaded Fries\nSalt & Pepper Loaded Fries\nfrom £8.49\n\nSmash Burgers\nClassic Smash\nfrom £7.99"}
+                />
+              </label>
+
+              <div style={{ display: "grid", gap: 12, alignContent: "start" }}>
+                <button type="button" onClick={handlePreviewPastedMenu} style={primaryButton}>
+                  Preview pasted menu
+                </button>
+                <button type="button" style={secondaryButton} onClick={handleSaveHub}>
+                  Save menu changes
+                </button>
+                <div style={emptyStateCard}>
+                  Tip: paste the menu in sections with category names on their own line. You can untick anything before
+                  it goes live.
+                </div>
+              </div>
+            </div>
+
+            {pendingImports.length > 0 ? (
+              <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
+                {pendingImports.slice(0, 1).map((batch) => (
+                  <article key={batch.id} style={importBatchCard}>
+                    <div style={{ display: "grid", gap: 6 }}>
+                      <strong style={{ color: "#0f1115", fontSize: 16 }}>{batch.imageName}</strong>
+                      <span style={subtleInfo}>{batch.candidates.length} items ready to review</span>
+                    </div>
+
+                    <div style={{ display: "grid", gap: 10, maxHeight: 320, overflow: "auto", paddingRight: 4 }}>
+                      {batch.candidates.map((candidate) => {
+                        const checked = selectedImportCandidateIds.includes(candidate.id);
+
+                        return (
+                          <label key={candidate.id} style={candidateRow}>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(event) =>
+                                setSelectedImportCandidateIds((current) =>
+                                  event.target.checked ? [...current, candidate.id] : current.filter((id) => id !== candidate.id),
+                                )
+                              }
+                            />
+                            <div style={{ display: "grid", gap: 4 }}>
+                              <strong style={{ color: "#0f1115" }}>
+                                {candidate.suggestedCategoryName} / {candidate.itemName}
+                              </strong>
+                              <span style={subtleInfo}>
+                                {formatMoney(candidate.price)} / {candidate.sourceLine}
+                              </span>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+
+                    <button type="button" onClick={() => handleApplyImport(batch.id)} style={primaryButton}>
+                      Add ticked items to menu
+                    </button>
+                  </article>
+                ))}
+              </div>
+            ) : null}
+          </article>
+
+          <article style={fastStartCard}>
+            <div style={panelHeader}>
+              <p style={eyebrowDark}>Quick add</p>
+              <h2 style={sectionTitle}>One item at a time</h2>
+              <p style={panelCopyDark}>For small edits, create a category or item without touching the advanced builder.</p>
+            </div>
+
+            <div style={quickAddGrid}>
+              <div style={quickAddCard}>
+                <h3 style={quickAddTitle}>Category</h3>
+                <label style={field}>
+                  <span style={darkFieldLabel}>Name</span>
+                  <input
+                    style={lightInput}
+                    value={newCategory.name}
+                    onChange={(event) => setNewCategory((current) => ({ ...current, name: event.target.value }))}
+                    placeholder="Loaded Fries"
+                  />
+                </label>
+                <button type="button" style={primaryButton} onClick={handleCreateCategory}>
+                  Add category
+                </button>
+              </div>
+
+              <div style={quickAddCard}>
+                <h3 style={quickAddTitle}>Menu item</h3>
+                <label style={field}>
+                  <span style={darkFieldLabel}>Category</span>
+                  <select
+                    style={lightInput}
+                    value={newItem.sectionId}
+                    onChange={(event) => setNewItem((current) => ({ ...current, sectionId: event.target.value }))}
+                  >
+                    <option value="">Choose category</option>
+                    {menuSections.map((section) => (
+                      <option key={section.id} value={section.id}>
+                        {section.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label style={field}>
+                  <span style={darkFieldLabel}>Item name</span>
+                  <input
+                    style={lightInput}
+                    value={newItem.name}
+                    onChange={(event) => setNewItem((current) => ({ ...current, name: event.target.value }))}
+                    placeholder="Classic Smash Burger"
+                  />
+                </label>
+                <label style={field}>
+                  <span style={darkFieldLabel}>Price</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    style={lightInput}
+                    value={newItem.price}
+                    onChange={(event) => setNewItem((current) => ({ ...current, price: event.target.value }))}
+                    placeholder="7.99"
+                  />
+                </label>
+                <button type="button" style={primaryButton} onClick={handleCreateItem}>
+                  Add item
+                </button>
+              </div>
+            </div>
+          </article>
+
+          <article style={fastStartCard}>
+            <div style={panelHeader}>
+              <p style={eyebrowDark}>Account</p>
+              <h2 style={sectionTitle}>Change password</h2>
+              <p style={panelCopyDark}>Owners and staff can update the signed-in hub password here.</p>
+            </div>
+
+            <div style={{ display: "grid", gap: 12 }}>
+              <label style={field}>
+                <span style={darkFieldLabel}>Current password</span>
+                <input
+                  type="password"
+                  style={lightInput}
+                  value={passwordForm.currentPassword}
+                  onChange={(event) => setPasswordForm((current) => ({ ...current, currentPassword: event.target.value }))}
+                />
+              </label>
+              <label style={field}>
+                <span style={darkFieldLabel}>New password</span>
+                <input
+                  type="password"
+                  style={lightInput}
+                  value={passwordForm.newPassword}
+                  onChange={(event) => setPasswordForm((current) => ({ ...current, newPassword: event.target.value }))}
+                />
+              </label>
+              <label style={field}>
+                <span style={darkFieldLabel}>Confirm new password</span>
+                <input
+                  type="password"
+                  style={lightInput}
+                  value={passwordForm.confirmPassword}
+                  onChange={(event) => setPasswordForm((current) => ({ ...current, confirmPassword: event.target.value }))}
+                />
+              </label>
+              <button type="button" onClick={handleChangePassword} style={primaryButton}>
+                Change password
+              </button>
+            </div>
           </article>
         </section>
 
@@ -1960,6 +2152,28 @@ const portalGrid: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
   gap: 18,
+};
+
+const fastStartGrid: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "minmax(320px, 1.35fr) minmax(280px, 0.9fr) minmax(280px, 0.75fr)",
+  gap: 18,
+  alignItems: "start",
+};
+
+const fastStartCard: React.CSSProperties = {
+  borderRadius: 26,
+  border: "1px solid rgba(15, 17, 21, 0.12)",
+  background: "linear-gradient(180deg, rgba(255,255,255,1), rgba(248,242,235,0.97))",
+  boxShadow: "0 22px 40px rgba(15, 17, 21, 0.08)",
+  padding: 20,
+};
+
+const fastActionGrid: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "minmax(0, 1fr) minmax(220px, 0.42fr)",
+  gap: 14,
+  alignItems: "start",
 };
 
 const panelCard: React.CSSProperties = {
