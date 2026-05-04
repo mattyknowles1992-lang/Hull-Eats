@@ -866,7 +866,7 @@ export function AdminConsole() {
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                     <span className="signal-chip">
                       <span className="signal-dot" />
-                      Internal route protected
+                      Admin portal protected
                     </span>
                     <span className="signal-chip">Mobile operations ready</span>
                   </div>
@@ -882,15 +882,14 @@ export function AdminConsole() {
                         textTransform: "uppercase",
                       }}
                     >
-                      Hidden admin route
+                      Admin portal
                     </p>
                     <h1 style={{ margin: "12px 0 0", fontSize: 54, lineHeight: 0.92, fontFamily: "Georgia, serif" }}>
-                      /headminhe
+                      Hull Eats admin
                     </h1>
                     <p style={{ margin: "18px 0 0", color: "#c7d8ed", lineHeight: 1.8, maxWidth: 560 }}>
                       Hull Eats HQ command surface for hub creation, courier operations, live alerts, and marketplace
-                      oversight. This first pass uses a temporary internal sign-in while we shape the full secure admin
-                      system.
+                      oversight. This portal now lives on its own admin service URL.
                     </p>
                   </div>
 
@@ -1136,7 +1135,7 @@ export function AdminConsole() {
               {activeOrders.map((order) => (
                 <Link
                   key={order.id}
-                  href={`/headminhe/hubs/${order.hubSlug}`}
+                  href={`/hubs/${order.hubSlug}`}
                   style={{
                     textDecoration: "none",
                     borderRadius: 20,
@@ -1328,7 +1327,7 @@ export function AdminConsole() {
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "flex-start" }}>
                       <div>
-                        <Link href={`/headminhe/hubs/${hub.slug}`} style={{ textDecoration: "none", color: "#f7fbff" }}>
+                        <Link href={`/hubs/${hub.slug}`} style={{ textDecoration: "none", color: "#f7fbff" }}>
                           <strong style={{ fontSize: 18 }}>{hub.businessName}</strong>
                         </Link>
                         <p style={{ margin: "6px 0 0", color: "#9fb2c9" }}>{hub.type} / {hub.orderVolumeWeek} orders this week</p>

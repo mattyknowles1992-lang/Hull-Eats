@@ -60,7 +60,7 @@ export default async function HubDetailPage({ params }: { params: Promise<{ slug
 
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             <Link
-              href="/headminhe"
+              href="/"
               style={{
                 minHeight: 48,
                 padding: "0 16px",
