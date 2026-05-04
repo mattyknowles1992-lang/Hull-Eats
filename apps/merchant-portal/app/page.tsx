@@ -6,6 +6,17 @@ import type { HubMenuSection, HubSettings, HubUser, MerchantWorkspace, MenuItem 
 
 type HubRole = "owner" | "manager" | "staff";
 type StockStatus = "in_stock" | "low_stock" | "out_of_stock";
+type HubSection =
+  | "home"
+  | "orders"
+  | "orderHistory"
+  | "earnings"
+  | "reports"
+  | "menu"
+  | "businessProfile"
+  | "users"
+  | "settings"
+  | "help";
 type MenuComponent = MenuItem["components"][number];
 type MenuOptionGroup = MenuItem["optionGroups"][number];
 type MenuOption = MenuOptionGroup["options"][number];
@@ -695,6 +706,7 @@ export default function MerchantPortalPage() {
   const [userNotice, setUserNotice] = useState("");
   const [menuNotice, setMenuNotice] = useState("");
   const [passwordNotice, setPasswordNotice] = useState("");
+  const [activeHubSection, setActiveHubSection] = useState<HubSection>("home");
   const [activeHubPanel, setActiveHubPanel] = useState<"menu" | "import" | "settings" | "account">("menu");
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
   const [selectedItemId, setSelectedItemId] = useState("");
@@ -726,6 +738,24 @@ export default function MerchantPortalPage() {
     () => selectedCategory?.items.find((item) => item.id === selectedItemId) ?? selectedCategory?.items[0] ?? null,
     [selectedCategory, selectedItemId],
   );
+
+  const openHubSection = (section: HubSection) => {
+    setActiveHubSection(section);
+
+    if (section === "menu") {
+      setActiveHubPanel("menu");
+      return;
+    }
+
+    if (section === "businessProfile" || section === "settings") {
+      setActiveHubPanel("settings");
+      return;
+    }
+
+    if (section === "users") {
+      setActiveHubPanel("account");
+    }
+  };
 
   useEffect(() => {
     if (!menuSections.length) {
@@ -1194,16 +1224,86 @@ export default function MerchantPortalPage() {
   }
 
   return (
-    <main style={pageShell}>
-      <div style={{ display: "grid", gap: 18 }}>
-        <header style={topHeader}>
+    <main style={hubAppShell}>
+      <aside style={hubSidebar}>
+        <div style={sidebarBrand}>
+          <span style={sidebarMark}>HE</span>
+          <span>
+            <strong>{hubSettings.name || "Merchant hub"}</strong>
+            <small>{hubSettings.isOpen ? "Open" : "Setup"}</small>
+          </span>
+        </div>
+
+        <nav style={sidebarNav} aria-label="Hub navigation">
+          <div style={sidebarGroup}>
+            <span style={sidebarGroupTitle}>Home</span>
+            <button type="button" style={activeHubSection === "home" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("home")}>
+              <span>01</span> Dashboard
+            </button>
+          </div>
+
+          <div style={sidebarGroup}>
+            <span style={sidebarGroupTitle}>Orders</span>
+            <button type="button" style={activeHubSection === "orders" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("orders")}>
+              <span>02</span> Live orders
+            </button>
+            <button type="button" style={activeHubSection === "orderHistory" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("orderHistory")}>
+              <span>03</span> Order history
+            </button>
+          </div>
+
+          <div style={sidebarGroup}>
+            <span style={sidebarGroupTitle}>Performance</span>
+            <button type="button" style={activeHubSection === "earnings" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("earnings")}>
+              <span>04</span> Earnings
+            </button>
+            <button type="button" style={activeHubSection === "reports" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("reports")}>
+              <span>05</span> Reports
+            </button>
+          </div>
+
+          <div style={sidebarGroup}>
+            <span style={sidebarGroupTitle}>Menu management</span>
+            <button type="button" style={activeHubSection === "menu" && activeHubPanel === "menu" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("menu")}>
+              <span>06</span> Menu builder
+            </button>
+            <button
+              type="button"
+              style={activeHubSection === "menu" && activeHubPanel === "import" ? sidebarButtonActive : sidebarButton}
+              onClick={() => {
+                setActiveHubSection("menu");
+                setActiveHubPanel("import");
+              }}
+            >
+              <span>07</span> Paste menu
+            </button>
+          </div>
+
+          <div style={sidebarGroup}>
+            <span style={sidebarGroupTitle}>Business</span>
+            <button type="button" style={activeHubSection === "businessProfile" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("businessProfile")}>
+              <span>08</span> Business profile
+            </button>
+            <button type="button" style={activeHubSection === "users" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("users")}>
+              <span>09</span> Users
+            </button>
+            <button type="button" style={activeHubSection === "settings" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("settings")}>
+              <span>10</span> Settings
+            </button>
+          </div>
+
+          <button type="button" style={activeHubSection === "help" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("help")}>
+            <span>?</span> Help and support
+          </button>
+        </nav>
+      </aside>
+
+      <section style={hubMainArea}>
+        <header style={hubMainHeader}>
           <div style={{ display: "grid", gap: 8 }}>
             <p style={eyebrow}>Hub workspace</p>
-            <h1 style={heroTitle}>{hubSettings.name || "Merchant hub"}</h1>
-            <p style={heroCopy}>
-              Start with a pasted menu or quick item entry, then use advanced options only when an item needs meals,
-              sauces, drinks, removals, or extras.
-            </p>
+            <h1 style={hubTitle}>{hubSettings.name || "Merchant hub"}</h1>
+            <p style={heroCopy}>Run orders, menu changes, earnings, users, and store setup from one clear workspace.</p>
           </div>
 
           <div style={{ display: "grid", gap: 12, justifyItems: "start" }}>
@@ -1224,23 +1324,113 @@ export default function MerchantPortalPage() {
         {userNotice ? <p style={successMessageStyle}>{userNotice}</p> : null}
         {passwordNotice ? <p style={successMessageStyle}>{passwordNotice}</p> : null}
 
+        {activeHubSection === "home" ? (
+          <section style={dashboardGrid}>
+            <article style={dashboardHeroCard}>
+              <p style={eyebrowDark}>Today</p>
+              <h2 style={sectionTitle}>Ready for service</h2>
+              <p style={panelCopyDark}>
+                Your menu has {menuStats.activeItems} live items across {menuStats.categories} categories.
+              </p>
+              <div style={sectionActionRow}>
+                <button type="button" style={primaryButton} onClick={() => openHubSection("menu")}>
+                  Edit menu
+                </button>
+                <button type="button" style={secondaryButton} onClick={() => openHubSection("orders")}>
+                  View orders
+                </button>
+              </div>
+            </article>
+            <article style={dashboardCard}>
+              <span style={summaryLabel}>Live menu items</span>
+              <strong style={summaryValue}>{menuStats.activeItems}</strong>
+            </article>
+            <article style={dashboardCard}>
+              <span style={summaryLabel}>Total menu items</span>
+              <strong style={summaryValue}>{menuStats.totalItems}</strong>
+            </article>
+            <article style={dashboardCard}>
+              <span style={summaryLabel}>Customisable items</span>
+              <strong style={summaryValue}>{menuStats.customisableItems}</strong>
+            </article>
+          </section>
+        ) : null}
+
+        {activeHubSection === "orders" ? (
+          <section style={placeholderPanel}>
+            <p style={eyebrowDark}>Live orders</p>
+            <h2 style={sectionTitle}>Incoming orders will sit here</h2>
+            <p style={panelCopyDark}>This section is reserved for accepting, preparing, and handing orders to couriers once the live order feed is switched on.</p>
+          </section>
+        ) : null}
+
+        {activeHubSection === "orderHistory" ? (
+          <section style={placeholderPanel}>
+            <p style={eyebrowDark}>Order history</p>
+            <h2 style={sectionTitle}>Completed orders and refunds</h2>
+            <p style={panelCopyDark}>Past orders, customer notes, delivery status, and issue handling will be shown here as orders begin flowing through Hull Eats.</p>
+          </section>
+        ) : null}
+
+        {activeHubSection === "earnings" ? (
+          <section style={placeholderPanel}>
+            <p style={eyebrowDark}>Earnings</p>
+            <h2 style={sectionTitle}>Payouts and performance</h2>
+            <p style={panelCopyDark}>Daily sales, fees, payout status, and top items will live here after payment reporting is connected.</p>
+          </section>
+        ) : null}
+
+        {activeHubSection === "reports" ? (
+          <section style={placeholderPanel}>
+            <p style={eyebrowDark}>Reports</p>
+            <h2 style={sectionTitle}>Menu and service insights</h2>
+            <p style={panelCopyDark}>Use this area for product performance, busy periods, missing images, stock issues, and preparation-time reports.</p>
+          </section>
+        ) : null}
+
+        {activeHubSection === "help" ? (
+          <section style={dashboardGrid}>
+            <article style={dashboardHeroCard}>
+              <p style={eyebrowDark}>Help and support</p>
+              <h2 style={sectionTitle}>Keep menu work quick</h2>
+              <p style={panelCopyDark}>Paste a menu, build categories, or use the menu builder when an item needs sizes, sauces, removals, or extras.</p>
+            </article>
+            <article style={dashboardCard}>
+              <span style={summaryLabel}>Menu categories</span>
+              <strong style={summaryValue}>{menuStats.categories}</strong>
+            </article>
+            <article style={dashboardCard}>
+              <span style={summaryLabel}>Users</span>
+              <strong style={summaryValue}>{hubUsers.length}</strong>
+            </article>
+          </section>
+        ) : null}
+
+        {activeHubSection === "menu" || activeHubSection === "businessProfile" || activeHubSection === "settings" || activeHubSection === "users" ? (
         <section style={workbenchShell}>
           <div style={workbenchNav}>
-            {[
-              ["menu", "Menu"],
-              ["import", "Import"],
-              ["settings", "Store"],
-              ["account", "Account"],
-            ].map(([panel, label]) => (
-              <button
-                key={panel}
-                type="button"
-                style={activeHubPanel === panel ? workbenchTabActive : workbenchTab}
-                onClick={() => setActiveHubPanel(panel as typeof activeHubPanel)}
-              >
-                {label}
+            {activeHubSection === "menu" ? (
+              <>
+                <button type="button" style={activeHubPanel === "menu" ? workbenchTabActive : workbenchTab} onClick={() => setActiveHubPanel("menu")}>
+                  Menu builder
+                </button>
+                <button type="button" style={activeHubPanel === "import" ? workbenchTabActive : workbenchTab} onClick={() => setActiveHubPanel("import")}>
+                  Paste or upload menu
+                </button>
+              </>
+            ) : null}
+
+            {activeHubSection === "businessProfile" || activeHubSection === "settings" ? (
+              <button type="button" style={workbenchTabActive} onClick={() => setActiveHubPanel("settings")}>
+                Business settings
               </button>
-            ))}
+            ) : null}
+
+            {activeHubSection === "users" ? (
+              <button type="button" style={workbenchTabActive} onClick={() => setActiveHubPanel("account")}>
+                Users and password
+              </button>
+            ) : null}
           </div>
 
           {activeHubPanel === "menu" ? (
@@ -1610,6 +1800,7 @@ export default function MerchantPortalPage() {
             </section>
           ) : null}
         </section>
+        ) : null}
 
         <details style={{ display: "none" }}>
           <summary style={legacySummary}>Advanced full-page editor</summary>
@@ -2447,7 +2638,7 @@ export default function MerchantPortalPage() {
           </aside>
         </section>
         </details>
-      </div>
+      </section>
     </main>
   );
 }
@@ -2459,6 +2650,151 @@ const pageShell: React.CSSProperties = {
   color: "#101216",
   fontFamily: "Manrope, system-ui, sans-serif",
   padding: "24px 18px 56px",
+};
+
+const hubAppShell: React.CSSProperties = {
+  minHeight: "100vh",
+  display: "grid",
+  gridTemplateColumns: "280px minmax(0, 1fr)",
+  background: "#f7f8fa",
+  color: "#101216",
+  fontFamily: "Manrope, system-ui, sans-serif",
+};
+
+const hubSidebar: React.CSSProperties = {
+  position: "sticky",
+  top: 0,
+  height: "100vh",
+  display: "grid",
+  gridTemplateRows: "auto 1fr",
+  gap: 18,
+  borderRight: "1px solid rgba(15, 17, 21, 0.1)",
+  background: "#ffffff",
+  padding: 18,
+  overflowY: "auto",
+};
+
+const sidebarBrand: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 12,
+  padding: "10px 8px 16px",
+  borderBottom: "1px solid rgba(15, 17, 21, 0.08)",
+};
+
+const sidebarMark: React.CSSProperties = {
+  display: "inline-grid",
+  placeItems: "center",
+  width: 42,
+  height: 42,
+  borderRadius: 14,
+  background: "linear-gradient(180deg, #ff8b3c, #ff6a00)",
+  color: "#fff",
+  fontWeight: 950,
+};
+
+const sidebarNav: React.CSSProperties = {
+  display: "grid",
+  gap: 18,
+  alignContent: "start",
+};
+
+const sidebarGroup: React.CSSProperties = {
+  display: "grid",
+  gap: 6,
+};
+
+const sidebarGroupTitle: React.CSSProperties = {
+  color: "#8a93a3",
+  fontSize: 12,
+  fontWeight: 900,
+  textTransform: "uppercase",
+};
+
+const sidebarButton: React.CSSProperties = {
+  minHeight: 44,
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  width: "100%",
+  border: "1px solid transparent",
+  borderRadius: 14,
+  background: "transparent",
+  color: "#303642",
+  padding: "0 10px",
+  textAlign: "left",
+  fontWeight: 850,
+  cursor: "pointer",
+};
+
+const sidebarButtonActive: React.CSSProperties = {
+  ...sidebarButton,
+  borderColor: "rgba(255, 106, 0, 0.2)",
+  background: "rgba(255, 106, 0, 0.1)",
+  color: "#c95d12",
+};
+
+const hubMainArea: React.CSSProperties = {
+  display: "grid",
+  gap: 18,
+  alignContent: "start",
+  padding: "24px clamp(18px, 3vw, 42px) 64px",
+};
+
+const hubMainHeader: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 18,
+  alignItems: "flex-end",
+  flexWrap: "wrap",
+  borderRadius: 28,
+  border: "1px solid rgba(15, 17, 21, 0.1)",
+  background: "linear-gradient(180deg, #ffffff, #fbfbfc)",
+  padding: 20,
+  boxShadow: "0 18px 34px rgba(15, 17, 21, 0.06)",
+};
+
+const dashboardGrid: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "minmax(280px, 1.4fr) repeat(3, minmax(170px, 0.65fr))",
+  gap: 14,
+  alignItems: "stretch",
+};
+
+const dashboardHeroCard: React.CSSProperties = {
+  display: "grid",
+  gap: 10,
+  alignContent: "start",
+  borderRadius: 24,
+  border: "1px solid rgba(15, 17, 21, 0.1)",
+  background: "#fff",
+  padding: 18,
+  boxShadow: "0 18px 34px rgba(15, 17, 21, 0.06)",
+};
+
+const dashboardCard: React.CSSProperties = {
+  display: "grid",
+  gap: 10,
+  alignContent: "center",
+  minHeight: 150,
+  borderRadius: 22,
+  border: "1px solid rgba(15, 17, 21, 0.1)",
+  background: "#fff",
+  padding: 18,
+  boxShadow: "0 18px 34px rgba(15, 17, 21, 0.05)",
+};
+
+const placeholderPanel: React.CSSProperties = {
+  ...dashboardHeroCard,
+  minHeight: 260,
+  alignContent: "center",
+};
+
+const sectionActionRow: React.CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: 10,
+  marginTop: 8,
 };
 
 const loginHero: React.CSSProperties = {
@@ -2496,6 +2832,12 @@ const heroTitle: React.CSSProperties = {
   lineHeight: 0.94,
   fontFamily: "Georgia, serif",
   letterSpacing: "-0.05em",
+};
+
+const hubTitle: React.CSSProperties = {
+  ...heroTitle,
+  fontSize: "clamp(2rem, 3vw, 3.2rem)",
+  letterSpacing: 0,
 };
 
 const heroCopy: React.CSSProperties = {
