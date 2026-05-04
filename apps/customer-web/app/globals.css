@@ -27,16 +27,15 @@
 }
 
 html {
-  background:
-    radial-gradient(circle at top left, rgba(255, 106, 0, 0.1), transparent 24%),
-    radial-gradient(circle at top right, rgba(255, 205, 147, 0.18), transparent 22%),
-    linear-gradient(180deg, #fcf7f0 0%, #f9f4ee 52%, #f3ece2 100%);
+  scroll-behavior: smooth;
+  background: linear-gradient(180deg, #fff8f0 0%, #f7efe5 46%, #ece3d7 100%);
   color: var(--ink);
 }
 
 body {
   margin: 0;
   min-height: 100vh;
+  overflow-x: hidden;
   color: var(--ink);
   font-family: var(--font-body), sans-serif;
   background: transparent;
@@ -552,6 +551,9 @@ textarea {
 }
 
 .primary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 52px;
   padding: 0 20px;
   border: 1px solid rgba(15, 17, 21, 0.18);
@@ -562,6 +564,306 @@ textarea {
     inset 0 1px 0 rgba(255, 255, 255, 0.3),
     0 18px 28px rgba(255, 107, 0, 0.22),
     0 10px 18px rgba(15, 17, 21, 0.2);
+}
+
+.customer-marketplace {
+  width: min(100%, 1320px);
+  perspective: 1400px;
+}
+
+.marketplace-scene {
+  position: relative;
+  transform-origin: center top;
+  will-change: transform, opacity, filter;
+}
+
+.marketplace-scene + .marketplace-scene {
+  margin-top: clamp(14px, 2.8vw, 34px);
+}
+
+.marketplace-scene::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.54), rgba(255, 255, 255, 0));
+  opacity: 0.68;
+  pointer-events: none;
+}
+
+@supports (animation-timeline: view()) {
+  .marketplace-scene {
+    animation: scene-focus both ease-out;
+    animation-timeline: view();
+    animation-range: entry 8% cover 42%;
+  }
+
+  .compact-scene {
+    animation-range: entry 0% cover 34%;
+  }
+}
+
+@keyframes scene-focus {
+  from {
+    opacity: 0.72;
+    filter: saturate(0.88) blur(1px);
+    transform: translateY(46px) scale(0.955);
+  }
+
+  55% {
+    opacity: 1;
+    filter: saturate(1.08) blur(0);
+    transform: translateY(0) scale(1.012);
+  }
+
+  to {
+    opacity: 1;
+    filter: saturate(1) blur(0);
+    transform: translateY(0) scale(1);
+  }
+}
+
+.marketplace-hero {
+  position: relative;
+  display: grid;
+  min-height: min(72vh, 760px);
+  overflow: hidden;
+  border-radius: 30px;
+  border: 1px solid rgba(16, 18, 24, 0.18);
+  background:
+    linear-gradient(90deg, rgba(8, 10, 14, 0.96) 0%, rgba(8, 10, 14, 0.78) 43%, rgba(8, 10, 14, 0.18) 100%),
+    url("/stores/loaded-munch/hero.webp") center/cover;
+  box-shadow: 0 34px 80px rgba(15, 17, 21, 0.28);
+  transition:
+    transform 260ms ease,
+    box-shadow 260ms ease;
+}
+
+.marketplace-hero::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 44%;
+  background: linear-gradient(180deg, transparent, rgba(8, 10, 14, 0.86));
+  pointer-events: none;
+}
+
+.marketplace-hero-copy {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  align-content: center;
+  gap: 20px;
+  max-width: 760px;
+  padding: clamp(24px, 6vw, 68px);
+  color: #fff8ef;
+}
+
+.marketplace-hero-copy h1 {
+  max-width: 10ch;
+  margin: 0;
+  font-family: var(--font-heading), serif;
+  font-size: 5.8rem;
+  line-height: 0.86;
+  letter-spacing: 0;
+}
+
+.marketplace-hero-copy p {
+  max-width: 650px;
+  margin: 0;
+  color: rgba(255, 244, 233, 0.88);
+  font-size: 1.12rem;
+  line-height: 1.7;
+}
+
+.marketplace-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  min-width: 0;
+  max-width: 720px;
+  padding: 8px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(18px);
+}
+
+.marketplace-search .search-input {
+  min-width: 0;
+  min-height: 58px;
+  border-radius: 18px;
+  box-shadow: none;
+}
+
+.appetite-signal-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.appetite-signal-row span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 0 13px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #ffe5d0;
+  background: rgba(255, 255, 255, 0.1);
+  font-size: 0.86rem;
+  font-weight: 900;
+}
+
+.hero-food-stage {
+  position: absolute;
+  right: clamp(18px, 4vw, 46px);
+  bottom: clamp(18px, 4vw, 44px);
+  z-index: 1;
+  width: min(360px, calc(100% - 36px));
+}
+
+.hero-food-card {
+  display: grid;
+  gap: 12px;
+  padding: 20px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #fff8ef;
+  background: rgba(11, 13, 18, 0.76);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 24px 50px rgba(0, 0, 0, 0.28);
+}
+
+.hero-food-card strong {
+  font-family: var(--font-heading), serif;
+  font-size: 2.3rem;
+  line-height: 0.95;
+}
+
+.hero-food-card p {
+  margin: 0;
+  color: rgba(255, 238, 223, 0.84);
+  line-height: 1.55;
+}
+
+.hero-food-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.hero-food-meta span {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 38px;
+  padding: 0 8px;
+  border-radius: 12px;
+  color: #1a120d;
+  background: #ffe0c6;
+  font-size: 0.8rem;
+  font-weight: 900;
+  text-align: center;
+}
+
+.craving-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+  padding: 4px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.38);
+  box-shadow: 0 18px 42px rgba(15, 17, 21, 0.08);
+}
+
+.craving-card {
+  display: grid;
+  gap: 8px;
+  min-height: 116px;
+  padding: 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(15, 17, 21, 0.12);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(255, 244, 233, 0.96)),
+    #fff;
+  box-shadow: 0 16px 30px rgba(15, 17, 21, 0.08);
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease;
+}
+
+.craving-card:hover,
+.store-card:hover,
+.hero-food-stage:hover {
+  transform: translateY(-3px);
+}
+
+.craving-card:hover,
+.store-card:hover {
+  border-color: rgba(255, 106, 0, 0.28);
+  box-shadow: 0 24px 46px rgba(15, 17, 21, 0.13);
+}
+
+.craving-card strong {
+  color: var(--ink-strong);
+  font-size: 1.05rem;
+}
+
+.craving-card span {
+  color: var(--muted);
+  line-height: 1.45;
+  font-size: 0.92rem;
+}
+
+.marketplace-panel {
+  margin-top: 14px;
+  border-radius: 24px;
+  background:
+    linear-gradient(135deg, rgba(15, 17, 21, 0.96), rgba(32, 25, 20, 0.96)),
+    #101216;
+  box-shadow:
+    0 30px 70px rgba(15, 17, 21, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.marketplace-panel::before {
+  display: none;
+}
+
+.live-menu-card {
+  border-radius: 20px;
+}
+
+.content-grid.marketplace-scene {
+  padding: clamp(4px, 1vw, 10px);
+  border-radius: 30px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0.08));
+}
+
+.content-grid.marketplace-scene::after {
+  content: "";
+  position: absolute;
+  inset: 24px auto auto -18px;
+  width: 6px;
+  height: min(70%, 520px);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255, 106, 0, 0.78), rgba(255, 106, 0, 0));
+  box-shadow: 0 0 28px rgba(255, 106, 0, 0.22);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .marketplace-scene {
+    animation: none;
+    transform: none;
+  }
 }
 
 .primary-button:hover,
@@ -1864,10 +2166,32 @@ textarea {
     justify-content: stretch;
   }
 
+  .topbar-actions {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
   .topbar-actions > *,
   .marketing-nav-actions > *,
   .contact-actions > * {
     flex: 1 1 0;
+  }
+
+  .topbar-actions > * {
+    width: 100%;
+    min-width: 0;
+    padding-left: 8px;
+    padding-right: 8px;
+    text-align: center;
+    font-size: 0.86rem;
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+  }
+
+  .topbar-actions > :last-child {
+    grid-column: 1 / -1;
   }
 
   .marketing-hero,
@@ -1904,6 +2228,61 @@ textarea {
   .checkout-line-footer {
     flex-direction: column;
   }
+
+  .marketplace-hero {
+    min-height: auto;
+    background:
+      linear-gradient(180deg, rgba(8, 10, 14, 0.94) 0%, rgba(8, 10, 14, 0.64) 48%, rgba(8, 10, 14, 0.9) 100%),
+      url("/stores/loaded-munch/hero.webp") center/cover;
+  }
+
+  .marketplace-hero-copy {
+    align-content: start;
+    width: 100%;
+    max-width: calc(100vw - 32px);
+    padding: 24px;
+  }
+
+  .marketplace-hero-copy h1 {
+    max-width: 9ch;
+    font-size: 3.05rem;
+  }
+
+  .marketplace-hero-copy p {
+    max-width: calc(100vw - 80px);
+    font-size: 1rem;
+  }
+
+  .marketplace-search {
+    grid-template-columns: 1fr;
+    border-radius: 20px;
+    width: 100%;
+    max-width: calc(100vw - 80px);
+  }
+
+  .appetite-signal-row {
+    max-width: calc(100vw - 80px);
+  }
+
+  .marketplace-search .primary-button {
+    width: 100%;
+  }
+
+  .hero-food-stage {
+    position: relative;
+    right: auto;
+    bottom: auto;
+    width: auto;
+    margin: 0 24px 24px;
+  }
+
+  .hero-food-meta {
+    grid-template-columns: 1fr;
+  }
+
+  .craving-strip {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (min-width: 1100px) {
@@ -1919,5 +2298,15 @@ textarea {
 
   .hero-panel {
     min-height: 420px;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1099px) {
+  .marketplace-hero-copy h1 {
+    font-size: 4.4rem;
+  }
+
+  .craving-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

@@ -1,14 +1,15 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 
 import { featuredStores, trackedOrder } from "../src/lib/demo";
 
-const filters = ["All", "Restaurants", "Takeaways", "Deli & Cafe", "Shops", "Opening soon"];
+const filters = ["All", "Loaded fries", "Smash burgers", "Chicken", "Desserts", "Shops"];
 const quickPicks = [
-  { title: "Burgers", detail: "Smash stacks and loaded trays" },
-  { title: "Chicken", detail: "Buttermilk burgers and strips" },
-  { title: "Desserts", detail: "Cookie dough, shakes, refreshers" },
-  { title: "Shops", detail: "Groceries and convenience" },
+  { title: "Loaded fries", detail: "Hot trays, molten cheese, crispy toppings" },
+  { title: "Smash burgers", detail: "Pressed patties, toasted buns, proper sauce" },
+  { title: "Chicken", detail: "Buttermilk burgers, strips, wings, dips" },
+  { title: "Sweet finish", detail: "Cookie dough, shakes, waffles, refreshers" },
 ];
+const appetiteSignals = ["Live Hull menus", "Real-time order tracking", "Local courier delivery", "Hull Eats+ perks"];
 
 function getStoreStatus(storefrontStatus: string, isOpen: boolean) {
   if (storefrontStatus === "onboarding") {
@@ -20,7 +21,7 @@ function getStoreStatus(storefrontStatus: string, isOpen: boolean) {
 
 export default function CustomerHomePage() {
   return (
-    <main className="shell">
+    <main className="shell customer-marketplace">
       <header className="topbar">
         <div className="brand-pill">
           <img src="/brand/hull-eats-logo.png" alt="Hull Eats" className="brand-logo" />
@@ -32,7 +33,7 @@ export default function CustomerHomePage() {
 
         <div className="topbar-actions">
           <Link href="/about" className="glass-button">
-            About Hull Eats
+            For businesses
           </Link>
           <Link href="/register" className="glass-button">
             Hull Eats+
@@ -43,44 +44,74 @@ export default function CustomerHomePage() {
         </div>
       </header>
 
-      <section className="search-panel">
+      <section className="marketplace-hero marketplace-scene">
+        <div className="marketplace-hero-copy">
+          <p className="hero-badge">Hull's food marketplace</p>
+          <h1>Cravings, delivered with theatre.</h1>
+          <p>
+            Open the door to loaded fries, smash burgers, late-night trays, sweet fixes, and local favourites moving
+            from kitchen to doorstep on Hull Eats.
+          </p>
+
+          <div className="marketplace-search">
+            <input className="search-input" aria-label="Search businesses" placeholder="Search loaded fries, burgers, chicken, desserts..." />
+            <Link href="/stores/loaded-munch-hull" className="primary-button">
+              Order now
+            </Link>
+          </div>
+
+          <div className="appetite-signal-row" aria-label="Marketplace highlights">
+            {appetiteSignals.map((signal) => (
+              <span key={signal}>{signal}</span>
+            ))}
+          </div>
+        </div>
+
+        <Link href="/stores/loaded-munch-hull" className="hero-food-stage" aria-label="Open Loaded Munch menu">
+          <div className="hero-food-card">
+            <span className="status-chip pending">Live now</span>
+            <strong>Loaded Munch</strong>
+            <p>Loaded fries, burgers, wraps, chicken, desserts, and drinks ready to order.</p>
+            <div className="hero-food-meta">
+              <span>25 min</span>
+              <span>£2.50 delivery</span>
+              <span>£10 min</span>
+            </div>
+          </div>
+        </Link>
+      </section>
+
+      <section className="craving-strip marketplace-scene compact-scene" aria-label="Quick food choices">
+        {quickPicks.map((pick) => (
+          <Link key={pick.title} href="/stores/loaded-munch-hull" className="craving-card">
+            <strong>{pick.title}</strong>
+            <span>{pick.detail}</span>
+          </Link>
+        ))}
+      </section>
+
+      <section className="search-panel marketplace-panel marketplace-scene">
         <div className="search-heading">
           <div>
-            <p className="eyebrow">Start your order</p>
-            <h1 className="search-title">Search for a business or pick what you feel like eating.</h1>
+            <p className="eyebrow">Tonight in Hull</p>
+            <h2 className="search-title">Pick the food that makes the night make sense.</h2>
             <p className="search-copy">
-              The fastest path to conversion should be obvious: search, tap a food type, then open a live menu.
+              Browse local menus, track the order as it moves, and keep your favourites close for the next craving.
             </p>
           </div>
-          <div className="search-highlight-card">
-            <span className="search-highlight-label">Featured live now</span>
+          <div className="search-highlight-card live-menu-card">
+            <span className="search-highlight-label">Featured kitchen</span>
             <strong>Loaded Munch</strong>
-            <p>Seeded menu, real pricing, and the first checkout flow on Hull Eats.</p>
+            <p>Hot, indulgent, built for sharing, and already wired into the Hull Eats checkout.</p>
             <Link href="/stores/loaded-munch-hull" className="primary-button" style={{ width: "100%" }}>
-              Open Loaded Munch
+              View the menu
             </Link>
           </div>
         </div>
 
-        <div className="search-row">
-          <input className="search-input" aria-label="Search businesses" defaultValue="Search takeaways, cafes, shops..." />
-          <button type="button" className="primary-button">
-            Explore Hull
-          </button>
-        </div>
-
-        <div className="quick-pick-grid" aria-label="Quick food choices">
-          {quickPicks.map((pick) => (
-            <button key={pick.title} type="button" className="quick-pick-card">
-              <strong>{pick.title}</strong>
-              <span>{pick.detail}</span>
-            </button>
-          ))}
-        </div>
-
         <div className="search-meta-row">
           <div className="delivery-pill">Delivering to Hull city centre</div>
-        <div className="delivery-pill is-highlighted">Free delivery with Hull Eats+ from £9.99/month</div>
+          <div className="delivery-pill is-highlighted">Free delivery with Hull Eats+ from £9.99/month</div>
         </div>
 
         <div className="filter-row" aria-label="Marketplace filters">
@@ -92,12 +123,12 @@ export default function CustomerHomePage() {
         </div>
       </section>
 
-      <section className="content-grid">
+      <section className="content-grid marketplace-scene">
         <div className="content-stack">
           <div className="section-heading">
             <div>
-              <h2>Businesses on Hull Eats</h2>
-              <p>Open a live menu fast, compare delivery details quickly, and move straight into checkout.</p>
+              <h2>Order from Hull's local food scene</h2>
+              <p>Bold menus, clear delivery details, and checkout that gets out of the way.</p>
             </div>
           </div>
 
@@ -135,8 +166,8 @@ export default function CustomerHomePage() {
                   <p className="store-copy">{store.onboardingMessage}</p>
 
                   <div className="store-card-footer">
-                    <span className="card-cta">{store.menuSetupComplete ? "Order now" : "Preview storefront"}</span>
-                    <span className="ghost-link">Save business</span>
+                    <span className="card-cta">{store.menuSetupComplete ? "Start order" : "Preview menu"}</span>
+                    <span className="ghost-link">Track after checkout</span>
                   </div>
                 </div>
               </Link>
@@ -149,13 +180,13 @@ export default function CustomerHomePage() {
             <div className="section-heading compact">
               <div>
                 <h2>Hull Eats+</h2>
-                <p>Monthly free-delivery pass handled by Stripe subscription billing.</p>
+                <p>For the people who know one order is rarely the last order.</p>
               </div>
             </div>
 
             <div className="membership-card">
               <div className="membership-price">£9.99/mo</div>
-              <p>Unlimited free delivery on eligible orders, account perks, and priority launch access for new stores.</p>
+              <p>Free delivery on eligible orders, launch perks, and quick access to your usual favourites.</p>
               <Link href="/register" className="primary-button" style={{ width: "100%" }}>
                 Join membership
               </Link>
@@ -166,7 +197,7 @@ export default function CustomerHomePage() {
             <div className="section-heading compact">
               <div>
                 <h2>Popular right now</h2>
-                <p>Fast routes into the parts of the marketplace most likely to convert.</p>
+                <p>What customers can jump into first as the marketplace fills out.</p>
               </div>
             </div>
 
@@ -179,11 +210,11 @@ export default function CustomerHomePage() {
               <strong>Burgers and loaded fries</strong>
             </div>
             <div className="glance-row">
-              <span className="muted-copy">Fastest action</span>
-              <strong>Search or tap a quick pick</strong>
+              <span className="muted-copy">Fastest route</span>
+              <strong>Open menu, customise, checkout</strong>
             </div>
             <div className="glance-row">
-              <span className="muted-copy">Current order status demo</span>
+              <span className="muted-copy">Order tracking</span>
               <span className="status-chip assigned">{trackedOrder.status.replaceAll("_", " ")}</span>
             </div>
           </section>
@@ -192,3 +223,5 @@ export default function CustomerHomePage() {
     </main>
   );
 }
+
+
