@@ -47,7 +47,7 @@ export default function CustomerHomePage() {
       <section className="marketplace-hero marketplace-scene">
         <div className="marketplace-hero-copy">
           <p className="hero-badge">Hull's food marketplace</p>
-          <h1>Cravings, delivered with theatre.</h1>
+          <h1>From local kitchens to your door.</h1>
           <p>
             Open the door to loaded fries, smash burgers, late-night trays, sweet fixes, and local favourites moving
             from kitchen to doorstep on Hull Eats.

@@ -506,6 +506,7 @@ textarea {
 }
 
 .hero-badge {
+  width: fit-content;
   display: inline-flex;
   align-items: center;
   min-height: 34px;
@@ -667,6 +668,7 @@ textarea {
   font-size: 5.8rem;
   line-height: 0.86;
   letter-spacing: 0;
+  color: #ff6a00;
 }
 
 .marketplace-hero-copy p {
