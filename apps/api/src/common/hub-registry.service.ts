@@ -443,6 +443,7 @@ export class HubRegistryService {
           update: {
             name: section.name,
             description: section.description,
+            defaultPrice: section.defaultPrice,
             sortOrder: sectionIndex,
             isActive: true,
           },
@@ -451,6 +452,7 @@ export class HubRegistryService {
             storeId: store.id,
             name: section.name,
             description: section.description,
+            defaultPrice: section.defaultPrice,
             sortOrder: sectionIndex,
             isActive: true,
           },
@@ -607,6 +609,7 @@ export class HubRegistryService {
         storeId: store.id,
         name: input.name,
         description: input.description,
+        defaultPrice: input.defaultPrice,
         sortOrder: currentCount,
         isActive: true,
       },
@@ -815,6 +818,7 @@ export class HubRegistryService {
 
     await prisma.$transaction(async (tx) => {
       for (const candidate of batch.candidates.filter((entry) => input.acceptedCandidateIds.includes(entry.id))) {
+        const candidatePrice = Number(candidate.price);
         let section = await tx.menuCategory.findFirst({
           where: {
             storeId: batch.storeId,
@@ -832,6 +836,7 @@ export class HubRegistryService {
               storeId: batch.storeId,
               name: candidate.suggestedCategoryName,
               description: "Created from reviewed menu import.",
+              defaultPrice: candidatePrice > 0 ? candidate.price : null,
               sortOrder: existingCount,
               isActive: true,
             },
@@ -847,7 +852,7 @@ export class HubRegistryService {
               categoryId: section.id,
               name: candidate.itemName,
               description: candidate.description,
-              price: candidate.price,
+              price: candidatePrice > 0 ? candidate.price : section.defaultPrice ?? 0,
               customisationConfig: this.buildCustomisationConfig({ components: [], optionGroups: [] }),
               isActive: true,
             isFeatured: false,
@@ -873,6 +878,8 @@ export class HubRegistryService {
     if (this.pilotEnsured) {
       return;
     }
+
+    await prisma.$executeRawUnsafe("alter table public.menu_categories add column if not exists default_price numeric(10,2)");
 
     const merchantSlug = "loaded-munch";
     const storeSlug = loadedMunchStore.slug;
@@ -980,6 +987,7 @@ export class HubRegistryService {
             storeId: store.id,
             name: section.name,
             description: section.description,
+            defaultPrice: null,
             sortOrder: sectionIndex,
             isActive: true,
           },
@@ -1158,6 +1166,7 @@ export class HubRegistryService {
       id: section.id,
       name: section.name,
       description: section.description ?? "",
+      defaultPrice: section.defaultPrice === null || section.defaultPrice === undefined ? null : Number(section.defaultPrice),
       items: items.map((item) => this.mapMenuItem(item)),
     };
   }

@@ -334,6 +334,7 @@ model MenuCategory {
   storeId    String     @map("store_id") @db.Uuid
   name       String
   description String?
+  defaultPrice Decimal?   @map("default_price") @db.Decimal(10, 2)
   sortOrder  Int        @default(0) @map("sort_order")
   isActive   Boolean    @default(true) @map("is_active")
   createdAt  DateTime   @default(now()) @map("created_at")

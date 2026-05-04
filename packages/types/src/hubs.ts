@@ -58,6 +58,7 @@ export const hubMenuSectionSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   description: z.string().optional(),
+  defaultPrice: z.number().nonnegative().nullable().default(null),
   items: z.array(menuItemSchema).default([]),
 });
 
@@ -117,6 +118,7 @@ export const merchantWorkspaceUpdateInputSchema = z.object({
 export const createHubMenuSectionInputSchema = z.object({
   name: z.string().min(1),
   description: z.string().default(""),
+  defaultPrice: z.number().nonnegative().nullable().default(null),
 });
 
 export const createHubMenuItemInputSchema = z.object({

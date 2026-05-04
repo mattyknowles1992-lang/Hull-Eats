@@ -22,6 +22,7 @@ type MerchantLoginResponse = {
 type CreateCategoryFormState = {
   name: string;
   description: string;
+  defaultPrice: string;
 };
 
 type CreateItemFormState = {
@@ -69,6 +70,7 @@ const initialPasswordFormState: PasswordFormState = {
 const initialCreateCategoryState: CreateCategoryFormState = {
   name: "",
   description: "",
+  defaultPrice: "",
 };
 
 const initialCreateItemState: CreateItemFormState = {
@@ -240,7 +242,11 @@ async function createMenuCategory(token: string, hubId: string, input: CreateCat
       "content-type": "application/json",
       authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify(input),
+    body: JSON.stringify({
+      name: input.name,
+      description: input.description,
+      defaultPrice: input.defaultPrice.trim() ? Number(input.defaultPrice) : null,
+    }),
   });
 
   if (!response.ok) {
@@ -866,7 +872,7 @@ export default function MerchantPortalPage() {
     setSaveNotice("");
   };
 
-  const updateSection = (sectionId: string, field: keyof HubMenuSection, value: string) => {
+  const updateSection = <K extends keyof HubMenuSection>(sectionId: string, field: K, value: HubMenuSection[K]) => {
     updateMenuSections((current) =>
       current.map((section) =>
         section.id === sectionId
@@ -981,6 +987,7 @@ export default function MerchantPortalPage() {
       const createdCategory = await createMenuCategory(merchantToken, activeHubId, {
         name: newCategory.name.trim(),
         description: newCategory.description.trim(),
+        defaultPrice: newCategory.defaultPrice.trim(),
       });
 
       setMenuSections((current) => [...current, createdCategory]);
@@ -1018,8 +1025,11 @@ export default function MerchantPortalPage() {
       return;
     }
 
-    if (!newItem.sectionId || !newItem.name.trim() || !newItem.price.trim()) {
-      setMenuNotice("Choose a category, item name, and price before creating the item.");
+    const targetSection = menuSections.find((section) => section.id === newItem.sectionId);
+    const effectivePrice = newItem.price.trim() ? Number(newItem.price) : targetSection?.defaultPrice;
+
+    if (!newItem.sectionId || !newItem.name.trim() || effectivePrice === null || effectivePrice === undefined || Number.isNaN(effectivePrice)) {
+      setMenuNotice("Choose a category, item name, and item price or category default price before creating the item.");
       return;
     }
 
@@ -1027,7 +1037,7 @@ export default function MerchantPortalPage() {
       const createdItem = await createMenuItem(merchantToken, activeHubId, newItem.sectionId, {
         name: newItem.name.trim(),
         description: newItem.description.trim(),
-        price: Number(newItem.price),
+        price: effectivePrice,
         imageUrl: newItem.imageUrl.trim() || undefined,
         components: [],
         optionGroups: [],
@@ -1049,6 +1059,27 @@ export default function MerchantPortalPage() {
       const message = error instanceof Error ? error.message : "Menu item create failed.";
       setMenuNotice(message);
     }
+  };
+
+  const handleApplyCategoryPrice = (sectionId: string) => {
+    const section = menuSections.find((entry) => entry.id === sectionId);
+
+    if (!section || section.defaultPrice === null || section.defaultPrice === undefined) {
+      setMenuNotice("Set a category default price before applying it to all items.");
+      return;
+    }
+
+    updateMenuSections((current) =>
+      current.map((entry) =>
+        entry.id === sectionId
+          ? {
+              ...entry,
+              items: entry.items.map((item) => ({ ...item, price: section.defaultPrice ?? item.price })),
+            }
+          : entry,
+      ),
+    );
+    setMenuNotice(`${section.name} items now use ${formatMoney(section.defaultPrice)}. Save hub changes to publish it.`);
   };
 
   const handleDeleteItem = async (itemId: string, itemName: string) => {
@@ -1229,6 +1260,14 @@ export default function MerchantPortalPage() {
                     onChange={(event) => setNewCategory((current) => ({ ...current, name: event.target.value }))}
                     placeholder="Create category or path, e.g. Drinks / Fizzy"
                   />
+                  <input
+                    type="number"
+                    step="0.01"
+                    style={{ ...compactInput, maxWidth: 140 }}
+                    value={newCategory.defaultPrice}
+                    onChange={(event) => setNewCategory((current) => ({ ...current, defaultPrice: event.target.value }))}
+                    placeholder="Default £"
+                  />
                   <button type="button" style={primaryButton} onClick={handleCreateCategory}>
                     Add category
                   </button>
@@ -1271,6 +1310,30 @@ export default function MerchantPortalPage() {
                               placeholder="Optional short description"
                             />
                           </label>
+                          <label style={field}>
+                            <span style={darkFieldLabel}>Category default price</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              style={lightInput}
+                              value={section.defaultPrice ?? ""}
+                              onChange={(event) =>
+                                updateSection(section.id, "defaultPrice", event.target.value ? Number(event.target.value) : null)
+                              }
+                              placeholder="Use when most items in this category cost the same"
+                            />
+                          </label>
+                        </div>
+
+                        <div style={compactCreateBox}>
+                          <div style={emptyStateCard}>
+                            {section.defaultPrice === null || section.defaultPrice === undefined
+                              ? "No category price set. Items need their own price."
+                              : `Category price: ${formatMoney(section.defaultPrice)}. New items can use this automatically.`}
+                          </div>
+                          <button type="button" style={secondaryButton} onClick={() => handleApplyCategoryPrice(section.id)}>
+                            Apply price to all items
+                          </button>
                         </div>
 
                         <div style={compactCreateBox}>
@@ -1286,7 +1349,7 @@ export default function MerchantPortalPage() {
                             style={{ ...compactInput, maxWidth: 120 }}
                             value={newItem.sectionId === section.id ? newItem.price : ""}
                             onChange={(event) => setNewItem((current) => ({ ...current, price: event.target.value, sectionId: section.id }))}
-                            placeholder="Price"
+                            placeholder={section.defaultPrice ? `Uses £${section.defaultPrice.toFixed(2)}` : "Price"}
                           />
                           <button type="button" style={primaryButton} onClick={handleCreateItem}>
                             Add item

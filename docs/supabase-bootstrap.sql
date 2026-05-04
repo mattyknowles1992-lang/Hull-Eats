@@ -197,6 +197,7 @@ create table if not exists public.menu_categories (
   store_id uuid not null references public.stores(id) on delete cascade,
   name text not null,
   description text,
+  default_price numeric(10,2),
   sort_order integer not null default 0,
   is_active boolean not null default true,
   created_at timestamptz not null default timezone('utc', now()),
@@ -204,7 +205,8 @@ create table if not exists public.menu_categories (
 );
 
 alter table public.menu_categories
-  add column if not exists description text;
+  add column if not exists description text,
+  add column if not exists default_price numeric(10,2);
 
 create table if not exists public.menu_items (
   id uuid primary key default gen_random_uuid(),
