@@ -103,7 +103,10 @@ export default function CustomerHomePage() {
 
         <div className="topbar-actions">
           <details className="membership-popover">
-            <summary className="glass-button">Hull Eats+ soon</summary>
+            <summary className="glass-button membership-nav-button">
+              <span>Coming soon</span>
+              <strong>Hull Eats+</strong>
+            </summary>
             <div className="membership-popover-card">
               <span className="search-highlight-label">Coming soon</span>
               <strong>Hull Eats+</strong>
