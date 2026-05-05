@@ -1,6 +1,6 @@
 ﻿import Link from "next/link";
 
-import { featuredStores, trackedOrder } from "../src/lib/demo";
+import { featuredStores } from "../src/lib/demo";
 
 const filters = ["All", "Restaurants", "Takeaways", "Groceries", "Desserts", "Late night"];
 const quickPicks = [
@@ -198,34 +198,6 @@ export default function CustomerHomePage() {
               <p>Free delivery on eligible orders, launch perks, and quick access to your usual favourites.</p>
               <Link href="/register" className="primary-button" style={{ width: "100%" }}>
                 Join membership
-              </Link>
-            </div>
-          </section>
-
-          <section className="feature-panel feature-panel-contrast">
-            <div className="section-heading compact">
-              <div>
-                <h2>Popular right now</h2>
-                <p>What customers can jump into while new local businesses come online.</p>
-              </div>
-            </div>
-
-            <div className="glance-row">
-              <span className="muted-copy">Live example</span>
-              <strong>Loaded Munch</strong>
-            </div>
-            <div className="glance-row">
-              <span className="muted-copy">Marketplace mix</span>
-              <strong>Food, shops, desserts</strong>
-            </div>
-            <div className="glance-row">
-              <span className="muted-copy">Fastest route</span>
-              <strong>Open menu, customise, checkout</strong>
-            </div>
-            <div className="glance-row">
-              <span className="muted-copy">Order tracking</span>
-              <Link href={`/track/${trackedOrder.orderNumber}`} className="status-chip assigned">
-                {trackedOrder.status.replaceAll("_", " ")}
               </Link>
             </div>
           </section>
