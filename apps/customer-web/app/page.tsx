@@ -9,7 +9,7 @@ const quickPicks = [
   { title: "Late-night cravings", detail: "Hot food, sweet fixes, and comfort orders after dark" },
   { title: "Family favourites", detail: "Pizza, burgers, curries, chicken, noodles, wraps, and more" },
 ];
-const appetiteSignals = ["Hull menus", "Real-time order tracking", "Local courier delivery", "Hull Eats+ perks"];
+const appetiteSignals = ["Hull menus", "Real-time order tracking", "Local courier delivery", "Hull Eats+ coming soon"];
 
 function getStoreStatus(storefrontStatus: string, isOpen: boolean) {
   if (storefrontStatus === "onboarding") {
@@ -32,12 +32,22 @@ export default function CustomerHomePage() {
         </div>
 
         <div className="topbar-actions">
-          <Link href="/about" className="glass-button">
-            For businesses
-          </Link>
-          <Link href="/register" className="glass-button">
-            Hull Eats+
-          </Link>
+          <details className="membership-popover">
+            <summary className="glass-button">Hull Eats+ soon</summary>
+            <div className="membership-popover-card">
+              <span className="search-highlight-label">Coming soon</span>
+              <strong>Hull Eats+</strong>
+              <p>
+                A £9.99/month delivery subscription for regular customers. Members will get free delivery on orders
+                across eligible Hull Eats stores, plus early launch perks and faster access to favourite kitchens.
+              </p>
+              <div className="membership-benefit-list">
+                <span>Free delivery on eligible orders</span>
+                <span>One simple monthly price</span>
+                <span>Built for frequent local ordering</span>
+              </div>
+            </div>
+          </details>
           <Link href="/register" className="icon-button">
             Account
           </Link>
@@ -120,7 +130,7 @@ export default function CustomerHomePage() {
 
         <div className="search-meta-row">
           <div className="delivery-pill">Delivering to Hull city centre</div>
-          <div className="delivery-pill is-highlighted">Free delivery with Hull Eats+ from £9.99/month</div>
+          <div className="delivery-pill is-highlighted">Hull Eats+ free delivery subscription coming soon</div>
         </div>
 
         <div className="filter-row" aria-label="Marketplace filters">
@@ -188,17 +198,31 @@ export default function CustomerHomePage() {
           <section className="feature-panel feature-panel-dark">
             <div className="section-heading compact">
               <div>
-                <h2>Hull Eats+</h2>
-                <p>For the people who know one order is rarely the last order.</p>
+                <h2>Hull Eats+ coming soon</h2>
+                <p>A simple free-delivery subscription for customers who order locally often.</p>
               </div>
             </div>
 
             <div className="membership-card">
               <div className="membership-price">£9.99/mo</div>
-              <p>Free delivery on eligible orders, launch perks, and quick access to your usual favourites.</p>
-              <Link href="/register" className="primary-button" style={{ width: "100%" }}>
-                Join membership
-              </Link>
+              <p>Free delivery on eligible orders, launch perks, and quick access to your usual favourites when membership opens.</p>
+              <span className="coming-soon-pill">Coming soon</span>
+            </div>
+          </section>
+
+          <section className="feature-panel clear-checkout-panel">
+            <div className="section-heading compact">
+              <div>
+                <h2>Clear checkout</h2>
+                <p>The total stays easy to understand before you place the order.</p>
+              </div>
+            </div>
+
+            <div className="fee-promise-grid">
+              <span>No service charge</span>
+              <span>No bag fee</span>
+              <span>No hidden extras</span>
+              <span>Clear delivery price</span>
             </div>
           </section>
         </aside>
