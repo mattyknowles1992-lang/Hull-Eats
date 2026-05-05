@@ -79,10 +79,11 @@ export default function CustomerHomePage() {
             </Link>
           </div>
 
-          <div className="appetite-signal-row" aria-label="Marketplace highlights">
-            {appetiteSignals.map((signal) => (
-              <span key={signal}>{signal}</span>
-            ))}
+          <div className="appetite-signal-row clear-checkout-grid" aria-label="Clear checkout promise">
+            <span>No service charge</span>
+            <span>No bag fee</span>
+            <span>No hidden extras</span>
+            <span>Clear delivery price</span>
           </div>
         </div>
 
@@ -213,16 +214,15 @@ export default function CustomerHomePage() {
           <section className="feature-panel clear-checkout-panel">
             <div className="section-heading compact">
               <div>
-                <h2>Clear checkout</h2>
-                <p>The total stays easy to understand before you place the order.</p>
+                <h2>Marketplace tools</h2>
+                <p>Everything customers need to find food, follow the order, and spot what is coming next.</p>
               </div>
             </div>
 
             <div className="fee-promise-grid">
-              <span>No service charge</span>
-              <span>No bag fee</span>
-              <span>No hidden extras</span>
-              <span>Clear delivery price</span>
+              {appetiteSignals.map((signal) => (
+                <span key={signal}>{signal}</span>
+              ))}
             </div>
           </section>
         </aside>
