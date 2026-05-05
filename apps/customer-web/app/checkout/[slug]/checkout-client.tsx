@@ -150,6 +150,25 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
     }
   };
 
+  const handleClearBasket = () => {
+    if (!basket || basket.items.length === 0) {
+      return;
+    }
+
+    if (basket.items.length > 1) {
+      const confirmed = window.confirm("Are you sure? This will remove all items in your order.");
+
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    clearBasket(store.slug);
+    setBasket(null);
+    setCheckoutSession(null);
+    setErrorMessage(null);
+  };
+
   const orderLines = checkoutSession?.lineItems ?? enrichedLines;
 
   if (placedOrder && checkoutSession) {
@@ -291,6 +310,11 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
                 {basketCount} item{basketCount === 1 ? "" : "s"} selected from {store.name}.
               </p>
             </div>
+            {basketCount > 0 ? (
+              <button type="button" className="glass-button danger-button" onClick={handleClearBasket}>
+                Clear basket
+              </button>
+            ) : null}
           </div>
 
           {orderLines.length > 0 ? (
