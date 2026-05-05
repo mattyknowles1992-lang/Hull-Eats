@@ -9,7 +9,7 @@ const quickPicks = [
   { title: "Late-night cravings", detail: "Hot food, sweet fixes, and comfort orders after dark" },
   { title: "Family favourites", detail: "Pizza, burgers, curries, chicken, noodles, wraps, and more" },
 ];
-const appetiteSignals = ["Live Hull menus", "Real-time order tracking", "Local courier delivery", "Hull Eats+ perks"];
+const appetiteSignals = ["Hull menus", "Real-time order tracking", "Local courier delivery", "Hull Eats+ perks"];
 
 function getStoreStatus(storefrontStatus: string, isOpen: boolean) {
   if (storefrontStatus === "onboarding") {
