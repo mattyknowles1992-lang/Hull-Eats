@@ -668,6 +668,16 @@ textarea {
     0 10px 18px rgba(15, 17, 21, 0.2);
 }
 
+.gold-button {
+  color: #101216;
+  border-color: rgba(255, 255, 255, 0.16);
+  background: linear-gradient(180deg, #f1d27c, #d7a84f 58%, #b98524);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.42),
+    0 18px 28px rgba(215, 168, 79, 0.22),
+    0 10px 18px rgba(15, 17, 21, 0.18);
+}
+
 .customer-marketplace {
   width: min(100%, 1320px);
   perspective: 1400px;
@@ -732,9 +742,11 @@ textarea {
   min-height: min(72vh, 760px);
   overflow: hidden;
   border-radius: 30px;
-  border: 1px solid rgba(16, 18, 24, 0.18);
+  border: 1px solid rgba(215, 168, 79, 0.42);
   background: #080a0e;
-  box-shadow: 0 34px 80px rgba(15, 17, 21, 0.28);
+  box-shadow:
+    0 0 0 1px rgba(255, 231, 153, 0.16),
+    0 34px 80px rgba(15, 17, 21, 0.28);
   transition:
     transform 260ms ease,
     box-shadow 260ms ease;
@@ -754,11 +766,36 @@ textarea {
 .marketplace-hero::after {
   content: "";
   position: absolute;
-  inset: auto 0 0;
-  z-index: 1;
-  height: 44%;
-  background: linear-gradient(180deg, transparent, rgba(8, 10, 14, 0.86));
+  inset: 0;
+  z-index: 4;
+  padding: 2px;
+  border-radius: inherit;
+  background: linear-gradient(120deg, rgba(255, 231, 153, 0.35), #d7a84f, rgba(255, 255, 255, 0.76), #b98524, rgba(255, 231, 153, 0.35));
+  background-size: 260% 260%;
+  animation: hero-gold-border 6s linear infinite;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
   pointer-events: none;
+}
+
+@keyframes hero-gold-border {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
 }
 
 .hero-slideshow,
@@ -1009,7 +1046,7 @@ textarea {
 .craving-card:nth-child(3) {
   background-image:
     linear-gradient(180deg, rgba(5, 8, 14, 0.08), rgba(5, 8, 14, 0.84)),
-    url("https://images.unsplash.com/photo-1562967916-eb82221dfb92?auto=format&fit=crop&w=900&q=80");
+    url("https://images.unsplash.com/photo-1563805042-7684c019e1cb?auto=format&fit=crop&w=900&q=80");
 }
 
 .craving-card:nth-child(4) {

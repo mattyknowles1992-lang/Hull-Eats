@@ -144,7 +144,7 @@ export default function CustomerHomePage() {
 
           <div className="marketplace-search">
             <input className="search-input" aria-label="Search businesses" placeholder="Search restaurants, takeaways, shops, desserts..." />
-            <Link href="/stores/loaded-munch-hull" className="primary-button">
+            <Link href="/stores/loaded-munch-hull" className="primary-button gold-button">
               Browse live menus
             </Link>
           </div>
@@ -194,7 +194,7 @@ export default function CustomerHomePage() {
             <span className="search-highlight-label">Featured kitchen</span>
             <strong>Loaded Munch</strong>
             <p>A live example of how every local business can show its menu, options, delivery, and checkout.</p>
-            <Link href="/stores/loaded-munch-hull" className="primary-button" style={{ width: "100%" }}>
+            <Link href="/stores/loaded-munch-hull" className="primary-button gold-button" style={{ width: "100%" }}>
               View the menu
             </Link>
           </div>
