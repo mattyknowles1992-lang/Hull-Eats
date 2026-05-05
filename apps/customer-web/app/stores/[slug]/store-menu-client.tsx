@@ -278,7 +278,7 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
             </h3>
             {addedMessage ? <p className="basket-added-message">{addedMessage}</p> : null}
           </div>
-          <Link href={`/checkout/${storeSlug}`} className="primary-button">
+          <Link href={`/checkout/${storeSlug}`} className="primary-button gold-button">
             Go to checkout
           </Link>
         </section>

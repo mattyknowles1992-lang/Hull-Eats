@@ -87,7 +87,7 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
             <div className="button-row">
               {hasLiveMenu ? (
                 <>
-                  <Link href={`/checkout/${store.slug}`} className="primary-button">
+                  <Link href={`/checkout/${store.slug}`} className="primary-button gold-button">
                     Start order
                   </Link>
                   <button type="button" className="glass-button">
@@ -96,7 +96,7 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
                 </>
               ) : (
                 <>
-                  <button type="button" className="primary-button">
+                  <button type="button" className="primary-button gold-button">
                     Notify me when ordering opens
                   </button>
                   <button type="button" className="glass-button">

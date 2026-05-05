@@ -49,7 +49,6 @@ const getLineSelectedOptions = <T extends { selectedOptions?: unknown }>(line: T
 export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
   const [basket, setBasket] = useState<StoreBasket | null>(null);
   const [formState, setFormState] = useState<CheckoutFormState>(initialFormState);
-  const [isReviewing, setIsReviewing] = useState(false);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [checkoutSession, setCheckoutSession] = useState<Awaited<ReturnType<typeof createCheckoutSession>> | null>(null);
@@ -89,56 +88,46 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
     }));
   };
 
-  const handleReviewCheckout = async () => {
+  const createCurrentCheckoutSession = async () => {
     if (!basket || basket.items.length === 0) {
-      setErrorMessage("Add at least one item before reviewing checkout.");
-      return;
+      throw new Error("Add at least one item before placing the order.");
     }
 
-    setIsReviewing(true);
-    setErrorMessage(null);
-
-    try {
-      const session = await createCheckoutSession({
-        storeId: store.id,
-        source: "web",
-        fulfillmentType: "delivery",
-        customerName: formState.customerName.trim(),
-        customerPhone: formState.customerPhone.trim(),
-        customerEmail: formState.customerEmail.trim() || undefined,
-        addressLine1: formState.addressLine1.trim(),
-        city: formState.city.trim(),
-        postcode: formState.postcode.trim(),
-        notes: formState.notes.trim() || undefined,
-        items: basket.items.map((item) => ({
-          menuItemId: item.menuItemId,
-          quantity: item.quantity,
-          removedComponentIds: item.removedComponentIds,
-          selectedOptionQuantities: item.selectedOptionQuantities,
-        })),
-      });
-
-      setCheckoutSession(session);
-      setPlacedOrder(null);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unable to review checkout right now.";
-      setErrorMessage(message);
-    } finally {
-      setIsReviewing(false);
-    }
+    return createCheckoutSession({
+      storeId: store.id,
+      source: "web",
+      fulfillmentType: "delivery",
+      customerName: formState.customerName.trim(),
+      customerPhone: formState.customerPhone.trim(),
+      customerEmail: formState.customerEmail.trim() || undefined,
+      addressLine1: formState.addressLine1.trim(),
+      city: formState.city.trim(),
+      postcode: formState.postcode.trim(),
+      notes: formState.notes.trim() || undefined,
+      items: basket.items.map((item) => ({
+        menuItemId: item.menuItemId,
+        quantity: item.quantity,
+        removedComponentIds: item.removedComponentIds,
+        selectedOptionQuantities: item.selectedOptionQuantities,
+      })),
+    });
   };
 
   const handlePlaceOrder = async () => {
-    if (!checkoutSession) {
-      setErrorMessage("Review the checkout totals before placing the order.");
-      return;
-    }
-
     setIsPlacingOrder(true);
     setErrorMessage(null);
 
     try {
-      const result = await placeCheckoutOrder(checkoutSession.id);
+      const session = await createCurrentCheckoutSession();
+      setCheckoutSession(session);
+      setPlacedOrder(null);
+
+      if (!session.canPlaceOrder) {
+        setErrorMessage("Make sure address details are filled and the basket meets any pricing rules before placing the order.");
+        return;
+      }
+
+      const result = await placeCheckoutOrder(session.id);
       setPlacedOrder(result);
       clearBasket(store.slug);
       setBasket(null);
@@ -290,14 +279,9 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
         {errorMessage ? <p className="form-message form-message-error">{errorMessage}</p> : null}
 
         <div className="button-row" style={{ marginTop: 18 }}>
-          <button type="button" className="primary-button" onClick={handleReviewCheckout} disabled={isReviewing || basketCount === 0}>
-            {isReviewing ? "Reviewing..." : "Review total"}
+          <button type="button" className="primary-button gold-button" onClick={handlePlaceOrder} disabled={isPlacingOrder || basketCount === 0}>
+            {isPlacingOrder ? "Placing..." : "Place order"}
           </button>
-          {checkoutSession ? (
-            <button type="button" className="glass-button" onClick={handlePlaceOrder} disabled={isPlacingOrder || !checkoutSession.canPlaceOrder}>
-              {isPlacingOrder ? "Placing..." : "Place pilot order"}
-            </button>
-          ) : null}
         </div>
       </section>
 
