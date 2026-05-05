@@ -53,6 +53,7 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [checkoutSession, setCheckoutSession] = useState<Awaited<ReturnType<typeof createCheckoutSession>> | null>(null);
   const [placedOrder, setPlacedOrder] = useState<Awaited<ReturnType<typeof placeCheckoutOrder>> | null>(null);
+  const [showClearBasketConfirm, setShowClearBasketConfirm] = useState(false);
 
   useEffect(() => {
     const sync = () => setBasket(loadBasket(store.slug));
@@ -145,17 +146,19 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
     }
 
     if (basket.items.length > 1) {
-      const confirmed = window.confirm("Are you sure? This will remove all items in your order.");
-
-      if (!confirmed) {
-        return;
-      }
+      setShowClearBasketConfirm(true);
+      return;
     }
 
+    confirmClearBasket();
+  };
+
+  const confirmClearBasket = () => {
     clearBasket(store.slug);
     setBasket(null);
     setCheckoutSession(null);
     setErrorMessage(null);
+    setShowClearBasketConfirm(false);
   };
 
   const orderLines = checkoutSession?.lineItems ?? enrichedLines;
@@ -380,6 +383,24 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
           ) : null}
         </section>
       </aside>
+
+      {showClearBasketConfirm ? (
+        <div className="confirmation-modal-backdrop" onClick={() => setShowClearBasketConfirm(false)}>
+          <section className="confirmation-modal" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="clear-basket-title">
+            <p className="eyebrow">Clear basket</p>
+            <h2 id="clear-basket-title">Remove all items?</h2>
+            <p>This will remove every item currently in your order. You can add items again from the menu.</p>
+            <div className="button-row">
+              <button type="button" className="glass-button" onClick={() => setShowClearBasketConfirm(false)}>
+                Keep basket
+              </button>
+              <button type="button" className="glass-button danger-button" onClick={confirmClearBasket}>
+                Remove all items
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </section>
   );
 }
