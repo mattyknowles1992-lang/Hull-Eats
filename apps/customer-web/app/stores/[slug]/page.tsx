@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { featuredStores, storeMenus } from "../../../src/lib/demo";
+import { BasketButton } from "./basket-button";
 import { StoreMenuClient } from "./store-menu-client";
 
 const fallbackStore = featuredStores[0]!;
@@ -35,9 +36,7 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
         </div>
 
         <div className="topbar-actions">
-          <button type="button" className="glass-button">
-            Save store
-          </button>
+          <BasketButton storeSlug={store.slug} />
           <button type="button" className="icon-button">
             Share
           </button>

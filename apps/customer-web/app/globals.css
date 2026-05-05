@@ -146,6 +146,7 @@ textarea {
 
 .icon-button,
 .glass-button,
+.basket-topbar-button,
 .nav-icon,
 .primary-button,
 .secondary-button {
@@ -159,6 +160,7 @@ textarea {
 
 .icon-button,
 .glass-button,
+.basket-topbar-button,
 .nav-icon,
 .secondary-button {
   border: 1px solid rgba(15, 17, 21, 0.12);
@@ -171,13 +173,43 @@ textarea {
 }
 
 .icon-button,
-.glass-button {
+.glass-button,
+.basket-topbar-button {
   min-height: 48px;
   padding: 0 16px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   font-weight: 800;
+}
+
+.basket-topbar-button {
+  gap: 10px;
+  color: var(--ink-strong);
+  text-decoration: none;
+}
+
+.basket-topbar-button strong {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(15, 17, 21, 0.08);
+  font-size: 0.84rem;
+}
+
+.basket-topbar-button.has-items {
+  color: #fff;
+  border-color: rgba(15, 17, 21, 0.18);
+  background: linear-gradient(180deg, #ff8b3c, #ff6a00 62%, #db5700);
+  box-shadow:
+    0 16px 28px rgba(255, 107, 0, 0.22),
+    0 10px 18px rgba(15, 17, 21, 0.12);
+}
+
+.basket-topbar-button.has-items strong {
+  background: rgba(255, 255, 255, 0.18);
 }
 
 .membership-popover {
