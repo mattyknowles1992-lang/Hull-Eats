@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 
 import type { MenuItem } from "@hull-eats/types";
 
@@ -88,6 +89,7 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
   const [activeItem, setActiveItem] = useState<MenuItem | null>(null);
   const [selection, setSelection] = useState<BasketCustomisationSelection | null>(null);
   const [addedMessage, setAddedMessage] = useState("");
+  const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
     const sync = () => setBasket(loadBasket(storeSlug));
@@ -99,6 +101,23 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
       window.removeEventListener("hull-eats-basket-updated", sync as EventListener);
     };
   }, [storeSlug]);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  useEffect(() => {
+    if (!activeItem || !selection) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [activeItem, selection]);
 
   useEffect(() => {
     if (!addedMessage) {
@@ -326,7 +345,8 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
         </section>
       ))}
 
-      {activeItem && selection ? (
+      {isClient && activeItem && selection
+        ? createPortal(
         <div className="customise-modal-backdrop" onClick={closeCustomise}>
           <section className="customise-modal" onClick={(event) => event.stopPropagation()}>
             <div className="customise-modal-header">
@@ -502,8 +522,10 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
               </button>
             </div>
           </section>
-        </div>
-      ) : null}
+        </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
