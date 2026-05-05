@@ -1,8 +1,48 @@
-﻿import Link from "next/link";
+﻿"use client";
+
+import Link from "next/link";
+import { useMemo, useState } from "react";
 
 import { featuredStores } from "../src/lib/demo";
 
-const filters = ["All", "Restaurants", "Takeaways", "Groceries", "Desserts", "Late night"];
+const filters = [
+  {
+    label: "All",
+    title: "Everything local",
+    description: "Browse the full Hull Eats mix as restaurants, takeaways, shops, desserts, and late-night menus come online.",
+    imageUrl: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=80",
+  },
+  {
+    label: "Restaurants",
+    title: "Restaurants",
+    description: "Local kitchens for proper meals, date nights, family dinners, and food worth sitting down for.",
+    imageUrl: "https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=1200&q=80",
+  },
+  {
+    label: "Takeaways",
+    title: "Takeaways",
+    description: "Burgers, loaded fries, chicken, pizza, wraps, curries, noodles, and comfort food made for delivery.",
+    imageUrl: "https://images.unsplash.com/photo-1562967916-eb82221dfb92?auto=format&fit=crop&w=1200&q=80",
+  },
+  {
+    label: "Groceries",
+    title: "Groceries",
+    description: "Corner-shop essentials, drinks, snacks, household bits, and the things you only remember when you need them.",
+    imageUrl: "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1200&q=80",
+  },
+  {
+    label: "Desserts",
+    title: "Desserts",
+    description: "Sweet fixes, shakes, cakes, cookie dough, waffles, and after-dinner treats as dessert stores join.",
+    imageUrl: "https://images.unsplash.com/photo-1551024506-0bccd828d307?auto=format&fit=crop&w=1200&q=80",
+  },
+  {
+    label: "Late night",
+    title: "Late night",
+    description: "Food, drinks, snacks, and comfort orders for the part of the night when plans turn into cravings.",
+    imageUrl: "https://images.unsplash.com/photo-1571091718767-18b5b1457add?auto=format&fit=crop&w=1200&q=80",
+  },
+] as const;
 const quickPicks = [
   { title: "Dinner now", detail: "Restaurants, takeaways, and local kitchens ready to cook" },
   { title: "Quick essentials", detail: "Corner-shop staples, snacks, drinks, and convenience runs" },
@@ -10,6 +50,8 @@ const quickPicks = [
   { title: "Family favourites", detail: "Pizza, burgers, curries, chicken, noodles, wraps, and more" },
 ];
 const appetiteSignals = ["Hull menus", "Real-time order tracking", "Local courier delivery", "Hull Eats+ coming soon"];
+
+type FilterLabel = (typeof filters)[number]["label"];
 
 function getStoreStatus(storefrontStatus: string, isOpen: boolean) {
   if (storefrontStatus === "onboarding") {
@@ -20,6 +62,34 @@ function getStoreStatus(storefrontStatus: string, isOpen: boolean) {
 }
 
 export default function CustomerHomePage() {
+  const [activeFilter, setActiveFilter] = useState<FilterLabel>("All");
+  const activeCategory = filters.find((filter) => filter.label === activeFilter) ?? filters[0]!;
+  const visibleStores = useMemo(() => {
+    if (activeFilter === "All" || activeFilter === "Late night") {
+      return featuredStores;
+    }
+
+    return featuredStores.filter((store) => {
+      if (activeFilter === "Restaurants") {
+        return store.type === "restaurant";
+      }
+
+      if (activeFilter === "Takeaways") {
+        return store.type === "takeaway";
+      }
+
+      if (activeFilter === "Groceries") {
+        return store.type === "shop";
+      }
+
+      if (activeFilter === "Desserts") {
+        return (store.cuisineLabel ?? "").toLowerCase().includes("dessert");
+      }
+
+      return true;
+    });
+  }, [activeFilter]);
+
   return (
     <main className="shell customer-marketplace">
       <header className="topbar">
@@ -114,9 +184,10 @@ export default function CustomerHomePage() {
         <div className="search-heading">
           <div>
             <p className="eyebrow">Tonight in Hull</p>
-            <h2 className="search-title">Pick the food that makes the night make sense.</h2>
+            <h2 className="search-title">Find the food you actually want.</h2>
             <p className="search-copy">
-              Browse local menus, track the order as it moves, and keep your favourites close for the next craving.
+              Browse local menus, choose a category, track the order as it moves, and keep your favourites close for
+              the next craving.
             </p>
           </div>
           <div className="search-highlight-card live-menu-card">
@@ -130,17 +201,42 @@ export default function CustomerHomePage() {
         </div>
 
         <div className="search-meta-row">
-          <div className="delivery-pill">Delivering to Hull city centre</div>
+          <div className="delivery-pill">Serving Hull and surrounding areas</div>
           <div className="delivery-pill is-highlighted">Hull Eats+ free delivery subscription coming soon</div>
         </div>
 
         <div className="filter-row" aria-label="Marketplace filters">
-          {filters.map((filter, index) => (
-            <span key={filter} className={`filter-pill${index === 0 ? " is-active" : ""}`}>
-              {filter}
-            </span>
+          {filters.map((filter) => (
+            <button
+              key={filter.label}
+              type="button"
+              className={`filter-pill${activeFilter === filter.label ? " is-active" : ""}`}
+              onClick={() => setActiveFilter(filter.label)}
+            >
+              {filter.label}
+            </button>
           ))}
         </div>
+
+        <article className="category-preview-card">
+          <div
+            className="category-preview-image"
+            style={{
+              backgroundImage: `linear-gradient(180deg, rgba(5, 8, 14, 0.08), rgba(5, 8, 14, 0.7)), url(${activeCategory.imageUrl})`,
+            }}
+            aria-hidden="true"
+          />
+          <div className="category-preview-copy">
+            <span className="search-highlight-label">{activeFilter}</span>
+            <strong>{activeCategory.title}</strong>
+            <p>{activeCategory.description}</p>
+            <span className="store-tag">
+              {visibleStores.length > 0
+                ? `${visibleStores.length} ${visibleStores.length === 1 ? "store" : "stores"} showing`
+                : "Category coming soon"}
+            </span>
+          </div>
+        </article>
       </section>
 
       <section className="content-grid marketplace-scene">
@@ -153,7 +249,7 @@ export default function CustomerHomePage() {
           </div>
 
           <div className="store-grid">
-            {featuredStores.map((store) => (
+            {visibleStores.map((store) => (
               <Link href={`/stores/${store.slug}`} className="store-card" key={store.id}>
                 <div
                   className="store-card-media"
@@ -192,6 +288,16 @@ export default function CustomerHomePage() {
                 </div>
               </Link>
             ))}
+            {visibleStores.length === 0 ? (
+              <article className="store-card empty-filter-card">
+                <div className="store-card-body">
+                  <h3>{activeFilter} coming soon</h3>
+                  <p className="store-copy">
+                    This category is part of the Hull Eats plan. New local businesses will appear here as they go live.
+                  </p>
+                </div>
+              </article>
+            ) : null}
           </div>
         </div>
 
