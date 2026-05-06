@@ -518,7 +518,7 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
                 onClick={confirmCustomisation}
                 disabled={selectionValidationErrors.length > 0}
               >
-                Add configured item
+                Add item
               </button>
             </div>
           </section>
