@@ -22,6 +22,7 @@ type MenuOptionGroup = MenuItem["optionGroups"][number];
 type MenuOption = MenuOptionGroup["options"][number];
 
 const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000").replace(/\/$/, "");
+const customerWebBaseUrl = (process.env.NEXT_PUBLIC_CUSTOMER_WEB_URL ?? "https://hull-eats.onrender.com").replace(/\/$/, "");
 const merchantSessionStorageKey = "hull-eats-merchant-session";
 
 type MerchantLoginResponse = {
@@ -868,6 +869,7 @@ export default function MerchantPortalPage() {
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [activeHubId, setActiveHubId] = useState("");
+  const [activeHubSlug, setActiveHubSlug] = useState("");
   const [hubUsers, setHubUsers] = useState<HubUser[]>([]);
   const [activeUser, setActiveUser] = useState<HubUser | null>(null);
   const [hubSettings, setHubSettings] = useState<HubSettings>(emptyHubSettings);
@@ -966,6 +968,7 @@ export default function MerchantPortalPage() {
 
   const applyWorkspace = (workspace: MerchantWorkspace, user: HubUser | null) => {
     setActiveHubId(workspace.hub.id);
+    setActiveHubSlug(workspace.hub.slug);
     setActiveUser(user);
     setHubUsers(workspace.users);
     setHubSettings(workspace.settings);
@@ -1031,6 +1034,7 @@ export default function MerchantPortalPage() {
     setLoginUsername("");
     setLoginPassword("");
     setActiveHubId("");
+    setActiveHubSlug("");
     setHubUsers([]);
     setActiveUser(null);
     setHubSettings(emptyHubSettings);
@@ -1510,6 +1514,16 @@ export default function MerchantPortalPage() {
               <button type="button" style={primaryButton} onClick={handleSaveHub}>
                 Save hub changes
               </button>
+              {activeHubSlug ? (
+                <>
+                  <a href={`${customerWebBaseUrl}/stores/${activeHubSlug}/kiosk`} target="_blank" rel="noreferrer" style={secondaryButtonLink}>
+                    Self service kiosk
+                  </a>
+                  <a href={`${customerWebBaseUrl}/stores/${activeHubSlug}/kiosk?launch=1`} target="_blank" rel="noreferrer" style={secondaryButtonLink}>
+                    Launch kiosk
+                  </a>
+                </>
+              ) : null}
               <button type="button" style={secondaryButton} onClick={handleSignOut}>
                 Sign out
               </button>
@@ -3161,6 +3175,14 @@ const secondaryButton: React.CSSProperties = {
   fontWeight: 800,
   background: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(247,241,234,0.96))",
   cursor: "pointer",
+};
+
+const secondaryButtonLink: React.CSSProperties = {
+  ...secondaryButton,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  textDecoration: "none",
 };
 
 const secondaryButtonSmall: React.CSSProperties = {
