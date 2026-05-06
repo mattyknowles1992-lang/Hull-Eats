@@ -17,7 +17,7 @@ export default async function CheckoutPage({ params }: { params: Promise<{ slug:
           <Link href={`/stores/${store.slug}`} className="icon-button">
             Back
           </Link>
-          <img src="/brand/hull-eats-logo.png" alt="Hull Eats" className="brand-logo brand-logo-small" />
+          <img src="/brand/hull-eats-logo.jpeg" alt="Hull Eats" className="brand-logo brand-logo-small" />
           <div>
             <p className="eyebrow">Checkout</p>
             <p className="brand-title">{store.name}</p>
