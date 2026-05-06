@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 
 import { featuredStores, storeMenus } from "../src/lib/demo";
+import { marketplaceCategories } from "../src/lib/marketplace-categories";
 
 const filters = ["All", "Restaurants", "Takeaways", "Groceries", "Desserts", "Late night"] as const;
 type FilterLabel = (typeof filters)[number];
@@ -243,6 +244,15 @@ export default function CustomerHomePage() {
         </div>
       </header>
 
+      <nav className="marketplace-category-rail" aria-label="Marketplace categories">
+        {marketplaceCategories.slice(0, 8).map((category) => (
+          <Link key={category.slug} href={`/categories/${category.slug}`} className="marketplace-category-chip">
+            <span className="marketplace-category-chip-image" style={{ backgroundImage: `url(${category.imageUrl})` }} />
+            <span>{category.shortLabel}</span>
+          </Link>
+        ))}
+      </nav>
+
       <section className="marketplace-hero marketplace-scene">
         <div className="hero-slideshow hero-slideshow-landscape" aria-hidden="true">
           <span className="hero-slide hero-slide-one" />
@@ -287,28 +297,32 @@ export default function CustomerHomePage() {
           </div>
         </div>
 
-        <Link href="/stores/loaded-munch-hull" className="hero-food-stage" aria-label="Open Loaded Munch menu">
-          <div className="hero-food-card">
-            <span className="status-chip pending">Featured launch kitchen</span>
-            <strong>Loaded Munch</strong>
-            <p>One of the first live menus on Hull Eats, with more local kitchens and shops joining the marketplace.</p>
-            <div className="hero-food-meta">
-              <span>25 min</span>
-              <span>£2.50 delivery</span>
-              <span>£10 min</span>
+        <div className="hero-food-stage hero-category-stage" aria-label="Choose marketplace category">
+          <div className="hero-category-card">
+            <div className="hero-category-card-header">
+              <span className="status-chip pending">Choose what you want</span>
+              <strong>Marketplace</strong>
+            </div>
+            <div className="hero-category-grid">
+              {marketplaceCategories.slice(0, 6).map((category) => (
+                <Link key={category.slug} href={`/categories/${category.slug}`} className="hero-category-tile">
+                  <span className="hero-category-image" style={{ backgroundImage: `url(${category.imageUrl})` }} />
+                  <span>{category.shortLabel}</span>
+                </Link>
+              ))}
             </div>
           </div>
-        </Link>
+        </div>
       </section>
 
       <section className="search-panel marketplace-panel marketplace-scene">
         <div className="search-heading">
           <div>
-            <p className="eyebrow">Tonight in Hull</p>
-            <h2 className="search-title">Find the food you actually want.</h2>
+            <p className="eyebrow">Hull marketplace</p>
+            <h2 className="search-title">Choose the category first.</h2>
             <p className="search-copy">
-              Browse local menus, choose a category, track the order as it moves, and keep your favourites close for
-              the next craving.
+              Start with takeaways, groceries, bakery, butcher, alcohol, vapes, convenience, desserts, and local
+              essentials. Every category can grow into its own marketplace page as new businesses go live.
             </p>
           </div>
           <div className="search-highlight-card live-menu-card">
