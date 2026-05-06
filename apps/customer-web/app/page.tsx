@@ -1,18 +1,45 @@
 ﻿"use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
-import { featuredStores } from "../src/lib/demo";
+import { featuredStores, storeMenus } from "../src/lib/demo";
 
 const filters = ["All", "Restaurants", "Takeaways", "Groceries", "Desserts", "Late night"] as const;
-const quickPicks = [
-  { title: "Dinner now", detail: "Restaurants, takeaways, and local kitchens ready to cook" },
-  { title: "Quick essentials", detail: "Corner-shop staples, snacks, drinks, and convenience runs" },
-  { title: "Late-night cravings", detail: "Hot food, sweet fixes, and comfort orders after dark" },
-  { title: "Family favourites", detail: "Pizza, burgers, curries, chicken, noodles, wraps, and more" },
-];
 type FilterLabel = (typeof filters)[number];
+type QuickPick = {
+  title: string;
+  detail: string;
+  filter: FilterLabel;
+  query: string;
+};
+
+const quickPicks: QuickPick[] = [
+  {
+    title: "Dinner now",
+    detail: "Restaurants, takeaways, and local kitchens ready to cook",
+    filter: "All",
+    query: "restaurant takeaway kitchen",
+  },
+  {
+    title: "Quick essentials",
+    detail: "Corner-shop staples, snacks, drinks, and convenience runs",
+    filter: "Groceries",
+    query: "shop grocery essentials snacks drinks convenience",
+  },
+  {
+    title: "Late-night cravings",
+    detail: "Hot food, sweet fixes, and comfort orders after dark",
+    filter: "Late night",
+    query: "late night dessert sweet hot food chicken burger fries",
+  },
+  {
+    title: "Family favourites",
+    detail: "Pizza, burgers, curries, chicken, noodles, wraps, and more",
+    filter: "All",
+    query: "pizza burgers curries chicken noodles wraps family",
+  },
+];
 
 function getStoreStatus(storefrontStatus: string, isOpen: boolean) {
   if (storefrontStatus === "onboarding") {
@@ -24,31 +51,86 @@ function getStoreStatus(storefrontStatus: string, isOpen: boolean) {
 
 export default function CustomerHomePage() {
   const [activeFilter, setActiveFilter] = useState<FilterLabel>("All");
+  const [searchInput, setSearchInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const resultsRef = useRef<HTMLElement | null>(null);
+
+  function focusResults() {
+    window.setTimeout(() => {
+      resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
+  }
+
+  function handleSearch() {
+    setSearchQuery(searchInput.trim());
+    focusResults();
+  }
+
+  function handleQuickPick(pick: QuickPick) {
+    setActiveFilter(pick.filter);
+    setSearchInput(pick.query);
+    setSearchQuery(pick.query);
+    focusResults();
+  }
+
   const visibleStores = useMemo(() => {
-    if (activeFilter === "All" || activeFilter === "Late night") {
-      return featuredStores;
-    }
+    const queryWords = searchQuery
+      .toLowerCase()
+      .split(/\s+/)
+      .map((word) => word.trim())
+      .filter(Boolean);
 
     return featuredStores.filter((store) => {
-      if (activeFilter === "Restaurants") {
-        return store.type === "restaurant";
+      const categoryMatch = (() => {
+        if (activeFilter === "All" || activeFilter === "Late night") {
+          return true;
+        }
+
+        if (activeFilter === "Restaurants") {
+          return store.type === "restaurant";
+        }
+
+        if (activeFilter === "Takeaways") {
+          return store.type === "takeaway";
+        }
+
+        if (activeFilter === "Groceries") {
+          return store.type === "shop";
+        }
+
+        if (activeFilter === "Desserts") {
+          return (store.cuisineLabel ?? "").toLowerCase().includes("dessert");
+        }
+
+        return true;
+      })();
+
+      if (!categoryMatch) {
+        return false;
       }
 
-      if (activeFilter === "Takeaways") {
-        return store.type === "takeaway";
+      if (queryWords.length === 0) {
+        return true;
       }
 
-      if (activeFilter === "Groceries") {
-        return store.type === "shop";
-      }
+      const menu = storeMenus[store.slug];
+      const searchableText = [
+        store.name,
+        store.type,
+        store.city,
+        store.cuisineLabel,
+        store.onboardingMessage,
+        menu?.headline,
+        ...(menu?.categories.map((category) => `${category.name} ${category.description ?? ""}`) ?? []),
+        ...(menu?.items.map((item) => `${item.name} ${item.description ?? ""}`) ?? []),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
 
-      if (activeFilter === "Desserts") {
-        return (store.cuisineLabel ?? "").toLowerCase().includes("dessert");
-      }
-
-      return true;
+      return queryWords.some((word) => searchableText.includes(word));
     });
-  }, [activeFilter]);
+  }, [activeFilter, searchQuery]);
 
   return (
     <main className="shell customer-marketplace">
@@ -106,10 +188,21 @@ export default function CustomerHomePage() {
           </p>
 
           <div className="marketplace-search">
-            <input className="search-input" aria-label="Search businesses" placeholder="Search restaurants, takeaways, shops, desserts..." />
-            <Link href="/stores/loaded-munch-hull" className="primary-button gold-button">
+            <input
+              className="search-input"
+              aria-label="Search businesses"
+              placeholder="Search restaurants, takeaways, shops, desserts..."
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  handleSearch();
+                }
+              }}
+            />
+            <button type="button" className="primary-button gold-button" onClick={handleSearch}>
               Browse live menus
-            </Link>
+            </button>
           </div>
 
           <div className="appetite-signal-row clear-checkout-grid" aria-label="Clear checkout promise">
@@ -136,10 +229,10 @@ export default function CustomerHomePage() {
 
       <section className="craving-strip marketplace-scene compact-scene" aria-label="Quick food choices">
         {quickPicks.map((pick) => (
-          <Link key={pick.title} href="/stores/loaded-munch-hull" className="craving-card">
+          <button key={pick.title} type="button" className="craving-card" onClick={() => handleQuickPick(pick)}>
             <strong>{pick.title}</strong>
             <span>{pick.detail}</span>
-          </Link>
+          </button>
         ))}
       </section>
 
@@ -183,12 +276,13 @@ export default function CustomerHomePage() {
 
       </section>
 
-      <section className="content-grid marketplace-scene">
+      <section className="content-grid marketplace-scene" ref={resultsRef}>
         <div className="content-stack">
           <div className="section-heading">
             <div>
               <h2>Order from Hull's local food scene</h2>
               <p>Food, drinks, essentials, sweet treats, and local favourites with clear delivery details.</p>
+              {searchQuery ? <p className="search-result-note">Showing matches for “{searchQuery}”.</p> : null}
             </div>
           </div>
 
