@@ -1707,12 +1707,46 @@ export default function MerchantPortalPage() {
           </div>
 
           {activeHubPanel === "menu" ? (
-            <section style={menuWorkbenchGrid}>
+            <section style={menuManagementShell}>
+              <div style={menuManagementTopBar}>
+                <div>
+                  <p style={eyebrowDark}>Menu management</p>
+                  <h2 style={compactTitle}>Your menu</h2>
+                </div>
+                <div style={menuTopActions}>
+                  <button type="button" style={secondaryButton} onClick={() => setActiveHubPanel("import")}>
+                    Paste menu
+                  </button>
+                  <button type="button" style={primaryButton} onClick={handleSaveHub}>
+                    Publish changes
+                  </button>
+                </div>
+              </div>
+
+              <div style={menuTopTabRow}>
+                {menuSections.slice(0, 7).map((section) => (
+                  <button
+                    key={section.id}
+                    type="button"
+                    style={section.id === selectedCategory?.id ? menuTopTabActive : menuTopTab}
+                    onClick={() => {
+                      setSelectedCategoryId(section.id);
+                      setSelectedItemId(section.items[0]?.id ?? "");
+                      setNewItem((current) => ({ ...current, sectionId: section.id }));
+                    }}
+                  >
+                    {section.name}
+                  </button>
+                ))}
+                {menuSections.length === 0 ? <span style={mutedInlineNote}>Create your first category to start.</span> : null}
+              </div>
+
+              <section style={menuWorkbenchGrid}>
               <section style={categoryAccordionPanel}>
                 <div style={compactHeader}>
                   <div>
                     <p style={eyebrowDark}>Categories</p>
-                    <h2 style={compactTitle}>Open one section, edit fast</h2>
+                    <h2 style={railTitle}>Build the menu in sections</h2>
                   </div>
                 </div>
 
@@ -1845,6 +1879,54 @@ export default function MerchantPortalPage() {
               </section>
 
               <section style={compactEditorCard}>
+                {selectedCategory ? (
+                  <section style={menuItemBoardStrip}>
+                    <div style={menuBoardHeader}>
+                      <div>
+                        <p style={eyebrowDark}>Selected category</p>
+                        <h2 style={sectionTitle}>{selectedCategory.name}</h2>
+                        <p style={panelCopyDark}>{selectedCategory.description || "Add, price, image, and configure every item in this category."}</p>
+                      </div>
+                      <button type="button" style={secondaryButtonSmall} onClick={() => handleDeleteCategory(selectedCategory.id, selectedCategory.name)}>
+                        Delete category
+                      </button>
+                    </div>
+
+                    <div style={menuItemCardGrid}>
+                      <button type="button" style={menuAddItemCard} onClick={() => setNewItem((current) => ({ ...current, sectionId: selectedCategory.id }))}>
+                        <span style={addCircle}>+</span>
+                        <strong>Add a new item</strong>
+                      </button>
+                      {selectedCategory.items.map((item) => (
+                        <article key={item.id} style={item.id === selectedItem?.id ? menuItemBoardCardActive : menuItemBoardCard}>
+                          <button
+                            type="button"
+                            style={editDotButton}
+                            aria-label={`Edit ${item.name}`}
+                            onClick={() => setSelectedItemId(item.id)}
+                          >
+                            Edit
+                          </button>
+                          <div style={menuItemPhotoBox}>{item.imageUrl ? <img src={item.imageUrl} alt="" style={menuItemPhotoImage} /> : "Upload photo"}</div>
+                          <div style={menuItemCardBody}>
+                            <strong>{item.name}</strong>
+                            <p>{item.description || "No description yet."}</p>
+                            <span>from {formatMoney(item.price)}</span>
+                            <button
+                              type="button"
+                              style={item.id === selectedItem?.id ? itemSelectButtonActive : itemSelectButton}
+                              onClick={() => setSelectedItemId(item.id)}
+                            >
+                              {item.optionGroups.length} variations
+                            </button>
+                          </div>
+                        </article>
+                      ))}
+                      {selectedCategory.items.length === 0 ? <div style={emptyStateCard}>No items in this category yet. Add one from the category rail.</div> : null}
+                    </div>
+                  </section>
+                ) : null}
+
                 {selectedCategory && selectedItem ? (
                   <>
                     <div style={itemTopRow}>
@@ -1971,6 +2053,7 @@ export default function MerchantPortalPage() {
                   <div style={emptyStateCard}>Choose an item, or add one with the quick field on the left.</div>
                 )}
               </section>
+            </section>
             </section>
           ) : null}
 
@@ -3327,9 +3410,68 @@ const workbenchTabActive: React.CSSProperties = {
   background: "linear-gradient(180deg, #1d2027, #101216)",
 };
 
+const menuManagementShell: React.CSSProperties = {
+  display: "grid",
+  gap: 14,
+};
+
+const menuManagementTopBar: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 16,
+  borderRadius: 18,
+  border: "1px solid rgba(15, 17, 21, 0.1)",
+  background: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,243,236,0.92))",
+  padding: 16,
+  boxShadow: "0 16px 32px rgba(15, 17, 21, 0.06)",
+};
+
+const menuTopActions: React.CSSProperties = {
+  display: "flex",
+  gap: 10,
+  flexWrap: "wrap",
+  justifyContent: "flex-end",
+};
+
+const menuTopTabRow: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  overflowX: "auto",
+  borderRadius: 16,
+  background: "#30343d",
+  padding: 8,
+};
+
+const menuTopTab: React.CSSProperties = {
+  border: 0,
+  borderRadius: 12,
+  background: "transparent",
+  color: "rgba(255,255,255,0.76)",
+  fontWeight: 900,
+  padding: "11px 16px",
+  whiteSpace: "nowrap",
+  cursor: "pointer",
+};
+
+const menuTopTabActive: React.CSSProperties = {
+  ...menuTopTab,
+  color: "#101216",
+  background: "#fff",
+  boxShadow: "0 8px 20px rgba(0,0,0,0.18)",
+};
+
+const mutedInlineNote: React.CSSProperties = {
+  color: "rgba(255,255,255,0.72)",
+  fontSize: 13,
+  fontWeight: 800,
+  padding: "0 8px",
+};
+
 const menuWorkbenchGrid: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "minmax(280px, 0.85fr) minmax(320px, 1.15fr)",
+  gridTemplateColumns: "280px minmax(0, 1fr)",
   gap: 14,
   alignItems: "start",
 };
@@ -3338,10 +3480,12 @@ const categoryAccordionPanel: React.CSSProperties = {
   display: "grid",
   gap: 14,
   minHeight: 520,
-  borderRadius: 22,
+  borderRadius: 18,
   border: "1px solid rgba(15, 17, 21, 0.1)",
-  background: "rgba(255,255,255,0.78)",
+  background: "rgba(255,255,255,0.92)",
   padding: 14,
+  position: "sticky",
+  top: 16,
 };
 
 const categoryAccordionList: React.CSSProperties = {
@@ -3398,6 +3542,14 @@ const compactTitle: React.CSSProperties = {
   color: "#0f1115",
 };
 
+const railTitle: React.CSSProperties = {
+  display: "block",
+  marginTop: 4,
+  fontSize: 16,
+  lineHeight: 1.15,
+  color: "#0f1115",
+};
+
 const compactList: React.CSSProperties = {
   display: "grid",
   gap: 8,
@@ -3446,10 +3598,133 @@ const compactEditorCard: React.CSSProperties = {
   display: "grid",
   gap: 14,
   minHeight: 520,
-  borderRadius: 22,
+  borderRadius: 18,
+  border: "1px solid rgba(15, 17, 21, 0.1)",
+  background: "rgba(255,255,255,0.92)",
+  padding: 16,
+};
+
+const menuItemBoardStrip: React.CSSProperties = {
+  display: "grid",
+  gap: 14,
+  borderRadius: 18,
+  border: "1px solid rgba(15, 17, 21, 0.08)",
+  background: "linear-gradient(180deg, rgba(255,255,255,1), rgba(248,243,236,0.82))",
+  padding: 14,
+};
+
+const menuBoardHeader: React.CSSProperties = {
+  display: "flex",
+  alignItems: "flex-start",
+  justifyContent: "space-between",
+  gap: 16,
+};
+
+const menuItemCardGrid: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: 12,
+};
+
+const menuAddItemCard: React.CSSProperties = {
+  minHeight: 176,
+  borderRadius: 16,
+  border: "1px dashed rgba(15, 17, 21, 0.35)",
+  background: "rgba(255,255,255,0.82)",
+  color: "#101216",
+  display: "grid",
+  placeItems: "center",
+  alignContent: "center",
+  gap: 10,
+  cursor: "pointer",
+  fontWeight: 900,
+};
+
+const addCircle: React.CSSProperties = {
+  width: 42,
+  height: 42,
+  borderRadius: 999,
+  border: "1px solid rgba(15, 17, 21, 0.16)",
+  display: "grid",
+  placeItems: "center",
+  fontSize: 22,
+  lineHeight: 1,
+};
+
+const menuItemBoardCard: React.CSSProperties = {
+  position: "relative",
+  display: "grid",
+  gridTemplateColumns: "104px minmax(0, 1fr)",
+  gap: 12,
+  minHeight: 176,
+  borderRadius: 16,
   border: "1px solid rgba(15, 17, 21, 0.1)",
   background: "#fff",
-  padding: 16,
+  padding: 12,
+  boxShadow: "0 12px 24px rgba(15, 17, 21, 0.05)",
+};
+
+const menuItemBoardCardActive: React.CSSProperties = {
+  ...menuItemBoardCard,
+  borderColor: "rgba(35, 205, 255, 0.48)",
+  boxShadow: "0 16px 30px rgba(35, 205, 255, 0.16)",
+};
+
+const editDotButton: React.CSSProperties = {
+  position: "absolute",
+  top: 10,
+  right: 10,
+  border: "1px solid rgba(15, 17, 21, 0.1)",
+  borderRadius: 999,
+  background: "#fff",
+  color: "#101216",
+  fontSize: 11,
+  fontWeight: 900,
+  padding: "6px 8px",
+  cursor: "pointer",
+};
+
+const menuItemPhotoBox: React.CSSProperties = {
+  minHeight: 118,
+  borderRadius: 14,
+  border: "1px solid rgba(15, 17, 21, 0.08)",
+  background: "linear-gradient(180deg, #f6f3ed, #ebe7de)",
+  color: "rgba(15, 17, 21, 0.55)",
+  fontSize: 12,
+  fontWeight: 900,
+  display: "grid",
+  placeItems: "center",
+  overflow: "hidden",
+};
+
+const menuItemPhotoImage: React.CSSProperties = {
+  width: "100%",
+  height: "100%",
+  objectFit: "cover",
+};
+
+const menuItemCardBody: React.CSSProperties = {
+  display: "grid",
+  gap: 8,
+  alignContent: "start",
+  color: "#101216",
+  paddingTop: 24,
+};
+
+const itemSelectButton: React.CSSProperties = {
+  border: "1px solid rgba(15, 17, 21, 0.08)",
+  borderRadius: 12,
+  background: "rgba(248, 243, 236, 0.92)",
+  color: "#101216",
+  padding: "9px 10px",
+  fontWeight: 900,
+  cursor: "pointer",
+};
+
+const itemSelectButtonActive: React.CSSProperties = {
+  ...itemSelectButton,
+  borderColor: "rgba(35, 205, 255, 0.42)",
+  background: "rgba(35, 205, 255, 0.12)",
 };
 
 const advancedDrawer: React.CSSProperties = {
