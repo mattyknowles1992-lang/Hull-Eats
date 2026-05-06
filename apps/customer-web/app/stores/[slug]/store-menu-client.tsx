@@ -90,6 +90,7 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
   const [selection, setSelection] = useState<BasketCustomisationSelection | null>(null);
   const [addedMessage, setAddedMessage] = useState("");
   const [isClient, setIsClient] = useState(false);
+  const [activeCategoryId, setActiveCategoryId] = useState("all");
 
   useEffect(() => {
     const sync = () => setBasket(loadBasket(storeSlug));
@@ -130,6 +131,10 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
 
   const itemCount = getBasketItemCount(basket);
   const subtotal = getBasketSubtotal(basket);
+  const visibleCategories = useMemo(
+    () => (activeCategoryId === "all" ? categories : categories.filter((category) => category.id === activeCategoryId)),
+    [activeCategoryId, categories],
+  );
 
   const activeDetails =
     activeItem && selection
@@ -291,7 +296,36 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
         </section>
       ) : null}
 
-      {categories.map((category) => (
+      <section className="menu-category-filter-panel" aria-label="Menu category filters">
+        <div className="menu-category-filter-header">
+          <div>
+            <p className="eyebrow">Menu categories</p>
+            <h3>Browse by category</h3>
+          </div>
+          <span className="store-tag">{categories.length} categories</span>
+        </div>
+        <div className="menu-category-filter-row">
+          <button
+            type="button"
+            className={`filter-pill${activeCategoryId === "all" ? " is-active" : ""}`}
+            onClick={() => setActiveCategoryId("all")}
+          >
+            All
+          </button>
+          {categories.map((category) => (
+            <button
+              key={category.id}
+              type="button"
+              className={`filter-pill${activeCategoryId === category.id ? " is-active" : ""}`}
+              onClick={() => setActiveCategoryId(category.id)}
+            >
+              {category.name}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {visibleCategories.map((category) => (
         <section key={category.id} className="menu-section-card menu-section-card-visual">
           <div
             className="menu-category-visual"

@@ -2069,6 +2069,43 @@ button.filter-pill {
   gap: 18px;
 }
 
+.menu-category-filter-panel {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 24px;
+  border: 1px solid rgba(15, 17, 21, 0.08);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(246, 251, 255, 0.98));
+  box-shadow: 0 14px 28px rgba(15, 17, 21, 0.06);
+}
+
+.menu-category-filter-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: flex-end;
+}
+
+.menu-category-filter-header h3 {
+  margin: 0;
+  font-family: var(--font-heading), serif;
+  font-size: clamp(1.35rem, 3vw, 2rem);
+  line-height: 1;
+  color: var(--ink-strong);
+}
+
+.menu-category-filter-row {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+
+.menu-category-filter-row::-webkit-scrollbar {
+  display: none;
+}
+
 .menu-section-card,
 .menu-item-card {
   border: 1px solid rgba(15, 17, 21, 0.12);
