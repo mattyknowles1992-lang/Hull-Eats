@@ -1032,6 +1032,10 @@ textarea {
   margin-top: 14px;
 }
 
+.craving-strip::before {
+  display: none;
+}
+
 .craving-card {
   position: relative;
   overflow: hidden;
