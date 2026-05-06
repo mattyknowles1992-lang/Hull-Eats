@@ -58,6 +58,8 @@ type PasswordFormState = {
   confirmPassword: string;
 };
 
+type MenuTemplateKind = "simple" | "pizza" | "burger" | "meal" | "drink" | "dessert" | "custom";
+
 type StoredMerchantSession = {
   token: string;
   hubId: string;
@@ -144,6 +146,183 @@ const createEmptyOptionGroup = (): MenuOptionGroup => ({
   showWhenValueIds: [],
   options: [createEmptyOption()],
 });
+
+const createTemplateOption = (label: string, priceDelta = 0, isDefault = false): MenuOption => ({
+  id: createDraftId("option"),
+  label,
+  description: "",
+  priceDelta,
+  isDefault,
+  maxQuantity: 1,
+});
+
+const createTemplateGroup = (
+  name: string,
+  options: MenuOption[],
+  config: Partial<Omit<MenuOptionGroup, "id" | "name" | "options">> = {},
+): MenuOptionGroup => ({
+  id: createDraftId("group"),
+  name,
+  description: config.description ?? "",
+  selectionMode: config.selectionMode ?? "single",
+  isRequired: config.isRequired ?? false,
+  minSelections: config.minSelections ?? 0,
+  maxSelections: config.maxSelections ?? (config.selectionMode === "multiple" ? null : 1),
+  showWhenValueIds: config.showWhenValueIds ?? [],
+  options,
+});
+
+const menuTemplateCards: Array<{ kind: MenuTemplateKind; title: string; copy: string }> = [
+  { kind: "simple", title: "Simple item", copy: "Fixed price item with image, description, stock, and live toggle." },
+  { kind: "pizza", title: "Pizza", copy: "Sizes, crust per size, toppings, extras, and removable ingredients." },
+  { kind: "burger", title: "Burger", copy: "Patty size, salad/sauce removals, cheese, bacon, and extra patties." },
+  { kind: "meal", title: "Meal deal", copy: "Required main, side, drink, sauce, and optional upgrades." },
+  { kind: "drink", title: "Drink", copy: "Bottle/can sizes, flavours, multipacks, and chilled availability." },
+  { kind: "dessert", title: "Dessert", copy: "Sauces, toppings, ice cream, custard, and add-ons." },
+  { kind: "custom", title: "Custom", copy: "Start blank and build any option groups by hand." },
+];
+
+function buildMenuTemplate(kind: MenuTemplateKind) {
+  if (kind === "pizza") {
+    const sizeOptions = [
+      createTemplateOption('8"', 0, true),
+      createTemplateOption('10"', 2.6),
+      createTemplateOption('12"', 3.6),
+      createTemplateOption('16"', 9.29),
+    ];
+
+    const crustGroups = sizeOptions.map((sizeOption, index) =>
+      createTemplateGroup(
+        `Choose Your Crust (${sizeOption.label})`,
+        [
+          createTemplateOption("Regular Crust", 0, true),
+          createTemplateOption("Stuffed Crust", [1.25, 1.5, 2, 2.75][index] ?? 2),
+        ],
+        { isRequired: true, minSelections: 1, maxSelections: 1, showWhenValueIds: [sizeOption.id] },
+      ),
+    );
+
+    return {
+      components: [
+        { id: createDraftId("component"), label: "Cheese", quantity: 1, removable: true },
+        { id: createDraftId("component"), label: "Tomato base", quantity: 1, removable: true },
+      ],
+      optionGroups: [
+        createTemplateGroup("Choose Size", sizeOptions, { isRequired: true, minSelections: 1, maxSelections: 1 }),
+        ...crustGroups,
+        createTemplateGroup(
+          "Extras",
+          [
+            createTemplateOption("Extra cheese", 1),
+            createTemplateOption("Pepperoni", 1.2),
+            createTemplateOption("Chicken", 1.5),
+            createTemplateOption("Mushrooms", 0.8),
+            createTemplateOption("Jalapenos", 0.8),
+          ],
+          { selectionMode: "multiple", isRequired: false, minSelections: 0, maxSelections: null },
+        ),
+      ],
+    };
+  }
+
+  if (kind === "burger") {
+    return {
+      components: [
+        { id: createDraftId("component"), label: "Bun", quantity: 1, removable: false },
+        { id: createDraftId("component"), label: "Patty", quantity: 1, removable: false },
+        { id: createDraftId("component"), label: "Cheese", quantity: 1, removable: true },
+        { id: createDraftId("component"), label: "Lettuce", quantity: 1, removable: true },
+        { id: createDraftId("component"), label: "Sauce", quantity: 1, removable: true },
+      ],
+      optionGroups: [
+        createTemplateGroup(
+          "Choose Size",
+          [createTemplateOption("1/4 pound", 0, true), createTemplateOption("1/2 pound", 2.5)],
+          { isRequired: true, minSelections: 1, maxSelections: 1 },
+        ),
+        createTemplateGroup(
+          "Extras",
+          [
+            createTemplateOption("Extra patty", 2.5),
+            createTemplateOption("Bacon", 1.5),
+            createTemplateOption("Extra cheese", 0.8),
+            createTemplateOption("Hash brown", 1),
+            createTemplateOption("Loaded fries upgrade", 3),
+          ],
+          { selectionMode: "multiple", maxSelections: null },
+        ),
+      ],
+    };
+  }
+
+  if (kind === "meal") {
+    return {
+      components: [],
+      optionGroups: [
+        createTemplateGroup("Choose Main", [createTemplateOption("Burger", 0, true), createTemplateOption("Wrap", 0), createTemplateOption("Chicken strips", 1)], {
+          isRequired: true,
+          minSelections: 1,
+          maxSelections: 1,
+        }),
+        createTemplateGroup("Choose Side", [createTemplateOption("Fries", 0, true), createTemplateOption("Loaded fries", 2.5), createTemplateOption("Rice", 0)], {
+          isRequired: true,
+          minSelections: 1,
+          maxSelections: 1,
+        }),
+        createTemplateGroup("Choose Drink", [createTemplateOption("Can", 0, true), createTemplateOption("Bottle", 1), createTemplateOption("Milkshake", 3)], {
+          isRequired: true,
+          minSelections: 1,
+          maxSelections: 1,
+        }),
+        createTemplateGroup("Sauces", [createTemplateOption("Garlic mayo", 0), createTemplateOption("BBQ", 0), createTemplateOption("Chilli", 0)], {
+          selectionMode: "multiple",
+          maxSelections: 3,
+        }),
+      ],
+    };
+  }
+
+  if (kind === "drink") {
+    return {
+      components: [],
+      optionGroups: [
+        createTemplateGroup("Choose Size", [createTemplateOption("Can", 0, true), createTemplateOption("500ml bottle", 1), createTemplateOption("1.5L bottle", 2.5)], {
+          isRequired: true,
+          minSelections: 1,
+          maxSelections: 1,
+        }),
+        createTemplateGroup("Choose Flavour", [createTemplateOption("Cola", 0, true), createTemplateOption("Orange", 0), createTemplateOption("Lemonade", 0)], {
+          isRequired: true,
+          minSelections: 1,
+          maxSelections: 1,
+        }),
+      ],
+    };
+  }
+
+  if (kind === "dessert") {
+    return {
+      components: [],
+      optionGroups: [
+        createTemplateGroup("Choose Sauce", [createTemplateOption("Chocolate", 0, true), createTemplateOption("White chocolate", 0), createTemplateOption("Caramel", 0)], {
+          isRequired: true,
+          minSelections: 1,
+          maxSelections: 1,
+        }),
+        createTemplateGroup(
+          "Extras",
+          [createTemplateOption("Ice cream", 1.5), createTemplateOption("Cookie dough", 2), createTemplateOption("Strawberries", 1), createTemplateOption("Kinder topping", 1.2)],
+          { selectionMode: "multiple", maxSelections: null },
+        ),
+      ],
+    };
+  }
+
+  return {
+    components: [],
+    optionGroups: kind === "custom" ? [createEmptyOptionGroup()] : [],
+  };
+}
 
 async function loginToHub(usernameOrEmail: string, password: string): Promise<MerchantLoginResponse> {
   const response = await fetch(`${apiBaseUrl}/v1/merchant/auth/login`, {
@@ -1112,6 +1291,25 @@ export default function MerchantPortalPage() {
     setMenuNotice(`${section.name} items now use ${formatMoney(section.defaultPrice)}. Save hub changes to publish it.`);
   };
 
+  const handleApplyMenuTemplate = (kind: MenuTemplateKind) => {
+    if (!selectedCategory || !selectedItem) {
+      setMenuNotice("Choose an item before applying a setup recipe.");
+      return;
+    }
+
+    const template = buildMenuTemplate(kind);
+    updateItem(selectedCategory.id, selectedItem.id, (current) => ({
+      ...current,
+      components: template.components,
+      optionGroups: template.optionGroups,
+    }));
+    setMenuNotice(
+      kind === "simple"
+        ? `${selectedItem.name} is now a simple fixed-price item.`
+        : `${selectedItem.name} now has the ${menuTemplateCards.find((card) => card.kind === kind)?.title ?? "custom"} setup recipe.`,
+    );
+  };
+
   const handleDeleteItem = async (itemId: string, itemName: string) => {
     if (!merchantToken || !activeHubId) {
       return;
@@ -1578,11 +1776,39 @@ export default function MerchantPortalPage() {
                       <div>
                         <p style={eyebrowDark}>Editing item</p>
                         <h2 style={sectionTitle}>{selectedItem.name}</h2>
+                        <p style={panelCopyDark}>
+                          Pick a setup recipe, then adjust prices, images, ingredients, extras, and required choices.
+                        </p>
                       </div>
                       <button type="button" style={secondaryButtonSmall} onClick={() => handleDeleteItem(selectedItem.id, selectedItem.name)}>
                         Remove
                       </button>
                     </div>
+
+                    <section style={templatePanel}>
+                      <div style={templateHeader}>
+                        <div>
+                          <strong style={builderTitle}>Item setup recipe</strong>
+                          <p style={builderCopy}>Use these to cover pizzas, burgers, meals, drinks, desserts, simple items, or a fully custom build.</p>
+                        </div>
+                        <span style={orangeBadge}>
+                          {selectedItem.optionGroups.length} option groups
+                        </span>
+                      </div>
+                      <div style={templateGrid}>
+                        {menuTemplateCards.map((template) => (
+                          <button
+                            key={template.kind}
+                            type="button"
+                            style={templateButton}
+                            onClick={() => handleApplyMenuTemplate(template.kind)}
+                          >
+                            <strong>{template.title}</strong>
+                            <span>{template.copy}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </section>
 
                     <div style={builderGrid}>
                       <label style={field}>
@@ -3372,6 +3598,43 @@ const builderGrid: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
   gap: 12,
+};
+
+const templatePanel: React.CSSProperties = {
+  display: "grid",
+  gap: 12,
+  padding: 14,
+  borderRadius: 22,
+  border: "1px solid rgba(15, 17, 21, 0.1)",
+  background: "linear-gradient(180deg, rgba(255,255,255,1), rgba(241, 248, 251, 0.96))",
+};
+
+const templateHeader: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 12,
+  alignItems: "flex-start",
+  flexWrap: "wrap",
+};
+
+const templateGrid: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+  gap: 10,
+};
+
+const templateButton: React.CSSProperties = {
+  display: "grid",
+  gap: 6,
+  minHeight: 112,
+  padding: 14,
+  borderRadius: 18,
+  border: "1px solid rgba(15, 17, 21, 0.1)",
+  background: "#fff",
+  color: "#0f1115",
+  textAlign: "left",
+  cursor: "pointer",
+  boxShadow: "0 10px 20px rgba(15, 17, 21, 0.05)",
 };
 
 const toggleRow: React.CSSProperties = {
