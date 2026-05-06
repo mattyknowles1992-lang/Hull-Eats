@@ -130,6 +130,20 @@ textarea {
   box-shadow: 0 18px 32px rgba(15, 17, 21, 0.14);
 }
 
+.brand-pill-logo-only {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  backdrop-filter: none;
+  box-shadow: none;
+}
+
+.brand-pill-logo-only .brand-logo {
+  box-shadow:
+    0 20px 38px rgba(15, 17, 21, 0.2),
+    0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+
 .brand-logo-small {
   width: 56px;
   height: 56px;

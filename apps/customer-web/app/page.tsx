@@ -135,12 +135,8 @@ export default function CustomerHomePage() {
   return (
     <main className="shell customer-marketplace">
       <header className="topbar">
-        <div className="brand-pill">
+        <div className="brand-pill brand-pill-logo-only">
           <img src="/brand/hull-eats-logo.jpeg" alt="Hull Eats" className="brand-logo" />
-          <div>
-            <p className="eyebrow">Hull Eats</p>
-            <p className="brand-title">Anything you want. Delivered.</p>
-          </div>
         </div>
 
         <div className="topbar-actions">
