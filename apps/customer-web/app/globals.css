@@ -1739,6 +1739,14 @@ button.filter-pill {
   padding: 16px;
 }
 
+.store-card-overlay .status-chip,
+.store-card-overlay .glass-tag {
+  border-color: rgba(255, 255, 255, 0.34);
+  background: rgba(3, 10, 20, 0.42);
+  color: #fff;
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.18);
+}
+
 .store-card-body,
 .feature-panel {
   padding: 20px;

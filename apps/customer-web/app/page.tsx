@@ -28,7 +28,7 @@ function getStoreStatus(storefrontStatus: string, isOpen: boolean) {
     return "Onboarding";
   }
 
-  return isOpen ? "Live now" : "Opening soon";
+  return isOpen ? "Open now" : "Opening soon";
 }
 
 function getDistanceKm(from: Coordinates, to: Coordinates) {
