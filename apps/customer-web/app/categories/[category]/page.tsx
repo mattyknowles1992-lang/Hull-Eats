@@ -5,7 +5,9 @@ import { featuredStores, storeMenus } from "../../../src/lib/demo";
 import {
   getMarketplaceCategory,
   marketplaceCategories,
+  type MarketplaceSubcategory,
   storeMatchesMarketplaceCategory,
+  textMatchesMarketplaceSubcategory,
 } from "../../../src/lib/marketplace-categories";
 
 export function generateStaticParams() {
@@ -29,6 +31,16 @@ function getSearchableStoreText(storeSlug: string) {
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
+}
+
+function getSubcategoryMatchCount(categorySlug: string, subcategory: MarketplaceSubcategory) {
+  const menu = storeMenus[categorySlug];
+
+  if (!menu) {
+    return 0;
+  }
+
+  return menu.items.filter((item) => textMatchesMarketplaceSubcategory(`${item.name} ${item.description}`.toLowerCase(), subcategory)).length;
 }
 
 export default async function CategoryPage({ params }: { params: Promise<{ category: string }> }) {
@@ -77,12 +89,19 @@ export default async function CategoryPage({ params }: { params: Promise<{ categ
         ))}
       </nav>
 
-      <section
-        className="category-hero marketplace-scene"
-        style={{
-          backgroundImage: `linear-gradient(90deg, rgba(5, 8, 14, 0.78), rgba(5, 8, 14, 0.24)), url(${category.heroImages[0]})`,
-        }}
-      >
+      <section className="category-hero marketplace-scene">
+        <div className="hero-slideshow" aria-hidden="true">
+          {category.heroImages.map((imageUrl, index) => (
+            <span
+              key={imageUrl}
+              className="hero-slide category-hero-slide"
+              style={{
+                backgroundImage: `url(${imageUrl})`,
+                animationDelay: `${index * 6}s`,
+              }}
+            />
+          ))}
+        </div>
         <div className="category-hero-copy">
           <p className="hero-badge">Hull Eats {category.label}</p>
           <h1>{category.label}</h1>
@@ -95,11 +114,16 @@ export default async function CategoryPage({ params }: { params: Promise<{ categ
           </div>
         </div>
 
-        <div className="category-carousel" aria-label={`${category.label} image carousel`}>
-          {category.heroImages.map((imageUrl, index) => (
-            <span key={imageUrl} className="category-carousel-card" style={{ backgroundImage: `url(${imageUrl})` }}>
-              {category.subcategories[index] ?? category.shortLabel}
-            </span>
+        <div className="category-carousel" aria-label={`${category.label} category carousel`}>
+          {category.subcategories.map((subcategory) => (
+            <Link
+              key={subcategory.slug}
+              href={`#${subcategory.slug}`}
+              className="category-carousel-card"
+              style={{ backgroundImage: `url(${subcategory.imageUrl})` }}
+            >
+              {subcategory.label}
+            </Link>
           ))}
         </div>
       </section>
@@ -114,9 +138,16 @@ export default async function CategoryPage({ params }: { params: Promise<{ categ
         </div>
         <div className="category-subcategory-grid">
           {category.subcategories.map((subcategory) => (
-            <button key={subcategory} type="button" className="filter-pill category-subcategory-pill">
-              {subcategory}
-            </button>
+            <a
+              key={subcategory.slug}
+              id={subcategory.slug}
+              href={`#${subcategory.slug}`}
+              className="category-subcategory-card"
+              style={{ backgroundImage: `linear-gradient(180deg, rgba(5, 8, 14, 0.08), rgba(5, 8, 14, 0.78)), url(${subcategory.imageUrl})` }}
+            >
+              <strong>{subcategory.label}</strong>
+              <span>{matchingStores.reduce((sum, store) => sum + getSubcategoryMatchCount(store.slug, subcategory), 0)} live matches</span>
+            </a>
           ))}
         </div>
       </section>
