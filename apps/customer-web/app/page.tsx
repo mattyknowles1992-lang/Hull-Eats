@@ -248,6 +248,16 @@ export default function CustomerHomePage() {
         </div>
 
         <div className="topbar-actions">
+          <section className="location-strip" aria-label="Location recommendations">
+            <span className="location-pin" aria-hidden="true">⌖</span>
+            <div>
+              <p className="eyebrow">Recommended in your area</p>
+              <p>{locationStatusCopy}</p>
+            </div>
+            <button type="button" className="primary-button location-button" onClick={handleUseLocation} disabled={locationStatus === "locating"}>
+              {locationStatus === "ready" ? "Update" : locationStatus === "locating" ? "Finding..." : "Use location"}
+            </button>
+          </section>
           <details className="membership-popover">
             <summary className="glass-button membership-nav-button">
               <span>Coming soon</span>
@@ -272,17 +282,6 @@ export default function CustomerHomePage() {
           </Link>
         </div>
       </header>
-
-      <section className="location-strip" aria-label="Location recommendations">
-        <div>
-          <p className="eyebrow">Recommended in your area</p>
-          <h2>Find the closest kitchens and shops.</h2>
-          <p>{locationStatusCopy}</p>
-        </div>
-        <button type="button" className="primary-button location-button" onClick={handleUseLocation} disabled={locationStatus === "locating"}>
-          {locationStatus === "ready" ? "Update location" : locationStatus === "locating" ? "Finding..." : "Use my location"}
-        </button>
-      </section>
 
       <section className="marketplace-hero marketplace-scene">
         <div className="hero-slideshow hero-slideshow-landscape" aria-hidden="true">

@@ -153,34 +153,52 @@ textarea {
 
 .location-strip {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
-  gap: 18px;
-  margin-bottom: 18px;
-  padding: 16px 18px;
-  border-radius: 24px;
+  gap: 10px;
+  min-height: 48px;
+  padding: 6px 10px;
+  border-radius: 18px;
   border: 1px solid rgba(15, 17, 21, 0.08);
   background: rgba(255, 255, 255, 0.68);
   backdrop-filter: blur(12px);
-  box-shadow: 0 16px 34px rgba(15, 17, 21, 0.08);
+  box-shadow: 0 12px 24px rgba(15, 17, 21, 0.08);
 }
 
-.location-strip h2 {
+.location-pin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  color: #101216;
+  background: linear-gradient(180deg, var(--brand-blue-light), var(--brand-blue-dark));
+  box-shadow: 0 8px 18px rgba(7, 155, 200, 0.26);
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.location-strip .eyebrow {
   margin: 0;
-  font-family: var(--font-heading), serif;
-  font-size: clamp(1.35rem, 3vw, 2rem);
-  line-height: 1;
-  color: var(--ink-strong);
+  font-size: 0.62rem;
 }
 
 .location-strip p:last-child {
-  margin: 6px 0 0;
+  margin: 2px 0 0;
   color: var(--muted);
-  line-height: 1.45;
+  line-height: 1.2;
+  font-size: 0.78rem;
+  font-weight: 750;
 }
 
 .location-button {
   flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 14px;
+  font-size: 0.78rem;
 }
 
 .eyebrow {
@@ -2690,12 +2708,13 @@ button.filter-pill {
   }
 
   .location-strip {
-    align-items: stretch;
-    flex-direction: column;
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    width: 100%;
   }
 
   .location-button {
-    width: 100%;
+    margin-left: auto;
   }
 
   .topbar-actions,
