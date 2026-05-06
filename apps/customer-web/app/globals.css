@@ -9,11 +9,14 @@
   --muted: #5b6470;
   --line: rgba(15, 17, 21, 0.1);
   --line-strong: rgba(15, 17, 21, 0.18);
-  --accent: #23cdff;
+  --brand-blue: #12b7e8;
+  --brand-blue-light: #22c7f3;
+  --brand-blue-dark: #079bc8;
+  --accent: var(--brand-blue);
   --accent-soft: #8be8ff;
-  --accent-deep: #087fa8;
-  --accent-wash: rgba(35, 205, 255, 0.1);
-  --accent-glow: rgba(35, 205, 255, 0.18);
+  --accent-deep: var(--brand-blue-dark);
+  --accent-wash: rgba(18, 183, 232, 0.1);
+  --accent-glow: rgba(7, 155, 200, 0.22);
   --charcoal: #111318;
   --charcoal-soft: #1b1f27;
   --navy-soft: #eef4ff;
@@ -110,12 +113,12 @@ textarea {
 }
 
 .brand-pill {
-  padding: 12px 14px;
-  border-radius: 24px;
-  border: 1px solid rgba(15, 17, 21, 0.1);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(246, 251, 255, 0.96));
-  backdrop-filter: blur(14px);
-  box-shadow: var(--shadow-soft);
+  padding: 10px 14px;
+  border-radius: 20px;
+  border: 1px solid rgba(15, 17, 21, 0.08);
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 14px 30px rgba(15, 17, 21, 0.08);
 }
 
 .brand-logo {
@@ -192,11 +195,11 @@ textarea {
 .basket-topbar-button {
   gap: 10px;
   color: #101216;
-  border-color: rgba(6, 126, 168, 0.2);
-  background: linear-gradient(180deg, #72e2ff, #23cdff 58%, #0ea7d6);
+  border-color: rgba(255, 255, 255, 0.28);
+  background: linear-gradient(180deg, var(--brand-blue-light) 0%, var(--brand-blue-dark) 100%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.42),
-    0 18px 28px rgba(35, 205, 255, 0.2),
+    0 10px 25px rgba(7, 155, 200, 0.3),
     0 10px 18px rgba(15, 17, 21, 0.12);
   text-decoration: none;
 }
@@ -213,11 +216,11 @@ textarea {
 
 .basket-topbar-button.has-items {
   color: #101216;
-  border-color: rgba(6, 126, 168, 0.2);
-  background: linear-gradient(180deg, #72e2ff, #23cdff 58%, #0ea7d6);
+  border-color: rgba(255, 255, 255, 0.28);
+  background: linear-gradient(180deg, var(--brand-blue-light) 0%, var(--brand-blue-dark) 100%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.42),
-    0 16px 28px rgba(35, 205, 255, 0.22),
+    0 10px 25px rgba(7, 155, 200, 0.3),
     0 10px 18px rgba(15, 17, 21, 0.12);
 }
 
@@ -734,23 +737,23 @@ textarea {
   justify-content: center;
   min-height: 52px;
   padding: 0 20px;
-  border: 1px solid rgba(6, 126, 168, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.28);
   color: #101216;
   font-weight: 900;
-  background: linear-gradient(180deg, #72e2ff, #23cdff 62%, #0ea7d6);
+  background: linear-gradient(180deg, var(--brand-blue-light) 0%, var(--brand-blue-dark) 100%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.3),
-    0 18px 28px rgba(35, 205, 255, 0.22),
+    0 10px 25px rgba(7, 155, 200, 0.3),
     0 10px 18px rgba(15, 17, 21, 0.2);
 }
 
 .gold-button {
   color: #101216;
-  border-color: rgba(6, 126, 168, 0.22);
-  background: linear-gradient(180deg, #72e2ff, #23cdff 58%, #0ea7d6);
+  border-color: rgba(255, 255, 255, 0.28);
+  background: linear-gradient(180deg, var(--brand-blue-light) 0%, var(--brand-blue-dark) 100%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.42),
-    0 18px 28px rgba(35, 205, 255, 0.22),
+    0 10px 25px rgba(7, 155, 200, 0.3),
     0 10px 18px rgba(15, 17, 21, 0.18);
 }
 
@@ -818,9 +821,9 @@ textarea {
   min-height: min(72vh, 760px);
   overflow: hidden;
   border-radius: 30px;
-  border: 2px solid rgba(35, 205, 255, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.25);
   background: #080a0e;
-  box-shadow: 0 34px 80px rgba(15, 17, 21, 0.28);
+  box-shadow: 0 24px 70px rgba(20, 12, 8, 0.25);
   transition:
     transform 260ms ease,
     box-shadow 260ms ease;
@@ -831,9 +834,7 @@ textarea {
   position: absolute;
   inset: 0;
   z-index: 1;
-  background:
-    linear-gradient(90deg, rgba(8, 10, 14, 0.96) 0%, rgba(8, 10, 14, 0.78) 43%, rgba(8, 10, 14, 0.16) 100%),
-    radial-gradient(circle at 74% 28%, rgba(35, 205, 255, 0.16), transparent 34%);
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.58), rgba(0, 0, 0, 0.2));
   pointer-events: none;
 }
 
@@ -965,9 +966,9 @@ textarea {
   min-height: 58px;
   padding: 0 16px;
   border-radius: 18px;
-  border: 1px solid rgba(35, 205, 255, 0.32);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   color: #f7fbff;
-  background: linear-gradient(180deg, rgba(16, 18, 24, 0.72), rgba(16, 18, 24, 0.42));
+  background: rgba(20, 12, 8, 0.6);
   box-shadow: 0 18px 34px rgba(0, 0, 0, 0.22);
   backdrop-filter: blur(16px);
   font-size: 0.92rem;
@@ -1021,7 +1022,7 @@ textarea {
   padding: 0 8px;
   border-radius: 12px;
   color: #061120;
-  background: rgba(226, 249, 255, 0.94);
+  background: rgba(247, 251, 255, 0.92);
   font-size: 0.8rem;
   font-weight: 900;
   text-align: center;
@@ -1048,7 +1049,7 @@ textarea {
   min-height: 170px;
   padding: 18px;
   border-radius: 18px;
-  border: 1px solid rgba(35, 205, 255, 0.52);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   background:
     linear-gradient(180deg, rgba(5, 8, 14, 0.08), rgba(5, 8, 14, 0.84)),
     #fff;
@@ -1059,7 +1060,7 @@ textarea {
   font: inherit;
   text-align: left;
   box-shadow:
-    inset 0 0 0 1px rgba(35, 205, 255, 0.1),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
     0 16px 30px rgba(15, 17, 21, 0.08);
   transition:
     transform 180ms ease,
@@ -1109,8 +1110,10 @@ textarea {
 
 .craving-card:hover,
 .store-card:hover {
-  border-color: rgba(35, 205, 255, 0.82);
-  box-shadow: 0 24px 46px rgba(15, 17, 21, 0.13);
+  border-color: rgba(18, 183, 232, 0.72);
+  box-shadow:
+    0 0 0 1px rgba(18, 183, 232, 0.18),
+    0 24px 46px rgba(15, 17, 21, 0.13);
 }
 
 .craving-card strong {
@@ -1152,19 +1155,8 @@ textarea {
 .content-grid.marketplace-scene {
   padding: clamp(4px, 1vw, 10px);
   border-radius: 30px;
-  border: 1px solid rgba(35, 205, 255, 0.18);
+  border: 1px solid rgba(15, 17, 21, 0.08);
   background: linear-gradient(180deg, rgba(246, 251, 255, 0.32), rgba(255, 255, 255, 0.08));
-}
-
-.content-grid.marketplace-scene::after {
-  content: "";
-  position: absolute;
-  inset: 24px auto auto -18px;
-  width: 6px;
-  height: min(70%, 520px);
-  border-radius: 999px;
-  background: linear-gradient(180deg, rgba(35, 205, 255, 0.52), rgba(35, 205, 255, 0));
-  box-shadow: 0 0 24px rgba(35, 205, 255, 0.14);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1279,12 +1271,11 @@ textarea {
   margin-top: 18px;
   border-radius: 34px;
   padding: 22px;
-  border: 1px solid rgba(35, 205, 255, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   background:
-    radial-gradient(circle at top right, rgba(35, 205, 255, 0.16), transparent 24%),
+    radial-gradient(circle at top right, rgba(18, 183, 232, 0.1), transparent 24%),
     linear-gradient(145deg, #0f1115 0%, #17202b 54%, #101820 100%);
   box-shadow:
-    0 0 0 1px rgba(35, 205, 255, 0.12),
     0 28px 54px rgba(15, 17, 21, 0.18),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
@@ -1352,13 +1343,12 @@ textarea {
   align-self: start;
   padding: 18px;
   border-radius: 24px;
-  border: 1px solid rgba(35, 205, 255, 0.42);
+  border: 1px solid rgba(15, 17, 21, 0.1);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(240, 251, 255, 0.96)),
     rgba(255, 255, 255, 0.3);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.76),
-    0 0 0 1px rgba(35, 205, 255, 0.12),
     0 16px 30px rgba(15, 17, 21, 0.18);
 }
 
@@ -1446,17 +1436,17 @@ textarea {
 
 .delivery-pill {
   padding: 10px 14px;
-  border-color: rgba(35, 205, 255, 0.58);
+  border-color: rgba(255, 255, 255, 0.16);
   color: var(--ink-strong);
 }
 
 .delivery-pill.is-highlighted {
-  border-color: rgba(35, 205, 255, 0.72);
+  border-color: rgba(7, 155, 200, 0.2);
   color: #07556d;
   background: linear-gradient(180deg, rgba(219, 248, 255, 0.98), rgba(238, 252, 255, 0.94));
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.5),
-    0 10px 18px rgba(35, 205, 255, 0.14);
+    0 10px 18px rgba(7, 155, 200, 0.14);
 }
 
 .filter-row {
@@ -1496,7 +1486,7 @@ button.filter-pill {
 }
 
 .filter-pill.is-active {
-  border-color: rgba(35, 205, 255, 0.78);
+  border-color: rgba(18, 183, 232, 0.72);
   background: linear-gradient(180deg, #1a1d24, #101216);
   color: #f7fbff;
 }
@@ -1550,7 +1540,7 @@ button.filter-pill {
 .store-card {
   overflow: hidden;
   border-radius: 30px;
-  border: 1px solid rgba(35, 205, 255, 0.24);
+  border: 1px solid rgba(15, 17, 21, 0.08);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(246, 251, 255, 0.96)),
     rgba(255, 255, 255, 0.4);
@@ -1641,7 +1631,7 @@ button.filter-pill {
 
 .feature-panel {
   border-radius: 28px;
-  border: 1px solid rgba(35, 205, 255, 0.22);
+  border: 1px solid rgba(15, 17, 21, 0.08);
 }
 
 .feature-panel-contrast {
@@ -1651,9 +1641,9 @@ button.filter-pill {
 }
 
 .feature-panel-dark {
-  border-color: rgba(35, 205, 255, 0.28);
+  border-color: rgba(255, 255, 255, 0.12);
   background:
-    radial-gradient(circle at top right, rgba(35, 205, 255, 0.14), transparent 32%),
+    radial-gradient(circle at top right, rgba(18, 183, 232, 0.1), transparent 32%),
     linear-gradient(160deg, #101216 0%, #17202b 60%, #101820 100%);
   box-shadow: 0 26px 48px rgba(15, 17, 21, 0.18);
 }
@@ -1941,7 +1931,7 @@ button.filter-pill {
 .coming-soon-pill {
   justify-content: center;
   width: 100%;
-  background: linear-gradient(180deg, #23cdff, #0aa4d4);
+  background: linear-gradient(180deg, var(--brand-blue-light), var(--brand-blue-dark));
   color: #101216;
   border-color: rgba(255, 255, 255, 0.16);
 }
@@ -2139,7 +2129,7 @@ button.filter-pill {
 .menu-category-count {
   flex: 0 0 auto;
   color: #17110a;
-  background: #23cdff;
+  background: var(--brand-blue);
   border-color: rgba(255, 255, 255, 0.2);
   box-shadow: 0 14px 24px rgba(0, 0, 0, 0.18);
 }
@@ -2711,9 +2701,7 @@ button.filter-pill {
   }
 
   .marketplace-hero::before {
-    background:
-      linear-gradient(180deg, rgba(8, 10, 14, 0.94) 0%, rgba(8, 10, 14, 0.66) 48%, rgba(8, 10, 14, 0.94) 100%),
-      radial-gradient(circle at 50% 22%, rgba(35, 205, 255, 0.16), transparent 44%);
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.62), rgba(0, 0, 0, 0.24) 48%, rgba(0, 0, 0, 0.72));
   }
 
   .hero-slideshow-landscape {
