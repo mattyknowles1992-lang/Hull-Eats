@@ -14,6 +14,20 @@ type QuickPick = {
   query: string;
 };
 
+type Coordinates = {
+  latitude: number;
+  longitude: number;
+};
+
+type LocationStatus = "idle" | "locating" | "ready" | "denied" | "unsupported";
+
+const storeCoordinates: Record<string, Coordinates> = {
+  "loaded-munch-hull": {
+    latitude: 53.753013,
+    longitude: -0.402771,
+  },
+};
+
 const quickPicks: QuickPick[] = [
   {
     title: "Dinner now",
@@ -49,10 +63,32 @@ function getStoreStatus(storefrontStatus: string, isOpen: boolean) {
   return isOpen ? "Live now" : "Opening soon";
 }
 
+function getDistanceKm(from: Coordinates, to: Coordinates) {
+  const earthRadiusKm = 6371;
+  const toRadians = (value: number) => (value * Math.PI) / 180;
+  const latitudeDelta = toRadians(to.latitude - from.latitude);
+  const longitudeDelta = toRadians(to.longitude - from.longitude);
+  const startLatitude = toRadians(from.latitude);
+  const endLatitude = toRadians(to.latitude);
+
+  const haversine =
+    Math.sin(latitudeDelta / 2) ** 2 +
+    Math.cos(startLatitude) * Math.cos(endLatitude) * Math.sin(longitudeDelta / 2) ** 2;
+
+  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+}
+
+function formatDistance(distanceKm: number) {
+  const miles = distanceKm * 0.621371;
+  return miles < 0.1 ? "under 0.1 miles" : `${miles.toFixed(miles < 10 ? 1 : 0)} miles`;
+}
+
 export default function CustomerHomePage() {
   const [activeFilter, setActiveFilter] = useState<FilterLabel>("All");
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [customerCoordinates, setCustomerCoordinates] = useState<Coordinates | null>(null);
+  const [locationStatus, setLocationStatus] = useState<LocationStatus>("idle");
   const resultsRef = useRef<HTMLElement | null>(null);
 
   function focusResults() {
@@ -72,6 +108,49 @@ export default function CustomerHomePage() {
     setSearchQuery(pick.query);
     focusResults();
   }
+
+  function handleUseLocation() {
+    if (!navigator.geolocation) {
+      setLocationStatus("unsupported");
+      return;
+    }
+
+    setLocationStatus("locating");
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setCustomerCoordinates({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
+        setLocationStatus("ready");
+        focusResults();
+      },
+      () => {
+        setLocationStatus("denied");
+      },
+      {
+        enableHighAccuracy: false,
+        maximumAge: 300000,
+        timeout: 10000,
+      },
+    );
+  }
+
+  const storeDistances = useMemo(() => {
+    if (!customerCoordinates) {
+      return new Map<string, number>();
+    }
+
+    return new Map(
+      featuredStores
+        .map((store) => {
+          const storeLocation = storeCoordinates[store.slug];
+          return storeLocation ? ([store.slug, getDistanceKm(customerCoordinates, storeLocation)] as const) : null;
+        })
+        .filter((entry): entry is readonly [string, number] => Boolean(entry)),
+    );
+  }, [customerCoordinates]);
 
   const visibleStores = useMemo(() => {
     const queryWords = searchQuery
@@ -129,8 +208,37 @@ export default function CustomerHomePage() {
         .toLowerCase();
 
       return queryWords.some((word) => searchableText.includes(word));
+    }).sort((firstStore, secondStore) => {
+      if (!customerCoordinates) {
+        return 0;
+      }
+
+      const firstDistance = storeDistances.get(firstStore.slug) ?? Number.POSITIVE_INFINITY;
+      const secondDistance = storeDistances.get(secondStore.slug) ?? Number.POSITIVE_INFINITY;
+
+      return firstDistance - secondDistance;
     });
-  }, [activeFilter, searchQuery]);
+  }, [activeFilter, customerCoordinates, searchQuery, storeDistances]);
+
+  const locationStatusCopy = (() => {
+    if (locationStatus === "locating") {
+      return "Finding your location...";
+    }
+
+    if (locationStatus === "ready") {
+      return "Showing closest options first";
+    }
+
+    if (locationStatus === "denied") {
+      return "Location access was not allowed";
+    }
+
+    if (locationStatus === "unsupported") {
+      return "Location is not available in this browser";
+    }
+
+    return "Use your location for recommendations nearby";
+  })();
 
   return (
     <main className="shell customer-marketplace">
@@ -164,6 +272,17 @@ export default function CustomerHomePage() {
           </Link>
         </div>
       </header>
+
+      <section className="location-strip" aria-label="Location recommendations">
+        <div>
+          <p className="eyebrow">Recommended in your area</p>
+          <h2>Find the closest kitchens and shops.</h2>
+          <p>{locationStatusCopy}</p>
+        </div>
+        <button type="button" className="primary-button location-button" onClick={handleUseLocation} disabled={locationStatus === "locating"}>
+          {locationStatus === "ready" ? "Update location" : locationStatus === "locating" ? "Finding..." : "Use my location"}
+        </button>
+      </section>
 
       <section className="marketplace-hero marketplace-scene">
         <div className="hero-slideshow hero-slideshow-landscape" aria-hidden="true">
@@ -276,7 +395,7 @@ export default function CustomerHomePage() {
         <div className="content-stack">
           <div className="section-heading">
             <div>
-              <h2>Order from Hull's local food scene</h2>
+              <h2>{customerCoordinates ? "Recommended near you" : "Order from Hull's local food scene"}</h2>
               <p>Food, drinks, essentials, sweet treats, and local favourites with clear delivery details.</p>
               {searchQuery ? <p className="search-result-note">Showing matches for “{searchQuery}”.</p> : null}
             </div>
@@ -311,6 +430,7 @@ export default function CustomerHomePage() {
                     <span className="store-tag">{store.etaMinutes} min</span>
                     <span className="store-tag">Min £{store.minimumOrderAmount?.toFixed(2)}</span>
                     <span className="store-tag">Delivery £{store.deliveryFee?.toFixed(2)}</span>
+                    {storeDistances.has(store.slug) ? <span className="store-tag">{formatDistance(storeDistances.get(store.slug)!)} away</span> : null}
                   </div>
 
                   <p className="store-copy">{store.onboardingMessage}</p>
