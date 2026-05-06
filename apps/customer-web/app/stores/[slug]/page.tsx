@@ -7,14 +7,6 @@ import { StoreMenuClient } from "./store-menu-client";
 const fallbackStore = featuredStores[0]!;
 const fallbackMenu = storeMenus["loaded-munch-hull"]!;
 
-function getStoreStatus(storefrontStatus: string, isOpen: boolean) {
-  if (storefrontStatus === "onboarding") {
-    return "Onboarding";
-  }
-
-  return isOpen ? "Live now" : "Opening soon";
-}
-
 export default async function StorePage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = await params;
   const store = featuredStores.find((entry) => entry.slug === resolvedParams.slug) ?? fallbackStore;
@@ -50,7 +42,6 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
         }}
       >
         <div className="store-hero-content">
-          <div className="hero-badge">{getStoreStatus(store.storefrontStatus, store.isOpen)}</div>
           <h1>{store.name}</h1>
           <p>{menu.headline}</p>
           <div className="hero-meta">
@@ -65,17 +56,6 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
       <section className="detail-grid">
         <div className="content-stack">
           <section className="feature-panel feature-panel-contrast">
-            <div className="section-heading">
-              <div>
-                <h2>{hasLiveMenu ? "Store overview" : "Business onboarding status"}</h2>
-                <p>
-                  {hasLiveMenu
-                    ? "This storefront shows the live Hull Eats ordering flow: browse, customise, basket, checkout, and tracking."
-                    : "This empty-state flow should still feel polished and trustworthy to customers."}
-                </p>
-              </div>
-            </div>
-
             <div className="store-tags">
               <span className="store-tag">Storefront {store.storefrontStatus}</span>
               <span className="store-tag">{store.isOpen ? "Visible to customers" : "Opening soon"}</span>
