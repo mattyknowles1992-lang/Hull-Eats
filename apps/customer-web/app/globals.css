@@ -816,11 +816,9 @@ textarea {
   min-height: min(72vh, 760px);
   overflow: hidden;
   border-radius: 30px;
-  border: 1px solid rgba(35, 205, 255, 0.42);
+  border: 2px solid #23cdff;
   background: #080a0e;
-  box-shadow:
-    0 0 0 1px rgba(35, 205, 255, 0.16),
-    0 34px 80px rgba(15, 17, 21, 0.28);
+  box-shadow: 0 34px 80px rgba(15, 17, 21, 0.28);
   transition:
     transform 260ms ease,
     box-shadow 260ms ease;
@@ -834,25 +832,6 @@ textarea {
   background:
     linear-gradient(90deg, rgba(8, 10, 14, 0.96) 0%, rgba(8, 10, 14, 0.78) 43%, rgba(8, 10, 14, 0.16) 100%),
     radial-gradient(circle at 74% 28%, rgba(35, 205, 255, 0.2), transparent 34%);
-  pointer-events: none;
-}
-
-.marketplace-hero::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 4;
-  padding: 2px;
-  border-radius: inherit;
-  background: linear-gradient(120deg, rgba(35, 205, 255, 0.42), #23cdff, rgba(255, 255, 255, 0.62), #0aa4d4);
-  mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  mask-composite: exclude;
-  -webkit-mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
   pointer-events: none;
 }
 
