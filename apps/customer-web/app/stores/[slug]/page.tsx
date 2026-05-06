@@ -55,38 +55,6 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
 
       <section className="detail-grid">
         <div className="content-stack">
-          <section className="feature-panel feature-panel-contrast">
-            <div className="store-tags">
-              <span className="store-tag">Storefront {store.storefrontStatus}</span>
-              <span className="store-tag">{store.isOpen ? "Visible to customers" : "Opening soon"}</span>
-              <span className="store-tag">{hasLiveMenu ? `${menu.categories.length} live categories` : "Menu not entered yet"}</span>
-            </div>
-
-            <p className="store-copy">{store.onboardingMessage}</p>
-
-            <div className="button-row">
-              {hasLiveMenu ? (
-                <>
-                  <Link href={`/checkout/${store.slug}`} className="primary-button gold-button">
-                    Start order
-                  </Link>
-                  <button type="button" className="glass-button">
-                    Save this store
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button type="button" className="primary-button gold-button">
-                    Notify me when ordering opens
-                  </button>
-                  <button type="button" className="glass-button">
-                    Follow this business
-                  </button>
-                </>
-              )}
-            </div>
-          </section>
-
           <section className="feature-panel feature-panel-menu">
             <div className="section-heading">
               <div>
