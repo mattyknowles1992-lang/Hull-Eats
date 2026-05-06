@@ -21,6 +21,7 @@ import {
   type BasketCustomisationSelection,
   type StoreBasket,
 } from "../../../../src/lib/basket";
+import { createCheckoutSession, placeCheckoutOrder } from "../../../../src/lib/api";
 
 type MenuCategory = {
   id: string;
@@ -46,6 +47,11 @@ export function KioskMenuClient({ storeId, storeSlug, storeName, categories }: K
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [exitTapCount, setExitTapCount] = useState(0);
   const [exitUnlocked, setExitUnlocked] = useState(false);
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [isSendingOrder, setIsSendingOrder] = useState(false);
+  const [orderError, setOrderError] = useState("");
+  const [placedOrder, setPlacedOrder] = useState<Awaited<ReturnType<typeof placeCheckoutOrder>> | null>(null);
 
   useEffect(() => {
     const sync = () => setBasket(loadBasket(storeSlug));
@@ -192,6 +198,55 @@ export function KioskMenuClient({ storeId, storeSlug, storeName, categories }: K
     closeItem();
   };
 
+  const sendKioskOrder = async () => {
+    if (!basket || basket.items.length === 0) {
+      return;
+    }
+
+    if (!customerName.trim()) {
+      setOrderError("Enter a customer name for collection.");
+      return;
+    }
+
+    setIsSendingOrder(true);
+    setOrderError("");
+
+    try {
+      const session = await createCheckoutSession({
+        storeId,
+        source: "kiosk",
+        fulfillmentType: "pickup",
+        customerName: customerName.trim(),
+        customerPhone: customerPhone.trim() || "KIOSK",
+        notes: "Self service kiosk collection order",
+        items: basket.items.map((line) => ({
+          menuItemId: line.menuItemId,
+          quantity: line.quantity,
+          selectedOptionQuantities: line.selectedOptionQuantities,
+          removedComponentIds: line.removedComponentIds,
+          notes: line.notes,
+        })),
+      });
+
+      if (!session.canPlaceOrder) {
+        setOrderError("This order is not ready yet. Check minimum order and menu status.");
+        return;
+      }
+
+      const order = await placeCheckoutOrder(session.id, "mock_paid");
+      setPlacedOrder(order);
+      clearBasket(storeSlug);
+    } catch (error) {
+      setOrderError(error instanceof Error ? error.message : "Kiosk order failed.");
+    } finally {
+      setIsSendingOrder(false);
+    }
+  };
+
+  const printReceipt = () => {
+    window.print();
+  };
+
   const activeDetails =
     activeItem && selection
       ? getBasketLineDetails(activeItem, selection)
@@ -279,8 +334,17 @@ export function KioskMenuClient({ storeId, storeSlug, storeName, categories }: K
         <aside className="kiosk-basket">
           <div className="kiosk-section-heading">
             <h2>Your order</h2>
-            <p>Review before payment at the counter.</p>
+            <p>Enter a name, mock pay, and send to the kitchen.</p>
           </div>
+
+          <label className="kiosk-field">
+            <span>Collection name</span>
+            <input value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="Customer name" />
+          </label>
+          <label className="kiosk-field">
+            <span>Phone optional</span>
+            <input value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} placeholder="Phone number" />
+          </label>
 
           <div className="kiosk-basket-lines">
             {basket?.items.map((line) => (
@@ -310,8 +374,9 @@ export function KioskMenuClient({ storeId, storeSlug, storeName, categories }: K
             <span>Total</span>
             <strong>{formatMoney(basketSubtotal)}</strong>
           </div>
-          <button type="button" className="primary-button kiosk-pay-button" disabled={basketItemCount === 0}>
-            Send order
+          {orderError ? <div className="kiosk-errors">{orderError}</div> : null}
+          <button type="button" className="primary-button kiosk-pay-button" disabled={basketItemCount === 0 || isSendingOrder} onClick={sendKioskOrder}>
+            {isSendingOrder ? "Sending..." : "Mock pay and send"}
           </button>
           {basketItemCount > 0 ? (
             <button type="button" className="secondary-button" onClick={() => clearBasket(storeSlug)}>
@@ -320,6 +385,27 @@ export function KioskMenuClient({ storeId, storeSlug, storeName, categories }: K
           ) : null}
         </aside>
       </section>
+
+      {placedOrder ? (
+        <section className="kiosk-receipt-panel">
+          <div>
+            <p className="eyebrow">Order sent</p>
+            <h2>{placedOrder.order.orderNumber}</h2>
+            <p>{customerName.trim()} can collect when called. This order is now visible to demo tracking and merchant order lists.</p>
+          </div>
+          <div className="kiosk-receipt-actions">
+            <button type="button" className="primary-button" onClick={printReceipt}>
+              Print receipt
+            </button>
+            <Link href={`/track/${placedOrder.order.orderNumber}`} className="secondary-button">
+              Track order
+            </Link>
+            <button type="button" className="secondary-button" onClick={() => setPlacedOrder(null)}>
+              New order
+            </button>
+          </div>
+        </section>
+      ) : null}
 
       {activeItem && selection ? (
         <div className="kiosk-modal-backdrop">

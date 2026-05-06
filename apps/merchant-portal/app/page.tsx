@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import type { HubMenuSection, HubSettings, HubUser, MerchantWorkspace, MenuItem } from "@hull-eats/types";
+import type { HubMenuSection, HubSettings, HubUser, MerchantWorkspace, MenuItem, OrderSummary } from "@hull-eats/types";
 
 type HubRole = "owner" | "manager" | "staff";
 type StockStatus = "in_stock" | "low_stock" | "out_of_stock";
@@ -557,6 +557,21 @@ async function applyMenuImport(token: string, hubId: string, importId: string, a
   return (await response.json()) as MerchantWorkspace;
 }
 
+async function fetchMerchantOrders(token: string): Promise<OrderSummary[]> {
+  const response = await fetch(`${apiBaseUrl}/v1/merchant/orders`, {
+    cache: "no-store",
+    headers: {
+      authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Merchant orders fetch failed with status ${response.status}`);
+  }
+
+  return (await response.json()) as OrderSummary[];
+}
+
 type CustomisationBuilderProps = {
   item: MenuItem;
   onChangeComponents: (components: MenuItem["components"]) => void;
@@ -875,6 +890,7 @@ export default function MerchantPortalPage() {
   const [hubSettings, setHubSettings] = useState<HubSettings>(emptyHubSettings);
   const [menuSections, setMenuSections] = useState<HubMenuSection[]>([]);
   const [pendingImports, setPendingImports] = useState<MerchantWorkspace["pendingImports"]>([]);
+  const [merchantOrders, setMerchantOrders] = useState<OrderSummary[]>([]);
   const [newUser, setNewUser] = useState<CreateUserFormState>(initialCreateUserState);
   const [passwordForm, setPasswordForm] = useState<PasswordFormState>(initialPasswordFormState);
   const [newCategory, setNewCategory] = useState<CreateCategoryFormState>(initialCreateCategoryState);
@@ -887,6 +903,7 @@ export default function MerchantPortalPage() {
   const [userNotice, setUserNotice] = useState("");
   const [menuNotice, setMenuNotice] = useState("");
   const [passwordNotice, setPasswordNotice] = useState("");
+  const [orderNotice, setOrderNotice] = useState("");
   const [activeHubSection, setActiveHubSection] = useState<HubSection>("home");
   const [activeHubPanel, setActiveHubPanel] = useState<"menu" | "import" | "settings" | "account">("menu");
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
@@ -982,6 +999,20 @@ export default function MerchantPortalPage() {
     }));
   };
 
+  const loadMerchantOrders = async (token = merchantToken) => {
+    if (!token) {
+      return;
+    }
+
+    try {
+      const orders = await fetchMerchantOrders(token);
+      setMerchantOrders(orders);
+      setOrderNotice(`Loaded ${orders.length} orders.`);
+    } catch (error) {
+      setOrderNotice(error instanceof Error ? error.message : "Order fetch failed.");
+    }
+  };
+
   useEffect(() => {
     const storedSession = window.localStorage.getItem(merchantSessionStorageKey);
     if (!storedSession) {
@@ -998,6 +1029,7 @@ export default function MerchantPortalPage() {
         const workspace = await fetchWorkspace(parsed.token, parsed.hubId);
         setMerchantToken(parsed.token);
         applyWorkspace(workspace, parsed.user);
+        await loadMerchantOrders(parsed.token);
       } catch {
         window.localStorage.removeItem(merchantSessionStorageKey);
       }
@@ -1022,6 +1054,8 @@ export default function MerchantPortalPage() {
       setUserNotice("");
       setMenuNotice("");
       setPasswordNotice("");
+      setOrderNotice("");
+      void loadMerchantOrders(response.token);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Hub login failed.";
       setLoginError(message);
@@ -1040,6 +1074,7 @@ export default function MerchantPortalPage() {
     setHubSettings(emptyHubSettings);
     setMenuSections([]);
     setPendingImports([]);
+    setMerchantOrders([]);
     setSelectedCategoryId("");
     setSelectedItemId("");
     setPasswordForm(initialPasswordFormState);
@@ -1047,6 +1082,7 @@ export default function MerchantPortalPage() {
     setUserNotice("");
     setMenuNotice("");
     setPasswordNotice("");
+    setOrderNotice("");
   };
 
   const handleChangePassword = async () => {
@@ -1535,6 +1571,7 @@ export default function MerchantPortalPage() {
         {menuNotice ? <p style={successMessageStyle}>{menuNotice}</p> : null}
         {userNotice ? <p style={successMessageStyle}>{userNotice}</p> : null}
         {passwordNotice ? <p style={successMessageStyle}>{passwordNotice}</p> : null}
+        {orderNotice ? <p style={successMessageStyle}>{orderNotice}</p> : null}
 
         {activeHubSection === "home" ? (
           <section style={dashboardGrid}>
@@ -1571,8 +1608,32 @@ export default function MerchantPortalPage() {
         {activeHubSection === "orders" ? (
           <section style={placeholderPanel}>
             <p style={eyebrowDark}>Live orders</p>
-            <h2 style={sectionTitle}>Incoming orders will sit here</h2>
-            <p style={panelCopyDark}>This section is reserved for accepting, preparing, and handing orders to couriers once the live order feed is switched on.</p>
+            <div style={itemTopRow}>
+              <div>
+                <h2 style={sectionTitle}>Incoming orders</h2>
+                <p style={panelCopyDark}>Web, app, and kiosk orders appear here. Use refresh while live notifications are being connected.</p>
+              </div>
+              <button type="button" style={secondaryButton} onClick={() => void loadMerchantOrders()}>
+                Refresh orders
+              </button>
+            </div>
+            <div style={orderListGrid}>
+              {merchantOrders.map((order) => (
+                <article key={order.id} style={orderListCard}>
+                  <div>
+                    <strong style={orderNumberStyle}>{order.orderNumber}</strong>
+                    <p style={panelCopyDark}>
+                      {order.source.replaceAll("_", " ")} / {order.fulfillmentType} / {order.paymentStatus}
+                    </p>
+                  </div>
+                  <div style={itemBadgeRow}>
+                    <span style={darkBadge}>{order.status}</span>
+                    <span style={orangeBadge}>£{order.totalAmount.toFixed(2)}</span>
+                  </div>
+                </article>
+              ))}
+              {merchantOrders.length === 0 ? <div style={emptyStateCard}>No orders loaded yet. Refresh after placing a kiosk test order.</div> : null}
+            </div>
           </section>
         ) : null}
 
@@ -3588,6 +3649,31 @@ const itemBadgeRow: React.CSSProperties = {
   gap: 8,
   flexWrap: "wrap",
   marginTop: 8,
+};
+
+const orderListGrid: React.CSSProperties = {
+  display: "grid",
+  gap: 12,
+  marginTop: 18,
+};
+
+const orderListCard: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 14,
+  alignItems: "flex-start",
+  padding: 16,
+  borderRadius: 18,
+  border: "1px solid rgba(15, 17, 21, 0.1)",
+  background: "#fff",
+  boxShadow: "0 12px 24px rgba(15, 17, 21, 0.05)",
+  flexWrap: "wrap",
+};
+
+const orderNumberStyle: React.CSSProperties = {
+  display: "block",
+  color: "#0f1115",
+  fontSize: 22,
 };
 
 const darkBadge: React.CSSProperties = {

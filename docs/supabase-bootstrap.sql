@@ -63,7 +63,7 @@ begin
   end if;
 
   if not exists (select 1 from pg_type where typname = 'order_source') then
-    create type public.order_source as enum ('web', 'ios_app', 'android_app', 'admin_portal');
+    create type public.order_source as enum ('web', 'ios_app', 'android_app', 'admin_portal', 'kiosk');
   end if;
 
   if not exists (select 1 from pg_type where typname = 'order_status') then
@@ -113,6 +113,8 @@ begin
     );
   end if;
 end $$;
+
+alter type public.order_source add value if not exists 'kiosk';
 
 create table if not exists public.customer_profiles (
   id uuid primary key default gen_random_uuid(),

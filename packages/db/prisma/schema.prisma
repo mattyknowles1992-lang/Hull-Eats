@@ -57,6 +57,7 @@ enum OrderSource {
   IOS_APP
   ANDROID_APP
   ADMIN_PORTAL
+  KIOSK
 }
 
 enum OrderStatus {

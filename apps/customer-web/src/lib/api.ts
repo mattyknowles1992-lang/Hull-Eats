@@ -18,7 +18,7 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
   return (await response.json()) as CheckoutSession;
 }
 
-export async function placeCheckoutOrder(checkoutSessionId: string): Promise<{
+export async function placeCheckoutOrder(checkoutSessionId: string, paymentMode: "stripe_payment_intent" | "mock_paid" = "stripe_payment_intent"): Promise<{
   checkoutSessionId: string;
   paymentRequired: boolean;
   nextStep: string;
@@ -35,7 +35,7 @@ export async function placeCheckoutOrder(checkoutSessionId: string): Promise<{
     headers: {
       "content-type": "application/json",
     },
-    body: JSON.stringify({}),
+    body: JSON.stringify({ paymentMode }),
   });
 
   if (!response.ok) {

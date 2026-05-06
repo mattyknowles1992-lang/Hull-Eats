@@ -83,6 +83,7 @@ export const checkoutSessionSchema = z.object({
 
 export const placeOrderFromCheckoutInputSchema = z.object({
   checkoutSessionId: z.string().min(1),
+  paymentMode: z.enum(["stripe_payment_intent", "mock_paid"]).default("stripe_payment_intent"),
 });
 
 export type CreateCheckoutSessionInput = z.infer<typeof createCheckoutSessionInputSchema>;

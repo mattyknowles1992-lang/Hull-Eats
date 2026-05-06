@@ -30,9 +30,11 @@ export class CheckoutController {
 
     return {
       checkoutSessionId: input.checkoutSessionId,
-      order: placeStoredCheckoutOrder(input.checkoutSessionId),
-      paymentRequired: true,
-      nextStep: "stripe_payment_intent",
+      order: placeStoredCheckoutOrder(input.checkoutSessionId, {
+        paymentStatus: input.paymentMode === "mock_paid" ? "paid" : "pending",
+      }),
+      paymentRequired: input.paymentMode !== "mock_paid",
+      nextStep: input.paymentMode === "mock_paid" ? "order_received" : "stripe_payment_intent",
     };
   }
 }

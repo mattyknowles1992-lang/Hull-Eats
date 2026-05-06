@@ -31,7 +31,7 @@ export const paymentStatuses = [
 ] as const;
 
 export const fulfillmentTypes = ["delivery", "pickup"] as const;
-export const orderSources = ["web", "ios_app", "android_app", "admin_portal"] as const;
+export const orderSources = ["web", "ios_app", "android_app", "admin_portal", "kiosk"] as const;
 
 export type OrderStatus = (typeof orderStatuses)[number];
 export type DeliveryStatus = (typeof deliveryStatuses)[number];

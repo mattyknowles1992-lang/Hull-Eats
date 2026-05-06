@@ -186,7 +186,10 @@ export const getStoredCheckoutSession = (checkoutSessionId: string): CheckoutSes
   return current.checkoutSession;
 };
 
-export const placeStoredCheckoutOrder = (checkoutSessionId: string): OrderSummary => {
+export const placeStoredCheckoutOrder = (
+  checkoutSessionId: string,
+  options: { paymentStatus?: OrderSummary["paymentStatus"] } = {},
+): OrderSummary => {
   const record = sessionStore.get(checkoutSessionId);
 
   if (!record) {
@@ -204,7 +207,7 @@ export const placeStoredCheckoutOrder = (checkoutSessionId: string): OrderSummar
     orderNumber: `HE-${Math.floor(Math.random() * 9000) + 1000}`,
     storeId: session.storeId,
     status: "pending",
-    paymentStatus: "pending",
+    paymentStatus: options.paymentStatus ?? "pending",
     fulfillmentType: session.fulfillmentType,
     source: session.source,
     totalAmount: session.totalAmount,

@@ -2903,6 +2903,23 @@ button.filter-pill {
   gap: 10px;
 }
 
+.kiosk-field {
+  display: grid;
+  gap: 6px;
+  color: rgba(247, 251, 255, 0.78);
+  font-weight: 850;
+}
+
+.kiosk-field input {
+  min-height: 52px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 16px;
+  color: #061120;
+  background: #f7fbff;
+  font-weight: 850;
+}
+
 .kiosk-basket-line {
   display: grid;
   gap: 10px;
@@ -3039,6 +3056,63 @@ button.filter-pill {
   color: #2b0a0a;
   background: #ffe6e6;
   font-weight: 850;
+}
+
+.kiosk-receipt-panel {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 60;
+  display: grid;
+  gap: 14px;
+  width: min(440px, calc(100vw - 44px));
+  padding: 20px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(7, 9, 13, 0.94);
+  box-shadow: 0 24px 54px rgba(0, 0, 0, 0.34);
+}
+
+.kiosk-receipt-panel h2 {
+  margin: 4px 0 0;
+  font-family: var(--font-heading), serif;
+  font-size: 3rem;
+}
+
+.kiosk-receipt-panel p {
+  margin: 8px 0 0;
+  color: rgba(247, 251, 255, 0.78);
+  line-height: 1.55;
+}
+
+.kiosk-receipt-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .kiosk-receipt-panel,
+  .kiosk-receipt-panel * {
+    visibility: visible;
+  }
+
+  .kiosk-receipt-panel {
+    position: fixed;
+    inset: 0;
+    width: auto;
+    color: #000;
+    background: #fff;
+    box-shadow: none;
+  }
+
+  .kiosk-receipt-actions {
+    display: none;
+  }
 }
 
 .kiosk-modal-footer {
