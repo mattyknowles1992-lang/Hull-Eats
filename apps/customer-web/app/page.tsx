@@ -265,7 +265,7 @@ export default function CustomerHomePage() {
         </div>
         <div className="marketplace-hero-copy">
           <p className="hero-badge">Hull's food marketplace</p>
-          <h1>From local kitchens to your door.</h1>
+          <h1>From local businesses to your door.</h1>
           <p>
             Discover Hull's independent restaurants, takeaways, dessert spots, corner shops, and everyday favourites,
             all moving from local counters to your doorstep.
