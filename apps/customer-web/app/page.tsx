@@ -297,22 +297,6 @@ export default function CustomerHomePage() {
           </div>
         </div>
 
-        <div className="hero-food-stage hero-category-stage" aria-label="Choose marketplace category">
-          <div className="hero-category-card">
-            <div className="hero-category-card-header">
-              <span className="status-chip pending">Choose what you want</span>
-              <strong>Marketplace</strong>
-            </div>
-            <div className="hero-category-grid">
-              {marketplaceCategories.slice(0, 6).map((category) => (
-                <Link key={category.slug} href={`/categories/${category.slug}`} className="hero-category-tile">
-                  <span className="hero-category-image" style={{ backgroundImage: `url(${category.imageUrl})` }} />
-                  <span>{category.shortLabel}</span>
-                </Link>
-              ))}
-            </div>
-          </div>
-        </div>
       </section>
 
       <section className="search-panel marketplace-panel marketplace-scene">
