@@ -7,12 +7,6 @@ import { featuredStores, storeMenus } from "../src/lib/demo";
 
 const filters = ["All", "Restaurants", "Takeaways", "Groceries", "Desserts", "Late night"] as const;
 type FilterLabel = (typeof filters)[number];
-type QuickPick = {
-  title: string;
-  detail: string;
-  filter: FilterLabel;
-  query: string;
-};
 
 type Coordinates = {
   latitude: number;
@@ -27,33 +21,6 @@ const storeCoordinates: Record<string, Coordinates> = {
     longitude: -0.402771,
   },
 };
-
-const quickPicks: QuickPick[] = [
-  {
-    title: "Dinner now",
-    detail: "Restaurants, takeaways, and local kitchens ready to cook",
-    filter: "All",
-    query: "restaurant takeaway kitchen",
-  },
-  {
-    title: "Quick essentials",
-    detail: "Corner-shop staples, snacks, drinks, and convenience runs",
-    filter: "Groceries",
-    query: "shop grocery essentials snacks drinks convenience",
-  },
-  {
-    title: "Late-night cravings",
-    detail: "Hot food, sweet fixes, and comfort orders after dark",
-    filter: "Late night",
-    query: "late night dessert sweet hot food chicken burger fries",
-  },
-  {
-    title: "Family favourites",
-    detail: "Pizza, burgers, curries, chicken, noodles, wraps, and more",
-    filter: "All",
-    query: "pizza burgers curries chicken noodles wraps family",
-  },
-];
 
 function getStoreStatus(storefrontStatus: string, isOpen: boolean) {
   if (storefrontStatus === "onboarding") {
@@ -99,13 +66,6 @@ export default function CustomerHomePage() {
 
   function handleSearch() {
     setSearchQuery(searchInput.trim());
-    focusResults();
-  }
-
-  function handleQuickPick(pick: QuickPick) {
-    setActiveFilter(pick.filter);
-    setSearchInput(pick.query);
-    setSearchQuery(pick.query);
     focusResults();
   }
 
@@ -249,7 +209,7 @@ export default function CustomerHomePage() {
 
         <div className="topbar-actions">
           <section className="location-strip" aria-label="Location recommendations">
-            <span className="location-pin" aria-hidden="true">⌖</span>
+            <span className="location-pin" aria-hidden="true" />
             <div>
               <p className="eyebrow">Recommended in your area</p>
               <p>{locationStatusCopy}</p>
@@ -339,15 +299,6 @@ export default function CustomerHomePage() {
             </div>
           </div>
         </Link>
-      </section>
-
-      <section className="craving-strip marketplace-scene compact-scene" aria-label="Quick food choices">
-        {quickPicks.map((pick) => (
-          <button key={pick.title} type="button" className="craving-card" onClick={() => handleQuickPick(pick)}>
-            <strong>{pick.title}</strong>
-            <span>{pick.detail}</span>
-          </button>
-        ))}
       </section>
 
       <section className="search-panel marketplace-panel marketplace-scene">

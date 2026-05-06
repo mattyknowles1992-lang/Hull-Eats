@@ -173,14 +173,44 @@ textarea {
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  width: 30px;
-  height: 30px;
+  position: relative;
+  width: 34px;
+  height: 34px;
   border-radius: 999px;
-  color: #101216;
-  background: linear-gradient(180deg, var(--brand-blue-light), var(--brand-blue-dark));
-  box-shadow: 0 8px 18px rgba(7, 155, 200, 0.26);
-  font-size: 1rem;
-  font-weight: 900;
+  background:
+    radial-gradient(circle at 68% 28%, rgba(255, 255, 255, 0.95) 0 9%, transparent 10%),
+    linear-gradient(180deg, #ffffff, #f1f5f8);
+  box-shadow:
+    inset 0 0 0 1px rgba(15, 17, 21, 0.08),
+    0 8px 18px rgba(7, 155, 200, 0.18);
+}
+
+.location-pin::before {
+  content: "";
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  width: 17px;
+  height: 17px;
+  border-radius: 50% 50% 50% 0;
+  background: linear-gradient(145deg, var(--brand-blue-light), var(--brand-blue-dark));
+  box-shadow:
+    inset 2px 2px 3px rgba(255, 255, 255, 0.4),
+    0 4px 8px rgba(7, 155, 200, 0.32);
+  transform: translateX(-50%) rotate(-45deg);
+}
+
+.location-pin::after {
+  content: "";
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #f7fbff;
+  box-shadow: inset 0 0 0 1px rgba(7, 155, 200, 0.16);
+  transform: translateX(-50%);
 }
 
 .location-strip .eyebrow {
@@ -1095,109 +1125,16 @@ textarea {
   text-align: center;
 }
 
-.craving-strip {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 14px;
-}
-
-.craving-strip::before {
-  display: none;
-}
-
-.craving-card {
-  appearance: none;
-  position: relative;
-  overflow: hidden;
-  display: grid;
-  align-content: end;
-  gap: 8px;
-  min-height: 170px;
-  padding: 18px;
-  border-radius: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background:
-    linear-gradient(180deg, rgba(5, 8, 14, 0.08), rgba(5, 8, 14, 0.84)),
-    #fff;
-  background-position: center;
-  background-size: cover;
-  color: inherit;
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
-    0 16px 30px rgba(15, 17, 21, 0.08);
-  transition:
-    transform 180ms ease,
-    box-shadow 180ms ease,
-    border-color 180ms ease;
-}
-
-.craving-card::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(180deg, rgba(5, 8, 14, 0.04), rgba(5, 8, 14, 0.74)),
-    radial-gradient(circle at 20% 10%, rgba(255, 255, 255, 0.18), transparent 34%);
-  z-index: 0;
-}
-
-.craving-card:nth-child(1) {
-  background-image:
-    linear-gradient(180deg, rgba(5, 8, 14, 0.08), rgba(5, 8, 14, 0.84)),
-    url("https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=900&q=80");
-}
-
-.craving-card:nth-child(2) {
-  background-image:
-    linear-gradient(180deg, rgba(5, 8, 14, 0.08), rgba(5, 8, 14, 0.84)),
-    url("https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=900&q=80");
-}
-
-.craving-card:nth-child(3) {
-  background-image:
-    linear-gradient(180deg, rgba(5, 8, 14, 0.08), rgba(5, 8, 14, 0.84)),
-    url("https://images.unsplash.com/photo-1563805042-7684c019e1cb?auto=format&fit=crop&w=900&q=80");
-}
-
-.craving-card:nth-child(4) {
-  background-image:
-    linear-gradient(180deg, rgba(5, 8, 14, 0.08), rgba(5, 8, 14, 0.84)),
-    url("https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?auto=format&fit=crop&w=900&q=80");
-}
-
-.craving-card:hover,
 .store-card:hover,
 .hero-food-stage:hover {
   transform: translateY(-3px);
 }
 
-.craving-card:hover,
 .store-card:hover {
   border-color: rgba(18, 183, 232, 0.72);
   box-shadow:
     0 0 0 1px rgba(18, 183, 232, 0.18),
     0 24px 46px rgba(15, 17, 21, 0.13);
-}
-
-.craving-card strong {
-  position: relative;
-  z-index: 1;
-  color: #f7fbff;
-  font-size: 1.15rem;
-  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.34);
-}
-
-.craving-card span {
-  position: relative;
-  z-index: 1;
-  color: rgba(247, 251, 255, 0.9);
-  line-height: 1.45;
-  font-size: 0.92rem;
-  max-width: 28ch;
 }
 
 .marketplace-panel {
@@ -2882,14 +2819,6 @@ button.filter-pill {
     grid-template-columns: 1fr;
   }
 
-  .craving-strip {
-    grid-template-columns: 1fr;
-  }
-
-  .craving-card {
-    min-height: 150px;
-  }
-
 }
 
 @media (min-width: 1100px) {
@@ -2913,8 +2842,5 @@ button.filter-pill {
     font-size: 4.4rem;
   }
 
-  .craving-strip {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 
