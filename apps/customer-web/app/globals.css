@@ -139,8 +139,11 @@ textarea {
 }
 
 .brand-pill-logo-only .brand-logo {
+  width: 144px;
+  height: 144px;
+  border-radius: 42px;
   box-shadow:
-    0 20px 38px rgba(15, 17, 21, 0.2),
+    0 28px 54px rgba(15, 17, 21, 0.22),
     0 0 0 1px rgba(255, 255, 255, 0.18);
 }
 
