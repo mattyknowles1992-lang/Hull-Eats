@@ -112,6 +112,10 @@ begin
       'canceled'
     );
   end if;
+
+  if not exists (select 1 from pg_type where typname = 'service_business_status') then
+    create type public.service_business_status as enum ('pending', 'verified', 'paused', 'rejected');
+  end if;
 end $$;
 
 alter type public.order_source add value if not exists 'kiosk';
@@ -159,6 +163,48 @@ create table if not exists public.businesses (
   support_email text,
   support_phone text,
   is_active boolean not null default true,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create table if not exists public.service_categories (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  slug text not null unique,
+  image_url text,
+  icon text,
+  active boolean not null default true,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create table if not exists public.service_businesses (
+  id uuid primary key default gen_random_uuid(),
+  business_name text not null,
+  owner_user_id uuid references auth.users(id) on delete set null,
+  description text,
+  phone text,
+  email text,
+  location text,
+  coverage_area text,
+  status public.service_business_status not null default 'pending',
+  verified boolean not null default false,
+  active boolean not null default true,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create table if not exists public.service_listings (
+  id uuid primary key default gen_random_uuid(),
+  service_business_id uuid not null references public.service_businesses(id) on delete cascade,
+  category_id uuid not null references public.service_categories(id) on delete restrict,
+  title text not null,
+  description text,
+  price_from numeric(10,2),
+  images text[] not null default array[]::text[],
+  availability jsonb,
+  active boolean not null default true,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
 );
@@ -391,6 +437,11 @@ create index if not exists idx_customer_addresses_customer on public.customer_ad
 create unique index if not exists idx_customer_addresses_default on public.customer_addresses(customer_profile_id) where is_default = true;
 create index if not exists idx_customer_favourites_customer on public.customer_favourites(customer_profile_id, created_at desc);
 create index if not exists idx_subscriptions_customer on public.subscriptions(customer_profile_id, created_at desc);
+create index if not exists idx_service_categories_active on public.service_categories(active, sort_order);
+create index if not exists idx_service_businesses_owner on public.service_businesses(owner_user_id);
+create index if not exists idx_service_businesses_status on public.service_businesses(status, active);
+create index if not exists idx_service_listings_category on public.service_listings(category_id, active);
+create index if not exists idx_service_listings_business on public.service_listings(service_business_id, active);
 create index if not exists idx_stores_business on public.stores(business_id);
 create index if not exists idx_stores_status on public.stores(storefront_status, is_active);
 create index if not exists idx_menu_categories_store on public.menu_categories(store_id);
@@ -410,6 +461,15 @@ create trigger set_customer_addresses_updated_at before update on public.custome
 
 drop trigger if exists set_businesses_updated_at on public.businesses;
 create trigger set_businesses_updated_at before update on public.businesses for each row execute function public.set_updated_at();
+
+drop trigger if exists set_service_categories_updated_at on public.service_categories;
+create trigger set_service_categories_updated_at before update on public.service_categories for each row execute function public.set_updated_at();
+
+drop trigger if exists set_service_businesses_updated_at on public.service_businesses;
+create trigger set_service_businesses_updated_at before update on public.service_businesses for each row execute function public.set_updated_at();
+
+drop trigger if exists set_service_listings_updated_at on public.service_listings;
+create trigger set_service_listings_updated_at before update on public.service_listings for each row execute function public.set_updated_at();
 
 drop trigger if exists set_stores_updated_at on public.stores;
 create trigger set_stores_updated_at before update on public.stores for each row execute function public.set_updated_at();
@@ -588,6 +648,9 @@ alter table public.customer_favourites enable row level security;
 alter table public.subscriptions enable row level security;
 alter table public.subscription_events enable row level security;
 alter table public.businesses enable row level security;
+alter table public.service_categories enable row level security;
+alter table public.service_businesses enable row level security;
+alter table public.service_listings enable row level security;
 alter table public.hub_users enable row level security;
 alter table public.orders enable row level security;
 alter table public.order_items enable row level security;
@@ -680,6 +743,63 @@ create policy "customer can read own payments" on public.payments for select to 
 
 drop policy if exists "public can browse live stores" on public.stores;
 create policy "public can browse live stores" on public.stores for select to anon, authenticated using (is_active = true and storefront_status = 'live');
+
+drop policy if exists "public can browse active service categories" on public.service_categories;
+create policy "public can browse active service categories" on public.service_categories for select to anon, authenticated using (active = true);
+
+drop policy if exists "public can browse verified service businesses" on public.service_businesses;
+create policy "public can browse verified service businesses" on public.service_businesses for select to anon, authenticated using (
+  active = true and status = 'verified'
+);
+
+drop policy if exists "service owner can create own business" on public.service_businesses;
+create policy "service owner can create own business" on public.service_businesses for insert to authenticated with check (
+  owner_user_id = auth.uid()
+);
+
+drop policy if exists "service owner can update own business" on public.service_businesses;
+create policy "service owner can update own business" on public.service_businesses for update to authenticated using (
+  owner_user_id = auth.uid()
+) with check (
+  owner_user_id = auth.uid()
+);
+
+drop policy if exists "public can browse active service listings" on public.service_listings;
+create policy "public can browse active service listings" on public.service_listings for select to anon, authenticated using (
+  active = true and exists (
+    select 1
+    from public.service_businesses sb
+    join public.service_categories sc on sc.id = category_id
+    where sb.id = service_business_id
+      and sb.active = true
+      and sb.status = 'verified'
+      and sc.active = true
+  )
+);
+
+drop policy if exists "service owner can create own listings" on public.service_listings;
+create policy "service owner can create own listings" on public.service_listings for insert to authenticated with check (
+  exists (
+    select 1
+    from public.service_businesses sb
+    where sb.id = service_business_id and sb.owner_user_id = auth.uid()
+  )
+);
+
+drop policy if exists "service owner can update own listings" on public.service_listings;
+create policy "service owner can update own listings" on public.service_listings for update to authenticated using (
+  exists (
+    select 1
+    from public.service_businesses sb
+    where sb.id = service_business_id and sb.owner_user_id = auth.uid()
+  )
+) with check (
+  exists (
+    select 1
+    from public.service_businesses sb
+    where sb.id = service_business_id and sb.owner_user_id = auth.uid()
+  )
+);
 
 drop policy if exists "public can browse live categories" on public.menu_categories;
 create policy "public can browse live categories" on public.menu_categories for select to anon, authenticated using (

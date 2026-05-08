@@ -14,8 +14,8 @@
     "@hull-eats/types": "workspace:*",
     "@hull-eats/ui": "workspace:*",
     "next": "^15.3.2",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
   },
   "devDependencies": {
     "@types/react": "^19.1.2",

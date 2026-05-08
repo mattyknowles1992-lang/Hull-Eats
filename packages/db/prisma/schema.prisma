@@ -31,6 +31,15 @@ enum HubUserStatus {
   @@map("hub_user_status")
 }
 
+enum ServiceBusinessStatus {
+  PENDING  @map("pending")
+  VERIFIED @map("verified")
+  PAUSED   @map("paused")
+  REJECTED @map("rejected")
+
+  @@map("service_business_status")
+}
+
 enum StoreType {
   RESTAURANT @map("restaurant")
   TAKEAWAY   @map("takeaway")
@@ -182,6 +191,7 @@ model User {
   orderStatusHistory  OrderStatusHistory[]
   deliveryStatusLogs  DeliveryStatusHistory[]
   inventoryAdjustments InventoryAdjustment[]
+  serviceBusinesses   ServiceBusiness[]     @relation("ServiceBusinessOwner")
 }
 
 model CustomerProfile {
@@ -661,4 +671,59 @@ model OutboxEvent {
 
   @@index([publishedAt, createdAt])
   @@index([aggregateType, aggregateId])
+}
+
+model ServiceCategory {
+  id        String           @id @default(uuid()) @db.Uuid
+  name      String
+  slug      String           @unique
+  imageUrl  String?          @map("image_url")
+  icon      String?
+  active    Boolean          @default(true)
+  sortOrder Int              @default(0) @map("sort_order")
+  createdAt DateTime         @default(now()) @map("created_at")
+  updatedAt DateTime         @updatedAt @map("updated_at")
+  listings  ServiceListing[]
+
+  @@map("service_categories")
+}
+
+model ServiceBusiness {
+  id           String                @id @default(uuid()) @db.Uuid
+  businessName String                @map("business_name")
+  ownerUserId  String?               @map("owner_user_id")
+  description  String?
+  phone        String?
+  email        String?
+  location     String?
+  coverageArea String?               @map("coverage_area")
+  status       ServiceBusinessStatus @default(PENDING)
+  verified     Boolean               @default(false)
+  active       Boolean               @default(true)
+  createdAt    DateTime              @default(now()) @map("created_at")
+  updatedAt    DateTime              @updatedAt @map("updated_at")
+  owner        User?                 @relation("ServiceBusinessOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  listings     ServiceListing[]
+
+  @@map("service_businesses")
+}
+
+model ServiceListing {
+  id                String           @id @default(uuid()) @db.Uuid
+  serviceBusinessId String           @map("service_business_id") @db.Uuid
+  categoryId        String           @map("category_id") @db.Uuid
+  title             String
+  description       String?
+  priceFrom         Decimal?         @map("price_from") @db.Decimal(10, 2)
+  images            String[]         @default([])
+  availability      Json?
+  active            Boolean          @default(true)
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+  serviceBusiness   ServiceBusiness  @relation(fields: [serviceBusinessId], references: [id], onDelete: Cascade)
+  category          ServiceCategory  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  @@index([categoryId, active])
+  @@index([serviceBusinessId, active])
+  @@map("service_listings")
 }
