@@ -261,11 +261,11 @@ textarea {
   width: 86px;
   height: 64px;
   border-radius: 24px;
-  border: 1px solid rgba(15, 17, 21, 0.06);
+  border: 1px solid transparent;
   background-color: transparent;
   background-position: center;
   background-size: cover;
-  box-shadow: 0 12px 24px rgba(15, 17, 21, 0.08);
+  box-shadow: none;
   transition:
     transform 180ms ease,
     box-shadow 180ms ease,
@@ -275,10 +275,8 @@ textarea {
 .marketplace-category-chip:hover .marketplace-category-chip-image,
 .marketplace-category-chip.is-active .marketplace-category-chip-image {
   transform: translateY(-2px);
-  border-color: rgba(18, 183, 232, 0.48);
-  box-shadow:
-    0 0 0 1px rgba(18, 183, 232, 0.14),
-    0 18px 30px rgba(7, 155, 200, 0.16);
+  border-color: rgba(35, 205, 255, 0.78);
+  box-shadow: 0 0 0 3px rgba(35, 205, 255, 0.18);
 }
 
 .marketplace-category-chip.is-active {
@@ -1273,13 +1271,17 @@ textarea {
   min-height: 150px;
   padding: 14px;
   border-radius: 22px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  border: 1px solid transparent;
   color: #f7fbff;
   background-position: center;
   background-size: cover;
-  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.18);
+  box-shadow: none;
   font-weight: 950;
   text-shadow: 0 2px 12px rgba(0, 0, 0, 0.82);
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease;
 }
 
 .category-selector-panel {
@@ -1299,12 +1301,23 @@ textarea {
   min-height: 140px;
   padding: 14px;
   border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid transparent;
   color: #f7fbff;
   background-position: center;
   background-size: cover;
-  box-shadow: 0 14px 28px rgba(15, 17, 21, 0.1);
+  box-shadow: none;
   text-shadow: 0 2px 12px rgba(0, 0, 0, 0.82);
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease;
+}
+
+.category-carousel-card:hover,
+.category-subcategory-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(35, 205, 255, 0.78);
+  box-shadow: 0 0 0 3px rgba(35, 205, 255, 0.18);
 }
 
 .category-subcategory-card strong {
