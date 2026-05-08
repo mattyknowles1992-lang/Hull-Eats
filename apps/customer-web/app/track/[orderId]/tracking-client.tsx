@@ -116,7 +116,7 @@ export function TrackingClient({ orderId }: TrackingClientProps) {
           <div>
             <span className="muted-copy">Customer delivery PIN</span>
             <strong className="tracking-pin">{delivery?.confirmationCode ?? "----"}</strong>
-            <p>Give this PIN to the driver at the door. The order only marks delivered when it matches.</p>
+            <p>This is the delivery code for this order. Give it to the courier at the door; the order only marks delivered when it matches.</p>
           </div>
           <div className="checkout-summary">
             <div className="glance-row">

@@ -1076,6 +1076,7 @@ export default function MerchantPortalPage() {
                 .qr { display: grid; gap: 8px; justify-items: center; margin: 14px 0; padding: 12px; border: 1px solid #111; border-radius: 10px; }
                 .qr img { width: 180px; height: 180px; image-rendering: pixelated; }
                 .qr span { font-size: 11px; font-weight: 800; text-align: center; }
+                .backup { margin: 10px 0 14px; padding: 10px; border: 1px dashed #111; border-radius: 8px; font-size: 12px; font-weight: 800; text-align: center; }
                 pre { white-space: pre-wrap; font-size: 13px; line-height: 1.4; }
                 button { min-height: 40px; padding: 0 14px; border: 1px solid #111; border-radius: 8px; background: #111; color: #fff; font-weight: 800; cursor: pointer; }
                 @media print { button { display: none; } body { margin: 0; } }
@@ -1088,6 +1089,7 @@ export default function MerchantPortalPage() {
                   ? `<div class="qr"><img alt="Courier scan QR" src="${qrCodeImage}" /><span>Courier scan: ${escapeHtml(qrCodeData ?? "")}</span></div>`
                   : ""
               }
+              <div class="backup">QR backup: enter order number ${escapeHtml(order.orderNumber)} in the courier app.</div>
               <pre>${escapeHtml(receipt.preview)}</pre>
             </body>
           </html>

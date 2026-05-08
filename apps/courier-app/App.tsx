@@ -67,7 +67,7 @@ export default function App() {
   const [jobs, setJobs] = useState<CourierDelivery[]>([]);
   const [isScanning, setIsScanning] = useState(false);
   const [isWorking, setIsWorking] = useState(false);
-  const [statusMessage, setStatusMessage] = useState("Scan the receipt QR or enter an order number.");
+  const [statusMessage, setStatusMessage] = useState("Scan the receipt QR. If it will not scan, enter the order number printed on the receipt.");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const activeStatus = delivery?.status.replaceAll("_", " ") ?? "ready";
@@ -290,16 +290,16 @@ export default function App() {
                 value={orderInput}
                 onChangeText={setOrderInput}
                 autoCapitalize="characters"
-                placeholder="Order number"
+                placeholder="Backup order number"
                 placeholderTextColor="#87909d"
               />
               <Pressable style={styles.secondaryButton} onPress={() => startDelivery()} disabled={isWorking}>
-                <Text style={styles.secondaryButtonText}>Start by order number</Text>
+                <Text style={styles.secondaryButtonText}>Use order number backup</Text>
               </Pressable>
             </View>
           )}
 
-          {isWorking ? <ActivityIndicator color="#d9a748" /> : null}
+          {isWorking ? <ActivityIndicator color={brandBlue} /> : null}
           {errorMessage ? <Text style={styles.error}>{errorMessage}</Text> : null}
         </View>
 

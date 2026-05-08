@@ -57,6 +57,7 @@ const formatReceiptPreview = (payload: PrintJobPayload) =>
     "HULL EATS ORDER",
     `Order: ${payload.orderNumber}`,
     payload.qrCodeData ? `QR: ${payload.qrCodeData}` : "",
+    "Courier backup: if QR will not scan, enter the order number in the courier app.",
     `Customer: ${payload.customerName}`,
     `Placed: ${new Date(payload.placedAtIso).toLocaleString("en-GB")}`,
     payload.prepTimeMinutes ? `Prep: ${payload.prepTimeMinutes} minutes` : "",
