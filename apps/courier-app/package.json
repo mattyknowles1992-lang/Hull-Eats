@@ -8,15 +8,15 @@
   },
   "dependencies": {
     "@hull-eats/types": "workspace:*",
-    "expo": "^53.0.9",
-    "expo-camera": "~16.1.11",
-    "expo-location": "~18.1.6",
-    "expo-status-bar": "^2.2.3",
-    "react": "^19.1.0",
-    "react-native": "^0.79.2"
+    "expo": "~54.0.34",
+    "expo-camera": "~17.0.10",
+    "expo-location": "~19.0.8",
+    "expo-status-bar": "~3.0.9",
+    "react": "19.1.0",
+    "react-native": "0.81.5"
   },
   "devDependencies": {
-    "@types/react": "^19.1.2",
+    "@types/react": "~19.1.10",
     "typescript": "^5.8.3"
   }
 }
