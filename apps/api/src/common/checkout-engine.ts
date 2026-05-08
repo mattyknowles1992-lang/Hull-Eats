@@ -1,9 +1,9 @@
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 
 import type { CheckoutSession, CreateCheckoutSessionInput, OrderSummary } from "@hull-eats/types";
-import { checkoutSessionSchema, orderSummarySchema } from "@hull-eats/types";
+import { checkoutSessionSchema } from "@hull-eats/types";
 
-import { demoMenuByStore, demoOrders, demoStores } from "./demo-data";
+import { demoMenuByStore, demoStores } from "./demo-data";
 import { persistCheckoutOrder } from "./order-repository";
 
 type SessionRecord = {
@@ -187,7 +187,7 @@ export const getStoredCheckoutSession = (checkoutSessionId: string): CheckoutSes
   return current.checkoutSession;
 };
 
-export const placeStoredCheckoutOrder = (
+export const placeStoredCheckoutOrder = async (
   checkoutSessionId: string,
   options: { paymentStatus?: OrderSummary["paymentStatus"] } = {},
 ): Promise<OrderSummary> => {
@@ -203,21 +203,7 @@ export const placeStoredCheckoutOrder = (
     throw new BadRequestException("Checkout session is not ready to place an order yet.");
   }
 
-  const fallbackOrder = orderSummarySchema.parse({
-    id: `order_${Date.now()}`,
-    orderNumber: `HE-${Math.floor(Math.random() * 9000) + 1000}`,
-    storeId: session.storeId,
-    status: "pending",
-    paymentStatus: options.paymentStatus ?? "pending",
-    fulfillmentType: session.fulfillmentType,
-    source: session.source,
-    totalAmount: session.totalAmount,
-    currency: session.currency,
-    placedAt: new Date().toISOString(),
-    prepTimeMinutes: null,
-  });
-
-  demoOrders.unshift(fallbackOrder);
+  const order = await persistCheckoutOrder(session, { paymentStatus: options.paymentStatus ?? "pending" });
 
   sessionStore.set(checkoutSessionId, {
     ...record,
@@ -227,8 +213,5 @@ export const placeStoredCheckoutOrder = (
     },
   });
 
-  return persistCheckoutOrder(session, { paymentStatus: options.paymentStatus ?? "pending" }).catch((error) => {
-    console.error("Persistent order create failed; returning in-memory fallback order.", error);
-    return fallbackOrder;
-  });
+  return order;
 };

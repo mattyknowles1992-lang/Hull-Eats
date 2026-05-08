@@ -974,6 +974,11 @@ export default function MerchantPortalPage() {
   const openHubSection = (section: HubSection) => {
     setActiveHubSection(section);
 
+    if (section === "orders") {
+      void loadMerchantOrders();
+      return;
+    }
+
     if (section === "menu") {
       setActiveHubPanel("menu");
       return;
@@ -1033,7 +1038,7 @@ export default function MerchantPortalPage() {
     }));
   };
 
-  const loadMerchantOrders = async (token = merchantToken) => {
+  const loadMerchantOrders = async (token = merchantToken, options: { silent?: boolean } = {}) => {
     if (!token) {
       return;
     }
@@ -1041,7 +1046,9 @@ export default function MerchantPortalPage() {
     try {
       const orders = await fetchMerchantOrders(token);
       setMerchantOrders(orders);
-      setOrderNotice(`Loaded ${orders.length} orders.`);
+      if (!options.silent) {
+        setOrderNotice(`Loaded ${orders.length} orders.`);
+      }
     } catch (error) {
       setOrderNotice(error instanceof Error ? error.message : "Order fetch failed.");
     }
@@ -1125,6 +1132,19 @@ export default function MerchantPortalPage() {
       }
     })();
   }, []);
+
+  useEffect(() => {
+    if (activeHubSection !== "orders" || !merchantToken) {
+      return;
+    }
+
+    void loadMerchantOrders(merchantToken, { silent: true });
+    const intervalId = window.setInterval(() => {
+      void loadMerchantOrders(merchantToken, { silent: true });
+    }, 15000);
+
+    return () => window.clearInterval(intervalId);
+  }, [activeHubSection, merchantToken]);
 
   const handleLogin = async () => {
     try {
