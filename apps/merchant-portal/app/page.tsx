@@ -573,6 +573,9 @@ async function fetchMerchantOrders(token: string): Promise<OrderSummary[]> {
 }
 
 type MerchantOrderPrintResponse = {
+  payload: {
+    qrCodeData?: string;
+  };
   preview: string;
   queued?: boolean;
   printJobId?: string;
@@ -1059,6 +1062,10 @@ export default function MerchantPortalPage() {
       setOrderNotice(receipt.message ?? "Receipt created.");
 
       if (receiptWindow) {
+        const qrCodeData = receipt.payload.qrCodeData;
+        const qrCodeImage = qrCodeData
+          ? `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=8&data=${encodeURIComponent(qrCodeData)}`
+          : "";
         receiptWindow.document.open();
         receiptWindow.document.write(`
           <html>
@@ -1066,6 +1073,9 @@ export default function MerchantPortalPage() {
               <title>${escapeHtml(order.orderNumber)} receipt</title>
               <style>
                 body { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; margin: 18px; color: #111; }
+                .qr { display: grid; gap: 8px; justify-items: center; margin: 14px 0; padding: 12px; border: 1px solid #111; border-radius: 10px; }
+                .qr img { width: 180px; height: 180px; image-rendering: pixelated; }
+                .qr span { font-size: 11px; font-weight: 800; text-align: center; }
                 pre { white-space: pre-wrap; font-size: 13px; line-height: 1.4; }
                 button { min-height: 40px; padding: 0 14px; border: 1px solid #111; border-radius: 8px; background: #111; color: #fff; font-weight: 800; cursor: pointer; }
                 @media print { button { display: none; } body { margin: 0; } }
@@ -1073,6 +1083,11 @@ export default function MerchantPortalPage() {
             </head>
             <body>
               <button onclick="window.print()">Print receipt</button>
+              ${
+                qrCodeImage
+                  ? `<div class="qr"><img alt="Courier scan QR" src="${qrCodeImage}" /><span>Courier scan: ${escapeHtml(qrCodeData ?? "")}</span></div>`
+                  : ""
+              }
               <pre>${escapeHtml(receipt.preview)}</pre>
             </body>
           </html>
