@@ -245,7 +245,7 @@ export default function CustomerHomePage() {
       </header>
 
       <nav className="marketplace-category-rail" aria-label="Marketplace categories">
-        {marketplaceCategories.slice(0, 8).map((category) => (
+        {marketplaceCategories.map((category) => (
           <Link key={category.slug} href={`/categories/${category.slug}`} className="marketplace-category-chip">
             <span className="marketplace-category-chip-image" style={{ backgroundImage: `url(${category.imageUrl})` }} />
             <span>{category.shortLabel}</span>

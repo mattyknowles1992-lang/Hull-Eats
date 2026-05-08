@@ -143,7 +143,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ categ
               id={subcategory.slug}
               href={`#${subcategory.slug}`}
               className="category-subcategory-card"
-              style={{ backgroundImage: `linear-gradient(180deg, rgba(5, 8, 14, 0.08), rgba(5, 8, 14, 0.78)), url(${subcategory.imageUrl})` }}
+              style={{ backgroundImage: `url(${subcategory.imageUrl})` }}
             >
               <strong>{subcategory.label}</strong>
               <span>{matchingStores.reduce((sum, store) => sum + getSubcategoryMatchCount(store.slug, subcategory), 0)} live matches</span>
