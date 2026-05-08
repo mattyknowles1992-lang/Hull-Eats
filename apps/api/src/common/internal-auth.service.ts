@@ -4,7 +4,7 @@ import { safeEqual, signSessionToken, verifySessionToken } from "@hull-eats/auth
 import { loadEnv } from "@hull-eats/config";
 import type { HubUser } from "@hull-eats/types";
 
-type InternalSessionScope = "admin" | "merchant";
+type InternalSessionScope = "admin" | "merchant" | "courier";
 
 type InternalSessionPayload = {
   sub: string;
@@ -13,6 +13,7 @@ type InternalSessionPayload = {
   hubId?: string;
   username?: string;
   role?: string;
+  courierProfileId?: string;
   iat: number;
   exp: number;
 };
@@ -53,6 +54,16 @@ export class InternalAuthService {
     });
   }
 
+  issueCourierToken(input: { userId: string; courierProfileId: string; username: string; email: string }) {
+    return this.issueToken({
+      sub: input.userId,
+      scope: "courier",
+      courierProfileId: input.courierProfileId,
+      username: input.username,
+      email: input.email,
+    });
+  }
+
   requireAdminToken(authorization?: string) {
     const payload = this.requireToken(authorization);
     if (payload.scope !== "admin") {
@@ -70,6 +81,15 @@ export class InternalAuthService {
 
     if (hubId && payload.hubId !== hubId) {
       throw new UnauthorizedException("Merchant token does not belong to this hub.");
+    }
+
+    return payload;
+  }
+
+  requireCourierToken(authorization?: string) {
+    const payload = this.requireToken(authorization);
+    if (payload.scope !== "courier" || !payload.courierProfileId) {
+      throw new UnauthorizedException("Courier token required.");
     }
 
     return payload;

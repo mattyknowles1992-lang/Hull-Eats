@@ -131,6 +131,14 @@ export function TrackingClient({ orderId }: TrackingClientProps) {
               <span className="muted-copy">Updated</span>
               <strong>{location ? new Date(location.updatedAt).toLocaleTimeString("en-GB") : "Not live yet"}</strong>
             </div>
+            <div className="glance-row">
+              <span className="muted-copy">Courier</span>
+              <strong>
+                {delivery?.courierName
+                  ? `${delivery.courierName}${delivery.courierRating ? ` · ${delivery.courierRating.toFixed(1)} rating` : ""}`
+                  : "Shown after scan"}
+              </strong>
+            </div>
           </div>
         </aside>
       </section>

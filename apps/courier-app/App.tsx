@@ -29,6 +29,7 @@ const brandBlue = "#23CDFF";
 type RequestOptions = {
   method?: "GET" | "POST";
   body?: unknown;
+  token?: string | null;
 };
 
 async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -36,6 +37,7 @@ async function apiRequest<T>(path: string, options: RequestOptions = {}): Promis
     method: options.method ?? "GET",
     headers: {
       "content-type": "application/json",
+      ...(options.token ? { authorization: `Bearer ${options.token}` } : {}),
     },
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
@@ -56,11 +58,37 @@ const demoRoute = [
   { latitude: 53.7489, longitude: -0.3702 },
 ];
 
+type CourierAccount = {
+  id: string;
+  courierProfileId: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  username: string;
+  vehicleType: string;
+  status: string;
+  driverStatus: string;
+  rating: number;
+  completedDeliveries: number;
+  weeklyEarnings: number;
+  rewardPoints: number;
+  nextPayoutDate: string | null;
+};
+
+type CourierLoginResponse = {
+  token: string;
+  courier: CourierAccount;
+};
+
 export default function App() {
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const locationSubscription = useRef<Location.LocationSubscription | null>(null);
   const demoLocationIndex = useRef(0);
 
+  const [courierToken, setCourierToken] = useState<string | null>(null);
+  const [courierAccount, setCourierAccount] = useState<CourierAccount | null>(null);
+  const [loginUsername, setLoginUsername] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
   const [orderInput, setOrderInput] = useState("HE-1002");
   const [pinInput, setPinInput] = useState("");
   const [delivery, setDelivery] = useState<CourierDelivery | null>(null);
@@ -69,6 +97,7 @@ export default function App() {
   const [isWorking, setIsWorking] = useState(false);
   const [statusMessage, setStatusMessage] = useState("Scan the receipt QR. If it will not scan, enter the order number printed on the receipt.");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [loginError, setLoginError] = useState<string | null>(null);
 
   const activeStatus = delivery?.status.replaceAll("_", " ") ?? "ready";
   const canComplete = Boolean(delivery && delivery.status !== "delivered");
@@ -90,12 +119,50 @@ export default function App() {
   }, [delivery]);
 
   const loadJobs = useCallback(async () => {
+    if (!courierToken) {
+      setJobs([]);
+      return;
+    }
+
     try {
-      const nextJobs = await apiRequest<CourierDelivery[]>("/v1/courier/jobs");
+      const nextJobs = await apiRequest<CourierDelivery[]>("/v1/courier/jobs", { token: courierToken });
       setJobs(nextJobs);
     } catch {
       setJobs([]);
     }
+  }, [courierToken]);
+
+  const loginCourier = useCallback(async () => {
+    setIsWorking(true);
+    setLoginError(null);
+
+    try {
+      const response = await apiRequest<CourierLoginResponse>("/v1/courier/auth/login", {
+        method: "POST",
+        body: {
+          username: loginUsername.trim(),
+          password: loginPassword,
+        },
+      });
+
+      setCourierToken(response.token);
+      setCourierAccount(response.courier);
+      setLoginPassword("");
+      setStatusMessage("Signed in. Scan the receipt QR or use the printed order number backup.");
+    } catch (error) {
+      setLoginError(error instanceof Error ? error.message : "Courier sign in failed.");
+    } finally {
+      setIsWorking(false);
+    }
+  }, [loginPassword, loginUsername]);
+
+  const signOutCourier = useCallback(() => {
+    locationSubscription.current?.remove();
+    setCourierToken(null);
+    setCourierAccount(null);
+    setDelivery(null);
+    setJobs([]);
+    setStatusMessage("Signed out.");
   }, []);
 
   useEffect(() => {
@@ -110,10 +177,11 @@ export default function App() {
     const updated = await apiRequest<CourierDelivery>(`/v1/courier/deliveries/${nextDelivery.deliveryId}/location`, {
       method: "POST",
       body: location,
+      token: courierToken,
     });
 
     setDelivery(updated);
-  }, []);
+  }, [courierToken]);
 
   const sendDemoLocation = useCallback(
     async (nextDelivery: CourierDelivery) => {
@@ -180,6 +248,7 @@ export default function App() {
         const nextDelivery = await apiRequest<CourierDelivery>("/v1/courier/deliveries/start", {
           method: "POST",
           body: scanCode ? { scanCode } : { orderNumber: reference },
+          token: courierToken,
         });
 
         setDelivery(nextDelivery);
@@ -195,7 +264,7 @@ export default function App() {
         setIsWorking(false);
       }
     },
-    [loadJobs, orderInput, startLocationSharing],
+    [courierToken, loadJobs, orderInput, startLocationSharing],
   );
 
   const handleBarcodeScanned = useCallback(
@@ -238,6 +307,7 @@ export default function App() {
       const completed = await apiRequest<CourierDelivery>(`/v1/courier/deliveries/${delivery.deliveryId}/complete`, {
         method: "POST",
         body: { confirmationCode: pinInput.trim() },
+        token: courierToken,
       });
 
       locationSubscription.current?.remove();
@@ -249,7 +319,48 @@ export default function App() {
     } finally {
       setIsWorking(false);
     }
-  }, [delivery, loadJobs, pinInput]);
+  }, [courierToken, delivery, loadJobs, pinInput]);
+
+  if (!courierToken || !courierAccount) {
+    return (
+      <SafeAreaView style={styles.screen}>
+        <StatusBar style="dark" />
+        <ScrollView contentContainerStyle={styles.content}>
+          <View style={styles.loginHero}>
+            <Image source={require("./assets/hull-eats-logo.jpeg")} style={styles.loginLogo} />
+            <Text style={styles.eyebrow}>Courier sign in</Text>
+            <Text style={styles.title}>Verified couriers only.</Text>
+            <Text style={styles.copy}>Use the courier username or email created in the Hull Eats admin panel.</Text>
+          </View>
+
+          <View style={styles.panel}>
+            <Text style={styles.panelTitle}>Sign in</Text>
+            <TextInput
+              style={styles.input}
+              value={loginUsername}
+              onChangeText={setLoginUsername}
+              autoCapitalize="none"
+              placeholder="Username or email"
+              placeholderTextColor="#87909d"
+            />
+            <TextInput
+              style={styles.input}
+              value={loginPassword}
+              onChangeText={setLoginPassword}
+              secureTextEntry
+              placeholder="Password"
+              placeholderTextColor="#87909d"
+            />
+            <Pressable style={styles.primaryButton} onPress={loginCourier} disabled={isWorking}>
+              <Text style={styles.primaryButtonText}>Sign in</Text>
+            </Pressable>
+            {isWorking ? <ActivityIndicator color={brandBlue} /> : null}
+            {loginError ? <Text style={styles.error}>{loginError}</Text> : null}
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -259,9 +370,32 @@ export default function App() {
           <Image source={require("./assets/hull-eats-logo.jpeg")} style={styles.logo} />
           <View style={styles.headerCopy}>
             <Text style={styles.eyebrow}>Hull Eats courier</Text>
-            <Text style={styles.title}>Scan. Navigate. Deliver.</Text>
+            <Text style={styles.title}>Hi, {courierAccount.fullName.split(" ")[0]}.</Text>
           </View>
-          <Text style={styles.statusPill}>{activeStatus}</Text>
+          <Pressable onPress={signOutCourier}>
+            <Text style={styles.statusPill}>Sign out</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.statsGrid}>
+          <View style={styles.statCard}>
+            <Text style={styles.statLabel}>Rating</Text>
+            <Text style={styles.statValue}>{courierAccount.rating.toFixed(1)}</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statLabel}>This week</Text>
+            <Text style={styles.statValue}>£{courierAccount.weeklyEarnings.toFixed(2)}</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statLabel}>Rewards</Text>
+            <Text style={styles.statValue}>{courierAccount.rewardPoints}</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statLabel}>Payout</Text>
+            <Text style={styles.statSmall}>
+              {courierAccount.nextPayoutDate ? new Date(courierAccount.nextPayoutDate).toLocaleDateString("en-GB") : "Weekly"}
+            </Text>
+          </View>
         </View>
 
         <View style={styles.panel}>
@@ -295,6 +429,9 @@ export default function App() {
               />
               <Pressable style={styles.secondaryButton} onPress={() => startDelivery()} disabled={isWorking}>
                 <Text style={styles.secondaryButtonText}>Use order number backup</Text>
+              </Pressable>
+              <Pressable style={styles.ghostButton} onPress={loadJobs} disabled={isWorking}>
+                <Text style={styles.ghostButtonText}>Refresh jobs</Text>
               </Pressable>
             </View>
           )}
@@ -334,6 +471,9 @@ export default function App() {
             <View style={styles.actionRow}>
               <Pressable style={styles.primaryButton} onPress={() => Linking.openURL(delivery.navigationUrl)}>
                 <Text style={styles.primaryButtonText}>Open navigation</Text>
+              </Pressable>
+              <Pressable style={styles.ghostButton} onPress={() => setDelivery(null)}>
+                <Text style={styles.ghostButtonText}>Cancel current scan</Text>
               </Pressable>
               <Pressable style={styles.secondaryButton} onPress={() => sendDemoLocation(delivery)}>
                 <Text style={styles.secondaryButtonText}>Send location ping</Text>
@@ -396,6 +536,20 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingTop: 18,
   },
+  loginHero: {
+    gap: 12,
+    paddingTop: 26,
+  },
+  loginLogo: {
+    width: 104,
+    height: 104,
+    borderRadius: 28,
+    marginBottom: 8,
+    shadowColor: "#04111a",
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.16,
+    shadowRadius: 22,
+  },
   logo: {
     width: 72,
     height: 72,
@@ -435,6 +589,38 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     textTransform: "capitalize",
+  },
+  statsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  statCard: {
+    flexGrow: 1,
+    flexBasis: "46%",
+    backgroundColor: "#ffffff",
+    borderColor: "rgba(35, 205, 255, 0.16)",
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 14,
+  },
+  statLabel: {
+    color: "#687382",
+    fontSize: 12,
+    fontWeight: "900",
+    textTransform: "uppercase",
+  },
+  statValue: {
+    color: "#071118",
+    fontSize: 25,
+    fontWeight: "900",
+    marginTop: 6,
+  },
+  statSmall: {
+    color: "#071118",
+    fontSize: 18,
+    fontWeight: "900",
+    marginTop: 8,
   },
   panel: {
     backgroundColor: "#ffffff",
@@ -493,6 +679,20 @@ const styles = StyleSheet.create({
   },
   secondaryButtonText: {
     color: "#ffffff",
+    fontSize: 15,
+    fontWeight: "900",
+  },
+  ghostButton: {
+    alignItems: "center",
+    backgroundColor: "rgba(35, 205, 255, 0.12)",
+    borderColor: "rgba(35, 205, 255, 0.42)",
+    borderRadius: 15,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 15,
+  },
+  ghostButtonText: {
+    color: "#087fa1",
     fontSize: 15,
     fontWeight: "900",
   },

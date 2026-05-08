@@ -12,6 +12,7 @@ import { RealtimeController } from "./modules/realtime/realtime.controller";
 import { OrderUpdatesGateway } from "./modules/realtime/order-updates.gateway";
 import { HubRegistryService } from "./common/hub-registry.service";
 import { InternalAuthService } from "./common/internal-auth.service";
+import { CourierRegistryService } from "./common/courier-registry.service";
 
 @Module({
   controllers: [
@@ -25,6 +26,6 @@ import { InternalAuthService } from "./common/internal-auth.service";
     PaymentsController,
     RealtimeController,
   ],
-  providers: [OrderUpdatesGateway, HubRegistryService, InternalAuthService],
+  providers: [OrderUpdatesGateway, HubRegistryService, InternalAuthService, CourierRegistryService],
 })
 export class AppModule {}

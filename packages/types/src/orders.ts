@@ -137,6 +137,8 @@ export const courierDeliverySchema = z.object({
   customerPhone: z.string().min(1),
   confirmationCode: z.string().min(4).max(8),
   navigationUrl: z.string().url(),
+  courierName: z.string().min(1).optional(),
+  courierRating: z.number().optional(),
   startedAt: z.string().datetime().optional(),
   pickedUpAt: z.string().datetime().optional(),
   deliveredAt: z.string().datetime().optional(),

@@ -210,6 +210,58 @@ async function createAdminHubUser(
   };
 }
 
+type AdminCourierSummary = CourierRecord & {
+  email: string;
+  username: string;
+  vehicleType: string;
+  weeklyEarnings: number;
+  rewardPoints: number;
+  nextPayoutDate: string | null;
+};
+
+async function fetchAdminCouriers(token: string): Promise<AdminCourierSummary[]> {
+  const response = await fetch(`${apiBaseUrl}/v1/admin/couriers`, {
+    cache: "no-store",
+    headers: {
+      authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Admin courier fetch failed with status ${response.status}`);
+  }
+
+  return (await response.json()) as AdminCourierSummary[];
+}
+
+async function createAdminCourier(
+  token: string,
+  input: {
+    fullName: string;
+    email: string;
+    phone: string;
+    username: string;
+    password: string;
+    vehicleType: string;
+    status: CourierStatus;
+  },
+): Promise<AdminCourierSummary> {
+  const response = await fetch(`${apiBaseUrl}/v1/admin/couriers`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Admin courier create failed with status ${response.status}`);
+  }
+
+  return (await response.json()) as AdminCourierSummary;
+}
+
 function mapHubRoleToPlatformRole(role: AdminHubUserSummary["role"]) {
   if (role === "owner") {
     return "business_owner" as const;
@@ -424,9 +476,13 @@ export function AdminConsole() {
   const [selectedHub, setSelectedHub] = useState("Hull Eats HQ");
 
   const [courierName, setCourierName] = useState("");
+  const [courierEmail, setCourierEmail] = useState("");
   const [courierPhone, setCourierPhone] = useState("");
+  const [courierUsername, setCourierUsername] = useState("");
+  const [courierPassword, setCourierPassword] = useState("");
   const [courierZone, setCourierZone] = useState("Hull Central");
   const [courierStatus, setCourierStatus] = useState<CourierStatus>("active");
+  const [courierNotice, setCourierNotice] = useState("");
 
   const [messageAudience, setMessageAudience] = useState("All hubs");
   const [messageChannel, setMessageChannel] = useState("Operational notice");
@@ -502,12 +558,13 @@ export function AdminConsole() {
 
     void (async () => {
       try {
-        const [apiHubs, apiUsers] = await Promise.all([fetchAdminHubs(authToken), fetchAdminUsers(authToken)]);
+        const [apiHubs, apiUsers, apiCouriers] = await Promise.all([fetchAdminHubs(authToken), fetchAdminUsers(authToken), fetchAdminCouriers(authToken)]);
         setHubs(apiHubs.map(mapApiHubToRecord));
         setUsers([
           ...initialUsers.filter((user) => user.loginType === "platform"),
           ...apiUsers.map(mapApiUserToRecord),
         ]);
+        setCouriers(apiCouriers);
       } catch (error) {
         console.error(error);
       }
@@ -675,38 +732,48 @@ export function AdminConsole() {
   };
 
   const handleCreateCourier = () => {
-    if (!courierName.trim() || !courierPhone.trim()) {
+    if (!authToken || !courierName.trim() || !courierEmail.trim() || !courierPhone.trim() || !courierUsername.trim() || !courierPassword.trim()) {
+      setCourierNotice("Fill in name, email, phone, username, and password before creating a courier.");
       return;
     }
 
-    setCouriers((current) => [
-      {
-        id: `courier_${current.length + 1}`,
-        fullName: courierName.trim(),
-        phone: courierPhone.trim(),
-        rating: 5,
-        completedDeliveries: 0,
-        status: courierStatus,
-        zone: courierZone.trim() || "Hull Central",
-      },
-      ...current,
-    ]);
+    void (async () => {
+      try {
+        const created = await createAdminCourier(authToken, {
+          fullName: courierName.trim(),
+          email: courierEmail.trim().toLowerCase(),
+          phone: courierPhone.trim(),
+          username: courierUsername.trim().toLowerCase(),
+          password: courierPassword,
+          vehicleType: courierZone.trim() || "car",
+          status: courierStatus,
+        });
 
-    setNotifications((current) => [
-      {
-        id: `notice_${current.length + 1}`,
-        audience: courierName.trim(),
-        channel: "Courier dispatch update",
-        body: `${courierName.trim()} was added to the roster in ${courierZone.trim() || "Hull Central"}.`,
-        sentAt: "Just now",
-      },
-      ...current,
-    ]);
+        setCouriers((current) => [created, ...current]);
 
-    setCourierName("");
-    setCourierPhone("");
-    setCourierZone("Hull Central");
-    setCourierStatus("active");
+        setNotifications((current) => [
+          {
+            id: `notice_${current.length + 1}`,
+            audience: courierName.trim(),
+            channel: "Courier dispatch update",
+            body: `${courierName.trim()} was added to the courier roster.`,
+            sentAt: "Just now",
+          },
+          ...current,
+        ]);
+
+        setCourierName("");
+        setCourierEmail("");
+        setCourierPhone("");
+        setCourierUsername("");
+        setCourierPassword("");
+        setCourierZone("Hull Central");
+        setCourierStatus("active");
+        setCourierNotice(`Courier login created for ${created.fullName}.`);
+      } catch (error) {
+        setCourierNotice(error instanceof Error ? error.message : "Courier creation failed.");
+      }
+    })();
   };
 
   const handleSendMessage = () => {
@@ -1561,11 +1628,23 @@ export function AdminConsole() {
                   <input style={styles.input} value={courierName} onChange={(event) => setCourierName(event.target.value)} />
                 </label>
                 <label style={{ display: "grid", gap: 8 }}>
+                  <span style={{ fontWeight: 800, color: "#dce9ff" }}>Login email</span>
+                  <input style={styles.input} value={courierEmail} onChange={(event) => setCourierEmail(event.target.value)} />
+                </label>
+                <label style={{ display: "grid", gap: 8 }}>
                   <span style={{ fontWeight: 800, color: "#dce9ff" }}>Phone</span>
                   <input style={styles.input} value={courierPhone} onChange={(event) => setCourierPhone(event.target.value)} />
                 </label>
                 <label style={{ display: "grid", gap: 8 }}>
-                  <span style={{ fontWeight: 800, color: "#dce9ff" }}>Zone</span>
+                  <span style={{ fontWeight: 800, color: "#dce9ff" }}>Username</span>
+                  <input style={styles.input} value={courierUsername} onChange={(event) => setCourierUsername(event.target.value)} />
+                </label>
+                <label style={{ display: "grid", gap: 8 }}>
+                  <span style={{ fontWeight: 800, color: "#dce9ff" }}>Temporary password</span>
+                  <input style={styles.input} type="password" value={courierPassword} onChange={(event) => setCourierPassword(event.target.value)} />
+                </label>
+                <label style={{ display: "grid", gap: 8 }}>
+                  <span style={{ fontWeight: 800, color: "#dce9ff" }}>Vehicle / zone note</span>
                   <input style={styles.input} value={courierZone} onChange={(event) => setCourierZone(event.target.value)} />
                 </label>
                 <label style={{ display: "grid", gap: 8 }}>
@@ -1585,6 +1664,7 @@ export function AdminConsole() {
               <button type="button" style={{ ...styles.buttonPrimary, marginTop: 18 }} onClick={handleCreateCourier}>
                 Add courier
               </button>
+              {courierNotice ? <p style={{ margin: "12px 0 0", color: "#9fb2c9", fontWeight: 800 }}>{courierNotice}</p> : null}
             </section>
             <section style={styles.sectionCard}>
               <SectionHeading
@@ -1647,6 +1727,9 @@ export function AdminConsole() {
                     <div style={{ display: "grid", gap: 6, marginTop: 14, color: "#dce9ff", fontSize: 14 }}>
                       <div>Rating: {courier.rating.toFixed(1)}</div>
                       <div>Completed deliveries: {courier.completedDeliveries}</div>
+                      {"weeklyEarnings" in courier ? <div>Weekly earnings: £{Number((courier as AdminCourierSummary).weeklyEarnings).toFixed(2)}</div> : null}
+                      {"rewardPoints" in courier ? <div>Rewards: {(courier as AdminCourierSummary).rewardPoints}</div> : null}
+                      {"nextPayoutDate" in courier ? <div>Next payout: {(courier as AdminCourierSummary).nextPayoutDate ? new Date((courier as AdminCourierSummary).nextPayoutDate!).toLocaleDateString("en-GB") : "Weekly"}</div> : null}
                       <div>Zone: {courier.zone}</div>
                       <div>Active order: {courier.activeOrderId ?? "None"}</div>
                     </div>

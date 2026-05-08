@@ -6,6 +6,7 @@ import { createHubInputSchema, createHubUserInputSchema, manualDriverAssignmentS
 import { demoOrders } from "../../common/demo-data";
 import { HubRegistryService } from "../../common/hub-registry.service";
 import { InternalAuthService } from "../../common/internal-auth.service";
+import { CourierRegistryService } from "../../common/courier-registry.service";
 
 @Controller("admin")
 export class AdminController {
@@ -15,6 +16,8 @@ export class AdminController {
     private readonly hubRegistry: HubRegistryService,
     @Inject(InternalAuthService)
     private readonly internalAuth: InternalAuthService,
+    @Inject(CourierRegistryService)
+    private readonly courierRegistry: CourierRegistryService,
   ) {}
 
   @Post("auth/login")
@@ -122,10 +125,22 @@ export class AdminController {
     return { status: "created", entity: "delivery-zone", storeId, payload: body };
   }
 
-  @Post("drivers")
-  createDriver(@Headers("authorization") authorization: string | undefined, @Body() body: Record<string, unknown>) {
+  @Get("couriers")
+  listCouriers(@Headers("authorization") authorization?: string) {
     this.internalAuth.requireAdminToken(authorization);
-    return { status: "created", entity: "driver", payload: body };
+    return this.courierRegistry.listCouriers();
+  }
+
+  @Post("couriers")
+  createCourier(@Headers("authorization") authorization: string | undefined, @Body() body: any) {
+    this.internalAuth.requireAdminToken(authorization);
+    return this.courierRegistry.createCourier(body);
+  }
+
+  @Post("drivers")
+  createDriver(@Headers("authorization") authorization: string | undefined, @Body() body: any) {
+    this.internalAuth.requireAdminToken(authorization);
+    return this.courierRegistry.createCourier(body);
   }
 
   @Get("orders")

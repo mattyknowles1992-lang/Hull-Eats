@@ -129,6 +129,8 @@ const buildPersistedDelivery = (order: any): CourierDelivery => {
     customerPhone: order.customerPhone,
     confirmationCode: trackingState.confirmationCode ?? buildConfirmationCode(order.orderNumber),
     navigationUrl: buildNavigationUrl(dropoffAddress),
+    courierName: delivery?.courierProfile?.user?.fullName,
+    courierRating: delivery?.courierProfile?.account ? Number(delivery.courierProfile.account.rating) : undefined,
     startedAt: delivery?.acceptedAt?.toISOString(),
     pickedUpAt: delivery?.pickedUpAt?.toISOString() ?? order.pickedUpAt?.toISOString(),
     deliveredAt: delivery?.deliveredAt?.toISOString() ?? order.deliveredAt?.toISOString(),
@@ -143,11 +145,20 @@ const findPersistedOrder = async (orderReference: string) =>
     },
     include: {
       store: true,
-      delivery: true,
+      delivery: {
+        include: {
+          courierProfile: {
+            include: {
+              user: true,
+              account: true,
+            },
+          },
+        },
+      },
     },
   });
 
-const ensurePersistedDelivery = async (order: any, status: DeliveryStatus) => {
+const ensurePersistedDelivery = async (order: any, status: DeliveryStatus, courierProfileId?: string) => {
   const existingState = parseTrackingState(order.delivery?.externalReference);
   const state: PersistedTrackingState = {
     ...existingState,
@@ -156,6 +167,7 @@ const ensurePersistedDelivery = async (order: any, status: DeliveryStatus) => {
 
   const data = {
     status: toDbEnum(status),
+    courierProfileId: courierProfileId ?? order.delivery?.courierProfileId,
     externalProvider: "hull_eats",
     externalReference: encodeTrackingState(state),
     pickedUpAt: status === "picked_up" ? new Date() : order.delivery?.pickedUpAt,
@@ -253,7 +265,16 @@ export const listCourierJobs = async () => {
     },
     include: {
       store: true,
-      delivery: true,
+      delivery: {
+        include: {
+          courierProfile: {
+            include: {
+              user: true,
+              account: true,
+            },
+          },
+        },
+      },
     },
     orderBy: { placedAt: "desc" },
     take: 50,
@@ -262,7 +283,7 @@ export const listCourierJobs = async () => {
   return persistedOrders.map(buildPersistedDelivery);
 };
 
-export const startDeliveryFromScan = async (input: { scanCode?: string; orderNumber?: string }) => {
+export const startDeliveryFromScan = async (input: { scanCode?: string; orderNumber?: string; driverId?: string }) => {
   const orderReference = extractOrderReference(input.scanCode ?? input.orderNumber ?? "");
   const order = await findPersistedOrder(orderReference);
 
@@ -292,11 +313,20 @@ export const startDeliveryFromScan = async (input: { scanCode?: string; orderNum
     },
     include: {
       store: true,
-      delivery: true,
+      delivery: {
+        include: {
+          courierProfile: {
+            include: {
+              user: true,
+              account: true,
+            },
+          },
+        },
+      },
     },
   });
 
-  const withDelivery = await ensurePersistedDelivery(nextOrder, "picked_up");
+  const withDelivery = await ensurePersistedDelivery(nextOrder, "picked_up", input.driverId);
   return buildPersistedDelivery(withDelivery);
 };
 
@@ -307,7 +337,16 @@ export const updateCourierLocation = async (deliveryId: string, input: CourierLo
       order: {
         include: {
           store: true,
-          delivery: true,
+          delivery: {
+            include: {
+              courierProfile: {
+                include: {
+                  user: true,
+                  account: true,
+                },
+              },
+            },
+          },
         },
       },
     },
@@ -362,7 +401,16 @@ export const completeDeliveryWithCode = async (deliveryId: string, confirmationC
       order: {
         include: {
           store: true,
-          delivery: true,
+          delivery: {
+            include: {
+              courierProfile: {
+                include: {
+                  user: true,
+                  account: true,
+                },
+              },
+            },
+          },
         },
       },
     },
@@ -422,7 +470,16 @@ export const completeDeliveryWithCode = async (deliveryId: string, confirmationC
     },
     include: {
       store: true,
-      delivery: true,
+      delivery: {
+        include: {
+          courierProfile: {
+            include: {
+              user: true,
+              account: true,
+            },
+          },
+        },
+      },
     },
   });
 
