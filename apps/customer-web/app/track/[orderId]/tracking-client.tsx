@@ -22,6 +22,18 @@ const statusCopy: Record<string, string> = {
 
 const formatStatus = (status: string) => status.replaceAll("_", " ");
 
+const hullFallbackLocation = {
+  latitude: 53.7676,
+  longitude: -0.3274,
+};
+
+const buildMapSrc = (latitude: number, longitude: number) => {
+  const delta = 0.012;
+  const bbox = [longitude - delta, latitude - delta, longitude + delta, latitude + delta].join(",");
+
+  return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${latitude},${longitude}`;
+};
+
 export function TrackingClient({ orderId }: TrackingClientProps) {
   const [order, setOrder] = useState<TrackedOrder | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -53,32 +65,16 @@ export function TrackingClient({ orderId }: TrackingClientProps) {
     };
   }, [orderId]);
 
-  const progress = useMemo(() => {
-    if (!order) {
-      return 0.12;
-    }
-
-    if (order.status === "delivered") {
-      return 1;
-    }
-
-    if (order.delivery?.courierLocation) {
-      return 0.72;
-    }
-
-    if (order.status === "picked_up") {
-      return 0.58;
-    }
-
-    if (order.status === "preparing") {
-      return 0.35;
-    }
-
-    return 0.2;
-  }, [order]);
-
   const delivery = order?.delivery;
   const location = delivery?.courierLocation;
+  const mapLatitude = location?.latitude ?? hullFallbackLocation.latitude;
+  const mapLongitude = location?.longitude ?? hullFallbackLocation.longitude;
+  const mapSrc = useMemo(() => buildMapSrc(mapLatitude, mapLongitude), [mapLatitude, mapLongitude]);
+  const mapUpdatedAt = location ? new Date(location.updatedAt).toLocaleTimeString("en-GB") : "Waiting for driver scan";
+  const mapAccuracy = location?.accuracyMeters ? `Accuracy ${Math.round(location.accuracyMeters)}m` : null;
+  const googleMapLink = location
+    ? `https://www.google.com/maps/search/?api=1&query=${location.latitude},${location.longitude}`
+    : null;
 
   return (
     <main className="tracking-shell">
@@ -97,18 +93,32 @@ export function TrackingClient({ orderId }: TrackingClientProps) {
 
       <section className="tracking-grid">
         <article className="tracking-map">
-          <div className="route-line">
-            <span className="route-dot route-dot-start" />
-            <span className="route-dot route-dot-driver" style={{ left: `${Math.round(progress * 100)}%` }} />
-            <span className="route-dot route-dot-end" />
+          <iframe
+            className="tracking-map-frame"
+            title="Live Hull Eats courier location"
+            src={mapSrc}
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+          />
+          <div className="tracking-map-status">
+            <span className={location ? "live-dot is-live" : "live-dot"} />
+            <span>{location ? "Live driver location" : "Waiting for courier scan"}</span>
           </div>
           <div className="tracking-map-copy">
-            <strong>{formatStatus(order?.status ?? "loading")}</strong>
+            <strong>{location ? "Driver on the map" : formatStatus(order?.status ?? "loading")}</strong>
             <span>
               {location
-                ? `Courier location ${location.latitude.toFixed(5)}, ${location.longitude.toFixed(5)}`
-                : "The courier location will appear here once the driver scans the receipt."}
+                ? `${location.latitude.toFixed(5)}, ${location.longitude.toFixed(5)}${mapAccuracy ? ` - ${mapAccuracy}` : ""}`
+                : "When the courier scans the receipt, this map follows their latest phone location."}
             </span>
+            <div className="tracking-map-actions">
+              <small>Updated {mapUpdatedAt}</small>
+              {googleMapLink ? (
+                <a href={googleMapLink} target="_blank" rel="noreferrer">
+                  Open map
+                </a>
+              ) : null}
+            </div>
           </div>
         </article>
 
@@ -129,7 +139,7 @@ export function TrackingClient({ orderId }: TrackingClientProps) {
             </div>
             <div className="glance-row">
               <span className="muted-copy">Updated</span>
-              <strong>{location ? new Date(location.updatedAt).toLocaleTimeString("en-GB") : "Not live yet"}</strong>
+              <strong>{mapUpdatedAt}</strong>
             </div>
             <div className="glance-row">
               <span className="muted-copy">Courier</span>
@@ -184,70 +194,74 @@ export function TrackingClient({ orderId }: TrackingClientProps) {
         }
 
         .tracking-map {
-          min-height: 470px;
-          padding: 34px;
-          display: grid;
-          align-content: center;
-          gap: 42px;
+          min-height: 520px;
           overflow: hidden;
           position: relative;
         }
 
-        .tracking-map::before {
+        .tracking-map::after {
           content: "";
           position: absolute;
-          inset: 18px;
-          border-radius: 22px;
+          inset: 0;
+          pointer-events: none;
           background:
-            linear-gradient(90deg, rgba(35, 205, 255, 0.08) 1px, transparent 1px),
-            linear-gradient(0deg, rgba(35, 205, 255, 0.08) 1px, transparent 1px);
-          background-size: 44px 44px;
+            linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0)),
+            radial-gradient(circle at 70% 20%, rgba(35, 205, 255, 0.14), transparent 34%);
         }
 
-        .route-line {
-          position: relative;
-          z-index: 1;
-          height: 12px;
-          border-radius: 999px;
-          background: linear-gradient(90deg, #071118, #23cdff);
-        }
-
-        .route-dot {
+        .tracking-map-frame {
           position: absolute;
-          top: 50%;
-          width: 32px;
-          height: 32px;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          border: 0;
+          filter: saturate(1.08) contrast(1.03);
+        }
+
+        .tracking-map-status {
+          position: absolute;
+          z-index: 1;
+          top: 22px;
+          left: 22px;
+          display: inline-flex;
+          align-items: center;
+          gap: 10px;
+          padding: 10px 14px;
+          border: 1px solid rgba(255, 255, 255, 0.35);
           border-radius: 999px;
-          transform: translate(-50%, -50%);
-          border: 5px solid #ffffff;
-          box-shadow: 0 12px 28px rgba(0, 0, 0, 0.2);
+          background: rgba(7, 17, 24, 0.82);
+          color: #ffffff;
+          font-size: 13px;
+          font-weight: 800;
+          backdrop-filter: blur(14px);
         }
 
-        .route-dot-start {
-          left: 0;
-          background: #071118;
+        .live-dot {
+          width: 10px;
+          height: 10px;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.55);
         }
 
-        .route-dot-driver {
+        .live-dot.is-live {
           background: #23cdff;
-          transition: left 600ms ease;
-        }
-
-        .route-dot-end {
-          left: 100%;
-          background: #087fa1;
+          box-shadow: 0 0 0 6px rgba(35, 205, 255, 0.22);
         }
 
         .tracking-map-copy {
-          position: relative;
+          position: absolute;
+          left: 24px;
+          right: 24px;
+          bottom: 24px;
           z-index: 1;
           display: grid;
           gap: 10px;
-          width: min(520px, 100%);
+          width: auto;
           padding: 22px;
           border-radius: 22px;
           background: rgba(7, 17, 24, 0.92);
           color: #ffffff;
+          backdrop-filter: blur(16px);
         }
 
         .tracking-map-copy strong {
@@ -257,6 +271,29 @@ export function TrackingClient({ orderId }: TrackingClientProps) {
 
         .tracking-map-copy span {
           color: rgba(255, 255, 255, 0.72);
+        }
+
+        .tracking-map-actions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+          align-items: center;
+          justify-content: space-between;
+        }
+
+        .tracking-map-actions small {
+          color: rgba(255, 255, 255, 0.62);
+          font-weight: 700;
+        }
+
+        .tracking-map-actions a {
+          color: #071118;
+          background: #23cdff;
+          border-radius: 999px;
+          padding: 8px 12px;
+          text-decoration: none;
+          font-size: 13px;
+          font-weight: 900;
         }
 
         .tracking-panel {
@@ -285,8 +322,19 @@ export function TrackingClient({ orderId }: TrackingClientProps) {
           }
 
           .tracking-map {
-            min-height: 360px;
-            padding: 24px;
+            min-height: 440px;
+          }
+
+          .tracking-map-copy {
+            left: 16px;
+            right: 16px;
+            bottom: 16px;
+            padding: 18px;
+          }
+
+          .tracking-map-status {
+            top: 16px;
+            left: 16px;
           }
         }
       `}</style>
