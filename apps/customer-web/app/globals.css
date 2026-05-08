@@ -1229,10 +1229,21 @@ textarea {
   color: var(--ink-strong);
 }
 
+.services-logo-lockup {
+  display: flex;
+  align-items: center;
+}
+
+.services-page-logo {
+  display: block;
+  width: min(250px, 48vw);
+  height: auto;
+  filter: drop-shadow(0 12px 24px rgba(7, 16, 25, 0.14));
+}
+
 .services-hero {
   display: grid;
-  grid-template-columns: minmax(0, 0.78fr) minmax(360px, 1.22fr);
-  gap: clamp(18px, 4vw, 42px);
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
   overflow: hidden;
   padding: clamp(18px, 4vw, 36px);
@@ -1265,12 +1276,6 @@ textarea {
   color: rgba(7, 16, 25, 0.72);
   font-size: 1.04rem;
   line-height: 1.7;
-}
-
-.services-hero-image {
-  width: 100%;
-  border-radius: 28px;
-  box-shadow: 0 24px 62px rgba(7, 16, 25, 0.14);
 }
 
 .service-back-button,
@@ -3575,7 +3580,7 @@ button.filter-pill {
   }
 
   .services-topbar {
-    align-items: stretch;
+    align-items: flex-start;
   }
 
   .services-topbar .topbar-actions,
@@ -3597,8 +3602,8 @@ button.filter-pill {
     font-size: 1rem;
   }
 
-  .services-hero-image {
-    border-radius: 22px;
+  .services-page-logo {
+    width: min(220px, 72vw);
   }
 
   .service-category-grid {

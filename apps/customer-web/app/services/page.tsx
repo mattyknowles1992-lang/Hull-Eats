@@ -6,8 +6,8 @@ export default function ServicesPage() {
   return (
     <main className="shell customer-marketplace services-marketplace">
       <header className="topbar services-topbar">
-        <div className="brand-pill brand-pill-logo-only">
-          <img src="/brand/hull-eats-logo.jpeg" alt="Hull Eats" className="brand-logo" />
+        <div className="services-logo-lockup">
+          <img src="/brand/hull-services-logo.png" alt="Hull Services" className="services-page-logo" />
         </div>
 
         <div className="topbar-actions">
@@ -34,8 +34,6 @@ export default function ServicesPage() {
             </button>
           </div>
         </div>
-
-        <img src="/brand/hull-services.png" alt="Explore Hull Services" className="services-hero-image" />
       </section>
 
       <section className="marketplace-panel service-category-panel marketplace-scene">
