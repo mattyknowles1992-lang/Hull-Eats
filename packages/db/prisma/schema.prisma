@@ -550,6 +550,7 @@ model CourierProfile {
   id            String         @id @default(cuid())
   userId        String         @unique @map("user_id")
   vehicleType   String         @map("vehicle_type")
+  vehicleRegistration String?  @map("vehicle_registration")
   isActive      Boolean        @default(true) @map("is_active")
   currentStatus DriverStatus   @default(OFFLINE) @map("current_status")
   createdAt     DateTime       @default(now()) @map("created_at")

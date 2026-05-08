@@ -216,6 +216,7 @@ type AdminCourierSummary = CourierRecord & {
   email: string;
   username: string;
   vehicleType: string;
+  vehicleRegistration: string;
   weeklyEarnings: number;
   rewardPoints: number;
   nextPayoutDate: string | null;
@@ -245,6 +246,7 @@ async function createAdminCourier(
     username: string;
     password: string;
     vehicleType: string;
+    vehicleRegistration?: string;
     status: CourierStatus;
   },
 ): Promise<AdminCourierSummary> {
@@ -274,6 +276,7 @@ async function updateAdminCourier(
     username: string;
     password: string;
     vehicleType: string;
+    vehicleRegistration: string | null;
     status: CourierStatus | "disabled";
   }>,
 ): Promise<AdminCourierSummary> {
@@ -532,6 +535,7 @@ export function AdminConsole() {
   const [courierUsername, setCourierUsername] = useState("");
   const [courierPassword, setCourierPassword] = useState("");
   const [courierZone, setCourierZone] = useState("Hull Central");
+  const [courierVehicleRegistration, setCourierVehicleRegistration] = useState("");
   const [courierStatus, setCourierStatus] = useState<CourierStatus>("active");
   const [courierNotice, setCourierNotice] = useState("");
 
@@ -797,6 +801,7 @@ export function AdminConsole() {
           username: courierUsername.trim().toLowerCase(),
           password: courierPassword,
           vehicleType: courierZone.trim() || "car",
+          vehicleRegistration: courierVehicleRegistration.trim(),
           status: courierStatus,
         });
 
@@ -819,6 +824,7 @@ export function AdminConsole() {
         setCourierUsername("");
         setCourierPassword("");
         setCourierZone("Hull Central");
+        setCourierVehicleRegistration("");
         setCourierStatus("active");
         setCourierNotice(`Courier login created for ${created.fullName}.`);
       } catch (error) {
@@ -864,6 +870,31 @@ export function AdminConsole() {
         setCourierNotice(`Temporary password updated for ${updated.fullName}.`);
       } catch (error) {
         setCourierNotice(error instanceof Error ? error.message : "Courier password update failed.");
+      }
+    })();
+  };
+
+  const handleUpdateCourierRegistration = (courier: AdminCourierSummary) => {
+    if (!authToken) {
+      return;
+    }
+
+    const vehicleRegistration = window.prompt(`Vehicle registration for ${courier.fullName}`, courier.vehicleRegistration);
+    if (vehicleRegistration === null) {
+      return;
+    }
+
+    void (async () => {
+      try {
+        const updated = await updateAdminCourier(authToken, courier.courierProfileId, {
+          vehicleRegistration: vehicleRegistration.trim().toUpperCase() || null,
+        });
+        setCouriers((current) =>
+          current.map((item) => ("courierProfileId" in item && item.courierProfileId === updated.courierProfileId ? updated : item)),
+        );
+        setCourierNotice(`Vehicle registration updated for ${updated.fullName}.`);
+      } catch (error) {
+        setCourierNotice(error instanceof Error ? error.message : "Courier vehicle update failed.");
       }
     })();
   };
@@ -1766,6 +1797,15 @@ export function AdminConsole() {
                   <input style={styles.input} value={courierZone} onChange={(event) => setCourierZone(event.target.value)} />
                 </label>
                 <label style={{ display: "grid", gap: 8 }}>
+                  <span style={{ fontWeight: 800, color: "#dce9ff" }}>Vehicle registration</span>
+                  <input
+                    style={styles.input}
+                    value={courierVehicleRegistration}
+                    onChange={(event) => setCourierVehicleRegistration(event.target.value.toUpperCase())}
+                    placeholder="AB12 CDE"
+                  />
+                </label>
+                <label style={{ display: "grid", gap: 8 }}>
                   <span style={{ fontWeight: 800, color: "#dce9ff" }}>Status</span>
                   <select
                     style={{ ...styles.input, appearance: "none" }}
@@ -1848,6 +1888,7 @@ export function AdminConsole() {
                       {"weeklyEarnings" in courier ? <div>Weekly earnings: £{Number((courier as AdminCourierSummary).weeklyEarnings).toFixed(2)}</div> : null}
                       {"rewardPoints" in courier ? <div>Rewards: {(courier as AdminCourierSummary).rewardPoints}</div> : null}
                       {"nextPayoutDate" in courier ? <div>Next payout: {(courier as AdminCourierSummary).nextPayoutDate ? new Date((courier as AdminCourierSummary).nextPayoutDate!).toLocaleDateString("en-GB") : "Weekly"}</div> : null}
+                      {"vehicleRegistration" in courier ? <div>Vehicle reg: {(courier as AdminCourierSummary).vehicleRegistration || "Not set"}</div> : null}
                       <div>Zone: {courier.zone}</div>
                       <div>Active order: {courier.activeOrderId ?? "None"}</div>
                     </div>
@@ -1861,6 +1902,9 @@ export function AdminConsole() {
                         </button>
                         <button type="button" style={{ ...styles.buttonGlass, minHeight: 38, padding: "0 12px" }} onClick={() => handleResetCourierPassword(courier)}>
                           Change password
+                        </button>
+                        <button type="button" style={{ ...styles.buttonGlass, minHeight: 38, padding: "0 12px" }} onClick={() => handleUpdateCourierRegistration(courier)}>
+                          Change reg
                         </button>
                         <button type="button" style={{ ...styles.buttonGlass, minHeight: 38, padding: "0 12px", color: "#ffb7b7" }} onClick={() => handleDeleteCourier(courier)}>
                           Remove account

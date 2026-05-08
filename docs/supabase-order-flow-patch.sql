@@ -66,6 +66,9 @@ create table if not exists public.courier_profiles (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
+alter table public.courier_profiles
+  add column if not exists vehicle_registration text;
+
 create table if not exists public.courier_accounts (
   id text primary key,
   user_id text not null unique references public.platform_users(id) on delete cascade,

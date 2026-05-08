@@ -66,6 +66,7 @@ type CourierAccount = {
   phone: string;
   username: string;
   vehicleType: string;
+  vehicleRegistration: string;
   status: string;
   driverStatus: string;
   rating: number;
@@ -419,6 +420,10 @@ export default function App() {
           <View style={styles.statCard}>
             <Text style={styles.statLabel}>Rewards</Text>
             <Text style={styles.statValue}>{courierAccount.rewardPoints}</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statLabel}>Vehicle reg</Text>
+            <Text style={styles.statSmall}>{courierAccount.vehicleRegistration || "Not set"}</Text>
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statLabel}>Payout</Text>

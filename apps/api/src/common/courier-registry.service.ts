@@ -24,6 +24,7 @@ export class CourierRegistryService {
     username: string;
     password: string;
     vehicleType: string;
+    vehicleRegistration?: string;
     status?: string;
     rating?: number;
     weeklyEarnings?: number;
@@ -50,6 +51,7 @@ export class CourierRegistryService {
         courierProfile: {
           create: {
             vehicleType: input.vehicleType.trim() || "car",
+            vehicleRegistration: input.vehicleRegistration?.trim() || null,
             isActive: accountStatus !== "disabled",
             currentStatus: accountStatus === "active" ? ("AVAILABLE" as any) : ("OFFLINE" as any),
           },
@@ -91,6 +93,7 @@ export class CourierRegistryService {
       username?: string;
       password?: string;
       vehicleType?: string;
+      vehicleRegistration?: string | null;
       status?: string;
       rating?: number;
       weeklyEarnings?: number;
@@ -155,6 +158,10 @@ export class CourierRegistryService {
         courierProfile: {
           update: {
             vehicleType: input.vehicleType?.trim() || account.courierProfile.vehicleType,
+            vehicleRegistration:
+              input.vehicleRegistration === null
+                ? null
+                : input.vehicleRegistration?.trim() || account.courierProfile.vehicleRegistration,
             isActive: accountStatus !== "disabled",
             currentStatus: driverStatus,
           },
@@ -278,6 +285,7 @@ export class CourierRegistryService {
       phone: account.user.phone ?? "",
       username: account.username,
       vehicleType: account.courierProfile.vehicleType,
+      vehicleRegistration: account.courierProfile.vehicleRegistration ?? "",
       zone: account.courierProfile.vehicleType,
       status: String(account.status).toLowerCase(),
       driverStatus: String(account.courierProfile.currentStatus).toLowerCase(),
