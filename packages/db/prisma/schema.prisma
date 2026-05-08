@@ -57,65 +57,81 @@ enum StorefrontStatus {
 }
 
 enum FulfillmentType {
-  DELIVERY
-  PICKUP
+  DELIVERY @map("delivery")
+  PICKUP   @map("pickup")
+
+  @@map("fulfillment_type")
 }
 
 enum OrderSource {
-  WEB
-  IOS_APP
-  ANDROID_APP
-  ADMIN_PORTAL
-  KIOSK
+  WEB          @map("web")
+  IOS_APP      @map("ios_app")
+  ANDROID_APP  @map("android_app")
+  ADMIN_PORTAL @map("admin_portal")
+  KIOSK        @map("kiosk")
+
+  @@map("order_source")
 }
 
 enum OrderStatus {
-  PENDING
-  ACCEPTED
-  REJECTED
-  PREPARING
-  READY_FOR_DISPATCH
-  ASSIGNED
-  COURIER_ACCEPTED
-  PICKED_UP
-  DELIVERED
-  CANCELLED
+  PENDING            @map("pending")
+  ACCEPTED           @map("accepted")
+  REJECTED           @map("rejected")
+  PREPARING          @map("preparing")
+  READY_FOR_DISPATCH @map("ready_for_dispatch")
+  ASSIGNED           @map("assigned")
+  COURIER_ACCEPTED   @map("courier_accepted")
+  PICKED_UP          @map("picked_up")
+  DELIVERED          @map("delivered")
+  CANCELLED          @map("cancelled")
+
+  @@map("order_status")
 }
 
 enum PaymentStatus {
-  PENDING
-  AUTHORIZED
-  PAID
-  FAILED
-  REFUNDED
+  PENDING    @map("pending")
+  AUTHORIZED @map("authorized")
+  PAID       @map("paid")
+  FAILED     @map("failed")
+  REFUNDED   @map("refunded")
+
+  @@map("payment_status")
 }
 
 enum DeliveryStatus {
-  UNASSIGNED
-  ASSIGNED
-  ACCEPTED
-  PICKED_UP
-  DELIVERED
-  FAILED
+  UNASSIGNED @map("unassigned")
+  ASSIGNED   @map("assigned")
+  ACCEPTED   @map("accepted")
+  PICKED_UP  @map("picked_up")
+  DELIVERED  @map("delivered")
+  FAILED     @map("failed")
+
+  @@map("delivery_status")
 }
 
 enum DriverStatus {
-  OFFLINE
-  AVAILABLE
-  ON_DELIVERY
+  OFFLINE     @map("offline")
+  AVAILABLE   @map("available")
+  ON_DELIVERY @map("on_delivery")
+
+  @@map("driver_status")
 }
 
 enum PrinterAdapterType {
-  MOCK
-  NETWORK_ESC_POS
-  CLOUD_BRIDGE
+  MOCK            @map("mock")
+  NETWORK_ESC_POS @map("network_esc_pos")
+  CLOUD_BRIDGE    @map("cloud_bridge")
+
+  @@map("printer_adapter_type")
 }
 
 enum PrintJobStatus {
-  QUEUED
-  PROCESSING
-  COMPLETED
-  FAILED
+  QUEUED     @map("queued")
+  PROCESSING @map("processing")
+  COMPLETED  @map("completed")
+  FAILED     @map("failed")
+
+  @@map("print_job_status")
 }
 
 enum StockStatus {
@@ -148,24 +164,30 @@ enum CustomerAddressType {
 }
 
 enum PaymentProvider {
-  STRIPE
+  STRIPE @map("stripe")
+
+  @@map("payment_provider")
 }
 
 enum PaymentRecordStatus {
-  REQUIRES_PAYMENT_METHOD
-  REQUIRES_CONFIRMATION
-  REQUIRES_ACTION
-  PROCESSING
-  SUCCEEDED
-  CANCELED
-  FAILED
-  REFUNDED
+  REQUIRES_PAYMENT_METHOD @map("requires_payment_method")
+  REQUIRES_CONFIRMATION   @map("requires_confirmation")
+  REQUIRES_ACTION         @map("requires_action")
+  PROCESSING              @map("processing")
+  SUCCEEDED               @map("succeeded")
+  CANCELED                @map("canceled")
+  FAILED                  @map("failed")
+  REFUNDED                @map("refunded")
+
+  @@map("payment_record_status")
 }
 
 enum PaymentMethodType {
-  CARD
-  APPLE_PAY
-  GOOGLE_PAY
+  CARD       @map("card")
+  APPLE_PAY  @map("apple_pay")
+  GOOGLE_PAY @map("google_pay")
+
+  @@map("payment_method_type")
 }
 
 enum InventoryAdjustmentReason {
@@ -447,35 +469,36 @@ model MenuItemAvailability {
 }
 
 model Order {
-  id              String            @id @default(cuid())
-  orderNumber     String            @unique
-  customerProfileId String?
-  customerAddressId String?
-  storeId         String
-  deliveryZoneId  String?
-  fulfillmentType FulfillmentType
+  id              String            @id @default(uuid()) @db.Uuid
+  orderNumber     String            @unique @map("order_number")
+  customerProfileId String?         @map("customer_profile_id")
+  customerAddressId String?         @map("customer_address_id")
+  storeId         String            @map("store_id") @db.Uuid
+  deliveryZoneId  String?           @map("delivery_zone_id")
+  fulfillmentType FulfillmentType   @default(DELIVERY) @map("fulfillment_type")
   source          OrderSource       @default(WEB)
   status          OrderStatus
-  paymentStatus   PaymentStatus     @default(PENDING)
-  customerName    String
-  customerPhone   String
-  customerEmail   String?
-  addressLine1    String?
+  paymentStatus   PaymentStatus     @default(PENDING) @map("payment_status")
+  customerName    String            @map("customer_name")
+  customerPhone   String            @map("customer_phone")
+  customerEmail   String?           @map("customer_email")
+  addressLine1    String?           @map("address_line_1")
+  addressLine2    String?           @map("address_line_2")
   city            String?
   postcode        String?
   notes           String?
-  subtotalAmount  Decimal           @db.Decimal(10, 2)
-  deliveryFee     Decimal           @db.Decimal(10, 2)
-  totalAmount     Decimal           @db.Decimal(10, 2)
+  subtotalAmount  Decimal           @map("subtotal_amount") @db.Decimal(10, 2)
+  deliveryFee     Decimal           @map("delivery_fee") @db.Decimal(10, 2)
+  totalAmount     Decimal           @map("total_amount") @db.Decimal(10, 2)
   currency        String            @db.VarChar(3)
-  prepTimeMinutes Int?
-  placedAt        DateTime          @default(now())
-  acceptedAt      DateTime?
-  rejectedAt      DateTime?
-  pickedUpAt      DateTime?
-  deliveredAt     DateTime?
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  prepTimeMinutes Int?              @map("prep_time_minutes")
+  placedAt        DateTime          @default(now()) @map("placed_at")
+  acceptedAt      DateTime?         @map("accepted_at")
+  rejectedAt      DateTime?         @map("rejected_at")
+  pickedUpAt      DateTime?         @map("picked_up_at")
+  deliveredAt     DateTime?         @map("delivered_at")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
   customerProfile CustomerProfile?  @relation(fields: [customerProfileId], references: [id], onDelete: SetNull)
   customerAddress CustomerAddress?  @relation(fields: [customerAddressId], references: [id], onDelete: SetNull)
   store           Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
@@ -486,30 +509,37 @@ model Order {
   payment         Payment?
   printJobs       PrintJob[]
   inventoryAdjustments InventoryAdjustment[]
+
+  @@map("orders")
 }
 
 model OrderItem {
-  id           String   @id @default(cuid())
-  orderId      String
-  menuItemId   String?
+  id           String   @id @default(uuid()) @db.Uuid
+  orderId      String   @map("order_id") @db.Uuid
+  menuItemId   String?  @map("menu_item_id") @db.Uuid
   quantity     Int
-  unitPrice    Decimal  @db.Decimal(10, 2)
-  totalPrice   Decimal  @db.Decimal(10, 2)
-  nameSnapshot String
+  unitPrice    Decimal  @map("unit_price") @db.Decimal(10, 2)
+  totalPrice   Decimal  @map("total_price") @db.Decimal(10, 2)
+  nameSnapshot String   @map("name_snapshot")
   notes        String?
+  createdAt    DateTime @default(now()) @map("created_at")
   order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   menuItem     MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
+
+  @@map("order_items")
 }
 
 model OrderStatusHistory {
-  id          String      @id @default(cuid())
-  orderId     String
-  actorUserId String?
+  id          String      @id @default(uuid()) @db.Uuid
+  orderId     String      @map("order_id") @db.Uuid
+  actorUserId String?     @map("actor_user_id")
   status      OrderStatus
   note        String?
-  createdAt   DateTime    @default(now())
+  createdAt   DateTime    @default(now()) @map("created_at")
   order       Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
   actorUser   User?       @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@map("order_status_history")
 }
 
 model CourierProfile {
@@ -555,63 +585,71 @@ model DriverShift {
 }
 
 model Delivery {
-  id                String                  @id @default(cuid())
-  orderId           String                  @unique
-  courierProfileId  String?
-  assignedByUserId  String?
+  id                String                  @id @default(uuid()) @db.Uuid
+  orderId           String                  @unique @map("order_id") @db.Uuid
+  courierProfileId  String?                 @map("courier_profile_id")
+  assignedByUserId  String?                 @map("assigned_by_user_id")
   status            DeliveryStatus          @default(UNASSIGNED)
-  assignedAt        DateTime?
-  acceptedAt        DateTime?
-  pickedUpAt        DateTime?
-  deliveredAt       DateTime?
-  externalProvider  String?
-  externalReference String?
-  createdAt         DateTime                @default(now())
-  updatedAt         DateTime                @updatedAt
+  assignedAt        DateTime?               @map("assigned_at")
+  acceptedAt        DateTime?               @map("accepted_at")
+  pickedUpAt        DateTime?               @map("picked_up_at")
+  deliveredAt       DateTime?               @map("delivered_at")
+  externalProvider  String?                 @map("external_provider")
+  externalReference String?                 @map("external_reference")
+  createdAt         DateTime                @default(now()) @map("created_at")
+  updatedAt         DateTime                @updatedAt @map("updated_at")
   order             Order                   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   courierProfile    CourierProfile?         @relation(fields: [courierProfileId], references: [id], onDelete: SetNull)
   assignedByUser    User?                   @relation("DeliveryAssignedBy", fields: [assignedByUserId], references: [id], onDelete: SetNull)
   statusHistory     DeliveryStatusHistory[]
+
+  @@map("deliveries")
 }
 
 model DeliveryStatusHistory {
-  id          String         @id @default(cuid())
-  deliveryId  String
-  actorUserId String?
+  id          String         @id @default(uuid()) @db.Uuid
+  deliveryId  String         @map("delivery_id") @db.Uuid
+  actorUserId String?        @map("actor_user_id")
   status      DeliveryStatus
   note        String?
-  createdAt   DateTime       @default(now())
+  createdAt   DateTime       @default(now()) @map("created_at")
   delivery    Delivery       @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
   actorUser   User?          @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@map("delivery_status_history")
 }
 
 model Printer {
-  id          String             @id @default(cuid())
-  storeId     String
+  id          String             @id @default(uuid()) @db.Uuid
+  storeId     String             @map("store_id") @db.Uuid
   name        String
-  adapterType PrinterAdapterType
+  adapterType PrinterAdapterType @map("adapter_type")
   config      Json
-  isDefault   Boolean            @default(false)
-  isActive    Boolean            @default(true)
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
+  isDefault   Boolean            @default(false) @map("is_default")
+  isActive    Boolean            @default(true) @map("is_active")
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
   store       Store              @relation(fields: [storeId], references: [id], onDelete: Cascade)
   printJobs   PrintJob[]
+
+  @@map("printers")
 }
 
 model PrintJob {
-  id          String         @id @default(cuid())
-  printerId   String
-  orderId     String?
+  id          String         @id @default(uuid()) @db.Uuid
+  printerId   String         @map("printer_id") @db.Uuid
+  orderId     String?        @map("order_id") @db.Uuid
   status      PrintJobStatus @default(QUEUED)
   payload     Json
   attempts    Int            @default(0)
-  lastError   String?
-  createdAt   DateTime       @default(now())
-  processedAt DateTime?
-  completedAt DateTime?
+  lastError   String?        @map("last_error")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  processedAt DateTime?      @map("processed_at")
+  completedAt DateTime?      @map("completed_at")
   printer     Printer        @relation(fields: [printerId], references: [id], onDelete: Cascade)
   order       Order?         @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@map("print_jobs")
 }
 
 model Payment {
