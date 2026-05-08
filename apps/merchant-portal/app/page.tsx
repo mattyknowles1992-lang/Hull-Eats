@@ -572,6 +572,36 @@ async function fetchMerchantOrders(token: string): Promise<OrderSummary[]> {
   return (await response.json()) as OrderSummary[];
 }
 
+type MerchantOrderPrintResponse = {
+  preview: string;
+  queued?: boolean;
+  printJobId?: string;
+  message?: string;
+};
+
+async function printMerchantOrderReceipt(token: string, orderId: string): Promise<MerchantOrderPrintResponse> {
+  const response = await fetch(`${apiBaseUrl}/v1/merchant/orders/${encodeURIComponent(orderId)}/print`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Receipt print failed with status ${response.status}`);
+  }
+
+  return (await response.json()) as MerchantOrderPrintResponse;
+}
+
+const escapeHtml = (value: string) =>
+  value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+
 type CustomisationBuilderProps = {
   item: MenuItem;
   onChangeComponents: (components: MenuItem["components"]) => void;
@@ -1010,6 +1040,48 @@ export default function MerchantPortalPage() {
       setOrderNotice(`Loaded ${orders.length} orders.`);
     } catch (error) {
       setOrderNotice(error instanceof Error ? error.message : "Order fetch failed.");
+    }
+  };
+
+  const handlePrintOrderReceipt = async (order: OrderSummary) => {
+    if (!merchantToken) {
+      return;
+    }
+
+    const receiptWindow = window.open("", "_blank", "width=420,height=720");
+    if (receiptWindow) {
+      receiptWindow.document.write("<p>Creating receipt...</p>");
+      receiptWindow.document.close();
+    }
+
+    try {
+      const receipt = await printMerchantOrderReceipt(merchantToken, order.id);
+      setOrderNotice(receipt.message ?? "Receipt created.");
+
+      if (receiptWindow) {
+        receiptWindow.document.open();
+        receiptWindow.document.write(`
+          <html>
+            <head>
+              <title>${escapeHtml(order.orderNumber)} receipt</title>
+              <style>
+                body { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; margin: 18px; color: #111; }
+                pre { white-space: pre-wrap; font-size: 13px; line-height: 1.4; }
+                button { min-height: 40px; padding: 0 14px; border: 1px solid #111; border-radius: 8px; background: #111; color: #fff; font-weight: 800; cursor: pointer; }
+                @media print { button { display: none; } body { margin: 0; } }
+              </style>
+            </head>
+            <body>
+              <button onclick="window.print()">Print receipt</button>
+              <pre>${escapeHtml(receipt.preview)}</pre>
+            </body>
+          </html>
+        `);
+        receiptWindow.document.close();
+      }
+    } catch (error) {
+      setOrderNotice(error instanceof Error ? error.message : "Receipt print failed.");
+      receiptWindow?.close();
     }
   };
 
@@ -1628,6 +1700,9 @@ export default function MerchantPortalPage() {
                   </div>
                   <div style={itemBadgeRow}>
                     <span style={darkBadge}>{order.status}</span>
+                    <button type="button" style={secondaryButtonSmall} onClick={() => void handlePrintOrderReceipt(order)}>
+                      Print receipt
+                    </button>
                     <span style={orangeBadge}>£{order.totalAmount.toFixed(2)}</span>
                   </div>
                 </article>

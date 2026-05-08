@@ -1,6 +1,5 @@
 import { Body, Controller, Delete, Get, Headers, Inject, NotFoundException, Param, Patch, Post } from "@nestjs/common";
 
-import { MockPrinterAdapter } from "@hull-eats/printer";
 import {
   applyMenuImportInputSchema,
   changeHubPasswordInputSchema,
@@ -13,19 +12,21 @@ import {
   merchantWorkspaceUpdateInputSchema,
   previewMenuImportInputSchema,
   previewMenuTextImportInputSchema,
-  printJobPayloadSchema,
 } from "@hull-eats/types";
 
-import { demoMenuByStore, demoOrders } from "../../common/demo-data";
+import { demoMenuByStore } from "../../common/demo-data";
 import { HubRegistryService } from "../../common/hub-registry.service";
 import { InternalAuthService } from "../../common/internal-auth.service";
-import { findMerchantOrder, listMerchantOrders, updateMerchantOrder } from "../../common/order-repository";
-
-const fallbackOrder = demoOrders[0]!;
+import {
+  buildMerchantOrderReceipt,
+  findMerchantOrder,
+  listMerchantOrders,
+  queueMerchantOrderReceiptPrint,
+  updateMerchantOrder,
+} from "../../common/order-repository";
 
 @Controller("merchant")
 export class MerchantController {
-  private readonly printer = new MockPrinterAdapter();
   constructor(
     @Inject(HubRegistryService)
     private readonly hubRegistry: HubRegistryService,
@@ -257,48 +258,13 @@ export class MerchantController {
 
   @Post("orders/:orderId/print")
   async printOrder(@Headers("authorization") authorization: string | undefined, @Param("orderId") orderId: string) {
-    this.internalAuth.requireMerchantToken(authorization);
-    const order = demoOrders.find((entry) => entry.id === orderId || entry.orderNumber === orderId) ?? fallbackOrder;
-    const payload = printJobPayloadSchema.parse({
-      orderId,
-      storeId: order.storeId,
-      printerId: "printer-pizza-main",
-      orderNumber: order.orderNumber,
-      customerName: "Preview Customer",
-      placedAtIso: new Date().toISOString(),
-      prepTimeMinutes: order.prepTimeMinutes,
-      lines: [
-        {
-          name: "The Piggy Cow",
-          quantity: 1,
-          components: [
-            { label: "Bun", quantity: 1, removed: false },
-            { label: "3oz beef burger", quantity: 1, removed: false },
-            { label: "3oz beef burger", quantity: 1, removed: false },
-            { label: "Cheese", quantity: 1, removed: false },
-            { label: "Cheese", quantity: 1, removed: false },
-            { label: "Onions", quantity: 1, removed: true },
-            { label: "Gherkins", quantity: 1, removed: false },
-            { label: "Lettuce", quantity: 1, removed: false },
-          ],
-          selectedOptions: [
-            { groupName: "Make it a meal", valueName: "Make it a meal", quantity: 1, priceDelta: 4.5 },
-            { groupName: "Fries", valueName: "Cheesy fries", quantity: 1, priceDelta: 1.5 },
-            { groupName: "Can", valueName: "Diet Coke", quantity: 1, priceDelta: 0 },
-          ],
-        },
-      ],
-    });
+    const session = this.internalAuth.requireMerchantToken(authorization);
+    return queueMerchantOrderReceiptPrint(session.hubId!, orderId);
+  }
 
-    return this.printer.printOrderSlip(
-      {
-        id: "printer-pizza-main",
-        storeId: order.storeId,
-        name: "Kitchen Printer",
-        adapterType: "mock",
-        config: { channel: "stdout" },
-      },
-      payload,
-    );
+  @Get("orders/:orderId/receipt")
+  async getOrderReceipt(@Headers("authorization") authorization: string | undefined, @Param("orderId") orderId: string) {
+    const session = this.internalAuth.requireMerchantToken(authorization);
+    return buildMerchantOrderReceipt(session.hubId!, orderId);
   }
 }
