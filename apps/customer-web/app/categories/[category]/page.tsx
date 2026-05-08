@@ -139,7 +139,6 @@ export default async function CategoryPage({ params }: { params: Promise<{ categ
           ))}
           {extraSubcategories.length > 0 ? (
             <details className="category-more-details">
-              <summary className="category-show-more-card">Show more</summary>
               <div className="category-extra-grid">
                 {extraSubcategories.map((subcategory) => (
                   <a
@@ -156,6 +155,10 @@ export default async function CategoryPage({ params }: { params: Promise<{ categ
                   </a>
                 ))}
               </div>
+              <summary className="category-show-more-card">
+                <span className="category-show-more-label">Show more</span>
+                <span className="category-show-less-label">Show less</span>
+              </summary>
             </details>
           ) : null}
         </div>

@@ -1456,6 +1456,8 @@ textarea {
 
 .category-more-details {
   grid-column: 1 / -1;
+  display: grid;
+  gap: 12px;
 }
 
 .category-show-more-card {
@@ -1472,18 +1474,24 @@ textarea {
   cursor: pointer;
   font-weight: 950;
   list-style: none;
+  justify-self: center;
 }
 
 .category-show-more-card::-webkit-details-marker {
   display: none;
 }
 
-.category-more-details[open] .category-show-more-card {
-  margin-bottom: 12px;
+.category-show-less-label,
+.category-more-details[open] .category-show-more-label {
+  display: none;
 }
 
-.category-more-details[open] .category-show-more-card::after {
-  content: " categories";
+.category-more-details[open] .category-show-less-label {
+  display: inline;
+}
+
+.category-more-details:not([open]) .category-extra-grid {
+  display: none;
 }
 
 .category-extra-grid {
