@@ -4,6 +4,7 @@ import type { CheckoutSession, CreateCheckoutSessionInput, OrderSummary } from "
 import { checkoutSessionSchema, orderSummarySchema } from "@hull-eats/types";
 
 import { demoMenuByStore, demoOrders, demoStores } from "./demo-data";
+import { persistCheckoutOrder } from "./order-repository";
 
 type SessionRecord = {
   checkoutSession: CheckoutSession;
@@ -189,7 +190,7 @@ export const getStoredCheckoutSession = (checkoutSessionId: string): CheckoutSes
 export const placeStoredCheckoutOrder = (
   checkoutSessionId: string,
   options: { paymentStatus?: OrderSummary["paymentStatus"] } = {},
-): OrderSummary => {
+): Promise<OrderSummary> => {
   const record = sessionStore.get(checkoutSessionId);
 
   if (!record) {
@@ -202,7 +203,7 @@ export const placeStoredCheckoutOrder = (
     throw new BadRequestException("Checkout session is not ready to place an order yet.");
   }
 
-  const order = orderSummarySchema.parse({
+  const fallbackOrder = orderSummarySchema.parse({
     id: `order_${Date.now()}`,
     orderNumber: `HE-${Math.floor(Math.random() * 9000) + 1000}`,
     storeId: session.storeId,
@@ -216,7 +217,7 @@ export const placeStoredCheckoutOrder = (
     prepTimeMinutes: null,
   });
 
-  demoOrders.unshift(order);
+  demoOrders.unshift(fallbackOrder);
 
   sessionStore.set(checkoutSessionId, {
     ...record,
@@ -226,5 +227,8 @@ export const placeStoredCheckoutOrder = (
     },
   });
 
-  return order;
+  return persistCheckoutOrder(session, { paymentStatus: options.paymentStatus ?? "pending" }).catch((error) => {
+    console.error("Persistent order create failed; returning in-memory fallback order.", error);
+    return fallbackOrder;
+  });
 };

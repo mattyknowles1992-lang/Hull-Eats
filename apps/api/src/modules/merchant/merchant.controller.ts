@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Headers, Inject, Param, Patch, Post } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Headers, Inject, NotFoundException, Param, Patch, Post } from "@nestjs/common";
 
 import { MockPrinterAdapter } from "@hull-eats/printer";
 import {
@@ -19,6 +19,7 @@ import {
 import { demoMenuByStore, demoOrders } from "../../common/demo-data";
 import { HubRegistryService } from "../../common/hub-registry.service";
 import { InternalAuthService } from "../../common/internal-auth.service";
+import { findMerchantOrder, listMerchantOrders, updateMerchantOrder } from "../../common/order-repository";
 
 const fallbackOrder = demoOrders[0]!;
 
@@ -169,15 +170,20 @@ export class MerchantController {
   }
 
   @Get("orders")
-  listOrders(@Headers("authorization") authorization?: string) {
-    this.internalAuth.requireMerchantToken(authorization);
-    return demoOrders;
+  async listOrders(@Headers("authorization") authorization?: string) {
+    const session = this.internalAuth.requireMerchantToken(authorization);
+    return listMerchantOrders(session.hubId!);
   }
 
   @Get("orders/:orderId")
-  getOrder(@Headers("authorization") authorization: string | undefined, @Param("orderId") orderId: string) {
-    this.internalAuth.requireMerchantToken(authorization);
-    return demoOrders.find((order) => order.id === orderId || order.orderNumber === orderId) ?? fallbackOrder;
+  async getOrder(@Headers("authorization") authorization: string | undefined, @Param("orderId") orderId: string) {
+    const session = this.internalAuth.requireMerchantToken(authorization);
+    const order = await findMerchantOrder(session.hubId!, orderId);
+    if (!order) {
+      throw new NotFoundException(`Order ${orderId} was not found for this hub.`);
+    }
+
+    return order;
   }
 
   @Get("catalog/items")
@@ -207,52 +213,46 @@ export class MerchantController {
   }
 
   @Post("orders/:orderId/accept")
-  acceptOrder(
+  async acceptOrder(
     @Headers("authorization") authorization: string | undefined,
     @Param("orderId") orderId: string,
     @Body() body: unknown,
   ) {
-    this.internalAuth.requireMerchantToken(authorization);
+    const session = this.internalAuth.requireMerchantToken(authorization);
     const input = merchantAcceptOrderSchema.parse(body);
-    const order = demoOrders.find((entry) => entry.id === orderId || entry.orderNumber === orderId) ?? fallbackOrder;
-
-    return {
-      ...order,
-      status: "accepted",
+    return updateMerchantOrder(session.hubId!, orderId, {
+      status: "ACCEPTED",
+      note: `Merchant accepted order with ${input.prepTimeMinutes} minute prep time.`,
       prepTimeMinutes: input.prepTimeMinutes,
-    };
+    });
   }
 
   @Post("orders/:orderId/reject")
-  rejectOrder(
+  async rejectOrder(
     @Headers("authorization") authorization: string | undefined,
     @Param("orderId") orderId: string,
     @Body() body: unknown,
   ) {
-    this.internalAuth.requireMerchantToken(authorization);
-    merchantRejectOrderSchema.parse(body);
-    const order = demoOrders.find((entry) => entry.id === orderId || entry.orderNumber === orderId) ?? fallbackOrder;
-
-    return {
-      ...order,
-      status: "rejected",
-    };
+    const session = this.internalAuth.requireMerchantToken(authorization);
+    const input = merchantRejectOrderSchema.parse(body);
+    return updateMerchantOrder(session.hubId!, orderId, {
+      status: "REJECTED",
+      note: `Merchant rejected order: ${input.reason}`,
+    });
   }
 
   @Post("orders/:orderId/prep-time")
-  updatePrepTime(
+  async updatePrepTime(
     @Headers("authorization") authorization: string | undefined,
     @Param("orderId") orderId: string,
     @Body() body: { prepTimeMinutes: number },
   ) {
-    this.internalAuth.requireMerchantToken(authorization);
-    const order = demoOrders.find((entry) => entry.id === orderId || entry.orderNumber === orderId) ?? fallbackOrder;
-
-    return {
-      ...order,
-      status: "preparing",
+    const session = this.internalAuth.requireMerchantToken(authorization);
+    return updateMerchantOrder(session.hubId!, orderId, {
+      status: "PREPARING",
+      note: `Merchant updated prep time to ${body.prepTimeMinutes} minutes.`,
       prepTimeMinutes: body.prepTimeMinutes,
-    };
+    });
   }
 
   @Post("orders/:orderId/print")
