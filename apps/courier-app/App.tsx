@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CameraView, useCameraPermissions, type BarcodeScanningResult } from "expo-camera";
+import { CameraView, useCameraPermissions, type ScanningResult } from "expo-camera";
 import * as Location from "expo-location";
 import { StatusBar } from "expo-status-bar";
 import {
@@ -84,6 +84,7 @@ type CourierLoginResponse = {
 export default function App() {
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const locationSubscription = useRef<Location.LocationSubscription | null>(null);
+  const scannerSubscription = useRef<{ remove: () => void } | null>(null);
   const demoLocationIndex = useRef(0);
 
   const [courierToken, setCourierToken] = useState<string | null>(null);
@@ -162,6 +163,7 @@ export default function App() {
 
   const signOutCourier = useCallback(() => {
     locationSubscription.current?.remove();
+    scannerSubscription.current?.remove();
     setCourierToken(null);
     setCourierAccount(null);
     setDelivery(null);
@@ -174,6 +176,7 @@ export default function App() {
 
     return () => {
       locationSubscription.current?.remove();
+      scannerSubscription.current?.remove();
     };
   }, [loadJobs]);
 
@@ -271,19 +274,6 @@ export default function App() {
     [courierToken, loadJobs, orderInput, startLocationSharing],
   );
 
-  const handleBarcodeScanned = useCallback(
-    ({ data }: BarcodeScanningResult) => {
-      if (!isScanning) {
-        return;
-      }
-
-      setIsScanning(false);
-      setOrderInput(data);
-      void startDelivery(data);
-    },
-    [isScanning, startDelivery],
-  );
-
   const openScanner = useCallback(async () => {
     setErrorMessage(null);
 
@@ -297,7 +287,33 @@ export default function App() {
     }
 
     setIsScanning(true);
-  }, [cameraPermission?.granted, requestCameraPermission]);
+
+    try {
+      scannerSubscription.current?.remove();
+      scannerSubscription.current = CameraView.onModernBarcodeScanned((event: ScanningResult) => {
+        scannerSubscription.current?.remove();
+        scannerSubscription.current = null;
+        setIsScanning(false);
+        setOrderInput(event.data);
+        void CameraView.dismissScanner();
+        void startDelivery(event.data);
+      });
+
+      await CameraView.launchScanner({ barcodeTypes: ["qr"] });
+    } catch (error) {
+      scannerSubscription.current?.remove();
+      scannerSubscription.current = null;
+      setIsScanning(false);
+      setErrorMessage(error instanceof Error ? error.message : "Scanner could not open. Use the order number backup instead.");
+    }
+  }, [cameraPermission?.granted, requestCameraPermission, startDelivery]);
+
+  const closeScanner = useCallback(() => {
+    scannerSubscription.current?.remove();
+    scannerSubscription.current = null;
+    setIsScanning(false);
+    void CameraView.dismissScanner();
+  }, []);
 
   const completeDelivery = useCallback(async () => {
     if (!delivery) {
@@ -464,14 +480,9 @@ export default function App() {
 
           {isScanning ? (
             <View style={styles.scannerWrap}>
-              <CameraView
-                style={styles.scanner}
-                facing="back"
-                barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
-                onBarcodeScanned={handleBarcodeScanned}
-              />
-              <Pressable style={styles.secondaryButton} onPress={() => setIsScanning(false)}>
-                <Text style={styles.secondaryButtonText}>Close scanner</Text>
+              <Text style={styles.copy}>Scanner is open. Point the camera at the order QR code.</Text>
+              <Pressable style={styles.secondaryButton} onPress={closeScanner}>
+                <Text style={styles.secondaryButtonText}>Cancel scan</Text>
               </Pressable>
             </View>
           ) : (
