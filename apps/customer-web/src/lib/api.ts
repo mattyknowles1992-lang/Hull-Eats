@@ -1,6 +1,7 @@
 import type { CheckoutSession, CreateCheckoutSessionInput, TrackedOrder } from "@hull-eats/types";
 
-const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000").replace(/\/$/, "");
+const defaultApiBaseUrl = process.env.NODE_ENV === "production" ? "https://hull-eats-api.onrender.com" : "http://localhost:4000";
+const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL ?? defaultApiBaseUrl).replace(/\/$/, "");
 
 export async function createCheckoutSession(input: CreateCheckoutSessionInput): Promise<CheckoutSession> {
   const response = await fetch(`${apiBaseUrl}/v1/checkout/sessions`, {

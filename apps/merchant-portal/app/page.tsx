@@ -21,7 +21,8 @@ type MenuComponent = MenuItem["components"][number];
 type MenuOptionGroup = MenuItem["optionGroups"][number];
 type MenuOption = MenuOptionGroup["options"][number];
 
-const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000").replace(/\/$/, "");
+const defaultApiBaseUrl = process.env.NODE_ENV === "production" ? "https://hull-eats-api.onrender.com" : "http://localhost:4000";
+const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL ?? defaultApiBaseUrl).replace(/\/$/, "");
 const customerWebBaseUrl = (process.env.NEXT_PUBLIC_CUSTOMER_WEB_URL ?? "https://hull-eats.onrender.com").replace(/\/$/, "");
 const merchantSessionStorageKey = "hull-eats-merchant-session";
 
