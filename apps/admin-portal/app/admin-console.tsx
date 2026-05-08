@@ -899,6 +899,61 @@ export function AdminConsole() {
     })();
   };
 
+  const handleEditCourierDetails = (courier: AdminCourierSummary) => {
+    if (!authToken) {
+      return;
+    }
+
+    const fullName = window.prompt("Courier name", courier.fullName);
+    if (fullName === null) {
+      return;
+    }
+
+    const email = window.prompt("Login email", courier.email);
+    if (email === null) {
+      return;
+    }
+
+    const phone = window.prompt("Phone", courier.phone);
+    if (phone === null) {
+      return;
+    }
+
+    const username = window.prompt("Username", courier.username);
+    if (username === null) {
+      return;
+    }
+
+    const vehicleType = window.prompt("Vehicle / zone note", courier.vehicleType);
+    if (vehicleType === null) {
+      return;
+    }
+
+    const vehicleRegistration = window.prompt("Vehicle registration", courier.vehicleRegistration);
+    if (vehicleRegistration === null) {
+      return;
+    }
+
+    void (async () => {
+      try {
+        const updated = await updateAdminCourier(authToken, courier.courierProfileId, {
+          fullName: fullName.trim(),
+          email: email.trim().toLowerCase(),
+          phone: phone.trim(),
+          username: username.trim().toLowerCase(),
+          vehicleType: vehicleType.trim(),
+          vehicleRegistration: vehicleRegistration.trim().toUpperCase() || null,
+        });
+        setCouriers((current) =>
+          current.map((item) => ("courierProfileId" in item && item.courierProfileId === updated.courierProfileId ? updated : item)),
+        );
+        setCourierNotice(`Courier details updated for ${updated.fullName}.`);
+      } catch (error) {
+        setCourierNotice(error instanceof Error ? error.message : "Courier details update failed.");
+      }
+    })();
+  };
+
   const handleDeleteCourier = (courier: AdminCourierSummary) => {
     if (!authToken || !window.confirm(`Remove ${courier.fullName}'s courier account?`)) {
       return;
@@ -1894,6 +1949,9 @@ export function AdminConsole() {
                     </div>
                     {isAdminCourier(courier) ? (
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 14 }}>
+                        <button type="button" style={{ ...styles.buttonGlass, minHeight: 38, padding: "0 12px" }} onClick={() => handleEditCourierDetails(courier)}>
+                          Edit details
+                        </button>
                         <button type="button" style={{ ...styles.buttonGlass, minHeight: 38, padding: "0 12px" }} onClick={() => handleUpdateCourier(courier, "active")}>
                           Activate
                         </button>
