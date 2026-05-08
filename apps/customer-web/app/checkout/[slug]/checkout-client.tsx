@@ -46,6 +46,30 @@ const getLineComponents = <T extends { components?: unknown }>(line: T) => (Arra
 const getLineSelectedOptions = <T extends { selectedOptions?: unknown }>(line: T) =>
   Array.isArray(line.selectedOptions) ? line.selectedOptions : [];
 
+function validateCheckoutForm(formState: CheckoutFormState) {
+  if (!formState.customerName.trim()) {
+    return "Enter your full name before placing the order.";
+  }
+
+  if (!formState.customerPhone.trim()) {
+    return "Enter a phone number before placing the order.";
+  }
+
+  if (!formState.addressLine1.trim()) {
+    return "Enter the delivery address before placing the order.";
+  }
+
+  if (!formState.city.trim()) {
+    return "Enter the delivery city before placing the order.";
+  }
+
+  if (!formState.postcode.trim()) {
+    return "Enter the delivery postcode before placing the order.";
+  }
+
+  return null;
+}
+
 export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
   const [basket, setBasket] = useState<StoreBasket | null>(null);
   const [formState, setFormState] = useState<CheckoutFormState>(initialFormState);
@@ -119,6 +143,13 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
     setErrorMessage(null);
 
     try {
+      const formError = validateCheckoutForm(formState);
+
+      if (formError) {
+        setErrorMessage(formError);
+        return;
+      }
+
       const session = await createCurrentCheckoutSession();
       setCheckoutSession(session);
       setPlacedOrder(null);
@@ -251,27 +282,52 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
         <div className="form-grid">
           <label className="form-field">
             <span>Full name</span>
-            <input className="form-input" value={formState.customerName} onChange={(event) => updateField("customerName", event.target.value)} />
+            <input className="form-input" value={formState.customerName} required onChange={(event) => updateField("customerName", event.target.value)} />
           </label>
           <label className="form-field">
             <span>Phone</span>
-            <input className="form-input" value={formState.customerPhone} onChange={(event) => updateField("customerPhone", event.target.value)} />
+            <input
+              className="form-input"
+              value={formState.customerPhone}
+              required
+              inputMode="tel"
+              autoComplete="tel"
+              onChange={(event) => updateField("customerPhone", event.target.value)}
+            />
           </label>
           <label className="form-field">
             <span>Email</span>
-            <input className="form-input" value={formState.customerEmail} onChange={(event) => updateField("customerEmail", event.target.value)} />
+            <input
+              className="form-input"
+              value={formState.customerEmail}
+              type="email"
+              autoComplete="email"
+              onChange={(event) => updateField("customerEmail", event.target.value)}
+            />
           </label>
           <label className="form-field">
             <span>Address line 1</span>
-            <input className="form-input" value={formState.addressLine1} onChange={(event) => updateField("addressLine1", event.target.value)} />
+            <input
+              className="form-input"
+              value={formState.addressLine1}
+              required
+              autoComplete="address-line1"
+              onChange={(event) => updateField("addressLine1", event.target.value)}
+            />
           </label>
           <label className="form-field">
             <span>City</span>
-            <input className="form-input" value={formState.city} onChange={(event) => updateField("city", event.target.value)} />
+            <input className="form-input" value={formState.city} required autoComplete="address-level2" onChange={(event) => updateField("city", event.target.value)} />
           </label>
           <label className="form-field">
             <span>Postcode</span>
-            <input className="form-input" value={formState.postcode} onChange={(event) => updateField("postcode", event.target.value)} />
+            <input
+              className="form-input"
+              value={formState.postcode}
+              required
+              autoComplete="postal-code"
+              onChange={(event) => updateField("postcode", event.target.value)}
+            />
           </label>
           <label className="form-field form-field-full">
             <span>Order notes</span>

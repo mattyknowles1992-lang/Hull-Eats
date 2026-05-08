@@ -8,6 +8,7 @@ import { NestFactory } from "@nestjs/core";
 import { loadEnv } from "@hull-eats/config";
 
 import { AppModule } from "./app.module";
+import { ZodValidationFilter } from "./common/zod-validation.filter";
 
 async function bootstrap(): Promise<void> {
   if (existsSync(".env")) {
@@ -16,6 +17,7 @@ async function bootstrap(): Promise<void> {
 
   const env = loadEnv(process.env);
   const app = await NestFactory.create(AppModule, { cors: true });
+  app.useGlobalFilters(new ZodValidationFilter());
   app.setGlobalPrefix("v1");
 
   await app.listen(env.API_PORT);
