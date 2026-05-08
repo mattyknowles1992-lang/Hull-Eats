@@ -176,7 +176,6 @@ export default async function CategoryPage({ params }: { params: Promise<{ categ
                 >
                   <div className="store-card-overlay">
                     <span className="status-chip pending">{store.isOpen ? "Open" : "Opening soon"}</span>
-                    <span className="glass-tag">{store.type}</span>
                   </div>
                 </div>
                 <div className="store-card-body">

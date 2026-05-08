@@ -2186,6 +2186,7 @@ button.filter-pill {
 }
 
 .store-card .status-chip.pending,
+.store-card-overlay .status-chip.pending,
 .live-menu-card .status-chip.pending {
   color: #fff;
 }

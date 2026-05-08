@@ -356,7 +356,6 @@ export default function CustomerHomePage() {
                 >
                   <div className="store-card-overlay">
                     <span className="status-chip pending">{getStoreStatus(store.storefrontStatus, store.isOpen)}</span>
-                    <span className="glass-tag">{store.type}</span>
                   </div>
                 </div>
 
