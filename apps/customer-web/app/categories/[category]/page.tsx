@@ -54,6 +54,9 @@ export default async function CategoryPage({ params }: { params: Promise<{ categ
   const matchingStores = featuredStores.filter((store) =>
     storeMatchesMarketplaceCategory(store, category, getSearchableStoreText(store.slug)),
   );
+  const visibleSubcategories = category.subcategories.slice(0, 4);
+  const extraSubcategories = category.subcategories.slice(4);
+  const categoryHeading = category.slug === "takeaways" ? "Takeaway categories" : `${category.label} categories`;
 
   return (
     <main className="shell customer-marketplace">
@@ -113,31 +116,16 @@ export default async function CategoryPage({ params }: { params: Promise<{ categ
             </Link>
           </div>
         </div>
-
-        <div className="category-carousel" aria-label={`${category.label} category carousel`}>
-          {category.subcategories.map((subcategory) => (
-            <Link
-              key={subcategory.slug}
-              href={`#${subcategory.slug}`}
-              className="category-carousel-card"
-              style={{ backgroundImage: `url(${subcategory.imageUrl})` }}
-            >
-              {subcategory.label}
-            </Link>
-          ))}
-        </div>
       </section>
 
       <section className="marketplace-panel category-selector-panel">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Select what you want</p>
-            <h2>{category.label} categories</h2>
-            <p>These are the shopfront lanes this page will use as more Hull businesses join.</p>
+            <h2>{categoryHeading}</h2>
           </div>
         </div>
         <div className="category-subcategory-grid">
-          {category.subcategories.map((subcategory) => (
+          {visibleSubcategories.map((subcategory) => (
             <a
               key={subcategory.slug}
               id={subcategory.slug}
@@ -149,6 +137,27 @@ export default async function CategoryPage({ params }: { params: Promise<{ categ
               <span>{matchingStores.reduce((sum, store) => sum + getSubcategoryMatchCount(store.slug, subcategory), 0)} live matches</span>
             </a>
           ))}
+          {extraSubcategories.length > 0 ? (
+            <details className="category-more-details">
+              <summary className="category-show-more-card">Show more</summary>
+              <div className="category-extra-grid">
+                {extraSubcategories.map((subcategory) => (
+                  <a
+                    key={subcategory.slug}
+                    id={subcategory.slug}
+                    href={`#${subcategory.slug}`}
+                    className="category-subcategory-card"
+                    style={{ backgroundImage: `url(${subcategory.imageUrl})` }}
+                  >
+                    <strong>{subcategory.label}</strong>
+                    <span>
+                      {matchingStores.reduce((sum, store) => sum + getSubcategoryMatchCount(store.slug, subcategory), 0)} live matches
+                    </span>
+                  </a>
+                ))}
+              </div>
+            </details>
+          ) : null}
         </div>
       </section>
 
