@@ -212,6 +212,7 @@ async function createAdminHubUser(
 }
 
 type AdminCourierSummary = CourierRecord & {
+  courierProfileId: string;
   email: string;
   username: string;
   vehicleType: string;
@@ -263,6 +264,50 @@ async function createAdminCourier(
   return (await response.json()) as AdminCourierSummary;
 }
 
+async function updateAdminCourier(
+  token: string,
+  courierProfileId: string,
+  input: Partial<{
+    fullName: string;
+    email: string;
+    phone: string;
+    username: string;
+    password: string;
+    vehicleType: string;
+    status: CourierStatus | "disabled";
+  }>,
+): Promise<AdminCourierSummary> {
+  const response = await fetch(`${apiBaseUrl}/v1/admin/couriers/${encodeURIComponent(courierProfileId)}`, {
+    method: "PATCH",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Admin courier update failed with status ${response.status}`);
+  }
+
+  return (await response.json()) as AdminCourierSummary;
+}
+
+async function deleteAdminCourier(token: string, courierProfileId: string) {
+  const response = await fetch(`${apiBaseUrl}/v1/admin/couriers/${encodeURIComponent(courierProfileId)}`, {
+    method: "DELETE",
+    headers: {
+      authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Admin courier delete failed with status ${response.status}`);
+  }
+
+  return (await response.json()) as { deletedCourierProfileId: string };
+}
+
 function mapHubRoleToPlatformRole(role: AdminHubUserSummary["role"]) {
   if (role === "owner") {
     return "business_owner" as const;
@@ -280,6 +325,10 @@ function mapApiUserToRecord(user: AdminHubUserSummary) {
     hub: user.hubBusinessName,
     loginType: "hub" as const,
   };
+}
+
+function isAdminCourier(courier: CourierRecord | AdminCourierSummary): courier is AdminCourierSummary {
+  return "courierProfileId" in courier;
 }
 
 const styles = {
@@ -452,10 +501,11 @@ export function AdminConsole() {
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showHubPassword, setShowHubPassword] = useState(false);
   const [showUserPassword, setShowUserPassword] = useState(false);
+  const [showCourierPassword, setShowCourierPassword] = useState(false);
 
   const [hubs, setHubs] = useState(initialHubs);
   const [users, setUsers] = useState(initialUsers.filter((user) => user.loginType === "platform"));
-  const [couriers, setCouriers] = useState(initialCouriers);
+  const [couriers, setCouriers] = useState<Array<CourierRecord | AdminCourierSummary>>(initialCouriers);
   const [notifications, setNotifications] = useState<NotificationRecord[]>([
     {
       id: "notice_1",
@@ -773,6 +823,63 @@ export function AdminConsole() {
         setCourierNotice(`Courier login created for ${created.fullName}.`);
       } catch (error) {
         setCourierNotice(error instanceof Error ? error.message : "Courier creation failed.");
+      }
+    })();
+  };
+
+  const handleUpdateCourier = (courier: AdminCourierSummary, status: CourierStatus | "disabled") => {
+    if (!authToken) {
+      return;
+    }
+
+    void (async () => {
+      try {
+        const updated = await updateAdminCourier(authToken, courier.courierProfileId, { status });
+        setCouriers((current) =>
+          current.map((item) => ("courierProfileId" in item && item.courierProfileId === updated.courierProfileId ? updated : item)),
+        );
+        setCourierNotice(`${updated.fullName} status updated to ${updated.status}.`);
+      } catch (error) {
+        setCourierNotice(error instanceof Error ? error.message : "Courier update failed.");
+      }
+    })();
+  };
+
+  const handleResetCourierPassword = (courier: AdminCourierSummary) => {
+    if (!authToken) {
+      return;
+    }
+
+    const temporaryPassword = window.prompt(`New temporary password for ${courier.fullName}`);
+    if (!temporaryPassword) {
+      return;
+    }
+
+    void (async () => {
+      try {
+        const updated = await updateAdminCourier(authToken, courier.courierProfileId, { password: temporaryPassword });
+        setCouriers((current) =>
+          current.map((item) => ("courierProfileId" in item && item.courierProfileId === updated.courierProfileId ? updated : item)),
+        );
+        setCourierNotice(`Temporary password updated for ${updated.fullName}.`);
+      } catch (error) {
+        setCourierNotice(error instanceof Error ? error.message : "Courier password update failed.");
+      }
+    })();
+  };
+
+  const handleDeleteCourier = (courier: AdminCourierSummary) => {
+    if (!authToken || !window.confirm(`Remove ${courier.fullName}'s courier account?`)) {
+      return;
+    }
+
+    void (async () => {
+      try {
+        await deleteAdminCourier(authToken, courier.courierProfileId);
+        setCouriers((current) => current.filter((item) => !("courierProfileId" in item) || item.courierProfileId !== courier.courierProfileId));
+        setCourierNotice(`Courier account removed for ${courier.fullName}.`);
+      } catch (error) {
+        setCourierNotice(error instanceof Error ? error.message : "Courier removal failed.");
       }
     })();
   };
@@ -1642,7 +1749,17 @@ export function AdminConsole() {
                 </label>
                 <label style={{ display: "grid", gap: 8 }}>
                   <span style={{ fontWeight: 800, color: "#dce9ff" }}>Temporary password</span>
-                  <input style={styles.input} type="password" value={courierPassword} onChange={(event) => setCourierPassword(event.target.value)} />
+                  <span style={styles.passwordWrap}>
+                    <input
+                      style={{ ...styles.input, paddingRight: 88 }}
+                      type={showCourierPassword ? "text" : "password"}
+                      value={courierPassword}
+                      onChange={(event) => setCourierPassword(event.target.value)}
+                    />
+                    <button type="button" style={styles.passwordReveal} onClick={() => setShowCourierPassword((current) => !current)}>
+                      {showCourierPassword ? "Hide" : "Show"}
+                    </button>
+                  </span>
                 </label>
                 <label style={{ display: "grid", gap: 8 }}>
                   <span style={{ fontWeight: 800, color: "#dce9ff" }}>Vehicle / zone note</span>
@@ -1707,7 +1824,7 @@ export function AdminConsole() {
               />
 
               <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
-                {couriers.map((courier: CourierRecord) => (
+                {couriers.map((courier: CourierRecord | AdminCourierSummary) => (
                   <article
                     key={courier.id}
                     style={{
@@ -1734,6 +1851,22 @@ export function AdminConsole() {
                       <div>Zone: {courier.zone}</div>
                       <div>Active order: {courier.activeOrderId ?? "None"}</div>
                     </div>
+                    {isAdminCourier(courier) ? (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 14 }}>
+                        <button type="button" style={{ ...styles.buttonGlass, minHeight: 38, padding: "0 12px" }} onClick={() => handleUpdateCourier(courier, "active")}>
+                          Activate
+                        </button>
+                        <button type="button" style={{ ...styles.buttonGlass, minHeight: 38, padding: "0 12px" }} onClick={() => handleUpdateCourier(courier, "offline")}>
+                          Suspend
+                        </button>
+                        <button type="button" style={{ ...styles.buttonGlass, minHeight: 38, padding: "0 12px" }} onClick={() => handleResetCourierPassword(courier)}>
+                          Change password
+                        </button>
+                        <button type="button" style={{ ...styles.buttonGlass, minHeight: 38, padding: "0 12px", color: "#ffb7b7" }} onClick={() => handleDeleteCourier(courier)}>
+                          Remove account
+                        </button>
+                      </div>
+                    ) : null}
                   </article>
                 ))}
               </div>

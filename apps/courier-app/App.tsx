@@ -89,6 +89,8 @@ export default function App() {
   const [courierAccount, setCourierAccount] = useState<CourierAccount | null>(null);
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
   const [orderInput, setOrderInput] = useState("HE-1002");
   const [pinInput, setPinInput] = useState("");
   const [delivery, setDelivery] = useState<CourierDelivery | null>(null);
@@ -98,6 +100,7 @@ export default function App() {
   const [statusMessage, setStatusMessage] = useState("Scan the receipt QR. If it will not scan, enter the order number printed on the receipt.");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [passwordNotice, setPasswordNotice] = useState<string | null>(null);
 
   const activeStatus = delivery?.status.replaceAll("_", " ") ?? "ready";
   const canComplete = Boolean(delivery && delivery.status !== "delivered");
@@ -321,6 +324,33 @@ export default function App() {
     }
   }, [courierToken, delivery, loadJobs, pinInput]);
 
+  const changePassword = useCallback(async () => {
+    if (!currentPassword || !newPassword) {
+      setPasswordNotice("Enter your current password and a new password.");
+      return;
+    }
+
+    setIsWorking(true);
+    setPasswordNotice(null);
+
+    try {
+      const updated = await apiRequest<CourierAccount>("/v1/courier/me/password", {
+        method: "POST",
+        body: { currentPassword, newPassword },
+        token: courierToken,
+      });
+
+      setCourierAccount(updated);
+      setCurrentPassword("");
+      setNewPassword("");
+      setPasswordNotice("Password updated.");
+    } catch (error) {
+      setPasswordNotice(error instanceof Error ? error.message : "Unable to update password.");
+    } finally {
+      setIsWorking(false);
+    }
+  }, [courierToken, currentPassword, newPassword]);
+
   if (!courierToken || !courierAccount) {
     return (
       <SafeAreaView style={styles.screen}>
@@ -396,6 +426,31 @@ export default function App() {
               {courierAccount.nextPayoutDate ? new Date(courierAccount.nextPayoutDate).toLocaleDateString("en-GB") : "Weekly"}
             </Text>
           </View>
+        </View>
+
+        <View style={styles.panel}>
+          <Text style={styles.panelTitle}>Account security</Text>
+          <Text style={styles.copy}>Change the temporary password from admin once you have signed in.</Text>
+          <TextInput
+            style={styles.input}
+            value={currentPassword}
+            onChangeText={setCurrentPassword}
+            secureTextEntry
+            placeholder="Current password"
+            placeholderTextColor="#87909d"
+          />
+          <TextInput
+            style={styles.input}
+            value={newPassword}
+            onChangeText={setNewPassword}
+            secureTextEntry
+            placeholder="New password"
+            placeholderTextColor="#87909d"
+          />
+          <Pressable style={styles.secondaryButton} onPress={changePassword} disabled={isWorking}>
+            <Text style={styles.secondaryButtonText}>Update password</Text>
+          </Pressable>
+          {passwordNotice ? <Text style={passwordNotice === "Password updated." ? styles.success : styles.error}>{passwordNotice}</Text> : null}
         </View>
 
         <View style={styles.panel}>
@@ -701,6 +756,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     color: "#a72818",
     fontWeight: "800",
+    padding: 12,
+  },
+  success: {
+    backgroundColor: "rgba(35, 205, 255, 0.14)",
+    borderRadius: 12,
+    color: "#087fa1",
+    fontWeight: "900",
     padding: 12,
   },
   scannerWrap: {

@@ -1081,24 +1081,34 @@ export default function MerchantPortalPage() {
               <title>${escapeHtml(order.orderNumber)} receipt</title>
               <style>
                 body { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; margin: 18px; color: #111; }
-                .qr { display: grid; gap: 8px; justify-items: center; margin: 14px 0; padding: 12px; border: 1px solid #111; border-radius: 10px; }
+                .receipt { max-width: 380px; margin: 0 auto; }
+                .title { text-align: center; border-bottom: 2px solid #111; padding-bottom: 10px; margin-bottom: 12px; }
+                .title strong { display: block; font-size: 22px; letter-spacing: 0.08em; }
+                .title span { display: block; margin-top: 4px; font-size: 13px; font-weight: 800; }
+                .qr { display: grid; gap: 8px; justify-items: center; margin: 16px 0 0; padding: 12px; border: 2px solid #111; border-radius: 10px; }
                 .qr img { width: 180px; height: 180px; image-rendering: pixelated; }
                 .qr span { font-size: 11px; font-weight: 800; text-align: center; }
-                .backup { margin: 10px 0 14px; padding: 10px; border: 1px dashed #111; border-radius: 8px; font-size: 12px; font-weight: 800; text-align: center; }
-                pre { white-space: pre-wrap; font-size: 13px; line-height: 1.4; }
+                .backup { margin: 10px 0 0; padding: 10px; border: 1px dashed #111; border-radius: 8px; font-size: 12px; font-weight: 800; text-align: center; }
+                pre { white-space: pre-wrap; font-size: 13px; line-height: 1.42; margin: 0; }
                 button { min-height: 40px; padding: 0 14px; border: 1px solid #111; border-radius: 8px; background: #111; color: #fff; font-weight: 800; cursor: pointer; }
-                @media print { button { display: none; } body { margin: 0; } }
+                @media print { button { display: none; } body { margin: 0; } .receipt { max-width: none; } }
               </style>
             </head>
             <body>
               <button onclick="window.print()">Print receipt</button>
-              ${
-                qrCodeImage
-                  ? `<div class="qr"><img alt="Courier scan QR" src="${qrCodeImage}" /><span>Courier scan: ${escapeHtml(qrCodeData ?? "")}</span></div>`
-                  : ""
-              }
-              <div class="backup">QR backup: enter order number ${escapeHtml(order.orderNumber)} in the courier app.</div>
-              <pre>${escapeHtml(receipt.preview)}</pre>
+              <main class="receipt">
+                <div class="title">
+                  <strong>HULL EATS</strong>
+                  <span>${escapeHtml(order.orderNumber)}</span>
+                </div>
+                <pre>${escapeHtml(receipt.preview)}</pre>
+                ${
+                  qrCodeImage
+                    ? `<div class="qr"><img alt="Courier scan QR" src="${qrCodeImage}" /><span>Courier scan: ${escapeHtml(qrCodeData ?? "")}</span></div>`
+                    : ""
+                }
+                <div class="backup">QR backup: enter order number ${escapeHtml(order.orderNumber)} in the courier app.</div>
+              </main>
             </body>
           </html>
         `);

@@ -8,11 +8,13 @@ datasource db {
 }
 
 enum UserRole {
-  PLATFORM_ADMIN
-  MERCHANT_MANAGER
-  MERCHANT_STAFF
-  COURIER
-  CUSTOMER
+  PLATFORM_ADMIN   @map("platform_admin")
+  MERCHANT_MANAGER @map("merchant_manager")
+  MERCHANT_STAFF   @map("merchant_staff")
+  COURIER          @map("courier")
+  CUSTOMER         @map("customer")
+
+  @@map("user_role")
 }
 
 enum MembershipRole {
@@ -202,10 +204,10 @@ model User {
   id                  String                @id @default(cuid())
   email               String                @unique
   phone               String?
-  fullName            String
+  fullName            String                @map("full_name")
   role                UserRole
-  createdAt           DateTime              @default(now())
-  updatedAt           DateTime              @updatedAt
+  createdAt           DateTime              @default(now()) @map("created_at")
+  updatedAt           DateTime              @updatedAt @map("updated_at")
   merchantMemberships MerchantMembership[]
   courierProfile      CourierProfile?
   courierAccount      CourierAccount?
@@ -214,6 +216,8 @@ model User {
   deliveryStatusLogs  DeliveryStatusHistory[]
   inventoryAdjustments InventoryAdjustment[]
   serviceBusinesses   ServiceBusiness[]     @relation("ServiceBusinessOwner")
+
+  @@map("platform_users")
 }
 
 model CustomerProfile {
@@ -544,44 +548,50 @@ model OrderStatusHistory {
 
 model CourierProfile {
   id            String         @id @default(cuid())
-  userId        String         @unique
-  vehicleType   String
-  isActive      Boolean        @default(true)
-  currentStatus DriverStatus   @default(OFFLINE)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  userId        String         @unique @map("user_id")
+  vehicleType   String         @map("vehicle_type")
+  isActive      Boolean        @default(true) @map("is_active")
+  currentStatus DriverStatus   @default(OFFLINE) @map("current_status")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   shifts        DriverShift[]
   deliveries    Delivery[]
   account       CourierAccount?
+
+  @@map("courier_profiles")
 }
 
 model CourierAccount {
   id                  String         @id @default(cuid())
-  userId              String         @unique
-  courierProfileId    String         @unique
+  userId              String         @unique @map("user_id")
+  courierProfileId    String         @unique @map("courier_profile_id")
   username            String         @unique
-  passwordHash        String
+  passwordHash        String         @map("password_hash")
   status              HubUserStatus  @default(ACTIVE)
   rating              Decimal        @default(5.0) @db.Decimal(3, 2)
-  completedDeliveries Int            @default(0)
-  weeklyEarnings      Decimal        @default(0) @db.Decimal(10, 2)
-  rewardPoints        Int            @default(0)
-  nextPayoutDate      DateTime?
-  createdAt           DateTime       @default(now())
-  updatedAt           DateTime       @updatedAt
+  completedDeliveries Int            @default(0) @map("completed_deliveries")
+  weeklyEarnings      Decimal        @default(0) @map("weekly_earnings") @db.Decimal(10, 2)
+  rewardPoints        Int            @default(0) @map("reward_points")
+  nextPayoutDate      DateTime?      @map("next_payout_date")
+  createdAt           DateTime       @default(now()) @map("created_at")
+  updatedAt           DateTime       @updatedAt @map("updated_at")
   user                User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   courierProfile      CourierProfile @relation(fields: [courierProfileId], references: [id], onDelete: Cascade)
+
+  @@map("courier_accounts")
 }
 
 model DriverShift {
   id               String         @id @default(cuid())
-  courierProfileId String
-  storeId          String?
-  isOnline         Boolean        @default(true)
-  startedAt        DateTime       @default(now())
-  endedAt          DateTime?
+  courierProfileId String         @map("courier_profile_id")
+  storeId          String?        @map("store_id") @db.Uuid
+  isOnline         Boolean        @default(true) @map("is_online")
+  startedAt        DateTime       @default(now()) @map("started_at")
+  endedAt          DateTime?      @map("ended_at")
   courierProfile   CourierProfile @relation(fields: [courierProfileId], references: [id], onDelete: Cascade)
+
+  @@map("driver_shifts")
 }
 
 model Delivery {

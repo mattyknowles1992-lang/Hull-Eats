@@ -45,6 +45,12 @@ export class CourierController {
     return this.courierRegistry.getCourierAccount(session.courierProfileId!);
   }
 
+  @Post("me/password")
+  changePassword(@Headers("authorization") authorization: string | undefined, @Body() body: { currentPassword?: string; newPassword?: string }) {
+    const session = this.internalAuth.requireCourierToken(authorization);
+    return this.courierRegistry.changeOwnPassword(session.courierProfileId!, body);
+  }
+
   @Get("jobs")
   listJobs(@Headers("authorization") authorization?: string) {
     this.internalAuth.requireCourierToken(authorization);

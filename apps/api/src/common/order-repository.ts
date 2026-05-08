@@ -52,16 +52,39 @@ const resolveCheckoutStore = async (session: CheckoutSession) => {
   return store;
 };
 
-const formatReceiptPreview = (payload: PrintJobPayload) =>
+const formatMoney = (value: unknown) => `£${Number(value).toFixed(2)}`;
+
+const formatReceiptPreview = (
+  payload: PrintJobPayload,
+  order?: {
+    paymentStatus?: string;
+    customerPhone?: string;
+    customerEmail?: string | null;
+    addressLine1?: string | null;
+    addressLine2?: string | null;
+    city?: string | null;
+    postcode?: string | null;
+    subtotalAmount?: unknown;
+    deliveryFee?: unknown;
+    totalAmount?: unknown;
+    currency?: string;
+  },
+) =>
   [
     "HULL EATS ORDER",
+    "================",
     `Order: ${payload.orderNumber}`,
-    payload.qrCodeData ? `QR: ${payload.qrCodeData}` : "",
-    "Courier backup: if QR will not scan, enter the order number in the courier app.",
+    `Paid status: ${String(order?.paymentStatus ?? "pending").replaceAll("_", " ").toUpperCase()}`,
     `Customer: ${payload.customerName}`,
+    order?.customerPhone ? `Phone: ${order.customerPhone}` : "",
+    order?.customerEmail ? `Email: ${order.customerEmail}` : "",
+    "Address:",
+    `  ${[order?.addressLine1, order?.addressLine2, order?.city, order?.postcode].filter(Boolean).join(", ") || "Collection / no delivery address"}`,
     `Placed: ${new Date(payload.placedAtIso).toLocaleString("en-GB")}`,
     payload.prepTimeMinutes ? `Prep: ${payload.prepTimeMinutes} minutes` : "",
     "",
+    "ITEMS",
+    "-----",
     ...payload.lines.flatMap((line) => [
       `${line.quantity} x ${line.name}`,
       line.notes ? `  Note: ${line.notes}` : "",
@@ -74,7 +97,19 @@ const formatReceiptPreview = (payload: PrintJobPayload) =>
       ),
     ]),
     "",
+    "TOTALS",
+    "------",
+    order?.subtotalAmount !== undefined ? `Subtotal: ${formatMoney(order.subtotalAmount)}` : "",
+    order?.deliveryFee !== undefined ? `Delivery: ${formatMoney(order.deliveryFee)}` : "",
+    order?.totalAmount !== undefined ? `Total: ${formatMoney(order.totalAmount)} ${order.currency ?? "GBP"}` : "",
+    "",
     payload.notes ? `Order notes: ${payload.notes}` : "",
+    "",
+    "COURIER",
+    "-------",
+    payload.qrCodeData ? `QR: ${payload.qrCodeData}` : "",
+    `Backup code: ${payload.orderNumber}`,
+    "If the QR will not scan, enter the order number in the courier app.",
   ]
     .filter((line) => line !== "")
     .join("\n");
@@ -305,7 +340,7 @@ export const buildMerchantOrderReceipt = async (hubId: string, orderId: string) 
 
   return {
     payload,
-    preview: formatReceiptPreview(payload),
+    preview: formatReceiptPreview(payload, order),
     hasConfiguredPrinter: order.store.printers.length > 0,
   };
 };

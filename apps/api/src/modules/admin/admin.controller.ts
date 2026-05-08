@@ -137,6 +137,22 @@ export class AdminController {
     return this.courierRegistry.createCourier(body);
   }
 
+  @Patch("couriers/:courierProfileId")
+  updateCourier(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("courierProfileId") courierProfileId: string,
+    @Body() body: any,
+  ) {
+    this.internalAuth.requireAdminToken(authorization);
+    return this.courierRegistry.updateCourier(courierProfileId, body);
+  }
+
+  @Delete("couriers/:courierProfileId")
+  deleteCourier(@Headers("authorization") authorization: string | undefined, @Param("courierProfileId") courierProfileId: string) {
+    this.internalAuth.requireAdminToken(authorization);
+    return this.courierRegistry.deleteCourier(courierProfileId);
+  }
+
   @Post("drivers")
   createDriver(@Headers("authorization") authorization: string | undefined, @Body() body: any) {
     this.internalAuth.requireAdminToken(authorization);
