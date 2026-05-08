@@ -191,8 +191,8 @@ export function TrackingClient({ orderId }: TrackingClientProps) {
           inset: 18px;
           border-radius: 22px;
           background:
-            linear-gradient(90deg, rgba(217, 167, 72, 0.08) 1px, transparent 1px),
-            linear-gradient(0deg, rgba(217, 167, 72, 0.08) 1px, transparent 1px);
+            linear-gradient(90deg, rgba(35, 205, 255, 0.08) 1px, transparent 1px),
+            linear-gradient(0deg, rgba(35, 205, 255, 0.08) 1px, transparent 1px);
           background-size: 44px 44px;
         }
 
@@ -201,7 +201,7 @@ export function TrackingClient({ orderId }: TrackingClientProps) {
           z-index: 1;
           height: 12px;
           border-radius: 999px;
-          background: linear-gradient(90deg, #151515, #d9a748);
+          background: linear-gradient(90deg, #071118, #23cdff);
         }
 
         .route-dot {
@@ -217,17 +217,17 @@ export function TrackingClient({ orderId }: TrackingClientProps) {
 
         .route-dot-start {
           left: 0;
-          background: #151515;
+          background: #071118;
         }
 
         .route-dot-driver {
-          background: #d9a748;
+          background: #23cdff;
           transition: left 600ms ease;
         }
 
         .route-dot-end {
           left: 100%;
-          background: #f26a2e;
+          background: #087fa1;
         }
 
         .tracking-map-copy {
@@ -238,7 +238,7 @@ export function TrackingClient({ orderId }: TrackingClientProps) {
           width: min(520px, 100%);
           padding: 22px;
           border-radius: 22px;
-          background: rgba(21, 21, 21, 0.9);
+          background: rgba(7, 17, 24, 0.92);
           color: #ffffff;
         }
 
@@ -260,7 +260,7 @@ export function TrackingClient({ orderId }: TrackingClientProps) {
         .tracking-pin {
           display: block;
           margin: 8px 0;
-          color: #d9a748;
+          color: #087fa1;
           font-size: 56px;
           letter-spacing: 0;
         }

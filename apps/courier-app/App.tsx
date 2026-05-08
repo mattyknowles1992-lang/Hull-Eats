@@ -4,6 +4,7 @@ import * as Location from "expo-location";
 import { StatusBar } from "expo-status-bar";
 import {
   ActivityIndicator,
+  Image,
   Linking,
   Pressable,
   SafeAreaView,
@@ -23,6 +24,7 @@ const env = globalThis as {
 };
 
 const apiBaseUrl = (env.process?.env?.EXPO_PUBLIC_API_URL ?? "https://hull-eats-api.onrender.com").replace(/\/$/, "");
+const brandBlue = "#23CDFF";
 
 type RequestOptions = {
   method?: "GET" | "POST";
@@ -254,7 +256,8 @@ export default function App() {
       <StatusBar style="light" />
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
-          <View>
+          <Image source={require("./assets/hull-eats-logo.jpeg")} style={styles.logo} />
+          <View style={styles.headerCopy}>
             <Text style={styles.eyebrow}>Hull Eats courier</Text>
             <Text style={styles.title}>Scan. Navigate. Deliver.</Text>
           </View>
@@ -379,7 +382,7 @@ export default function App() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "#101114",
+    backgroundColor: "#f7fbff",
   },
   content: {
     gap: 18,
@@ -388,33 +391,44 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: "row",
-    alignItems: "flex-end",
+    alignItems: "center",
     justifyContent: "space-between",
-    gap: 16,
+    gap: 12,
     paddingTop: 18,
   },
+  logo: {
+    width: 72,
+    height: 72,
+    borderRadius: 20,
+    shadowColor: "#04111a",
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.16,
+    shadowRadius: 22,
+  },
+  headerCopy: {
+    flex: 1,
+  },
   eyebrow: {
-    color: "#d9a748",
+    color: "#087fa1",
     fontSize: 12,
     fontWeight: "800",
     letterSpacing: 1.2,
     textTransform: "uppercase",
   },
   title: {
-    color: "#ffffff",
-    fontSize: 38,
+    color: "#071118",
+    fontSize: 32,
     fontWeight: "900",
     letterSpacing: 0,
-    lineHeight: 40,
+    lineHeight: 34,
     marginTop: 8,
-    maxWidth: 260,
   },
   statusPill: {
-    backgroundColor: "#25272e",
-    borderColor: "rgba(217, 167, 72, 0.35)",
+    backgroundColor: "#071118",
+    borderColor: "rgba(35, 205, 255, 0.45)",
     borderWidth: 1,
     borderRadius: 999,
-    color: "#f5d992",
+    color: "#ffffff",
     fontSize: 12,
     fontWeight: "800",
     overflow: "hidden",
@@ -427,6 +441,12 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     gap: 14,
     padding: 18,
+    borderColor: "rgba(35, 205, 255, 0.16)",
+    borderWidth: 1,
+    shadowColor: "#071118",
+    shadowOffset: { width: 0, height: 18 },
+    shadowOpacity: 0.08,
+    shadowRadius: 28,
   },
   panelTitle: {
     color: "#151515",
@@ -454,7 +474,7 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     alignItems: "center",
-    backgroundColor: "#d9a748",
+    backgroundColor: brandBlue,
     borderRadius: 15,
     paddingHorizontal: 16,
     paddingVertical: 15,
@@ -466,7 +486,7 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     alignItems: "center",
-    backgroundColor: "#151515",
+    backgroundColor: "#071118",
     borderRadius: 15,
     paddingHorizontal: 16,
     paddingVertical: 15,
@@ -492,10 +512,16 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   deliveryCard: {
-    backgroundColor: "#f8f8f6",
+    backgroundColor: "#ffffff",
     borderRadius: 24,
     gap: 18,
     padding: 18,
+    borderColor: "rgba(35, 205, 255, 0.18)",
+    borderWidth: 1,
+    shadowColor: "#071118",
+    shadowOffset: { width: 0, height: 18 },
+    shadowOpacity: 0.08,
+    shadowRadius: 28,
   },
   cardHeader: {
     flexDirection: "row",
@@ -503,7 +529,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   cardKicker: {
-    color: "#d1771d",
+    color: "#087fa1",
     fontSize: 13,
     fontWeight: "900",
   },
@@ -529,7 +555,7 @@ const styles = StyleSheet.create({
     width: 14,
   },
   stepDotActive: {
-    backgroundColor: "#d9a748",
+    backgroundColor: brandBlue,
   },
   stepText: {
     color: "#626a75",
@@ -559,7 +585,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   pinBox: {
-    backgroundColor: "#151515",
+    backgroundColor: "#071118",
     borderRadius: 18,
     gap: 12,
     padding: 14,
@@ -594,7 +620,7 @@ const styles = StyleSheet.create({
     maxWidth: 220,
   },
   jobStatus: {
-    color: "#d1771d",
+    color: "#087fa1",
     fontSize: 12,
     fontWeight: "900",
     textTransform: "capitalize",

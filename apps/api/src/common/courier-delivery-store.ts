@@ -1,6 +1,8 @@
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 
-import type { CourierDelivery, CourierLocationInput, DeliveryStatus, OrderSummary } from "@hull-eats/types";
+import type { CourierDelivery, CourierLocation, CourierLocationInput, DeliveryStatus, OrderSummary } from "@hull-eats/types";
+import { courierDeliverySchema, orderSummarySchema } from "@hull-eats/types";
+import { prisma } from "@hull-eats/db";
 
 import { demoOrders, demoStores } from "./demo-data";
 
@@ -10,6 +12,11 @@ type DeliverySeed = {
   customerName: string;
   customerPhone: string;
   confirmationCode: string;
+};
+
+type PersistedTrackingState = {
+  confirmationCode?: string;
+  courierLocation?: CourierLocation;
 };
 
 const deliverySeeds: Record<string, DeliverySeed> = {
@@ -36,9 +43,145 @@ const deliverySeeds: Record<string, DeliverySeed> = {
   },
 };
 
-const deliveryStore = new Map<string, CourierDelivery>();
+const demoDeliveryStore = new Map<string, CourierDelivery>();
 
-const findOrder = (orderReference: string): OrderSummary | undefined => {
+const toApiEnum = <T extends string>(value: string) => value.toLowerCase() as T;
+const toDbEnum = (value: string) => value.toUpperCase() as any;
+
+const toOrderSummary = (order: {
+  id: string;
+  orderNumber: string;
+  storeId: string;
+  status: string;
+  paymentStatus: string;
+  fulfillmentType: string;
+  source: string;
+  totalAmount: unknown;
+  currency: string;
+  placedAt: Date;
+  prepTimeMinutes: number | null;
+}): OrderSummary =>
+  orderSummarySchema.parse({
+    id: order.id,
+    orderNumber: order.orderNumber,
+    storeId: order.storeId,
+    status: toApiEnum(order.status),
+    paymentStatus: toApiEnum(order.paymentStatus),
+    fulfillmentType: toApiEnum(order.fulfillmentType),
+    source: toApiEnum(order.source),
+    totalAmount: Number(order.totalAmount),
+    currency: order.currency,
+    placedAt: order.placedAt.toISOString(),
+    prepTimeMinutes: order.prepTimeMinutes,
+  });
+
+const extractOrderReference = (rawValue: string): string => {
+  const value = rawValue.trim();
+  const orderNumberMatch = value.match(/HE-[0-9-]{4,}/i);
+  const orderIdMatch = value.match(/order_HE_[0-9-]{4,}/i);
+
+  return (orderNumberMatch?.[0] ?? orderIdMatch?.[0] ?? value).toUpperCase();
+};
+
+const buildNavigationUrl = (dropoffAddress: string) =>
+  `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dropoffAddress)}`;
+
+const deliveryIdForOrder = (orderNumber: string) => `delivery_${orderNumber.replaceAll("-", "_")}`;
+
+const parseTrackingState = (value: string | null | undefined): PersistedTrackingState => {
+  if (!value) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(value) as PersistedTrackingState;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
+const encodeTrackingState = (state: PersistedTrackingState) => JSON.stringify(state);
+
+const buildConfirmationCode = (orderNumber: string) => {
+  const digits = orderNumber.replace(/\D/g, "").slice(-4);
+  return digits.length >= 4 ? digits : `${Math.floor(1000 + Math.random() * 9000)}`;
+};
+
+const formatAddress = (...parts: Array<string | null | undefined>) => parts.map((part) => part?.trim()).filter(Boolean).join(", ");
+
+const buildPersistedDelivery = (order: any): CourierDelivery => {
+  const delivery = order.delivery;
+  const trackingState = parseTrackingState(delivery?.externalReference);
+  const pickupAddress = formatAddress(order.store?.name, order.store?.addressLine1, order.store?.city, order.store?.postcode) || "Hull Eats kitchen";
+  const dropoffAddress = formatAddress(order.addressLine1, order.city, order.postcode) || "Customer address, Hull";
+  const status = toApiEnum<DeliveryStatus>(delivery?.status ?? (order.status === "DELIVERED" ? "DELIVERED" : "ASSIGNED"));
+
+  return courierDeliverySchema.parse({
+    deliveryId: delivery?.id ?? deliveryIdForOrder(order.orderNumber),
+    orderId: order.id,
+    orderNumber: order.orderNumber,
+    status,
+    storeName: order.store?.name ?? "Hull Eats kitchen",
+    pickupAddress,
+    dropoffAddress,
+    customerName: order.customerName,
+    customerPhone: order.customerPhone,
+    confirmationCode: trackingState.confirmationCode ?? buildConfirmationCode(order.orderNumber),
+    navigationUrl: buildNavigationUrl(dropoffAddress),
+    startedAt: delivery?.acceptedAt?.toISOString(),
+    pickedUpAt: delivery?.pickedUpAt?.toISOString() ?? order.pickedUpAt?.toISOString(),
+    deliveredAt: delivery?.deliveredAt?.toISOString() ?? order.deliveredAt?.toISOString(),
+    courierLocation: trackingState.courierLocation,
+  });
+};
+
+const findPersistedOrder = async (orderReference: string) =>
+  prisma.order.findFirst({
+    where: {
+      OR: [{ id: orderReference }, { orderNumber: orderReference }],
+    },
+    include: {
+      store: true,
+      delivery: true,
+    },
+  });
+
+const ensurePersistedDelivery = async (order: any, status: DeliveryStatus) => {
+  const existingState = parseTrackingState(order.delivery?.externalReference);
+  const state: PersistedTrackingState = {
+    ...existingState,
+    confirmationCode: existingState.confirmationCode ?? buildConfirmationCode(order.orderNumber),
+  };
+
+  const data = {
+    status: toDbEnum(status),
+    externalProvider: "hull_eats",
+    externalReference: encodeTrackingState(state),
+    pickedUpAt: status === "picked_up" ? new Date() : order.delivery?.pickedUpAt,
+    deliveredAt: status === "delivered" ? new Date() : order.delivery?.deliveredAt,
+  };
+
+  const delivery = order.delivery
+    ? await prisma.delivery.update({
+        where: { id: order.delivery.id },
+        data,
+      })
+    : await prisma.delivery.create({
+        data: {
+          orderId: order.id,
+          ...data,
+          assignedAt: new Date(),
+        },
+      });
+
+  return {
+    ...order,
+    delivery,
+  };
+};
+
+const findDemoOrder = (orderReference: string): OrderSummary | undefined => {
   const normalised = orderReference.trim().toUpperCase();
 
   return demoOrders.find(
@@ -46,27 +189,14 @@ const findOrder = (orderReference: string): OrderSummary | undefined => {
   );
 };
 
-const extractOrderReference = (rawValue: string): string => {
-  const value = rawValue.trim();
-  const orderNumberMatch = value.match(/HE-\d{4,}/i);
-  const orderIdMatch = value.match(/order_HE_\d{4,}/i);
-
-  return (orderNumberMatch?.[0] ?? orderIdMatch?.[0] ?? value).toUpperCase();
-};
-
-const getStoreName = (storeId: string) =>
+const getDemoStoreName = (storeId: string) =>
   demoStores.find((store) => store.id === storeId || store.slug === storeId)?.name ?? "Hull Eats kitchen";
 
-const buildNavigationUrl = (dropoffAddress: string) =>
-  `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dropoffAddress)}`;
-
-const deliveryIdForOrder = (orderNumber: string) => `delivery_${orderNumber.replace("-", "_")}`;
-
-const buildDelivery = (order: OrderSummary, status: DeliveryStatus = "assigned"): CourierDelivery => {
+const buildDemoDelivery = (order: OrderSummary, status: DeliveryStatus = "assigned"): CourierDelivery => {
   const seed =
     deliverySeeds[order.orderNumber] ??
     ({
-      pickupAddress: `${getStoreName(order.storeId)}, Hull`,
+      pickupAddress: `${getDemoStoreName(order.storeId)}, Hull`,
       dropoffAddress: "Customer address, Hull",
       customerName: "Hull Eats customer",
       customerPhone: "Hidden until dispatch",
@@ -78,7 +208,7 @@ const buildDelivery = (order: OrderSummary, status: DeliveryStatus = "assigned")
     orderId: order.id,
     orderNumber: order.orderNumber,
     status,
-    storeName: getStoreName(order.storeId),
+    storeName: getDemoStoreName(order.storeId),
     pickupAddress: seed.pickupAddress,
     dropoffAddress: seed.dropoffAddress,
     customerName: seed.customerName,
@@ -88,25 +218,8 @@ const buildDelivery = (order: OrderSummary, status: DeliveryStatus = "assigned")
   };
 };
 
-const upsertDeliveryForOrder = (order: OrderSummary, status: DeliveryStatus) => {
-  const existing = deliveryStore.get(deliveryIdForOrder(order.orderNumber));
-  const delivery: CourierDelivery = {
-    ...(existing ?? buildDelivery(order, status)),
-    status,
-  };
-
-  deliveryStore.set(delivery.deliveryId, delivery);
-  return delivery;
-};
-
-export const listCourierJobs = () =>
-  demoOrders
-    .filter((order) => order.fulfillmentType === "delivery" && order.status !== "delivered" && order.status !== "cancelled")
-    .map((order) => deliveryStore.get(deliveryIdForOrder(order.orderNumber)) ?? buildDelivery(order, "assigned"));
-
-export const startDeliveryFromScan = (input: { scanCode?: string; orderNumber?: string }) => {
-  const orderReference = extractOrderReference(input.scanCode ?? input.orderNumber ?? "");
-  const order = findOrder(orderReference);
+const startDemoDelivery = (orderReference: string) => {
+  const order = findDemoOrder(orderReference);
 
   if (!order) {
     throw new NotFoundException(`No delivery order was found for ${orderReference}.`);
@@ -116,78 +229,221 @@ export const startDeliveryFromScan = (input: { scanCode?: string; orderNumber?: 
     throw new BadRequestException(`${order.orderNumber} is not a delivery order.`);
   }
 
-  if (order.status === "delivered") {
-    throw new BadRequestException(`${order.orderNumber} has already been delivered.`);
-  }
-
   order.status = "picked_up";
 
   const now = new Date().toISOString();
-  const delivery = upsertDeliveryForOrder(order, "picked_up");
+  const delivery = demoDeliveryStore.get(deliveryIdForOrder(order.orderNumber)) ?? buildDemoDelivery(order, "picked_up");
   const startedDelivery: CourierDelivery = {
     ...delivery,
+    status: "picked_up",
     startedAt: delivery.startedAt ?? now,
     pickedUpAt: delivery.pickedUpAt ?? now,
   };
 
-  deliveryStore.set(startedDelivery.deliveryId, startedDelivery);
+  demoDeliveryStore.set(startedDelivery.deliveryId, startedDelivery);
   return startedDelivery;
 };
 
-export const updateCourierLocation = (deliveryId: string, input: CourierLocationInput) => {
-  const delivery = deliveryStore.get(deliveryId);
+export const listCourierJobs = async () => {
+  const persistedOrders = await prisma.order.findMany({
+    where: {
+      fulfillmentType: "DELIVERY" as any,
+      paymentStatus: { in: ["AUTHORIZED", "PAID"] as any },
+      status: { notIn: ["DELIVERED", "CANCELLED", "REJECTED"] as any },
+    },
+    include: {
+      store: true,
+      delivery: true,
+    },
+    orderBy: { placedAt: "desc" },
+    take: 50,
+  });
 
-  if (!delivery) {
-    throw new NotFoundException(`Delivery ${deliveryId} has not been started.`);
+  return persistedOrders.map(buildPersistedDelivery);
+};
+
+export const startDeliveryFromScan = async (input: { scanCode?: string; orderNumber?: string }) => {
+  const orderReference = extractOrderReference(input.scanCode ?? input.orderNumber ?? "");
+  const order = await findPersistedOrder(orderReference);
+
+  if (!order) {
+    return startDemoDelivery(orderReference);
   }
 
-  const updated: CourierDelivery = {
-    ...delivery,
+  if (toApiEnum(order.fulfillmentType) !== "delivery") {
+    throw new BadRequestException(`${order.orderNumber} is not a delivery order.`);
+  }
+
+  if (order.status === "DELIVERED") {
+    throw new BadRequestException(`${order.orderNumber} has already been delivered.`);
+  }
+
+  const nextOrder = await prisma.order.update({
+    where: { id: order.id },
+    data: {
+      status: "PICKED_UP" as any,
+      pickedUpAt: new Date(),
+      statusHistory: {
+        create: {
+          status: "PICKED_UP" as any,
+          note: "Courier scanned the order receipt and started delivery.",
+        },
+      },
+    },
+    include: {
+      store: true,
+      delivery: true,
+    },
+  });
+
+  const withDelivery = await ensurePersistedDelivery(nextOrder, "picked_up");
+  return buildPersistedDelivery(withDelivery);
+};
+
+export const updateCourierLocation = async (deliveryId: string, input: CourierLocationInput) => {
+  const delivery = await prisma.delivery.findUnique({
+    where: { id: deliveryId },
+    include: {
+      order: {
+        include: {
+          store: true,
+          delivery: true,
+        },
+      },
+    },
+  });
+
+  if (!delivery) {
+    const demoDelivery = demoDeliveryStore.get(deliveryId);
+
+    if (!demoDelivery) {
+      throw new NotFoundException(`Delivery ${deliveryId} has not been started.`);
+    }
+
+    const updated: CourierDelivery = {
+      ...demoDelivery,
+      courierLocation: {
+        ...input,
+        updatedAt: new Date().toISOString(),
+      },
+    };
+
+    demoDeliveryStore.set(deliveryId, updated);
+    return updated;
+  }
+
+  const state = parseTrackingState(delivery.externalReference);
+  const updatedState: PersistedTrackingState = {
+    ...state,
+    confirmationCode: state.confirmationCode ?? buildConfirmationCode(delivery.order.orderNumber),
     courierLocation: {
       ...input,
       updatedAt: new Date().toISOString(),
     },
   };
 
-  deliveryStore.set(deliveryId, updated);
-  return updated;
+  const updatedDelivery = await prisma.delivery.update({
+    where: { id: delivery.id },
+    data: {
+      externalReference: encodeTrackingState(updatedState),
+    },
+  });
+
+  return buildPersistedDelivery({
+    ...delivery.order,
+    delivery: updatedDelivery,
+  });
 };
 
-export const completeDeliveryWithCode = (deliveryId: string, confirmationCode: string) => {
-  const delivery = deliveryStore.get(deliveryId);
+export const completeDeliveryWithCode = async (deliveryId: string, confirmationCode: string) => {
+  const delivery = await prisma.delivery.findUnique({
+    where: { id: deliveryId },
+    include: {
+      order: {
+        include: {
+          store: true,
+          delivery: true,
+        },
+      },
+    },
+  });
 
   if (!delivery) {
-    throw new NotFoundException(`Delivery ${deliveryId} has not been started.`);
+    const demoDelivery = demoDeliveryStore.get(deliveryId);
+
+    if (!demoDelivery) {
+      throw new NotFoundException(`Delivery ${deliveryId} has not been started.`);
+    }
+
+    if (demoDelivery.confirmationCode !== confirmationCode.trim()) {
+      throw new BadRequestException("The customer PIN does not match this order.");
+    }
+
+    const completed: CourierDelivery = {
+      ...demoDelivery,
+      status: "delivered",
+      deliveredAt: new Date().toISOString(),
+    };
+
+    demoDeliveryStore.set(deliveryId, completed);
+    return completed;
   }
 
-  if (delivery.confirmationCode !== confirmationCode.trim()) {
+  const state = parseTrackingState(delivery.externalReference);
+  const expectedCode = state.confirmationCode ?? buildConfirmationCode(delivery.order.orderNumber);
+
+  if (expectedCode !== confirmationCode.trim()) {
     throw new BadRequestException("The customer PIN does not match this order.");
   }
 
-  const order = findOrder(delivery.orderNumber);
+  const updatedOrder = await prisma.order.update({
+    where: { id: delivery.orderId },
+    data: {
+      status: "DELIVERED" as any,
+      deliveredAt: new Date(),
+      statusHistory: {
+        create: {
+          status: "DELIVERED" as any,
+          note: "Courier confirmed the customer PIN at the door.",
+        },
+      },
+      delivery: {
+        update: {
+          status: "DELIVERED" as any,
+          deliveredAt: new Date(),
+          statusHistory: {
+            create: {
+              status: "DELIVERED" as any,
+              note: "Customer PIN confirmed.",
+            },
+          },
+        },
+      },
+    },
+    include: {
+      store: true,
+      delivery: true,
+    },
+  });
 
-  if (order) {
-    order.status = "delivered";
-  }
-
-  const completed: CourierDelivery = {
-    ...delivery,
-    status: "delivered",
-    deliveredAt: new Date().toISOString(),
-  };
-
-  deliveryStore.set(deliveryId, completed);
-  return completed;
+  return buildPersistedDelivery(updatedOrder);
 };
 
-export const getTrackedDeliveryForOrder = (order: OrderSummary) =>
-  deliveryStore.get(deliveryIdForOrder(order.orderNumber)) ?? buildDelivery(order, order.status === "delivered" ? "delivered" : "assigned");
+export const findTrackedOrder = async (orderId: string) => {
+  const orderReference = extractOrderReference(orderId);
+  const persistedOrder = await findPersistedOrder(orderReference);
 
-export const findTrackedOrder = (orderId: string) => {
-  const order = findOrder(orderId) ?? demoOrders[0]!;
+  if (persistedOrder) {
+    return {
+      ...toOrderSummary(persistedOrder),
+      delivery: buildPersistedDelivery(persistedOrder),
+    };
+  }
+
+  const demoOrder = findDemoOrder(orderReference) ?? demoOrders[0]!;
 
   return {
-    ...order,
-    delivery: getTrackedDeliveryForOrder(order),
+    ...demoOrder,
+    delivery: demoDeliveryStore.get(deliveryIdForOrder(demoOrder.orderNumber)) ?? buildDemoDelivery(demoOrder, demoOrder.status === "delivered" ? "delivered" : "assigned"),
   };
 };

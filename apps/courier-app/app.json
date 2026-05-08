@@ -4,6 +4,7 @@
     "slug": "hull-eats-courier",
     "version": "0.1.0",
     "orientation": "portrait",
+    "icon": "./assets/hull-eats-logo.jpeg",
     "userInterfaceStyle": "light",
     "ios": {
       "infoPlist": {

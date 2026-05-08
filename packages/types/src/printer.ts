@@ -14,6 +14,8 @@ export const printJobPayloadSchema = z.object({
   storeId: z.string().min(1),
   printerId: z.string().min(1),
   orderNumber: z.string().min(1),
+  trackingUrl: z.string().url().optional(),
+  qrCodeData: z.string().min(1).optional(),
   customerName: z.string().min(1),
   placedAtIso: z.string().datetime(),
   prepTimeMinutes: z.number().int().nullable(),
