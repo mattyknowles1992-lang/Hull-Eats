@@ -9,6 +9,14 @@ import { demoStores } from "./demo-data";
 const toDbEnum = (value: string) => value.toUpperCase() as any;
 
 const toApiEnum = <T extends string>(value: string) => value.toLowerCase() as T;
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const orderLookupWhere = (orderIdOrNumber: string) => ({
+  OR: [
+    ...(uuidPattern.test(orderIdOrNumber) ? [{ id: orderIdOrNumber }] : []),
+    { orderNumber: orderIdOrNumber },
+  ],
+});
 
 const toOrderSummary = (order: {
   id: string;
@@ -246,7 +254,7 @@ export const listMerchantOrders = async (hubId: string): Promise<OrderSummary[]>
 export const findMerchantOrder = async (hubId: string, orderId: string): Promise<OrderSummary | null> => {
   const order = await prisma.order.findFirst({
     where: {
-      OR: [{ id: orderId }, { orderNumber: orderId }],
+      ...orderLookupWhere(orderId),
       store: {
         merchantId: hubId,
       },
@@ -263,7 +271,7 @@ export const updateMerchantOrder = async (
 ): Promise<OrderSummary> => {
   const existingOrder = await prisma.order.findFirst({
     where: {
-      OR: [{ id: orderId }, { orderNumber: orderId }],
+      ...orderLookupWhere(orderId),
       store: {
         merchantId: hubId,
       },
@@ -296,7 +304,7 @@ export const updateMerchantOrder = async (
 export const buildMerchantOrderReceipt = async (hubId: string, orderId: string) => {
   const order = await prisma.order.findFirst({
     where: {
-      OR: [{ id: orderId }, { orderNumber: orderId }],
+      ...orderLookupWhere(orderId),
       store: {
         merchantId: hubId,
       },

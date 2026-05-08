@@ -47,6 +47,7 @@ const demoDeliveryStore = new Map<string, CourierDelivery>();
 
 const toApiEnum = <T extends string>(value: string) => value.toLowerCase() as T;
 const toDbEnum = (value: string) => value.toUpperCase() as any;
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const toOrderSummary = (order: {
   id: string;
@@ -141,7 +142,10 @@ const buildPersistedDelivery = (order: any): CourierDelivery => {
 const findPersistedOrder = async (orderReference: string) =>
   prisma.order.findFirst({
     where: {
-      OR: [{ id: orderReference }, { orderNumber: orderReference }],
+      OR: [
+        ...(uuidPattern.test(orderReference) ? [{ id: orderReference }] : []),
+        { orderNumber: orderReference },
+      ],
     },
     include: {
       store: true,
