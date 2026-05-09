@@ -1236,8 +1236,10 @@ textarea {
 
 .services-page-logo {
   display: block;
-  width: min(250px, 48vw);
-  height: auto;
+  width: 72px;
+  height: 72px;
+  border-radius: 24px;
+  object-fit: contain;
   filter: drop-shadow(0 12px 24px rgba(7, 16, 25, 0.14));
 }
 
@@ -3630,7 +3632,8 @@ button.filter-pill {
   }
 
   .services-page-logo {
-    width: min(220px, 72vw);
+    width: 72px;
+    height: 72px;
   }
 
   .service-category-grid {

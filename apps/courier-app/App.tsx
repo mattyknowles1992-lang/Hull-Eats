@@ -5,7 +5,6 @@ import { StatusBar } from "expo-status-bar";
 import {
   ActivityIndicator,
   Image,
-  Linking,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -58,6 +57,51 @@ const demoRoute = [
   { latitude: 53.7489, longitude: -0.3702 },
 ];
 
+const hullFallbackLocation = { latitude: 53.7676, longitude: -0.3274 };
+const mapZoom = 15;
+
+type MapTile = {
+  key: string;
+  uri: string;
+  left: `${number}%`;
+  top: `${number}%`;
+};
+
+const longitudeToTile = (longitude: number, zoom: number) => ((longitude + 180) / 360) * 2 ** zoom;
+
+const latitudeToTile = (latitude: number, zoom: number) => {
+  const radians = (latitude * Math.PI) / 180;
+  return ((1 - Math.log(Math.tan(radians) + 1 / Math.cos(radians)) / Math.PI) / 2) * 2 ** zoom;
+};
+
+const buildTileMap = (latitude: number, longitude: number) => {
+  const tileX = longitudeToTile(longitude, mapZoom);
+  const tileY = latitudeToTile(latitude, mapZoom);
+  const centreX = Math.floor(tileX);
+  const centreY = Math.floor(tileY);
+  const tiles: MapTile[] = [];
+
+  for (let yOffset = -1; yOffset <= 1; yOffset += 1) {
+    for (let xOffset = -1; xOffset <= 1; xOffset += 1) {
+      const x = centreX + xOffset;
+      const y = centreY + yOffset;
+
+      tiles.push({
+        key: `${mapZoom}-${x}-${y}`,
+        uri: `https://tile.openstreetmap.org/${mapZoom}/${x}/${y}.png`,
+        left: `${(xOffset + 1) * 33.3333}%`,
+        top: `${(yOffset + 1) * 33.3333}%`,
+      });
+    }
+  }
+
+  return {
+    tiles,
+    markerLeft: ((tileX - (centreX - 1)) / 3) * 100,
+    markerTop: ((tileY - (centreY - 1)) / 3) * 100,
+  };
+};
+
 type CourierAccount = {
   id: string;
   courierProfileId: string;
@@ -106,6 +150,8 @@ export default function App() {
 
   const activeStatus = delivery?.status.replaceAll("_", " ") ?? "ready";
   const canComplete = Boolean(delivery && delivery.status !== "delivered");
+  const mapLocation = delivery?.courierLocation ?? hullFallbackLocation;
+  const inAppMap = useMemo(() => buildTileMap(mapLocation.latitude, mapLocation.longitude), [mapLocation.latitude, mapLocation.longitude]);
 
   const activeStep = useMemo(() => {
     if (!delivery) {
@@ -225,7 +271,7 @@ export default function App() {
           distanceInterval: 20,
           timeInterval: 5000,
         },
-        (position) => {
+        (position: Location.LocationObject) => {
           void sendLocation(nextDelivery, {
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
@@ -263,7 +309,6 @@ export default function App() {
         setIsScanning(false);
         setStatusMessage(`${nextDelivery.orderNumber} started. Navigation and live tracking are ready.`);
         await startLocationSharing(nextDelivery);
-        void Linking.openURL(nextDelivery.navigationUrl);
         await loadJobs();
       } catch (error) {
         setErrorMessage(error instanceof Error ? error.message : "Unable to start this delivery.");
@@ -539,9 +584,33 @@ export default function App() {
               <Text style={styles.address}>{delivery.customerPhone}</Text>
             </View>
 
+            <View style={styles.inAppMap}>
+              <View style={styles.mapTileGrid}>
+                {inAppMap.tiles.map((tile) => (
+                  <Image
+                    key={tile.key}
+                    source={{ uri: tile.uri }}
+                    style={[styles.mapTile, { left: tile.left, top: tile.top }]}
+                    resizeMode="cover"
+                  />
+                ))}
+              </View>
+              <View style={[styles.driverMarker, { left: `${inAppMap.markerLeft}%`, top: `${inAppMap.markerTop}%` }]}>
+                <View style={styles.driverMarkerCore} />
+              </View>
+              <View style={styles.mapCopy}>
+                <Text style={styles.mapTitle}>In-app navigation</Text>
+                <Text style={styles.mapText}>
+                  {delivery.courierLocation
+                    ? `${delivery.courierLocation.latitude.toFixed(5)}, ${delivery.courierLocation.longitude.toFixed(5)}`
+                    : "Waiting for live GPS. The map updates as your phone sends location."}
+                </Text>
+              </View>
+            </View>
+
             <View style={styles.actionRow}>
-              <Pressable style={styles.primaryButton} onPress={() => Linking.openURL(delivery.navigationUrl)}>
-                <Text style={styles.primaryButtonText}>Open navigation</Text>
+              <Pressable style={styles.primaryButton} onPress={() => startLocationSharing(delivery)}>
+                <Text style={styles.primaryButtonText}>Refresh in-app navigation</Text>
               </Pressable>
               <Pressable style={styles.ghostButton} onPress={() => setDelivery(null)}>
                 <Text style={styles.ghostButtonText}>Cancel current scan</Text>
@@ -858,6 +927,67 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "800",
     lineHeight: 22,
+  },
+  inAppMap: {
+    backgroundColor: "#dff5ff",
+    borderColor: "rgba(35, 205, 255, 0.32)",
+    borderRadius: 22,
+    borderWidth: 1,
+    height: 320,
+    overflow: "hidden",
+    position: "relative",
+  },
+  mapTileGrid: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  mapTile: {
+    height: "33.3333%",
+    position: "absolute",
+    width: "33.3333%",
+  },
+  driverMarker: {
+    alignItems: "center",
+    backgroundColor: "#ffffff",
+    borderColor: brandBlue,
+    borderRadius: 999,
+    borderWidth: 4,
+    height: 34,
+    justifyContent: "center",
+    marginLeft: -17,
+    marginTop: -17,
+    position: "absolute",
+    shadowColor: "#071118",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 14,
+    width: 34,
+  },
+  driverMarkerCore: {
+    backgroundColor: brandBlue,
+    borderRadius: 999,
+    height: 16,
+    width: 16,
+  },
+  mapCopy: {
+    backgroundColor: "rgba(7, 17, 24, 0.9)",
+    borderRadius: 18,
+    bottom: 14,
+    gap: 4,
+    left: 14,
+    padding: 14,
+    position: "absolute",
+    right: 14,
+  },
+  mapTitle: {
+    color: "#ffffff",
+    fontSize: 18,
+    fontWeight: "900",
+  },
+  mapText: {
+    color: "rgba(255, 255, 255, 0.74)",
+    fontSize: 13,
+    fontWeight: "700",
+    lineHeight: 18,
   },
   actionRow: {
     gap: 10,

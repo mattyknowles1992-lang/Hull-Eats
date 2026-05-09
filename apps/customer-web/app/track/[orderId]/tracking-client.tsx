@@ -72,9 +72,6 @@ export function TrackingClient({ orderId }: TrackingClientProps) {
   const mapSrc = useMemo(() => buildMapSrc(mapLatitude, mapLongitude), [mapLatitude, mapLongitude]);
   const mapUpdatedAt = location ? new Date(location.updatedAt).toLocaleTimeString("en-GB") : "Waiting for driver scan";
   const mapAccuracy = location?.accuracyMeters ? `Accuracy ${Math.round(location.accuracyMeters)}m` : null;
-  const googleMapLink = location
-    ? `https://www.google.com/maps/search/?api=1&query=${location.latitude},${location.longitude}`
-    : null;
 
   return (
     <main className="tracking-shell">
@@ -113,11 +110,7 @@ export function TrackingClient({ orderId }: TrackingClientProps) {
             </span>
             <div className="tracking-map-actions">
               <small>Updated {mapUpdatedAt}</small>
-              {googleMapLink ? (
-                <a href={googleMapLink} target="_blank" rel="noreferrer">
-                  Open map
-                </a>
-              ) : null}
+              <small>{location ? "Map follows the courier app" : "No driver position yet"}</small>
             </div>
           </div>
         </article>
@@ -284,16 +277,6 @@ export function TrackingClient({ orderId }: TrackingClientProps) {
         .tracking-map-actions small {
           color: rgba(255, 255, 255, 0.62);
           font-weight: 700;
-        }
-
-        .tracking-map-actions a {
-          color: #071118;
-          background: #23cdff;
-          border-radius: 999px;
-          padding: 8px 12px;
-          text-decoration: none;
-          font-size: 13px;
-          font-weight: 900;
         }
 
         .tracking-panel {
