@@ -91,6 +91,7 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
   const [addedMessage, setAddedMessage] = useState("");
   const [isClient, setIsClient] = useState(false);
   const [activeCategoryId, setActiveCategoryId] = useState("all");
+  const [expandedCategoryIds, setExpandedCategoryIds] = useState<string[]>([]);
 
   useEffect(() => {
     const sync = () => setBasket(loadBasket(storeSlug));
@@ -173,6 +174,12 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
 
     setActiveItem(item);
     setSelection(getDefaultCustomisationSelection(item));
+  };
+
+  const toggleCategoryExpanded = (categoryId: string) => {
+    setExpandedCategoryIds((current) =>
+      current.includes(categoryId) ? current.filter((entry) => entry !== categoryId) : [...current, categoryId],
+    );
   };
 
   const closeCustomise = () => {
@@ -325,8 +332,11 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
         </div>
       </section>
 
-      {visibleCategories.map((category) => (
-        <section key={category.id} className="menu-section-card menu-section-card-visual">
+      {visibleCategories.map((category) => {
+        const isExpanded = expandedCategoryIds.includes(category.id);
+
+        return (
+        <section key={category.id} className={`menu-section-card menu-section-card-visual${isExpanded ? " is-expanded" : ""}`}>
           <div
             className="menu-category-visual"
             style={{
@@ -338,46 +348,58 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
               <h3>{category.name}</h3>
               {category.description ? <p className="menu-section-copy">{category.description}</p> : null}
             </div>
-            <span className="store-tag menu-category-count">{category.items.length} items</span>
+            <button
+              type="button"
+              className="store-tag menu-category-count menu-category-toggle"
+              aria-expanded={isExpanded}
+              aria-controls={`menu-category-items-${category.id}`}
+              onClick={() => toggleCategoryExpanded(category.id)}
+            >
+              <span>{isExpanded ? "Hide items" : `Show ${category.items.length} item${category.items.length === 1 ? "" : "s"}`}</span>
+              <span aria-hidden="true">{isExpanded ? "^" : "v"}</span>
+            </button>
           </div>
 
-          <div className="menu-item-grid">
-            {category.items.map((item) => (
-              <article key={item.id} className="menu-item-card menu-item-card-visual">
-                <div
-                  className="menu-item-image"
-                  style={{
-                    backgroundImage: `url(${getItemImageUrl(item, category)})`,
-                  }}
-                  aria-hidden="true"
-                />
-                <div className="menu-item-content-panel">
-                  <div className="menu-item-top">
-                    <div>
-                      <h4>{item.name}</h4>
-                      <p>{item.description}</p>
+          {isExpanded ? (
+            <div className="menu-item-grid" id={`menu-category-items-${category.id}`}>
+              {category.items.map((item) => (
+                <article key={item.id} className="menu-item-card menu-item-card-visual">
+                  <div
+                    className="menu-item-image"
+                    style={{
+                      backgroundImage: `url(${getItemImageUrl(item, category)})`,
+                    }}
+                    aria-hidden="true"
+                  />
+                  <div className="menu-item-content-panel">
+                    <div className="menu-item-top">
+                      <div>
+                        <h4>{item.name}</h4>
+                        <p>{item.description}</p>
+                      </div>
+                      <strong>{formatMoney(item.price)}</strong>
                     </div>
-                    <strong>{formatMoney(item.price)}</strong>
-                  </div>
 
-                  {item.components.length > 0 || item.optionGroups.length > 0 ? (
-                    <div className="menu-item-customise-summary">
-                      {item.components.length > 0 ? <span>{item.components.length} included ingredients</span> : null}
-                      {item.optionGroups.length > 0 ? <span>{item.optionGroups.length} customisation groups</span> : null}
+                    {item.components.length > 0 || item.optionGroups.length > 0 ? (
+                      <div className="menu-item-customise-summary">
+                        {item.components.length > 0 ? <span>{item.components.length} included ingredients</span> : null}
+                        {item.optionGroups.length > 0 ? <span>{item.optionGroups.length} customisation groups</span> : null}
+                      </div>
+                    ) : null}
+
+                    <div className="menu-item-footer">
+                      <button type="button" className="glass-button" onClick={() => openCustomise(item)}>
+                        {item.components.length > 0 || item.optionGroups.length > 0 ? "Customise and add" : "Add"}
+                      </button>
                     </div>
-                  ) : null}
-
-                  <div className="menu-item-footer">
-                    <button type="button" className="glass-button" onClick={() => openCustomise(item)}>
-                      {item.components.length > 0 || item.optionGroups.length > 0 ? "Customise and add" : "Add"}
-                    </button>
                   </div>
-                </div>
-              </article>
-            ))}
-          </div>
+                </article>
+              ))}
+            </div>
+          ) : null}
         </section>
-      ))}
+        );
+      })}
 
       {isClient && activeItem && selection
         ? createPortal(

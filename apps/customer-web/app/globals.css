@@ -2557,6 +2557,39 @@ button.filter-pill {
   box-shadow: 0 14px 24px rgba(0, 0, 0, 0.18);
 }
 
+.menu-category-toggle {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 900;
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    filter 160ms ease;
+}
+
+.menu-category-toggle:hover,
+.menu-category-toggle:focus-visible {
+  transform: translateY(-1px);
+  filter: brightness(1.03);
+  box-shadow: 0 18px 28px rgba(35, 205, 255, 0.24);
+}
+
+.menu-category-toggle span:last-child {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  color: #f7fbff;
+  background: #0f1115;
+  line-height: 1;
+}
+
 .menu-section-header {
   display: flex;
   justify-content: space-between;
