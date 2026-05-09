@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { AppSwitcher } from "../../app-switcher";
 import { featuredStores, storeMenus } from "../../../src/lib/demo";
 import {
   getMarketplaceCategory,
@@ -65,14 +66,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ categ
           <Link href="/" className="icon-button">
             Back
           </Link>
-          <div className="brand-logo-cluster">
-            <Link href="/" className="brand-logo-link" aria-label="Hull Eats marketplace">
-              <img src="/brand/hull-eats-logo.jpeg" alt="Hull Eats" className="brand-logo brand-logo-small" />
-            </Link>
-            <Link href="/services" className="brand-logo-link" aria-label="Hull Services">
-              <img src="/brand/hull-services-logo.png" alt="Hull Services" className="brand-logo brand-logo-small" />
-            </Link>
-          </div>
+          <AppSwitcher />
           <div>
             <p className="eyebrow">Marketplace category</p>
             <p className="brand-title">{category.label}</p>

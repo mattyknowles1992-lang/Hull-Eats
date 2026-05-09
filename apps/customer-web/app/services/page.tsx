@@ -1,19 +1,13 @@
 import Link from "next/link";
 
+import { AppSwitcher } from "../app-switcher";
 import { serviceBusinesses, serviceCategories } from "../../src/lib/service-marketplace";
 
 export default function ServicesPage() {
   return (
     <main className="shell customer-marketplace services-marketplace">
       <header className="topbar services-topbar">
-        <div className="brand-logo-cluster">
-          <Link href="/" className="brand-logo-link" aria-label="Hull Eats marketplace">
-            <img src="/brand/hull-eats-logo.jpeg" alt="Hull Eats" className="brand-logo" />
-          </Link>
-          <Link href="/services" className="brand-logo-link" aria-label="Hull Services">
-            <img src="/brand/hull-services-logo.png" alt="Hull Services" className="brand-logo" />
-          </Link>
-        </div>
+        <AppSwitcher />
 
         <div className="topbar-actions">
           <Link href="/" className="primary-button service-back-button">

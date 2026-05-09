@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { AppSwitcher } from "../app-switcher";
 import { RegisterForm } from "./register-form";
 
 export default function RegisterPage() {
@@ -10,14 +11,7 @@ export default function RegisterPage() {
           <Link href="/" className="icon-button">
             Back
           </Link>
-          <div className="brand-logo-cluster">
-            <Link href="/" className="brand-logo-link" aria-label="Hull Eats marketplace">
-              <img src="/brand/hull-eats-logo.jpeg" alt="Hull Eats" className="brand-logo brand-logo-small" />
-            </Link>
-            <Link href="/services" className="brand-logo-link" aria-label="Hull Services">
-              <img src="/brand/hull-services-logo.png" alt="Hull Services" className="brand-logo brand-logo-small" />
-            </Link>
-          </div>
+          <AppSwitcher />
           <div>
             <p className="eyebrow">Customer account</p>
             <p className="brand-title">Create your Hull Eats account</p>

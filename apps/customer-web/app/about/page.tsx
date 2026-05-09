@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { AppSwitcher } from "../app-switcher";
+
 const buyerOffers = [
   "Order from Hull restaurants, takeaways, cafes, dessert spots, and shops in one local marketplace.",
   "Track orders from checkout through preparation and delivery as the delivery operation comes online.",
@@ -71,16 +73,13 @@ export default function AboutHullEatsPage() {
   return (
     <main className="marketing-page">
       <header className="marketing-nav">
-        <Link href="/" className="brand-pill">
-          <span className="brand-logo-cluster">
-            <img src="/brand/hull-eats-logo.jpeg" alt="Hull Eats" className="brand-logo-small" />
-            <img src="/brand/hull-services-logo.png" alt="Hull Services" className="brand-logo-small" />
-          </span>
+        <div className="brand-pill">
+          <AppSwitcher />
           <div>
             <p className="eyebrow">Hull Eats</p>
             <p className="brand-title">Local food, local software, local delivery.</p>
           </div>
-        </Link>
+        </div>
 
         <nav className="marketing-nav-actions" aria-label="Hull Eats website navigation">
           <a href="#offers" className="glass-button">

@@ -168,6 +168,45 @@ textarea {
   object-fit: cover;
 }
 
+.app-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: clamp(28px, 6vw, 78px);
+  flex: 0 0 auto;
+}
+
+.app-switcher-main,
+.app-switcher-secondary,
+.app-switcher-icon {
+  display: inline-flex;
+  align-items: center;
+}
+
+.app-switcher-secondary {
+  gap: 10px;
+}
+
+.app-switcher-main .brand-logo {
+  width: 72px;
+  height: 72px;
+  border-radius: 24px;
+}
+
+.app-switcher-icon .brand-logo {
+  opacity: 0.88;
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.app-switcher-icon:hover .brand-logo,
+.app-switcher-icon:focus-visible .brand-logo {
+  opacity: 1;
+  transform: translateY(-1px);
+  box-shadow: 0 20px 34px rgba(35, 205, 255, 0.2);
+}
+
 .location-strip {
   display: flex;
   justify-content: center;
