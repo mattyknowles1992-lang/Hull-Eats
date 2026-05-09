@@ -4,6 +4,7 @@ import type { CourierDelivery, CourierLocation, CourierLocationInput, DeliverySt
 import { courierDeliverySchema, orderSummarySchema } from "@hull-eats/types";
 import { prisma } from "@hull-eats/db";
 
+import { customerNotifications } from "./customer-notifications.service";
 import { demoOrders, demoStores } from "./demo-data";
 
 type DeliverySeed = {
@@ -331,6 +332,9 @@ export const startDeliveryFromScan = async (input: { scanCode?: string; orderNum
   });
 
   const withDelivery = await ensurePersistedDelivery(nextOrder, "picked_up", input.driverId);
+  void customerNotifications.notifyOrderPickedUp(nextOrder).catch((error) => {
+    console.error(`Failed to send picked-up notification for ${nextOrder.orderNumber}`, error);
+  });
   return buildPersistedDelivery(withDelivery);
 };
 
@@ -485,6 +489,10 @@ export const completeDeliveryWithCode = async (deliveryId: string, confirmationC
         },
       },
     },
+  });
+
+  void customerNotifications.notifyOrderDelivered(updatedOrder).catch((error) => {
+    console.error(`Failed to send delivered notification for ${updatedOrder.orderNumber}`, error);
   });
 
   return buildPersistedDelivery(updatedOrder);

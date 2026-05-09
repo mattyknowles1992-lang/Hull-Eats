@@ -144,6 +144,35 @@ create table if not exists public.print_jobs (
   completed_at timestamptz
 );
 
+create table if not exists public.customer_push_tokens (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid references public.orders(id) on delete cascade,
+  customer_email text,
+  customer_phone text,
+  token text not null unique,
+  platform text not null default 'unknown',
+  is_active boolean not null default true,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create table if not exists public.customer_notifications (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid references public.orders(id) on delete set null,
+  order_number text not null,
+  customer_email text,
+  channel text not null default 'push',
+  event text not null,
+  title text not null,
+  body text not null,
+  deep_link text,
+  status text not null default 'queued',
+  token_count integer not null default 0,
+  provider_response jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default timezone('utc', now()),
+  sent_at timestamptz
+);
+
 create index if not exists idx_deliveries_order on public.deliveries(order_id);
 create index if not exists idx_deliveries_status on public.deliveries(status, assigned_at desc);
 create index if not exists idx_courier_accounts_status on public.courier_accounts(status, created_at desc);
@@ -153,6 +182,10 @@ create index if not exists idx_delivery_status_history_delivery on public.delive
 create index if not exists idx_printers_store on public.printers(store_id, is_active);
 create index if not exists idx_print_jobs_printer on public.print_jobs(printer_id, status, created_at);
 create index if not exists idx_print_jobs_order on public.print_jobs(order_id);
+create index if not exists idx_customer_push_tokens_order on public.customer_push_tokens(order_id, is_active);
+create index if not exists idx_customer_push_tokens_email on public.customer_push_tokens(lower(customer_email), is_active);
+create index if not exists idx_customer_notifications_order on public.customer_notifications(order_id, created_at desc);
+create index if not exists idx_customer_notifications_event on public.customer_notifications(event, status, created_at desc);
 
 drop trigger if exists set_deliveries_updated_at on public.deliveries;
 create trigger set_deliveries_updated_at before update on public.deliveries for each row execute function public.set_updated_at();
@@ -169,6 +202,9 @@ create trigger set_courier_profiles_updated_at before update on public.courier_p
 drop trigger if exists set_courier_accounts_updated_at on public.courier_accounts;
 create trigger set_courier_accounts_updated_at before update on public.courier_accounts for each row execute function public.set_updated_at();
 
+drop trigger if exists set_customer_push_tokens_updated_at on public.customer_push_tokens;
+create trigger set_customer_push_tokens_updated_at before update on public.customer_push_tokens for each row execute function public.set_updated_at();
+
 alter table public.platform_users enable row level security;
 alter table public.courier_profiles enable row level security;
 alter table public.courier_accounts enable row level security;
@@ -177,3 +213,5 @@ alter table public.deliveries enable row level security;
 alter table public.delivery_status_history enable row level security;
 alter table public.printers enable row level security;
 alter table public.print_jobs enable row level security;
+alter table public.customer_push_tokens enable row level security;
+alter table public.customer_notifications enable row level security;

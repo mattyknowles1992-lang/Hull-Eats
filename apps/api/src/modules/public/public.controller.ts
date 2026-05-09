@@ -3,11 +3,14 @@ import { Body, Controller, Get, Param, Post } from "@nestjs/common";
 import { createOrderInputSchema, orderSummarySchema } from "@hull-eats/types";
 
 import { createStoredCheckoutSession } from "../../common/checkout-engine";
+import { CustomerNotificationsService } from "../../common/customer-notifications.service";
 import { findTrackedOrder } from "../../common/courier-delivery-store";
 import { demoMenuByStore, demoMenuSectionsByStore, demoStores } from "../../common/demo-data";
 
 @Controller("public")
 export class PublicController {
+  constructor(private readonly customerNotifications: CustomerNotificationsService) {}
+
   @Get("stores")
   listStores() {
     return demoStores;
@@ -132,5 +135,19 @@ export class PublicController {
   @Get("orders/:orderId/track")
   trackOrder(@Param("orderId") orderId: string) {
     return findTrackedOrder(orderId);
+  }
+
+  @Post("notifications/push-tokens")
+  registerPushToken(@Body() body: unknown) {
+    const input = body as {
+      token?: string;
+      platform?: string;
+      orderId?: string;
+      orderNumber?: string;
+      customerEmail?: string;
+      customerPhone?: string;
+    };
+
+    return this.customerNotifications.registerPushToken(input);
   }
 }
