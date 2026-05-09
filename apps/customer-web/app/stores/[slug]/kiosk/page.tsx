@@ -15,7 +15,14 @@ export default async function StoreKioskPage({ params }: { params: Promise<{ slu
     <main className="kiosk-shell">
       <header className="kiosk-topbar">
         <div className="kiosk-brand">
-          <img src="/brand/hull-eats-logo.jpeg" alt="Hull Eats" className="brand-logo brand-logo-small" />
+          <div className="brand-logo-cluster">
+            <Link href="/" className="brand-logo-link" aria-label="Hull Eats marketplace">
+              <img src="/brand/hull-eats-logo.jpeg" alt="Hull Eats" className="brand-logo brand-logo-small" />
+            </Link>
+            <Link href="/services" className="brand-logo-link" aria-label="Hull Services">
+              <img src="/brand/hull-services-logo.png" alt="Hull Services" className="brand-logo brand-logo-small" />
+            </Link>
+          </div>
           <div>
             <p className="eyebrow">Self service kiosk</p>
             <h1>{store.name}</h1>

@@ -20,7 +20,14 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
           <Link href="/" className="icon-button">
             Back
           </Link>
-          <img src="/brand/hull-eats-logo.jpeg" alt="Hull Eats" className="brand-logo brand-logo-small" />
+          <div className="brand-logo-cluster">
+            <Link href="/" className="brand-logo-link" aria-label="Hull Eats marketplace">
+              <img src="/brand/hull-eats-logo.jpeg" alt="Hull Eats" className="brand-logo brand-logo-small" />
+            </Link>
+            <Link href="/services" className="brand-logo-link" aria-label="Hull Services">
+              <img src="/brand/hull-services-logo.png" alt="Hull Services" className="brand-logo brand-logo-small" />
+            </Link>
+          </div>
           <div>
             <p className="eyebrow">Store preview</p>
             <p className="brand-title">{store.name}</p>

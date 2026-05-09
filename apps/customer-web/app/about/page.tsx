@@ -72,7 +72,10 @@ export default function AboutHullEatsPage() {
     <main className="marketing-page">
       <header className="marketing-nav">
         <Link href="/" className="brand-pill">
-          <img src="/brand/hull-eats-logo.jpeg" alt="Hull Eats" className="brand-logo-small" />
+          <span className="brand-logo-cluster">
+            <img src="/brand/hull-eats-logo.jpeg" alt="Hull Eats" className="brand-logo-small" />
+            <img src="/brand/hull-services-logo.png" alt="Hull Services" className="brand-logo-small" />
+          </span>
           <div>
             <p className="eyebrow">Hull Eats</p>
             <p className="brand-title">Local food, local software, local delivery.</p>

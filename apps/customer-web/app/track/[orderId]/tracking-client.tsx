@@ -75,6 +75,17 @@ export function TrackingClient({ orderId }: TrackingClientProps) {
 
   return (
     <main className="tracking-shell">
+      <header className="topbar">
+        <div className="brand-logo-cluster">
+          <Link href="/" className="brand-logo-link" aria-label="Hull Eats marketplace">
+            <img src="/brand/hull-eats-logo.jpeg" alt="Hull Eats" className="brand-logo" />
+          </Link>
+          <Link href="/services" className="brand-logo-link" aria-label="Hull Services">
+            <img src="/brand/hull-services-logo.png" alt="Hull Services" className="brand-logo" />
+          </Link>
+        </div>
+      </header>
+
       <section className="tracking-hero">
         <div>
           <p className="eyebrow">Live order tracking</p>
