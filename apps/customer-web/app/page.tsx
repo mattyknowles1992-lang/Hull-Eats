@@ -340,10 +340,6 @@ export default function CustomerHomePage() {
 
       </section>
 
-      <Link href="/services" className="hull-services-promo marketplace-scene" aria-label="Explore Hull Services">
-        <img src="/brand/hull-services.png" alt="Explore Hull Services" />
-      </Link>
-
       <section className="content-grid marketplace-scene" ref={resultsRef}>
         <div className="content-stack">
           <div className="section-heading">
@@ -425,6 +421,10 @@ export default function CustomerHomePage() {
 
         </aside>
       </section>
+
+      <Link href="/services" className="hull-services-promo marketplace-scene" aria-label="Explore Hull Services">
+        <img src="/brand/hull-services.png" alt="Explore Hull Services" />
+      </Link>
     </main>
   );
 }
