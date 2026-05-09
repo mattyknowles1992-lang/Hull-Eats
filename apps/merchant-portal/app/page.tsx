@@ -1074,6 +1074,7 @@ export default function MerchantPortalPage() {
         const qrCodeImage = qrCodeData
           ? `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=8&data=${encodeURIComponent(qrCodeData)}`
           : "";
+        const logoUrl = `${customerWebBaseUrl}/brand/hull-eats-logo.jpeg`;
         receiptWindow.document.open();
         receiptWindow.document.write(`
           <html>
@@ -1085,9 +1086,11 @@ export default function MerchantPortalPage() {
                 .print-action { margin: 14px auto; display: block; min-height: 42px; padding: 0 16px; border: 0; border-radius: 999px; background: #111; color: #fff; font-weight: 900; cursor: pointer; }
                 .receipt { max-width: 380px; margin: 16px auto; padding: 18px; background: #fff; border: 1px solid #d8dde3; border-radius: 14px; box-shadow: 0 18px 45px rgba(15, 17, 21, 0.12); }
                 .title { text-align: center; border-bottom: 3px double #111; padding-bottom: 12px; margin-bottom: 14px; }
+                .logo { display: block; width: 64px; height: 64px; margin: 0 auto 8px; border-radius: 18px; object-fit: cover; box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18); }
                 .title strong { display: block; font-size: 26px; letter-spacing: 0.12em; }
                 .title small { display: block; margin-top: 3px; font-size: 11px; font-weight: 900; letter-spacing: 0.03em; }
                 .title span { display: inline-block; margin-top: 10px; padding: 6px 10px; border: 2px solid #111; border-radius: 999px; font-size: 15px; font-weight: 900; }
+                .bag-note { margin: 0 0 12px; padding: 9px 10px; border: 2px dashed #111; border-radius: 10px; text-align: center; font-size: 11px; font-weight: 900; text-transform: uppercase; }
                 .qr { display: grid; gap: 8px; justify-items: center; margin: 18px 0 0; padding: 14px; border: 3px solid #111; border-radius: 12px; }
                 .qr img { width: 180px; height: 180px; image-rendering: pixelated; }
                 .qr span { font-size: 12px; font-weight: 900; text-align: center; text-transform: uppercase; }
@@ -1100,10 +1103,12 @@ export default function MerchantPortalPage() {
               <button class="print-action" onclick="window.print()">Print receipt</button>
               <main class="receipt">
                 <div class="title">
+                  <img class="logo" alt="Hull Eats" src="${escapeHtml(logoUrl)}" />
                   <strong>HULL EATS</strong>
                   <small>Anything you want. Delivered.</small>
                   <span>${escapeHtml(order.orderNumber)}</span>
                 </div>
+                <div class="bag-note">Customer bag receipt</div>
                 <pre>${escapeHtml(receipt.preview)}</pre>
                 ${
                   qrCodeImage

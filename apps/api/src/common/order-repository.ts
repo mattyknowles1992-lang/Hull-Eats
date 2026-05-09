@@ -140,6 +140,14 @@ type ReceiptOrderSnapshot = {
 
 const formatReceiptMoney = (value: unknown) => `${String.fromCharCode(163)}${Number(value).toFixed(2)}`;
 
+const formatReceiptTime = (value: string) =>
+  new Date(value).toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
 const formatAddressLines = (order?: ReceiptOrderSnapshot) => {
   const addressLines = [
     order?.addressLine1,
@@ -197,6 +205,7 @@ const formatLineChecklist = (line: PrintJobPayload["lines"][number]) => {
 
   return [
     `${line.quantity} x ${line.name}`,
+    line.totalPrice !== undefined ? `    Item total: ${formatReceiptMoney(line.totalPrice)}` : "",
     ...noteParts.plainNotes.map((note) => `    NOTE: ${note}`),
     ...noteParts.removed.map((item) => `    [ ] REMOVE ${item}`),
     ...(line.components ?? []).map((component) => `    [${component.removed ? " " : "x"}] ${component.label} x${component.quantity}`),
@@ -205,47 +214,42 @@ const formatLineChecklist = (line: PrintJobPayload["lines"][number]) => {
       (option) =>
         `    [x] ${option.groupName}: ${option.valueName} x${option.quantity}${option.priceDelta > 0 ? ` +${formatReceiptMoney(option.priceDelta)}` : ""}`,
     ),
-  ];
+  ].filter((entry) => entry !== "");
 };
 
 const formatDeliveryReceiptPreview = (payload: PrintJobPayload, order?: ReceiptOrderSnapshot) =>
   [
     "          HULL EATS",
     " Anything you want. Delivered.",
+    payload.storeName ? `          ${payload.storeName}` : "",
     receiptDivider,
-    "DELIVERY ORDER",
-    `ORDER NUMBER: ${payload.orderNumber}`,
-    `PAYMENT: ${String(order?.paymentStatus ?? "pending").replaceAll("_", " ").toUpperCase()}`,
-    `PLACED: ${new Date(payload.placedAtIso).toLocaleString("en-GB")}`,
+    "             DELIVERY",
+    `Placed: ${formatReceiptTime(payload.placedAtIso)}`,
+    `# ${payload.orderNumber}`,
     payload.prepTimeMinutes ? `PREP TIME: ${payload.prepTimeMinutes} minutes` : "",
-    "",
-    "CUSTOMER",
-    receiptDivider,
-    payload.customerName,
-    order?.customerPhone ? `Phone: ${order.customerPhone}` : "",
-    order?.customerEmail ? `Email: ${order.customerEmail}` : "",
-    "",
-    "DELIVERY ADDRESS",
-    receiptDivider,
-    ...formatAddressLines(order),
-    "",
-    "ORDER ITEMS",
     receiptDivider,
     ...payload.lines.flatMap((line, index) => {
       const formattedLine = formatLineChecklist(line);
       return [`${index + 1}. ${formattedLine[0]}`, ...formattedLine.slice(1), ""];
     }),
     payload.notes ? `ORDER NOTES: ${payload.notes}` : "",
-    "",
-    "TOTALS",
     receiptDivider,
     order?.subtotalAmount !== undefined ? `Subtotal: ${formatReceiptMoney(order.subtotalAmount)}` : "",
-    order?.deliveryFee !== undefined ? `Delivery: ${formatReceiptMoney(order.deliveryFee)}` : "",
-    order?.totalAmount !== undefined ? `Total: ${formatReceiptMoney(order.totalAmount)} ${order.currency ?? "GBP"}` : "",
-    "",
-    "COURIER SCAN",
+    order?.deliveryFee !== undefined ? `Delivery charge: ${formatReceiptMoney(order.deliveryFee)}` : "",
+    order?.totalAmount !== undefined ? `Total due: ${formatReceiptMoney(order.totalAmount)} ${order.currency ?? "GBP"}` : "",
     receiptDivider,
-    "Scan the QR code below.",
+    String(order?.paymentStatus ?? "pending").toLowerCase() === "paid" ? "       ORDER HAS BEEN PAID" : "          PAYMENT PENDING",
+    receiptDivider,
+    "Customer details:",
+    payload.customerName,
+    order?.customerPhone ? `Phone: ${order.customerPhone}` : "",
+    order?.customerEmail ? `Email: ${order.customerEmail}` : "",
+    "",
+    "Delivery address:",
+    ...formatAddressLines(order),
+    receiptDivider,
+    "Scan the QR code below to start",
+    "courier tracking for this order.",
     `Backup order number: ${payload.orderNumber}`,
   ]
     .filter((line) => line !== "")
@@ -253,13 +257,14 @@ const formatDeliveryReceiptPreview = (payload: PrintJobPayload, order?: ReceiptO
 
 const buildCheckoutPrintPayload = (
   session: CheckoutSession,
-  input: { orderId: string; orderNumber: string; storeId: string; printerId: string; placedAt: Date },
+  input: { orderId: string; orderNumber: string; storeId: string; printerId: string; placedAt: Date; storeName?: string },
 ): PrintJobPayload =>
   printJobPayloadSchema.parse({
     orderId: input.orderId,
     storeId: input.storeId,
     printerId: input.printerId,
     orderNumber: input.orderNumber,
+    storeName: input.storeName,
     trackingUrl: `${process.env.CUSTOMER_WEB_URL ?? "https://hull-eats.onrender.com"}/track/${encodeURIComponent(input.orderNumber)}`,
     qrCodeData: `${process.env.CUSTOMER_WEB_URL ?? "https://hull-eats.onrender.com"}/track/${encodeURIComponent(input.orderNumber)}`,
     customerName: session.customerName,
@@ -269,13 +274,19 @@ const buildCheckoutPrintPayload = (
     lines: session.lineItems.map((line) => ({
       name: line.name,
       quantity: line.quantity,
+      unitPrice: line.unitPrice,
+      totalPrice: line.lineTotal,
       notes: line.notes,
       components: line.components,
       selectedOptions: line.selectedOptions,
     })),
   });
 
-const createPrintJobIfConfigured = async (session: CheckoutSession, order: { id: string; orderNumber: string; storeId: string; placedAt: Date }) => {
+const createPrintJobIfConfigured = async (
+  session: CheckoutSession,
+  order: { id: string; orderNumber: string; storeId: string; placedAt: Date },
+  storeName?: string,
+) => {
   const printer = await prisma.printer.findFirst({
     where: {
       storeId: order.storeId,
@@ -294,6 +305,7 @@ const createPrintJobIfConfigured = async (session: CheckoutSession, order: { id:
     storeId: order.storeId,
     printerId: printer.id,
     placedAt: order.placedAt,
+    storeName,
   });
 
   return prisma.printJob.create({
@@ -361,7 +373,7 @@ export const persistCheckoutOrder = async (
     },
   });
 
-  await createPrintJobIfConfigured(session, order);
+  await createPrintJobIfConfigured(session, order, store.name);
 
   return toOrderSummary(order);
 };
@@ -462,6 +474,7 @@ export const buildMerchantOrderReceipt = async (hubId: string, orderId: string) 
     storeId: order.storeId,
     printerId,
     orderNumber: order.orderNumber,
+    storeName: order.store.name,
     trackingUrl: `${process.env.CUSTOMER_WEB_URL ?? "https://hull-eats.onrender.com"}/track/${encodeURIComponent(order.orderNumber)}`,
     qrCodeData: `${process.env.CUSTOMER_WEB_URL ?? "https://hull-eats.onrender.com"}/track/${encodeURIComponent(order.orderNumber)}`,
     customerName: order.customerName,
@@ -471,6 +484,8 @@ export const buildMerchantOrderReceipt = async (hubId: string, orderId: string) 
     lines: order.items.map((item) => ({
       name: item.nameSnapshot,
       quantity: item.quantity,
+      unitPrice: Number(item.unitPrice),
+      totalPrice: Number(item.totalPrice),
       notes: item.notes ?? undefined,
     })),
   });

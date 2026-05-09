@@ -14,6 +14,7 @@ export const printJobPayloadSchema = z.object({
   storeId: z.string().min(1),
   printerId: z.string().min(1),
   orderNumber: z.string().min(1),
+  storeName: z.string().min(1).optional(),
   trackingUrl: z.string().url().optional(),
   qrCodeData: z.string().min(1).optional(),
   customerName: z.string().min(1),
@@ -23,6 +24,8 @@ export const printJobPayloadSchema = z.object({
     z.object({
       name: z.string().min(1),
       quantity: z.number().int().positive(),
+      unitPrice: z.number().nonnegative().optional(),
+      totalPrice: z.number().nonnegative().optional(),
       notes: z.string().optional(),
       components: z
         .array(
