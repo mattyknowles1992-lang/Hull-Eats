@@ -1080,31 +1080,34 @@ export default function MerchantPortalPage() {
             <head>
               <title>${escapeHtml(order.orderNumber)} receipt</title>
               <style>
-                body { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; margin: 18px; color: #111; }
-                .receipt { max-width: 380px; margin: 0 auto; }
-                .title { text-align: center; border-bottom: 2px solid #111; padding-bottom: 10px; margin-bottom: 12px; }
-                .title strong { display: block; font-size: 22px; letter-spacing: 0.08em; }
-                .title span { display: block; margin-top: 4px; font-size: 13px; font-weight: 800; }
-                .qr { display: grid; gap: 8px; justify-items: center; margin: 16px 0 0; padding: 12px; border: 2px solid #111; border-radius: 10px; }
+                * { box-sizing: border-box; }
+                body { margin: 0; background: #f3f5f7; color: #111; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+                .print-action { margin: 14px auto; display: block; min-height: 42px; padding: 0 16px; border: 0; border-radius: 999px; background: #111; color: #fff; font-weight: 900; cursor: pointer; }
+                .receipt { max-width: 380px; margin: 16px auto; padding: 18px; background: #fff; border: 1px solid #d8dde3; border-radius: 14px; box-shadow: 0 18px 45px rgba(15, 17, 21, 0.12); }
+                .title { text-align: center; border-bottom: 3px double #111; padding-bottom: 12px; margin-bottom: 14px; }
+                .title strong { display: block; font-size: 26px; letter-spacing: 0.12em; }
+                .title small { display: block; margin-top: 3px; font-size: 11px; font-weight: 900; letter-spacing: 0.03em; }
+                .title span { display: inline-block; margin-top: 10px; padding: 6px 10px; border: 2px solid #111; border-radius: 999px; font-size: 15px; font-weight: 900; }
+                .qr { display: grid; gap: 8px; justify-items: center; margin: 18px 0 0; padding: 14px; border: 3px solid #111; border-radius: 12px; }
                 .qr img { width: 180px; height: 180px; image-rendering: pixelated; }
-                .qr span { font-size: 11px; font-weight: 800; text-align: center; }
-                .backup { margin: 10px 0 0; padding: 10px; border: 1px dashed #111; border-radius: 8px; font-size: 12px; font-weight: 800; text-align: center; }
-                pre { white-space: pre-wrap; font-size: 13px; line-height: 1.42; margin: 0; }
-                button { min-height: 40px; padding: 0 14px; border: 1px solid #111; border-radius: 8px; background: #111; color: #fff; font-weight: 800; cursor: pointer; }
-                @media print { button { display: none; } body { margin: 0; } .receipt { max-width: none; } }
+                .qr span { font-size: 12px; font-weight: 900; text-align: center; text-transform: uppercase; }
+                .backup { margin: 12px 0 0; padding: 10px; border: 2px dashed #111; border-radius: 10px; font-size: 12px; font-weight: 900; text-align: center; }
+                pre { white-space: pre-wrap; font-size: 13px; line-height: 1.5; margin: 0; }
+                @media print { body { background: #fff; } .print-action { display: none; } .receipt { max-width: none; margin: 0; padding: 0; border: 0; border-radius: 0; box-shadow: none; } }
               </style>
             </head>
             <body>
-              <button onclick="window.print()">Print receipt</button>
+              <button class="print-action" onclick="window.print()">Print receipt</button>
               <main class="receipt">
                 <div class="title">
                   <strong>HULL EATS</strong>
+                  <small>Anything you want. Delivered.</small>
                   <span>${escapeHtml(order.orderNumber)}</span>
                 </div>
                 <pre>${escapeHtml(receipt.preview)}</pre>
                 ${
                   qrCodeImage
-                    ? `<div class="qr"><img alt="Courier scan QR" src="${qrCodeImage}" /><span>Courier scan: ${escapeHtml(qrCodeData ?? "")}</span></div>`
+                    ? `<div class="qr"><img alt="Courier scan QR" src="${qrCodeImage}" /><span>Scan with courier app</span></div>`
                     : ""
                 }
                 <div class="backup">QR backup: enter order number ${escapeHtml(order.orderNumber)} in the courier app.</div>

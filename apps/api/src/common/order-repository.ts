@@ -122,6 +122,135 @@ const formatReceiptPreview = (
     .filter((line) => line !== "")
     .join("\n");
 
+const receiptDivider = "--------------------------------";
+
+type ReceiptOrderSnapshot = {
+  paymentStatus?: string;
+  customerPhone?: string;
+  customerEmail?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  city?: string | null;
+  postcode?: string | null;
+  subtotalAmount?: unknown;
+  deliveryFee?: unknown;
+  totalAmount?: unknown;
+  currency?: string;
+};
+
+const formatReceiptMoney = (value: unknown) => `${String.fromCharCode(163)}${Number(value).toFixed(2)}`;
+
+const formatAddressLines = (order?: ReceiptOrderSnapshot) => {
+  const addressLines = [
+    order?.addressLine1,
+    order?.addressLine2,
+    [order?.city, order?.postcode].filter(Boolean).join(" "),
+  ].filter(Boolean);
+
+  return addressLines.length > 0 ? addressLines : ["Collection / no delivery address"];
+};
+
+const splitReceiptNote = (note?: string) => {
+  if (!note) {
+    return { plainNotes: [] as string[], removed: [] as string[], options: [] as string[] };
+  }
+
+  return note.split("|").reduce(
+    (parts, chunk) => {
+      const trimmed = chunk.trim();
+
+      if (!trimmed) {
+        return parts;
+      }
+
+      if (trimmed.toLowerCase().startsWith("removed:")) {
+        parts.removed.push(
+          ...trimmed
+            .slice("removed:".length)
+            .split(",")
+            .map((entry) => entry.trim())
+            .filter(Boolean),
+        );
+        return parts;
+      }
+
+      if (trimmed.toLowerCase().startsWith("options:")) {
+        parts.options.push(
+          ...trimmed
+            .slice("options:".length)
+            .split(",")
+            .map((entry) => entry.trim())
+            .filter(Boolean),
+        );
+        return parts;
+      }
+
+      parts.plainNotes.push(trimmed);
+      return parts;
+    },
+    { plainNotes: [] as string[], removed: [] as string[], options: [] as string[] },
+  );
+};
+
+const formatLineChecklist = (line: PrintJobPayload["lines"][number]) => {
+  const noteParts = splitReceiptNote(line.notes);
+
+  return [
+    `${line.quantity} x ${line.name}`,
+    ...noteParts.plainNotes.map((note) => `    NOTE: ${note}`),
+    ...noteParts.removed.map((item) => `    [ ] REMOVE ${item}`),
+    ...(line.components ?? []).map((component) => `    [${component.removed ? " " : "x"}] ${component.label} x${component.quantity}`),
+    ...noteParts.options.map((option) => `    [x] ${option}`),
+    ...(line.selectedOptions ?? []).map(
+      (option) =>
+        `    [x] ${option.groupName}: ${option.valueName} x${option.quantity}${option.priceDelta > 0 ? ` +${formatReceiptMoney(option.priceDelta)}` : ""}`,
+    ),
+  ];
+};
+
+const formatDeliveryReceiptPreview = (payload: PrintJobPayload, order?: ReceiptOrderSnapshot) =>
+  [
+    "          HULL EATS",
+    " Anything you want. Delivered.",
+    receiptDivider,
+    "DELIVERY ORDER",
+    `ORDER NUMBER: ${payload.orderNumber}`,
+    `PAYMENT: ${String(order?.paymentStatus ?? "pending").replaceAll("_", " ").toUpperCase()}`,
+    `PLACED: ${new Date(payload.placedAtIso).toLocaleString("en-GB")}`,
+    payload.prepTimeMinutes ? `PREP TIME: ${payload.prepTimeMinutes} minutes` : "",
+    "",
+    "CUSTOMER",
+    receiptDivider,
+    payload.customerName,
+    order?.customerPhone ? `Phone: ${order.customerPhone}` : "",
+    order?.customerEmail ? `Email: ${order.customerEmail}` : "",
+    "",
+    "DELIVERY ADDRESS",
+    receiptDivider,
+    ...formatAddressLines(order),
+    "",
+    "ORDER ITEMS",
+    receiptDivider,
+    ...payload.lines.flatMap((line, index) => {
+      const formattedLine = formatLineChecklist(line);
+      return [`${index + 1}. ${formattedLine[0]}`, ...formattedLine.slice(1), ""];
+    }),
+    payload.notes ? `ORDER NOTES: ${payload.notes}` : "",
+    "",
+    "TOTALS",
+    receiptDivider,
+    order?.subtotalAmount !== undefined ? `Subtotal: ${formatReceiptMoney(order.subtotalAmount)}` : "",
+    order?.deliveryFee !== undefined ? `Delivery: ${formatReceiptMoney(order.deliveryFee)}` : "",
+    order?.totalAmount !== undefined ? `Total: ${formatReceiptMoney(order.totalAmount)} ${order.currency ?? "GBP"}` : "",
+    "",
+    "COURIER SCAN",
+    receiptDivider,
+    "Scan the QR code below.",
+    `Backup order number: ${payload.orderNumber}`,
+  ]
+    .filter((line) => line !== "")
+    .join("\n");
+
 const buildCheckoutPrintPayload = (
   session: CheckoutSession,
   input: { orderId: string; orderNumber: string; storeId: string; printerId: string; placedAt: Date },
@@ -348,7 +477,7 @@ export const buildMerchantOrderReceipt = async (hubId: string, orderId: string) 
 
   return {
     payload,
-    preview: formatReceiptPreview(payload, order),
+    preview: formatDeliveryReceiptPreview(payload, order),
     hasConfiguredPrinter: order.store.printers.length > 0,
   };
 };
