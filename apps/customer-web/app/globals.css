@@ -1395,6 +1395,227 @@ textarea {
   background: linear-gradient(180deg, #23cdff 0%, #079bc8 100%);
 }
 
+.marketplace-resale-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 380px);
+  gap: clamp(18px, 4vw, 34px);
+  align-items: end;
+  overflow: hidden;
+  min-height: 520px;
+  padding: clamp(18px, 4vw, 42px);
+  border-radius: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #f7fbff;
+  background:
+    linear-gradient(90deg, rgba(7, 9, 13, 0.82), rgba(7, 9, 13, 0.2)),
+    url("https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=1800&q=84");
+  background-position: center;
+  background-size: cover;
+  box-shadow: 0 24px 70px rgba(20, 12, 8, 0.25);
+}
+
+.marketplace-resale-copy {
+  display: grid;
+  gap: 18px;
+  max-width: 760px;
+}
+
+.marketplace-resale-copy h1 {
+  margin: 0;
+  max-width: 10ch;
+  color: #f7fbff;
+  font-family: var(--font-heading), serif;
+  font-size: clamp(4.2rem, 9vw, 7rem);
+  line-height: 0.86;
+}
+
+.marketplace-resale-copy p {
+  max-width: 620px;
+  margin: 0;
+  color: rgba(247, 251, 255, 0.86);
+  font-size: 1.05rem;
+  line-height: 1.65;
+}
+
+.marketplace-member-card {
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(7, 10, 14, 0.78);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 24px 50px rgba(0, 0, 0, 0.24);
+}
+
+.marketplace-member-card h2,
+.marketplace-member-card p {
+  margin: 0;
+}
+
+.marketplace-member-card p {
+  color: rgba(247, 251, 255, 0.82);
+  line-height: 1.6;
+}
+
+.resale-category-panel {
+  padding: clamp(18px, 3vw, 28px);
+}
+
+.resale-category-grid,
+.resale-listing-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.resale-category-grid {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.resale-category-card {
+  display: grid;
+  align-content: end;
+  min-height: 168px;
+  padding: 16px;
+  border-radius: 22px;
+  border: 1px solid transparent;
+  color: #f7fbff;
+  background-position: center;
+  background-size: cover;
+  font-weight: 950;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.82);
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.resale-category-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(35, 205, 255, 0.78);
+  box-shadow: 0 0 0 3px rgba(35, 205, 255, 0.18);
+}
+
+.resale-content-grid {
+  margin-top: 14px;
+}
+
+.resale-listing-grid {
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+}
+
+.resale-listing-card {
+  overflow: hidden;
+  border-radius: 24px;
+  border: 1px solid rgba(15, 17, 21, 0.1);
+  background: #ffffff;
+  box-shadow: 0 18px 36px rgba(15, 17, 21, 0.08);
+}
+
+.resale-listing-media {
+  min-height: 230px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: 14px;
+  background-position: center;
+  background-size: cover;
+}
+
+.resale-listing-media span {
+  padding: 8px 10px;
+  border-radius: 999px;
+  color: #071118;
+  background: var(--brand-blue);
+  font-size: 0.78rem;
+  font-weight: 950;
+}
+
+.resale-listing-body {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.resale-listing-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.resale-listing-top h3,
+.resale-listing-top p,
+.resale-listing-body > p {
+  margin: 0;
+}
+
+.resale-listing-top h3 {
+  color: var(--ink-strong);
+  font-size: 1.15rem;
+}
+
+.resale-listing-top p,
+.resale-listing-body > p {
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.resale-listing-top strong {
+  color: var(--ink-strong);
+  font-size: 1.25rem;
+}
+
+.marketplace-listing-form {
+  display: grid;
+  gap: 12px;
+}
+
+.marketplace-listing-form label {
+  display: grid;
+  gap: 7px;
+  color: rgba(247, 251, 255, 0.84);
+  font-size: 0.9rem;
+  font-weight: 850;
+}
+
+.marketplace-listing-form input,
+.marketplace-listing-form select,
+.marketplace-listing-form textarea {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  padding: 12px;
+  color: #f7fbff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.marketplace-listing-form textarea {
+  resize: vertical;
+}
+
+.listing-delivery-options {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(35, 205, 255, 0.2);
+  background: rgba(35, 205, 255, 0.08);
+}
+
+.listing-delivery-options label {
+  display: flex;
+  grid-template-columns: none;
+  align-items: center;
+  gap: 10px;
+}
+
+.listing-note {
+  margin: 0;
+  color: rgba(247, 251, 255, 0.72);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
 .category-hero {
   position: relative;
   display: grid;

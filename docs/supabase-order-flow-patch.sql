@@ -173,6 +173,36 @@ create table if not exists public.customer_notifications (
   sent_at timestamptz
 );
 
+create table if not exists public.marketplace_categories (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  slug text not null unique,
+  image_url text,
+  active boolean not null default true,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create table if not exists public.marketplace_listings (
+  id uuid primary key default gen_random_uuid(),
+  seller_user_id text references public.platform_users(id) on delete set null,
+  category_id uuid references public.marketplace_categories(id) on delete set null,
+  title text not null,
+  description text not null,
+  price numeric(10,2) not null,
+  condition text not null,
+  location_label text,
+  image_urls text[] not null default '{}',
+  delivery_mode text not null default 'collection',
+  van_required boolean not null default false,
+  collection_only boolean not null default true,
+  status text not null default 'draft',
+  active boolean not null default true,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
 create index if not exists idx_deliveries_order on public.deliveries(order_id);
 create index if not exists idx_deliveries_status on public.deliveries(status, assigned_at desc);
 create index if not exists idx_courier_accounts_status on public.courier_accounts(status, created_at desc);
@@ -186,6 +216,9 @@ create index if not exists idx_customer_push_tokens_order on public.customer_pus
 create index if not exists idx_customer_push_tokens_email on public.customer_push_tokens(lower(customer_email), is_active);
 create index if not exists idx_customer_notifications_order on public.customer_notifications(order_id, created_at desc);
 create index if not exists idx_customer_notifications_event on public.customer_notifications(event, status, created_at desc);
+create index if not exists idx_marketplace_categories_active on public.marketplace_categories(active, sort_order);
+create index if not exists idx_marketplace_listings_category on public.marketplace_listings(category_id, active, created_at desc);
+create index if not exists idx_marketplace_listings_seller on public.marketplace_listings(seller_user_id, created_at desc);
 
 drop trigger if exists set_deliveries_updated_at on public.deliveries;
 create trigger set_deliveries_updated_at before update on public.deliveries for each row execute function public.set_updated_at();
@@ -205,6 +238,12 @@ create trigger set_courier_accounts_updated_at before update on public.courier_a
 drop trigger if exists set_customer_push_tokens_updated_at on public.customer_push_tokens;
 create trigger set_customer_push_tokens_updated_at before update on public.customer_push_tokens for each row execute function public.set_updated_at();
 
+drop trigger if exists set_marketplace_categories_updated_at on public.marketplace_categories;
+create trigger set_marketplace_categories_updated_at before update on public.marketplace_categories for each row execute function public.set_updated_at();
+
+drop trigger if exists set_marketplace_listings_updated_at on public.marketplace_listings;
+create trigger set_marketplace_listings_updated_at before update on public.marketplace_listings for each row execute function public.set_updated_at();
+
 alter table public.platform_users enable row level security;
 alter table public.courier_profiles enable row level security;
 alter table public.courier_accounts enable row level security;
@@ -215,3 +254,5 @@ alter table public.printers enable row level security;
 alter table public.print_jobs enable row level security;
 alter table public.customer_push_tokens enable row level security;
 alter table public.customer_notifications enable row level security;
+alter table public.marketplace_categories enable row level security;
+alter table public.marketplace_listings enable row level security;
