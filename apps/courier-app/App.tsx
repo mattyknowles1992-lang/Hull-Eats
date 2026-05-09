@@ -125,6 +125,8 @@ type CourierLoginResponse = {
   courier: CourierAccount;
 };
 
+type CourierTab = "orders" | "navigation" | "account";
+
 export default function App() {
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const locationSubscription = useRef<Location.LocationSubscription | null>(null);
@@ -147,11 +149,13 @@ export default function App() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [passwordNotice, setPasswordNotice] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<CourierTab>("orders");
 
   const activeStatus = delivery?.status.replaceAll("_", " ") ?? "ready";
   const canComplete = Boolean(delivery && delivery.status !== "delivered");
   const mapLocation = delivery?.courierLocation ?? hullFallbackLocation;
   const inAppMap = useMemo(() => buildTileMap(mapLocation.latitude, mapLocation.longitude), [mapLocation.latitude, mapLocation.longitude]);
+  const navigationTarget = delivery?.dropoffAddress ?? "No active customer address";
 
   const activeStep = useMemo(() => {
     if (!delivery) {
@@ -307,6 +311,7 @@ export default function App() {
         setDelivery(nextDelivery);
         setPinInput("");
         setIsScanning(false);
+        setActiveTab("navigation");
         setStatusMessage(`${nextDelivery.orderNumber} started. Navigation and live tracking are ready.`);
         await startLocationSharing(nextDelivery);
         await loadJobs();
@@ -377,6 +382,7 @@ export default function App() {
 
       locationSubscription.current?.remove();
       setDelivery(completed);
+      setActiveTab("orders");
       setStatusMessage(`${completed.orderNumber} marked as delivered.`);
       await loadJobs();
     } catch (error) {
@@ -469,6 +475,24 @@ export default function App() {
           </Pressable>
         </View>
 
+        <View style={styles.tabBar}>
+          {[
+            { id: "orders", label: "Orders" },
+            { id: "navigation", label: "Navigation" },
+            { id: "account", label: "Account" },
+          ].map((tab) => (
+            <Pressable
+              key={tab.id}
+              style={[styles.tabButton, activeTab === tab.id ? styles.tabButtonActive : null]}
+              onPress={() => setActiveTab(tab.id as CourierTab)}
+            >
+              <Text style={[styles.tabButtonText, activeTab === tab.id ? styles.tabButtonTextActive : null]}>{tab.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {activeTab === "account" ? (
+          <>
         <View style={styles.statsGrid}>
           <View style={styles.statCard}>
             <Text style={styles.statLabel}>Rating</Text>
@@ -518,7 +542,11 @@ export default function App() {
           </Pressable>
           {passwordNotice ? <Text style={passwordNotice === "Password updated." ? styles.success : styles.error}>{passwordNotice}</Text> : null}
         </View>
+          </>
+        ) : null}
 
+        {activeTab === "orders" ? (
+          <>
         <View style={styles.panel}>
           <Text style={styles.panelTitle}>Start delivery</Text>
           <Text style={styles.copy}>{statusMessage}</Text>
@@ -556,7 +584,27 @@ export default function App() {
           {errorMessage ? <Text style={styles.error}>{errorMessage}</Text> : null}
         </View>
 
-        {delivery ? (
+        <View style={styles.panel}>
+          <Text style={styles.panelTitle}>Available delivery receipts</Text>
+          {jobs.length > 0 ? (
+            jobs.map((job) => (
+              <Pressable key={job.deliveryId} style={styles.jobRow} onPress={() => startDelivery(job.orderNumber)}>
+                <View>
+                  <Text style={styles.jobTitle}>{job.orderNumber}</Text>
+                  <Text style={styles.jobMeta}>{job.dropoffAddress}</Text>
+                </View>
+                <Text style={styles.jobStatus}>{job.status.replaceAll("_", " ")}</Text>
+              </Pressable>
+            ))
+          ) : (
+            <Text style={styles.copy}>No delivery receipts are waiting right now.</Text>
+          )}
+        </View>
+          </>
+        ) : null}
+
+        {activeTab === "navigation" ? (
+          delivery ? (
           <View style={styles.deliveryCard}>
             <View style={styles.cardHeader}>
               <View>
@@ -578,7 +626,7 @@ export default function App() {
             <View style={styles.addressBlock}>
               <Text style={styles.label}>Pickup</Text>
               <Text style={styles.address}>{delivery.pickupAddress}</Text>
-              <Text style={styles.label}>Dropoff</Text>
+              <Text style={styles.label}>Navigate to customer</Text>
               <Text style={styles.address}>{delivery.dropoffAddress}</Text>
               <Text style={styles.label}>Customer phone</Text>
               <Text style={styles.address}>{delivery.customerPhone}</Text>
@@ -598,19 +646,23 @@ export default function App() {
               <View style={[styles.driverMarker, { left: `${inAppMap.markerLeft}%`, top: `${inAppMap.markerTop}%` }]}>
                 <View style={styles.driverMarkerCore} />
               </View>
+              <View style={styles.destinationBadge}>
+                <Text style={styles.destinationBadgeText}>Customer address</Text>
+              </View>
               <View style={styles.mapCopy}>
-                <Text style={styles.mapTitle}>In-app navigation</Text>
+                <Text style={styles.mapTitle}>Route selector</Text>
                 <Text style={styles.mapText}>
                   {delivery.courierLocation
-                    ? `${delivery.courierLocation.latitude.toFixed(5)}, ${delivery.courierLocation.longitude.toFixed(5)}`
-                    : "Waiting for live GPS. The map updates as your phone sends location."}
+                    ? `Live driver location ${delivery.courierLocation.latitude.toFixed(5)}, ${delivery.courierLocation.longitude.toFixed(5)}`
+                    : "Waiting for live GPS. Turn on location to start routing."}
                 </Text>
+                <Text style={styles.mapText}>Destination: {navigationTarget}</Text>
               </View>
             </View>
 
             <View style={styles.actionRow}>
               <Pressable style={styles.primaryButton} onPress={() => startLocationSharing(delivery)}>
-                <Text style={styles.primaryButtonText}>Refresh in-app navigation</Text>
+                <Text style={styles.primaryButtonText}>Start route to customer address</Text>
               </Pressable>
               <Pressable style={styles.ghostButton} onPress={() => setDelivery(null)}>
                 <Text style={styles.ghostButtonText}>Cancel current scan</Text>
@@ -636,24 +688,16 @@ export default function App() {
               </Pressable>
             </View>
           </View>
-        ) : null}
-
-        <View style={styles.panel}>
-          <Text style={styles.panelTitle}>Available delivery receipts</Text>
-          {jobs.length > 0 ? (
-            jobs.map((job) => (
-              <Pressable key={job.deliveryId} style={styles.jobRow} onPress={() => startDelivery(job.orderNumber)}>
-                <View>
-                  <Text style={styles.jobTitle}>{job.orderNumber}</Text>
-                  <Text style={styles.jobMeta}>{job.dropoffAddress}</Text>
-                </View>
-                <Text style={styles.jobStatus}>{job.status.replaceAll("_", " ")}</Text>
-              </Pressable>
-            ))
           ) : (
-            <Text style={styles.copy}>No delivery receipts are waiting right now.</Text>
-          )}
-        </View>
+            <View style={styles.panel}>
+              <Text style={styles.panelTitle}>No active route</Text>
+              <Text style={styles.copy}>Scan a receipt QR or enter an order number first. The route selector will open here once a delivery starts.</Text>
+              <Pressable style={styles.primaryButton} onPress={() => setActiveTab("orders")}>
+                <Text style={styles.primaryButtonText}>Go to orders</Text>
+              </Pressable>
+            </View>
+          )
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
@@ -729,6 +773,33 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     textTransform: "capitalize",
+  },
+  tabBar: {
+    backgroundColor: "#ffffff",
+    borderColor: "rgba(35, 205, 255, 0.18)",
+    borderRadius: 18,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 8,
+    padding: 6,
+  },
+  tabButton: {
+    alignItems: "center",
+    borderRadius: 14,
+    flex: 1,
+    minHeight: 44,
+    justifyContent: "center",
+  },
+  tabButtonActive: {
+    backgroundColor: brandBlue,
+  },
+  tabButtonText: {
+    color: "#687382",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  tabButtonTextActive: {
+    color: "#071118",
   },
   statsGrid: {
     flexDirection: "row",
@@ -967,6 +1038,22 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     height: 16,
     width: 16,
+  },
+  destinationBadge: {
+    backgroundColor: "#ffffff",
+    borderColor: "#071118",
+    borderRadius: 999,
+    borderWidth: 2,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    position: "absolute",
+    right: 14,
+    top: 14,
+  },
+  destinationBadgeText: {
+    color: "#071118",
+    fontSize: 12,
+    fontWeight: "900",
   },
   mapCopy: {
     backgroundColor: "rgba(7, 17, 24, 0.9)",
