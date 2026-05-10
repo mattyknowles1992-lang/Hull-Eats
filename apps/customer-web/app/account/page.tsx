@@ -18,10 +18,14 @@ export default function AccountPage() {
       <section className="register-grid register-grid-simple">
         <section className="feature-panel feature-panel-contrast register-intro">
           <div className="hero-badge register-badge">Customer account</div>
-          <h1 className="register-title">Sign in once, then reuse your saved details.</h1>
+          <h1 className="register-title">Sign in or create your Hull Eats account.</h1>
           <p className="register-copy">
-            Your account stores your profile, default address, Hull Eats+ status, order history, and marketplace safety
-            status so the website and app can stay in sync.
+            New customers can register with name, phone, email, password, and delivery address on{" "}
+            <Link href="/register" className="ghost-link">
+              Create account
+            </Link>
+            . Returning customers can sign in — your profile, default address, Hull Eats+ status, and marketplace safety
+            status stay in sync with the admin console.
           </p>
         </section>
 

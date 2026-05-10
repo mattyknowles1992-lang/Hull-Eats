@@ -1,6 +1,7 @@
 "use client";
 
 import type { FormEvent } from "react";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { getBrowserSupabaseClient } from "../../src/lib/supabase-browser";
@@ -38,6 +39,7 @@ export function AccountClient() {
   const [addresses, setAddresses] = useState<CustomerAddressRow[]>([]);
   const [subscription, setSubscription] = useState<SubscriptionRow | null>(null);
   const [notice, setNotice] = useState("");
+  const [sessionWithoutProfile, setSessionWithoutProfile] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   const loadAccount = async () => {
@@ -49,6 +51,7 @@ export function AccountClient() {
       setProfile(null);
       setAddresses([]);
       setSubscription(null);
+      setSessionWithoutProfile(false);
       setIsLoading(false);
       return;
     }
@@ -60,8 +63,18 @@ export function AccountClient() {
       .single();
 
     if (profileError || !profileData) {
-      throw profileError ?? new Error("Customer profile not found.");
+      setProfile(null);
+      setAddresses([]);
+      setSubscription(null);
+      setSessionWithoutProfile(true);
+      setNotice(
+        "Your login works, but we could not load your Hull Eats profile from the database yet. If you just signed up, confirm your email from the message we sent you, then refresh this page.",
+      );
+      setIsLoading(false);
+      return;
     }
+
+    setSessionWithoutProfile(false);
 
     const customerProfile = profileData as unknown as CustomerProfileRow;
 
@@ -88,6 +101,7 @@ export function AccountClient() {
   useEffect(() => {
     void loadAccount().catch((error) => {
       setNotice(error instanceof Error ? error.message : "Unable to load account.");
+      setSessionWithoutProfile(false);
       setIsLoading(false);
     });
   }, []);
@@ -95,6 +109,7 @@ export function AccountClient() {
   const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setNotice("");
+    setSessionWithoutProfile(false);
     setIsLoading(true);
 
     try {
@@ -122,6 +137,8 @@ export function AccountClient() {
     setProfile(null);
     setAddresses([]);
     setSubscription(null);
+    setSessionWithoutProfile(false);
+    setNotice("");
   };
 
   if (isLoading) {
@@ -130,26 +147,51 @@ export function AccountClient() {
 
   if (!profile) {
     return (
-      <form className="register-form" onSubmit={handleLogin}>
-        <div className="register-form-block">
-          <div className="register-form-heading">
-            <h3>Sign in</h3>
-            <p>Use the same login for Hull Eats, Hull Services, Hull Marketplace, and the customer app.</p>
+      <div className="register-form">
+        <form onSubmit={handleLogin}>
+          <div className="register-form-block">
+            <div className="register-form-heading">
+              <h3>Sign in</h3>
+              <p>Use the same login for Hull Eats, Hull Services, Hull Marketplace, and the customer app.</p>
+            </div>
+            <label className="form-field">
+              <span>Email address</span>
+              <input className="form-input" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
+            </label>
+            <label className="form-field">
+              <span>Password</span>
+              <input className="form-input" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+            </label>
           </div>
-          <label className="form-field">
-            <span>Email address</span>
-            <input className="form-input" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
-          </label>
-          <label className="form-field">
-            <span>Password</span>
-            <input className="form-input" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />
-          </label>
+          {notice ? (
+            <p className={sessionWithoutProfile ? "form-message" : "form-message form-message-error"}>{notice}</p>
+          ) : null}
+          <button type="submit" className="primary-button" style={{ width: "100%" }}>
+            Sign in
+          </button>
+        </form>
+
+        {sessionWithoutProfile ? (
+          <div className="register-form-block" style={{ marginTop: 20 }}>
+            <button type="button" className="secondary-button" style={{ width: "100%" }} onClick={() => void handleLogout()}>
+              Sign out and try another email
+            </button>
+          </div>
+        ) : null}
+
+        <div className="register-form-block" style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+          <div className="register-form-heading">
+            <h3>New customer?</h3>
+            <p>Create an account with your details and delivery address. Your profile is stored securely and appears in Hull Eats admin for support and safety checks.</p>
+          </div>
+          <Link href="/register" className="primary-button" style={{ width: "100%", display: "inline-block", textAlign: "center", textDecoration: "none" }}>
+            Create account
+          </Link>
+          <p className="form-helper" style={{ marginTop: 12 }}>
+            Registration collects the customer details shown in the Hull Eats admin console: contact, address, delivery plan, and optional marketing consent.
+          </p>
         </div>
-        {notice ? <p className="form-message form-message-error">{notice}</p> : null}
-        <button type="submit" className="primary-button" style={{ width: "100%" }}>
-          Sign in
-        </button>
-      </form>
+      </div>
     );
   }
 

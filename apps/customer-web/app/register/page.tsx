@@ -64,7 +64,7 @@ export default function RegisterPage() {
           <RegisterForm />
 
           <p className="form-footer" style={{ marginTop: 18 }}>
-            Already have an account? <Link href="/" className="ghost-link">Return to storefront</Link>
+            Already have an account? <Link href="/account" className="ghost-link">Sign in</Link>
           </p>
         </section>
       </section>
