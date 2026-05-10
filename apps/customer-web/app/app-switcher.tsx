@@ -57,7 +57,7 @@ export function AppSwitcher() {
       <div className="app-switcher-secondary">
         {secondaryApps.map((app) => (
           <Link key={app.key} href={app.href} className="app-switcher-icon" aria-label={app.label}>
-            <img src={app.image} alt={app.label} className="brand-logo brand-logo-small" />
+            <img src={app.image} alt={app.label} className="brand-logo" />
           </Link>
         ))}
       </div>

@@ -1,4 +1,5 @@
 export type MarketplaceDeliveryMode = "collection" | "small_delivery" | "van_required";
+export type MarketplaceListingStatus = "available" | "reserved" | "sold";
 
 export type MarketplaceItemCategory = {
   slug: string;
@@ -17,8 +18,14 @@ export type MarketplaceListing = {
   deliveryMode: MarketplaceDeliveryMode;
   imageUrl: string;
   sellerLabel: string;
+  sellerName: string;
+  sellerMemberSince: string;
   listedAtLabel: string;
   description: string;
+  itemFacts: string[];
+  deliveryNotes: string;
+  acceptsOffers: boolean;
+  status: MarketplaceListingStatus;
 };
 
 export const marketplaceItemCategories: MarketplaceItemCategory[] = [
@@ -71,8 +78,14 @@ export const marketplaceListings: MarketplaceListing[] = [
     deliveryMode: "van_required",
     imageUrl: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=1200&q=82",
     sellerLabel: "Hull Eats+ member",
+    sellerName: "Megan R.",
+    sellerMemberSince: "Hull Eats+ since 2025",
     listedAtLabel: "Listed today",
     description: "Large corner sofa ready for a local buyer. Van collection or arranged van delivery required.",
+    itemFacts: ["Three-seat corner sofa", "Separates into two sections", "Smoke-free home", "Approx 245cm x 165cm"],
+    deliveryNotes: "Large item. Buyer can collect with a van, or request van delivery when arranging the sale.",
+    acceptsOffers: true,
+    status: "available",
   },
   {
     id: "listing-fridge-01",
@@ -84,8 +97,14 @@ export const marketplaceListings: MarketplaceListing[] = [
     deliveryMode: "van_required",
     imageUrl: "https://images.unsplash.com/photo-1571175443880-49e1d25b2bc5?auto=format&fit=crop&w=1200&q=82",
     sellerLabel: "Hull Eats+ member",
+    sellerName: "Darren K.",
+    sellerMemberSince: "Hull Eats+ since 2024",
     listedAtLabel: "Listed yesterday",
     description: "Clean fridge freezer. Buyer can collect, or request van help when that option goes live.",
+    itemFacts: ["Tall freestanding fridge freezer", "Working and cleaned", "Minor marks on side panel", "Collect from ground floor"],
+    deliveryNotes: "Van required. Seller can share collection address after purchase or agreed offer.",
+    acceptsOffers: true,
+    status: "available",
   },
   {
     id: "listing-pram-01",
@@ -97,8 +116,14 @@ export const marketplaceListings: MarketplaceListing[] = [
     deliveryMode: "collection",
     imageUrl: "https://images.unsplash.com/photo-1585336261022-680e295ce3fe?auto=format&fit=crop&w=1200&q=82",
     sellerLabel: "Hull Eats+ member",
+    sellerName: "Aisha B.",
+    sellerMemberSince: "Hull Eats+ since 2026",
     listedAtLabel: "Listed 2 days ago",
     description: "Compact pram with rain cover. Collection only from East Hull.",
+    itemFacts: ["Pram, rain cover, and footmuff", "Folds down for car boot", "Clean fabric", "Suitable from 6 months"],
+    deliveryNotes: "Collection only. Address shared in marketplace messages once the seller accepts.",
+    acceptsOffers: true,
+    status: "available",
   },
   {
     id: "listing-console-01",
@@ -110,10 +135,21 @@ export const marketplaceListings: MarketplaceListing[] = [
     deliveryMode: "small_delivery",
     imageUrl: "https://images.unsplash.com/photo-1606144042614-b2417e99c4e3?auto=format&fit=crop&w=1200&q=82",
     sellerLabel: "Hull Eats+ member",
+    sellerName: "Lewis T.",
+    sellerMemberSince: "Hull Eats+ since 2025",
     listedAtLabel: "Listed this week",
     description: "Console, two controllers, and games. Local collection or small-item delivery option.",
+    itemFacts: ["Console with two controllers", "Includes HDMI and power cable", "Four games included", "Factory reset ready"],
+    deliveryNotes: "Collection or small local delivery can be arranged with the seller.",
+    acceptsOffers: true,
+    status: "reserved",
   },
 ];
+
+export const formatMarketplacePrice = (price: number) => `${String.fromCharCode(163)}${price.toFixed(0)}`;
+
+export const getMarketplaceListing = (listingId: string) =>
+  marketplaceListings.find((listing) => listing.id === listingId);
 
 export const getDeliveryModeLabel = (mode: MarketplaceDeliveryMode) => {
   if (mode === "van_required") {

@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { AppSwitcher } from "../app-switcher";
 import {
+  formatMarketplacePrice,
   getDeliveryModeLabel,
   marketplaceItemCategories,
   marketplaceListings,
@@ -25,7 +26,8 @@ export default function HullMarketplacePage() {
           <p className="hero-badge">Hull Marketplace</p>
           <h1>Buy and sell locally in Hull.</h1>
           <p>
-            Anyone can browse and buy. Hull Eats+ members can list items for sale and reach local people nearby.
+            Anyone can browse and buy. Hull Eats+ members can list items, message local buyers, accept offers, and mark
+            items as sold once the sale is arranged.
           </p>
 
           <div className="marketplace-search resale-search" aria-label="Search Hull Marketplace">
@@ -40,11 +42,11 @@ export default function HullMarketplacePage() {
           <p className="eyebrow">Listing access</p>
           <h2>Hull Eats+ members can sell.</h2>
           <p>
-            Buyers stay open to everyone. Listing is a member benefit so local sellers can get attention without the page
-            becoming messy or spammy.
+            Buyers stay open to everyone. Sellers need an account and an active Hull Eats+ membership before an item can
+            go live.
           </p>
-          <Link href="#list-item" className="primary-button">
-            Create listing
+          <Link href="/marketplace/sell" className="primary-button">
+            Start selling
           </Link>
         </aside>
       </section>
@@ -64,7 +66,9 @@ export default function HullMarketplacePage() {
               key={category.slug}
               href={`#${category.slug}`}
               className="resale-category-card"
-              style={{ backgroundImage: `linear-gradient(180deg, rgba(3, 9, 22, 0.04), rgba(3, 9, 22, 0.72)), url(${category.imageUrl})` }}
+              style={{
+                backgroundImage: `linear-gradient(180deg, rgba(3, 9, 22, 0.04), rgba(3, 9, 22, 0.72)), url(${category.imageUrl})`,
+              }}
             >
               <strong>{category.label}</strong>
             </a>
@@ -78,13 +82,13 @@ export default function HullMarketplacePage() {
             <div>
               <p className="eyebrow">Local listings</p>
               <h2>Available around Hull</h2>
-              <p>These are example listing cards for the marketplace flow before live sellers are switched on.</p>
+              <p>Open an item to buy, send an offer, or message the seller before arranging collection or delivery.</p>
             </div>
           </div>
 
           <div className="resale-listing-grid">
             {marketplaceListings.map((listing) => (
-              <article className="resale-listing-card" key={listing.id} id={listing.categorySlug}>
+              <Link className="resale-listing-card" key={listing.id} id={listing.categorySlug} href={`/marketplace/${listing.id}`}>
                 <div className="resale-listing-media" style={{ backgroundImage: `url(${listing.imageUrl})` }}>
                   <span>{getDeliveryModeLabel(listing.deliveryMode)}</span>
                 </div>
@@ -94,91 +98,47 @@ export default function HullMarketplacePage() {
                       <h3>{listing.title}</h3>
                       <p>{listing.location}</p>
                     </div>
-                    <strong>£{listing.price}</strong>
+                    <strong>{formatMarketplacePrice(listing.price)}</strong>
                   </div>
                   <p>{listing.description}</p>
                   <div className="store-tags">
                     <span className="store-tag">{listing.condition}</span>
                     <span className="store-tag">{listing.sellerLabel}</span>
+                    <span className="store-tag">{listing.status}</span>
                     <span className="store-tag">{listing.listedAtLabel}</span>
                   </div>
                   <div className="store-card-footer">
                     <span className="card-cta">View item</span>
-                    <span className="ghost-link">Message seller</span>
+                    <span className="ghost-link">Offers and messages</span>
                   </div>
                 </div>
-              </article>
+              </Link>
             ))}
           </div>
         </div>
 
         <aside className="sidebar-stack">
-          <section className="feature-panel feature-panel-dark" id="list-item">
+          <section className="feature-panel feature-panel-dark">
             <div className="section-heading compact">
               <div>
-                <p className="eyebrow">Hull Eats+ seller tools</p>
-                <h2>List an item</h2>
-                <p>Membership check will happen before a seller can publish. This form is the listing shape we will save.</p>
+                <p className="eyebrow">Account required</p>
+                <h2>Sell through Hull Marketplace</h2>
+                <p>Only active Hull Eats+ members can publish listings. Buyers can browse, buy, message, and send offers.</p>
               </div>
             </div>
 
-            <form className="marketplace-listing-form">
-              <label>
-                Item title
-                <input placeholder="Grey corner sofa" />
-              </label>
-              <label>
-                Price
-                <input placeholder="180" inputMode="decimal" />
-              </label>
-              <label>
-                Category
-                <select defaultValue="">
-                  <option value="" disabled>
-                    Choose category
-                  </option>
-                  {marketplaceItemCategories.map((category) => (
-                    <option key={category.slug} value={category.slug}>
-                      {category.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Condition
-                <select defaultValue="good">
-                  <option value="new">New</option>
-                  <option value="like-new">Like new</option>
-                  <option value="good">Good</option>
-                  <option value="used">Used</option>
-                  <option value="parts">For parts or repair</option>
-                </select>
-              </label>
-              <label>
-                Description
-                <textarea placeholder="Size, condition, collection notes, measurements, what is included..." rows={5} />
-              </label>
-
-              <div className="listing-delivery-options" aria-label="Delivery options">
-                <label>
-                  <input type="radio" name="deliveryMode" defaultChecked />
-                  Collection only
-                </label>
-                <label>
-                  <input type="radio" name="deliveryMode" />
-                  Small item local delivery
-                </label>
-                <label>
-                  <input type="radio" name="deliveryMode" />
-                  Large item / van required
-                </label>
-              </div>
-
-              <button type="button" className="primary-button">
-                Preview listing
-              </button>
-              <p className="listing-note">Publishing will be available to active Hull Eats+ members.</p>
-            </form>
+            <div className="marketplace-action-stack">
+              <Link href="/marketplace/sell" className="primary-button">
+                Seller account
+              </Link>
+              <Link href="/marketplace/messages" className="secondary-button">
+                Messages and offers
+              </Link>
+              <p className="listing-note">
+                Listing, offer, purchase status, delivery requirement, and sold state are saved against the marketplace
+                item.
+              </p>
+            </div>
           </section>
         </aside>
       </section>

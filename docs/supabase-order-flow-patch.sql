@@ -203,6 +203,53 @@ create table if not exists public.marketplace_listings (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
+create table if not exists public.marketplace_seller_profiles (
+  id uuid primary key default gen_random_uuid(),
+  user_id text not null unique references public.platform_users(id) on delete cascade,
+  display_name text not null,
+  location_label text,
+  hull_eats_plus_active boolean not null default false,
+  seller_rating numeric(3,2) not null default 5.0,
+  is_active boolean not null default true,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+alter table public.marketplace_listings
+  add column if not exists seller_profile_id uuid references public.marketplace_seller_profiles(id) on delete set null,
+  add column if not exists buyer_user_id text references public.platform_users(id) on delete set null,
+  add column if not exists accepts_offers boolean not null default true,
+  add column if not exists pickup_area text,
+  add column if not exists reserved_at timestamptz,
+  add column if not exists sold_at timestamptz;
+
+create table if not exists public.marketplace_listing_messages (
+  id uuid primary key default gen_random_uuid(),
+  listing_id uuid not null references public.marketplace_listings(id) on delete cascade,
+  sender_user_id text references public.platform_users(id) on delete set null,
+  recipient_user_id text references public.platform_users(id) on delete set null,
+  message_type text not null default 'message',
+  body text not null,
+  offer_amount numeric(10,2),
+  status text not null default 'sent',
+  created_at timestamptz not null default timezone('utc', now())
+);
+
+create table if not exists public.marketplace_listing_orders (
+  id uuid primary key default gen_random_uuid(),
+  listing_id uuid not null references public.marketplace_listings(id) on delete cascade,
+  buyer_user_id text references public.platform_users(id) on delete set null,
+  seller_user_id text references public.platform_users(id) on delete set null,
+  agreed_price numeric(10,2) not null,
+  delivery_mode text not null default 'collection',
+  delivery_required boolean not null default false,
+  van_required boolean not null default false,
+  status text not null default 'pending',
+  collection_address_shared boolean not null default false,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
 create index if not exists idx_deliveries_order on public.deliveries(order_id);
 create index if not exists idx_deliveries_status on public.deliveries(status, assigned_at desc);
 create index if not exists idx_courier_accounts_status on public.courier_accounts(status, created_at desc);
@@ -219,6 +266,11 @@ create index if not exists idx_customer_notifications_event on public.customer_n
 create index if not exists idx_marketplace_categories_active on public.marketplace_categories(active, sort_order);
 create index if not exists idx_marketplace_listings_category on public.marketplace_listings(category_id, active, created_at desc);
 create index if not exists idx_marketplace_listings_seller on public.marketplace_listings(seller_user_id, created_at desc);
+create index if not exists idx_marketplace_seller_profiles_user on public.marketplace_seller_profiles(user_id, hull_eats_plus_active);
+create index if not exists idx_marketplace_listing_messages_listing on public.marketplace_listing_messages(listing_id, created_at desc);
+create index if not exists idx_marketplace_listing_messages_users on public.marketplace_listing_messages(sender_user_id, recipient_user_id, created_at desc);
+create index if not exists idx_marketplace_listing_orders_listing on public.marketplace_listing_orders(listing_id, status, created_at desc);
+create index if not exists idx_marketplace_listing_orders_buyer on public.marketplace_listing_orders(buyer_user_id, created_at desc);
 
 drop trigger if exists set_deliveries_updated_at on public.deliveries;
 create trigger set_deliveries_updated_at before update on public.deliveries for each row execute function public.set_updated_at();
@@ -244,6 +296,12 @@ create trigger set_marketplace_categories_updated_at before update on public.mar
 drop trigger if exists set_marketplace_listings_updated_at on public.marketplace_listings;
 create trigger set_marketplace_listings_updated_at before update on public.marketplace_listings for each row execute function public.set_updated_at();
 
+drop trigger if exists set_marketplace_seller_profiles_updated_at on public.marketplace_seller_profiles;
+create trigger set_marketplace_seller_profiles_updated_at before update on public.marketplace_seller_profiles for each row execute function public.set_updated_at();
+
+drop trigger if exists set_marketplace_listing_orders_updated_at on public.marketplace_listing_orders;
+create trigger set_marketplace_listing_orders_updated_at before update on public.marketplace_listing_orders for each row execute function public.set_updated_at();
+
 alter table public.platform_users enable row level security;
 alter table public.courier_profiles enable row level security;
 alter table public.courier_accounts enable row level security;
@@ -256,3 +314,6 @@ alter table public.customer_push_tokens enable row level security;
 alter table public.customer_notifications enable row level security;
 alter table public.marketplace_categories enable row level security;
 alter table public.marketplace_listings enable row level security;
+alter table public.marketplace_seller_profiles enable row level security;
+alter table public.marketplace_listing_messages enable row level security;
+alter table public.marketplace_listing_orders enable row level security;
