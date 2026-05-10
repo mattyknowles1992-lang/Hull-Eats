@@ -9,6 +9,7 @@ type StockStatus = "in_stock" | "low_stock" | "out_of_stock";
 type HubSection =
   | "home"
   | "orders"
+  | "drivers"
   | "orderHistory"
   | "earnings"
   | "reports"
@@ -36,6 +37,43 @@ type CreateCategoryFormState = {
   name: string;
   description: string;
   defaultPrice: string;
+};
+
+type MerchantDriverTracking = {
+  drivers: Array<{
+    courierProfileId: string;
+    courierName: string;
+    currentStatus: string;
+    rating: number | null;
+    latestLocation?: {
+      latitude: number;
+      longitude: number;
+      accuracyMeters?: number;
+      heading?: number;
+      updatedAt: string;
+    };
+    orders: Array<{
+      orderId: string;
+      orderNumber: string;
+      status: string;
+      customerName: string;
+      dropoffAddress: string;
+      paymentStatus: string;
+      cashDue: number;
+      totalAmount: number;
+      scannedAt: string | null;
+      pickedUpAt: string | null;
+      locationUpdatedAt: string | null;
+    }>;
+    totalCashDue: number;
+    orderCount: number;
+  }>;
+  totals: {
+    driverCount: number;
+    orderCount: number;
+    cashDue: number;
+    cashOrderCount: number;
+  };
 };
 
 type CreateItemFormState = {
@@ -112,6 +150,28 @@ const emptyHubSettings: HubSettings = {
 
 const moneyInput = (value: number) => value.toFixed(2);
 const formatMoney = (value: number) => `£${value.toFixed(2)}`;
+
+const hullTrackingBounds = {
+  minLatitude: 53.70,
+  maxLatitude: 53.83,
+  minLongitude: -0.48,
+  maxLongitude: -0.18,
+};
+
+const clampPercentage = (value: number) => Math.min(96, Math.max(4, value));
+
+const mapHullPosition = (latitude: number, longitude: number) => ({
+  left: `${clampPercentage(((longitude - hullTrackingBounds.minLongitude) / (hullTrackingBounds.maxLongitude - hullTrackingBounds.minLongitude)) * 100)}%`,
+  top: `${clampPercentage((1 - (latitude - hullTrackingBounds.minLatitude) / (hullTrackingBounds.maxLatitude - hullTrackingBounds.minLatitude)) * 100)}%`,
+});
+
+const formatTrackingTime = (value?: string | null) =>
+  value
+    ? new Date(value).toLocaleTimeString("en-GB", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "No ping yet";
 
 const createDraftId = (prefix: string) => `${prefix}-${Math.random().toString(36).slice(2, 8)}-${Date.now().toString(36)}`;
 
@@ -573,6 +633,21 @@ async function fetchMerchantOrders(token: string): Promise<OrderSummary[]> {
   return (await response.json()) as OrderSummary[];
 }
 
+async function fetchMerchantDriverTracking(token: string): Promise<MerchantDriverTracking> {
+  const response = await fetch(`${apiBaseUrl}/v1/merchant/drivers/tracking`, {
+    cache: "no-store",
+    headers: {
+      authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Merchant driver tracking fetch failed with status ${response.status}`);
+  }
+
+  return (await response.json()) as MerchantDriverTracking;
+}
+
 type MerchantOrderPrintResponse = {
   payload: {
     qrCodeData?: string;
@@ -938,6 +1013,8 @@ export default function MerchantPortalPage() {
   const [menuNotice, setMenuNotice] = useState("");
   const [passwordNotice, setPasswordNotice] = useState("");
   const [orderNotice, setOrderNotice] = useState("");
+  const [driverNotice, setDriverNotice] = useState("");
+  const [driverTracking, setDriverTracking] = useState<MerchantDriverTracking | null>(null);
   const [activeHubSection, setActiveHubSection] = useState<HubSection>("home");
   const [activeHubPanel, setActiveHubPanel] = useState<"menu" | "import" | "settings" | "account">("menu");
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
@@ -976,6 +1053,11 @@ export default function MerchantPortalPage() {
 
     if (section === "orders") {
       void loadMerchantOrders();
+      return;
+    }
+
+    if (section === "drivers") {
+      void loadDriverTracking();
       return;
     }
 
@@ -1051,6 +1133,22 @@ export default function MerchantPortalPage() {
       }
     } catch (error) {
       setOrderNotice(error instanceof Error ? error.message : "Order fetch failed.");
+    }
+  };
+
+  const loadDriverTracking = async (token = merchantToken, options: { silent?: boolean } = {}) => {
+    if (!token) {
+      return;
+    }
+
+    try {
+      const tracking = await fetchMerchantDriverTracking(token);
+      setDriverTracking(tracking);
+      if (!options.silent) {
+        setDriverNotice(`Loaded ${tracking.totals.driverCount} drivers and ${tracking.totals.orderCount} assigned delivery orders.`);
+      }
+    } catch (error) {
+      setDriverNotice(error instanceof Error ? error.message : "Driver tracking fetch failed.");
     }
   };
 
@@ -1160,6 +1258,19 @@ export default function MerchantPortalPage() {
     const intervalId = window.setInterval(() => {
       void loadMerchantOrders(merchantToken, { silent: true });
     }, 15000);
+
+    return () => window.clearInterval(intervalId);
+  }, [activeHubSection, merchantToken]);
+
+  useEffect(() => {
+    if (activeHubSection !== "drivers" || !merchantToken) {
+      return;
+    }
+
+    void loadDriverTracking(merchantToken, { silent: true });
+    const intervalId = window.setInterval(() => {
+      void loadDriverTracking(merchantToken, { silent: true });
+    }, 10000);
 
     return () => window.clearInterval(intervalId);
   }, [activeHubSection, merchantToken]);
@@ -1613,25 +1724,28 @@ export default function MerchantPortalPage() {
             <button type="button" style={activeHubSection === "orders" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("orders")}>
               <span>02</span> Live orders
             </button>
+            <button type="button" style={activeHubSection === "drivers" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("drivers")}>
+              <span>03</span> Drivers & cash-up
+            </button>
             <button type="button" style={activeHubSection === "orderHistory" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("orderHistory")}>
-              <span>03</span> Order history
+              <span>04</span> Order history
             </button>
           </div>
 
           <div style={sidebarGroup}>
             <span style={sidebarGroupTitle}>Performance</span>
             <button type="button" style={activeHubSection === "earnings" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("earnings")}>
-              <span>04</span> Earnings
+              <span>05</span> Earnings
             </button>
             <button type="button" style={activeHubSection === "reports" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("reports")}>
-              <span>05</span> Reports
+              <span>06</span> Reports
             </button>
           </div>
 
           <div style={sidebarGroup}>
             <span style={sidebarGroupTitle}>Menu management</span>
             <button type="button" style={activeHubSection === "menu" && activeHubPanel === "menu" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("menu")}>
-              <span>06</span> Menu builder
+              <span>07</span> Menu builder
             </button>
             <button
               type="button"
@@ -1641,20 +1755,20 @@ export default function MerchantPortalPage() {
                 setActiveHubPanel("import");
               }}
             >
-              <span>07</span> Paste menu
+              <span>08</span> Paste menu
             </button>
           </div>
 
           <div style={sidebarGroup}>
             <span style={sidebarGroupTitle}>Business</span>
             <button type="button" style={activeHubSection === "businessProfile" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("businessProfile")}>
-              <span>08</span> Business profile
+              <span>09</span> Business profile
             </button>
             <button type="button" style={activeHubSection === "users" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("users")}>
-              <span>09</span> Users
+              <span>10</span> Users
             </button>
             <button type="button" style={activeHubSection === "settings" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("settings")}>
-              <span>10</span> Settings
+              <span>11</span> Settings
             </button>
           </div>
 
@@ -1700,6 +1814,7 @@ export default function MerchantPortalPage() {
         {userNotice ? <p style={successMessageStyle}>{userNotice}</p> : null}
         {passwordNotice ? <p style={successMessageStyle}>{passwordNotice}</p> : null}
         {orderNotice ? <p style={successMessageStyle}>{orderNotice}</p> : null}
+        {driverNotice ? <p style={successMessageStyle}>{driverNotice}</p> : null}
 
         {activeHubSection === "home" ? (
           <section style={dashboardGrid}>
@@ -1765,6 +1880,120 @@ export default function MerchantPortalPage() {
               ))}
               {merchantOrders.length === 0 ? <div style={emptyStateCard}>No orders loaded yet. Refresh after placing a kiosk test order.</div> : null}
             </div>
+          </section>
+        ) : null}
+
+        {activeHubSection === "drivers" ? (
+          <section style={placeholderPanel}>
+            <p style={eyebrowDark}>Driver tracking</p>
+            <div style={itemTopRow}>
+              <div>
+                <h2 style={sectionTitle}>Drivers & cash-up</h2>
+                <p style={panelCopyDark}>
+                  Scanned delivery receipts assign the order to that driver. Track who is carrying what, where they last pinged, and how much cash is due back.
+                </p>
+              </div>
+              <button type="button" style={secondaryButton} onClick={() => void loadDriverTracking()}>
+                Refresh drivers
+              </button>
+            </div>
+
+            <div style={summaryGrid}>
+              <article style={summaryCard}>
+                <span style={summaryLabel}>Drivers with scanned orders</span>
+                <strong style={summaryValue}>{driverTracking?.totals.driverCount ?? 0}</strong>
+              </article>
+              <article style={summaryCard}>
+                <span style={summaryLabel}>Assigned delivery orders</span>
+                <strong style={summaryValue}>{driverTracking?.totals.orderCount ?? 0}</strong>
+              </article>
+              <article style={summaryCard}>
+                <span style={summaryLabel}>Cash orders</span>
+                <strong style={summaryValue}>{driverTracking?.totals.cashOrderCount ?? 0}</strong>
+              </article>
+              <article style={summaryCard}>
+                <span style={summaryLabel}>Cash due back</span>
+                <strong style={summaryValue}>{formatMoney(driverTracking?.totals.cashDue ?? 0)}</strong>
+              </article>
+            </div>
+
+            <section style={driverTrackingGrid}>
+              <article style={driverMapPanel}>
+                <div style={driverMapHeader}>
+                  <div>
+                    <span style={summaryLabel}>Live Hull map</span>
+                    <strong style={driverMapTitle}>On-shift drivers</strong>
+                  </div>
+                  <span style={darkBadge}>Hull only</span>
+                </div>
+                <div style={driverMapCanvas} aria-label="Live driver map preview">
+                  <span style={{ ...driverMapAreaLabel, left: "12%", top: "18%" }}>Beverley Rd</span>
+                  <span style={{ ...driverMapAreaLabel, left: "52%", top: "28%" }}>City centre</span>
+                  <span style={{ ...driverMapAreaLabel, left: "66%", top: "62%" }}>Holderness Rd</span>
+                  <span style={{ ...driverMapAreaLabel, left: "22%", top: "74%" }}>Hessle Rd</span>
+                  {(driverTracking?.drivers ?? []).map((driver, index) =>
+                    driver.latestLocation ? (
+                      <span
+                        key={driver.courierProfileId}
+                        title={`${driver.courierName} / ${formatTrackingTime(driver.latestLocation.updatedAt)}`}
+                        style={{
+                          ...driverMapMarker,
+                          ...mapHullPosition(driver.latestLocation.latitude, driver.latestLocation.longitude),
+                          transform: `translate(-50%, -100%) rotate(${driver.latestLocation.heading ?? 0}deg)`,
+                        }}
+                      >
+                        <span style={{ ...driverMarkerLogo, transform: `rotate(-${driver.latestLocation.heading ?? 0}deg)` }}>
+                          {driver.courierName.slice(0, 1).toUpperCase() || index + 1}
+                        </span>
+                      </span>
+                    ) : null,
+                  )}
+                  {(driverTracking?.drivers ?? []).every((driver) => !driver.latestLocation) ? (
+                    <div style={driverMapEmpty}>Driver locations appear here after the courier app sends a GPS ping.</div>
+                  ) : null}
+                </div>
+              </article>
+
+              <div style={driverCardList}>
+                {(driverTracking?.drivers ?? []).map((driver) => (
+                  <article key={driver.courierProfileId} style={driverCard}>
+                    <div style={itemTopRow}>
+                      <div>
+                        <h3 style={driverName}>{driver.courierName}</h3>
+                        <p style={panelCopyDark}>
+                          {driver.currentStatus.replaceAll("_", " ")} / {driver.orderCount} orders / location {formatTrackingTime(driver.latestLocation?.updatedAt)}
+                        </p>
+                      </div>
+                      <span style={driver.totalCashDue > 0 ? orangeBadge : darkBadge}>
+                        {driver.totalCashDue > 0 ? `Cash due ${formatMoney(driver.totalCashDue)}` : "No cash due"}
+                      </span>
+                    </div>
+
+                    <div style={driverOrderList}>
+                      {driver.orders.map((order) => (
+                        <div key={order.orderId} style={driverOrderRow}>
+                          <div>
+                            <strong>{order.orderNumber}</strong>
+                            <p style={driverOrderMeta}>
+                              {order.customerName} / {order.status.replaceAll("_", " ")} / scanned {formatTrackingTime(order.scannedAt)}
+                            </p>
+                            <p style={driverOrderAddress}>{order.dropoffAddress || "No delivery address saved"}</p>
+                          </div>
+                          <div style={driverOrderTotals}>
+                            <span>{formatMoney(order.totalAmount)}</span>
+                            <small>{order.cashDue > 0 ? `Collect ${formatMoney(order.cashDue)}` : "No cash"}</small>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </article>
+                ))}
+
+                {(driverTracking?.drivers ?? []).length === 0 ? (
+                  <div style={emptyStateCard}>No scanned delivery orders are assigned to drivers yet. Once a courier scans a receipt, the order appears here for tracking and cash-up.</div>
+                ) : null}
+              </div>
+            </section>
           </section>
         ) : null}
 
@@ -3920,6 +4149,148 @@ const summaryValue: React.CSSProperties = {
   marginTop: 8,
   fontSize: 28,
   color: "#0f1115",
+};
+
+const driverTrackingGrid: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "minmax(320px, 0.9fr) minmax(360px, 1.1fr)",
+  gap: 18,
+  alignItems: "start",
+};
+
+const driverMapPanel: React.CSSProperties = {
+  borderRadius: 24,
+  border: "1px solid rgba(15, 17, 21, 0.12)",
+  background: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(232,247,249,0.96))",
+  padding: 16,
+  boxShadow: "0 18px 32px rgba(15, 17, 21, 0.08)",
+};
+
+const driverMapHeader: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 12,
+  alignItems: "center",
+  marginBottom: 12,
+};
+
+const driverMapTitle: React.CSSProperties = {
+  display: "block",
+  marginTop: 4,
+  fontSize: 22,
+  color: "#101216",
+};
+
+const driverMapCanvas: React.CSSProperties = {
+  position: "relative",
+  minHeight: 360,
+  overflow: "hidden",
+  borderRadius: 22,
+  border: "1px solid rgba(13, 138, 168, 0.2)",
+  background:
+    "linear-gradient(90deg, rgba(13,138,168,0.08) 1px, transparent 1px), linear-gradient(0deg, rgba(13,138,168,0.08) 1px, transparent 1px), radial-gradient(circle at 55% 44%, rgba(35,205,255,0.24), transparent 30%), linear-gradient(135deg, #f8fcfd, #dff4f6)",
+  backgroundSize: "56px 56px, 56px 56px, auto, auto",
+};
+
+const driverMapAreaLabel: React.CSSProperties = {
+  position: "absolute",
+  transform: "translate(-50%, -50%)",
+  color: "rgba(15, 17, 21, 0.42)",
+  fontSize: 12,
+  fontWeight: 900,
+  textTransform: "uppercase",
+  letterSpacing: "0.08em",
+};
+
+const driverMapMarker: React.CSSProperties = {
+  position: "absolute",
+  width: 42,
+  height: 54,
+  display: "grid",
+  placeItems: "center",
+  transformOrigin: "50% 100%",
+};
+
+const driverMarkerLogo: React.CSSProperties = {
+  width: 38,
+  height: 38,
+  display: "grid",
+  placeItems: "center",
+  borderRadius: "50%",
+  border: "3px solid #fff",
+  background: "linear-gradient(135deg, #0f1115, #0d8aa8)",
+  color: "#fff",
+  fontSize: 16,
+  fontWeight: 950,
+  boxShadow: "0 16px 28px rgba(15, 17, 21, 0.22)",
+};
+
+const driverMapEmpty: React.CSSProperties = {
+  position: "absolute",
+  inset: "auto 18px 18px",
+  padding: 14,
+  borderRadius: 18,
+  background: "rgba(255,255,255,0.9)",
+  color: "#566070",
+  fontWeight: 800,
+};
+
+const driverCardList: React.CSSProperties = {
+  display: "grid",
+  gap: 14,
+};
+
+const driverCard: React.CSSProperties = {
+  borderRadius: 24,
+  border: "1px solid rgba(15, 17, 21, 0.12)",
+  background: "rgba(255,255,255,0.96)",
+  padding: 16,
+  boxShadow: "0 18px 32px rgba(15, 17, 21, 0.07)",
+};
+
+const driverName: React.CSSProperties = {
+  margin: 0,
+  color: "#101216",
+  fontSize: 22,
+};
+
+const driverOrderList: React.CSSProperties = {
+  display: "grid",
+  gap: 10,
+  marginTop: 12,
+};
+
+const driverOrderRow: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "minmax(0, 1fr) auto",
+  gap: 12,
+  padding: 12,
+  borderRadius: 16,
+  border: "1px solid rgba(15, 17, 21, 0.08)",
+  background: "rgba(248,242,235,0.62)",
+};
+
+const driverOrderMeta: React.CSSProperties = {
+  margin: "4px 0 0",
+  color: "#6c7482",
+  fontSize: 13,
+  fontWeight: 800,
+};
+
+const driverOrderAddress: React.CSSProperties = {
+  margin: "4px 0 0",
+  color: "#101216",
+  fontSize: 13,
+  lineHeight: 1.35,
+};
+
+const driverOrderTotals: React.CSSProperties = {
+  display: "grid",
+  gap: 4,
+  justifyItems: "end",
+  alignContent: "start",
+  color: "#101216",
+  fontWeight: 950,
 };
 
 const portalGrid: React.CSSProperties = {

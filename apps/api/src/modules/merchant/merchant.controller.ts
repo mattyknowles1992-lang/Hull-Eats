@@ -20,6 +20,7 @@ import { InternalAuthService } from "../../common/internal-auth.service";
 import {
   buildMerchantOrderReceipt,
   findMerchantOrder,
+  listMerchantDriverTracking,
   listMerchantOrders,
   queueMerchantOrderReceiptPrint,
   updateMerchantOrder,
@@ -174,6 +175,12 @@ export class MerchantController {
   async listOrders(@Headers("authorization") authorization?: string) {
     const session = this.internalAuth.requireMerchantToken(authorization);
     return listMerchantOrders(session.hubId!);
+  }
+
+  @Get("drivers/tracking")
+  async listDriverTracking(@Headers("authorization") authorization?: string) {
+    const session = this.internalAuth.requireMerchantToken(authorization);
+    return listMerchantDriverTracking(session.hubId!);
   }
 
   @Get("orders/:orderId")

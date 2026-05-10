@@ -138,6 +138,30 @@ type ReceiptOrderSnapshot = {
   currency?: string;
 };
 
+type DriverTrackingState = {
+  confirmationCode?: string;
+  courierLocation?: {
+    latitude: number;
+    longitude: number;
+    accuracyMeters?: number;
+    heading?: number;
+    updatedAt: string;
+  };
+};
+
+const parseDriverTrackingState = (value: string | null | undefined): DriverTrackingState => {
+  if (!value) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(value) as DriverTrackingState;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
 const formatReceiptMoney = (value: unknown) => `${String.fromCharCode(163)}${Number(value).toFixed(2)}`;
 
 const formatReceiptTime = (value: string) =>
@@ -403,6 +427,126 @@ export const findMerchantOrder = async (hubId: string, orderId: string): Promise
   });
 
   return order ? toOrderSummary(order) : null;
+};
+
+export const listMerchantDriverTracking = async (hubId: string) => {
+  const orders = await prisma.order.findMany({
+    where: {
+      fulfillmentType: "DELIVERY" as any,
+      status: { notIn: ["DELIVERED", "CANCELLED", "REJECTED"] as any },
+      store: {
+        merchantId: hubId,
+      },
+      delivery: {
+        isNot: null,
+      },
+    },
+    include: {
+      delivery: {
+        include: {
+          courierProfile: {
+            include: {
+              user: true,
+              account: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: { placedAt: "desc" },
+    take: 150,
+  });
+
+  const drivers = new Map<
+    string,
+    {
+      courierProfileId: string;
+      courierName: string;
+      currentStatus: string;
+      rating: number | null;
+      latestLocation?: DriverTrackingState["courierLocation"];
+      orders: Array<{
+        orderId: string;
+        orderNumber: string;
+        status: string;
+        customerName: string;
+        dropoffAddress: string;
+        paymentStatus: string;
+        cashDue: number;
+        totalAmount: number;
+        scannedAt: string | null;
+        pickedUpAt: string | null;
+        locationUpdatedAt: string | null;
+      }>;
+      totalCashDue: number;
+      orderCount: number;
+    }
+  >();
+
+  for (const order of orders) {
+    const delivery = order.delivery;
+
+    if (!delivery?.courierProfile) {
+      continue;
+    }
+
+    const courierProfile = delivery.courierProfile;
+    const trackingState = parseDriverTrackingState(delivery.externalReference);
+    const courierId = courierProfile.id;
+    const dropoffAddress = [order.addressLine1, order.addressLine2, order.city, order.postcode].filter(Boolean).join(", ");
+    const cashDue = order.paymentStatus === "PENDING" ? Number(order.totalAmount) : 0;
+
+    const driver =
+      drivers.get(courierId) ??
+      {
+        courierProfileId: courierId,
+        courierName: courierProfile.user?.fullName ?? "Courier",
+        currentStatus: String(courierProfile.currentStatus).toLowerCase(),
+        rating: courierProfile.account ? Number(courierProfile.account.rating) : null,
+        latestLocation: trackingState.courierLocation,
+        orders: [],
+        totalCashDue: 0,
+        orderCount: 0,
+      };
+
+    if (trackingState.courierLocation) {
+      const currentTime = driver.latestLocation?.updatedAt ? Date.parse(driver.latestLocation.updatedAt) : 0;
+      const nextTime = Date.parse(trackingState.courierLocation.updatedAt);
+
+      if (!driver.latestLocation || nextTime >= currentTime) {
+        driver.latestLocation = trackingState.courierLocation;
+      }
+    }
+
+    driver.orders.push({
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      status: String(order.status).toLowerCase(),
+      customerName: order.customerName,
+      dropoffAddress,
+      paymentStatus: String(order.paymentStatus).toLowerCase(),
+      cashDue,
+      totalAmount: Number(order.totalAmount),
+      scannedAt: delivery.acceptedAt?.toISOString() ?? null,
+      pickedUpAt: delivery.pickedUpAt?.toISOString() ?? order.pickedUpAt?.toISOString() ?? null,
+      locationUpdatedAt: trackingState.courierLocation?.updatedAt ?? null,
+    });
+    driver.totalCashDue += cashDue;
+    driver.orderCount = driver.orders.length;
+    drivers.set(courierId, driver);
+  }
+
+  const driverList = Array.from(drivers.values()).sort((first, second) => second.orderCount - first.orderCount);
+
+  return {
+    drivers: driverList,
+    totals: {
+      driverCount: driverList.length,
+      orderCount: driverList.reduce((sum, driver) => sum + driver.orderCount, 0),
+      cashDue: driverList.reduce((sum, driver) => sum + driver.totalCashDue, 0),
+      cashOrderCount: driverList.reduce((sum, driver) => sum + driver.orders.filter((order) => order.cashDue > 0).length, 0),
+    },
+  };
 };
 
 export const updateMerchantOrder = async (
