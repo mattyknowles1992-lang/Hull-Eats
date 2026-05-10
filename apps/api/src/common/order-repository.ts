@@ -1,6 +1,6 @@
 import { NotFoundException } from "@nestjs/common";
 
-import type { CheckoutSession, OrderSummary, PaymentStatus, PrintJobPayload } from "@hull-eats/types";
+import type { CheckoutSession, OrderPaymentMethod, OrderSummary, PaymentStatus, PrintJobPayload } from "@hull-eats/types";
 import { orderSummarySchema, printJobPayloadSchema } from "@hull-eats/types";
 import { prisma } from "@hull-eats/db";
 
@@ -24,6 +24,7 @@ const toOrderSummary = (order: {
   storeId: string;
   status: string;
   paymentStatus: string;
+  paymentMethod: string;
   fulfillmentType: string;
   source: string;
   totalAmount: unknown;
@@ -37,6 +38,7 @@ const toOrderSummary = (order: {
     storeId: order.storeId,
     status: toApiEnum(order.status),
     paymentStatus: toApiEnum(order.paymentStatus),
+    paymentMethod: toApiEnum(order.paymentMethod),
     fulfillmentType: toApiEnum(order.fulfillmentType),
     source: toApiEnum(order.source),
     totalAmount: Number(order.totalAmount),
@@ -66,6 +68,7 @@ const formatReceiptPreview = (
   payload: PrintJobPayload,
   order?: {
     paymentStatus?: string;
+    paymentMethod?: string;
     customerPhone?: string;
     customerEmail?: string | null;
     addressLine1?: string | null;
@@ -83,6 +86,7 @@ const formatReceiptPreview = (
     "================",
     `Order: ${payload.orderNumber}`,
     `Paid status: ${String(order?.paymentStatus ?? "pending").replaceAll("_", " ").toUpperCase()}`,
+    `Payment method: ${String(order?.paymentMethod ?? "dojo_card").replaceAll("_", " ").toUpperCase()}`,
     `Customer: ${payload.customerName}`,
     order?.customerPhone ? `Phone: ${order.customerPhone}` : "",
     order?.customerEmail ? `Email: ${order.customerEmail}` : "",
@@ -126,6 +130,7 @@ const receiptDivider = "--------------------------------";
 
 type ReceiptOrderSnapshot = {
   paymentStatus?: string;
+  paymentMethod?: string;
   customerPhone?: string;
   customerEmail?: string | null;
   addressLine1?: string | null;
@@ -263,6 +268,7 @@ const formatDeliveryReceiptPreview = (payload: PrintJobPayload, order?: ReceiptO
     order?.totalAmount !== undefined ? `Total due: ${formatReceiptMoney(order.totalAmount)} ${order.currency ?? "GBP"}` : "",
     receiptDivider,
     String(order?.paymentStatus ?? "pending").toLowerCase() === "paid" ? "       ORDER HAS BEEN PAID" : "          PAYMENT PENDING",
+    `Payment method: ${String(order?.paymentMethod ?? "dojo_card").replaceAll("_", " ").toUpperCase()}`,
     receiptDivider,
     "Customer details:",
     payload.customerName,
@@ -344,7 +350,7 @@ const createPrintJobIfConfigured = async (
 
 export const persistCheckoutOrder = async (
   session: CheckoutSession,
-  options: { paymentStatus: PaymentStatus },
+  options: { paymentStatus: PaymentStatus; paymentMethod: OrderPaymentMethod },
 ): Promise<OrderSummary> => {
   const store = await resolveCheckoutStore(session);
   const orderNumber = buildOrderNumber();
@@ -357,6 +363,7 @@ export const persistCheckoutOrder = async (
       source: toDbEnum(session.source),
       status: "PENDING" as any,
       paymentStatus: toDbEnum(options.paymentStatus),
+      paymentMethod: toDbEnum(options.paymentMethod),
       customerName: session.customerName,
       customerPhone: session.customerPhone,
       customerEmail: session.customerEmail,
@@ -372,7 +379,12 @@ export const persistCheckoutOrder = async (
       statusHistory: {
         create: {
           status: "PENDING" as any,
-          note: options.paymentStatus === "paid" ? "Order placed after payment confirmation." : "Order placed pending payment confirmation.",
+          note:
+            options.paymentMethod === "cash_on_delivery"
+              ? "Order placed as cash on delivery."
+              : options.paymentStatus === "paid"
+                ? "Order placed after payment confirmation."
+                : "Order placed pending Dojo embedded payment confirmation.",
         },
       },
       items: {
@@ -472,6 +484,7 @@ export const listMerchantDriverTracking = async (hubId: string) => {
         customerName: string;
         dropoffAddress: string;
         paymentStatus: string;
+        paymentMethod: string;
         cashDue: number;
         totalAmount: number;
         scannedAt: string | null;
@@ -494,7 +507,7 @@ export const listMerchantDriverTracking = async (hubId: string) => {
     const trackingState = parseDriverTrackingState(delivery.externalReference);
     const courierId = courierProfile.id;
     const dropoffAddress = [order.addressLine1, order.addressLine2, order.city, order.postcode].filter(Boolean).join(", ");
-    const cashDue = order.paymentStatus === "PENDING" ? Number(order.totalAmount) : 0;
+    const cashDue = String((order as { paymentMethod?: string }).paymentMethod ?? "").toUpperCase() === "CASH_ON_DELIVERY" ? Number(order.totalAmount) : 0;
 
     const driver =
       drivers.get(courierId) ??
@@ -525,6 +538,7 @@ export const listMerchantDriverTracking = async (hubId: string) => {
       customerName: order.customerName,
       dropoffAddress,
       paymentStatus: String(order.paymentStatus).toLowerCase(),
+      paymentMethod: String((order as { paymentMethod?: string }).paymentMethod ?? "dojo_card").toLowerCase(),
       cashDue,
       totalAmount: Number(order.totalAmount),
       scannedAt: delivery.acceptedAt?.toISOString() ?? null,

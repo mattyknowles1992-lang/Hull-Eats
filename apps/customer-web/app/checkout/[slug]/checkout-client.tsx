@@ -31,6 +31,8 @@ type CheckoutFormState = {
   notes: string;
 };
 
+type CheckoutPaymentMode = "cash_on_delivery" | "dojo_card";
+
 const initialFormState: CheckoutFormState = {
   customerName: "",
   customerPhone: "",
@@ -78,6 +80,7 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [checkoutSession, setCheckoutSession] = useState<Awaited<ReturnType<typeof createCheckoutSession>> | null>(null);
   const [placedOrder, setPlacedOrder] = useState<Awaited<ReturnType<typeof placeCheckoutOrder>> | null>(null);
+  const [paymentMode, setPaymentMode] = useState<CheckoutPaymentMode>("cash_on_delivery");
   const [showClearBasketConfirm, setShowClearBasketConfirm] = useState(false);
 
   useEffect(() => {
@@ -221,7 +224,12 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
         return;
       }
 
-      const result = await placeCheckoutOrder(session.id);
+      if (paymentMode === "dojo_card") {
+        setErrorMessage("Dojo card payments will be embedded here once the live credentials are connected. Use cash on delivery for testing.");
+        return;
+      }
+
+      const result = await placeCheckoutOrder(session.id, paymentMode);
       setPlacedOrder(result);
       clearBasket(store.slug);
       setBasket(null);
@@ -263,8 +271,8 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
           <p className="eyebrow">Order created</p>
           <h1 className="checkout-title">{placedOrder.order.orderNumber}</h1>
           <p className="checkout-copy">
-            Your Loaded Munch order is now in the system. The customisations below are exactly what should carry into
-            kitchen view and printer output.
+            Your Loaded Munch order is now in the system. Payment method:{" "}
+            {placedOrder.order.paymentMethod === "cash_on_delivery" ? "cash on delivery" : "card payment"}.
           </p>
 
           <div className="checkout-line-stack">
@@ -399,9 +407,46 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
 
         {errorMessage ? <p className="form-message form-message-error">{errorMessage}</p> : null}
 
+        <section className="checkout-summary" style={{ marginTop: 18 }}>
+          <div className="section-heading compact">
+            <div>
+              <p className="eyebrow">Payment</p>
+              <h2>Choose how to pay</h2>
+              <p className="checkout-copy">Payments stay inside Hull Eats. Dojo card payment will be embedded here when the live credentials are connected.</p>
+            </div>
+          </div>
+          <div className="button-row">
+            <button
+              type="button"
+              className={paymentMode === "cash_on_delivery" ? "primary-button gold-button" : "glass-button"}
+              onClick={() => setPaymentMode("cash_on_delivery")}
+            >
+              Pay cash on delivery
+            </button>
+            <button
+              type="button"
+              className={paymentMode === "dojo_card" ? "primary-button" : "glass-button"}
+              onClick={() => setPaymentMode("dojo_card")}
+            >
+              Pay by card in app
+            </button>
+          </div>
+          {paymentMode === "cash_on_delivery" ? (
+            <div className="checkout-note">
+              <strong>Cash order for testing</strong>
+              <p>The order will go to the hub as cash on delivery, so drivers and owners can cash-up correctly.</p>
+            </div>
+          ) : (
+            <div className="checkout-note">
+              <strong>Dojo embedded payment ready</strong>
+              <p>This section is reserved for the Dojo card component. It will not redirect to another URL once credentials are added.</p>
+            </div>
+          )}
+        </section>
+
         <div className="button-row" style={{ marginTop: 18 }}>
           <button type="button" className="primary-button gold-button" onClick={handlePlaceOrder} disabled={isPlacingOrder || basketCount === 0}>
-            {isPlacingOrder ? "Placing..." : "Place order"}
+            {isPlacingOrder ? "Placing..." : paymentMode === "cash_on_delivery" ? "Place cash order" : "Continue to secure card payment"}
           </button>
         </div>
       </section>

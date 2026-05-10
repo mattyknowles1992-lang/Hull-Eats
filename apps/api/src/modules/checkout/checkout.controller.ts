@@ -30,18 +30,24 @@ export class CheckoutController {
     });
     const session = getStoredCheckoutSession(input.checkoutSessionId);
     const isKioskMockPayment = input.paymentMode === "mock_paid" && session.source === "kiosk";
+    const isCashOnDelivery = input.paymentMode === "cash_on_delivery";
 
     if (input.paymentMode === "mock_paid" && !isKioskMockPayment) {
       throw new BadRequestException("Mock-paid checkout is only available for kiosk orders.");
+    }
+
+    if (input.paymentMode === "dojo_card") {
+      throw new BadRequestException("Dojo embedded payments are configured in checkout but credentials are not connected yet. Use cash on delivery for testing.");
     }
 
     return {
       checkoutSessionId: input.checkoutSessionId,
       order: await placeStoredCheckoutOrder(input.checkoutSessionId, {
         paymentStatus: isKioskMockPayment ? "paid" : "pending",
+        paymentMethod: isCashOnDelivery ? "cash_on_delivery" : "dojo_card",
       }),
-      paymentRequired: !isKioskMockPayment,
-      nextStep: isKioskMockPayment ? "order_received" : "stripe_payment_intent",
+      paymentRequired: !isKioskMockPayment && !isCashOnDelivery,
+      nextStep: isCashOnDelivery ? "cash_on_delivery" : isKioskMockPayment ? "order_received" : "dojo_embedded_payment",
     };
   }
 }

@@ -11,22 +11,22 @@ export class PaymentsController {
     return paymentRecordSchema.parse({
       id: `payment_${Date.now()}`,
       orderId: input.orderId,
-      provider: "stripe",
+      provider: "dojo",
       status: "requires_confirmation",
       methodType: "card",
       amount: 15.49,
       currency: "GBP",
-      stripeCustomerId: input.customerProfileId ? "cus_demo_customer" : undefined,
-      stripePaymentIntentId: `pi_${Date.now()}`,
-      clientSecret: "pi_demo_secret",
+      dojoCustomerId: input.customerProfileId ? "dojo_customer_pending_credentials" : undefined,
+      dojoPaymentIntentId: `dojo_intent_${Date.now()}`,
+      clientSecret: "dojo_credentials_pending",
     });
   }
 
-  @Post("webhooks/stripe")
-  handleStripeWebhook(@Headers("stripe-signature") signature: string | undefined) {
+  @Post("webhooks/dojo")
+  handleDojoWebhook(@Headers("dojo-signature") signature: string | undefined) {
     return {
       received: true,
-      provider: "stripe",
+      provider: "dojo",
       signaturePresent: Boolean(signature),
     };
   }

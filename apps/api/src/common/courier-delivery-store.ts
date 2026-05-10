@@ -68,6 +68,7 @@ const toOrderSummary = (order: {
   storeId: string;
   status: string;
   paymentStatus: string;
+  paymentMethod?: string;
   fulfillmentType: string;
   source: string;
   totalAmount: unknown;
@@ -81,6 +82,7 @@ const toOrderSummary = (order: {
     storeId: order.storeId,
     status: toApiEnum(order.status),
     paymentStatus: toApiEnum(order.paymentStatus),
+    paymentMethod: toApiEnum(order.paymentMethod ?? "DOJO_CARD"),
     fulfillmentType: toApiEnum(order.fulfillmentType),
     source: toApiEnum(order.source),
     totalAmount: Number(order.totalAmount),

@@ -1,6 +1,6 @@
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 
-import type { CheckoutSession, CreateCheckoutSessionInput, OrderSummary } from "@hull-eats/types";
+import type { CheckoutSession, CreateCheckoutSessionInput, OrderPaymentMethod, OrderSummary } from "@hull-eats/types";
 import { checkoutSessionSchema } from "@hull-eats/types";
 
 import { demoMenuByStore, demoStores } from "./demo-data";
@@ -147,6 +147,7 @@ const buildCheckoutSession = (
     menuSetupComplete: store.menuSetupComplete,
     minimumOrderAmount,
     isMinimumOrderMet,
+    availablePaymentMethods: ["dojo_card", "cash_on_delivery"],
   });
 
   return {
@@ -189,7 +190,7 @@ export const getStoredCheckoutSession = (checkoutSessionId: string): CheckoutSes
 
 export const placeStoredCheckoutOrder = async (
   checkoutSessionId: string,
-  options: { paymentStatus?: OrderSummary["paymentStatus"] } = {},
+  options: { paymentStatus?: OrderSummary["paymentStatus"]; paymentMethod?: OrderPaymentMethod } = {},
 ): Promise<OrderSummary> => {
   const record = sessionStore.get(checkoutSessionId);
 
@@ -203,7 +204,10 @@ export const placeStoredCheckoutOrder = async (
     throw new BadRequestException("Checkout session is not ready to place an order yet.");
   }
 
-  const order = await persistCheckoutOrder(session, { paymentStatus: options.paymentStatus ?? "pending" });
+  const order = await persistCheckoutOrder(session, {
+    paymentStatus: options.paymentStatus ?? "pending",
+    paymentMethod: options.paymentMethod ?? "dojo_card",
+  });
 
   sessionStore.set(checkoutSessionId, {
     ...record,

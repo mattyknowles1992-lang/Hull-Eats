@@ -30,18 +30,26 @@ export const paymentStatuses = [
   "refunded",
 ] as const;
 
+export const orderPaymentMethods = [
+  "dojo_card",
+  "cash_on_delivery",
+  "manual_invoice",
+] as const;
+
 export const fulfillmentTypes = ["delivery", "pickup"] as const;
 export const orderSources = ["web", "ios_app", "android_app", "admin_portal", "kiosk"] as const;
 
 export type OrderStatus = (typeof orderStatuses)[number];
 export type DeliveryStatus = (typeof deliveryStatuses)[number];
 export type PaymentStatus = (typeof paymentStatuses)[number];
+export type OrderPaymentMethod = (typeof orderPaymentMethods)[number];
 export type FulfillmentType = (typeof fulfillmentTypes)[number];
 export type OrderSource = (typeof orderSources)[number];
 
 export const orderStatusSchema = z.enum(orderStatuses);
 export const deliveryStatusSchema = z.enum(deliveryStatuses);
 export const paymentStatusSchema = z.enum(paymentStatuses);
+export const orderPaymentMethodSchema = z.enum(orderPaymentMethods);
 export const fulfillmentTypeSchema = z.enum(fulfillmentTypes);
 export const orderSourceSchema = z.enum(orderSources);
 
@@ -111,6 +119,7 @@ export const orderSummarySchema = z.object({
   paymentStatus: paymentStatusSchema,
   fulfillmentType: fulfillmentTypeSchema,
   source: orderSourceSchema.default("web"),
+  paymentMethod: orderPaymentMethodSchema.default("dojo_card"),
   totalAmount: z.number().nonnegative(),
   currency: z.string().length(3),
   placedAt: z.string().datetime(),

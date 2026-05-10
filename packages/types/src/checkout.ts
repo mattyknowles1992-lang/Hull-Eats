@@ -6,6 +6,7 @@ import {
   orderLineInputSchema,
   orderLineRemovedComponentSchema,
   orderLineSelectedOptionSchema,
+  orderPaymentMethodSchema,
   orderSourceSchema,
 } from "./orders";
 
@@ -79,11 +80,12 @@ export const checkoutSessionSchema = z.object({
   menuSetupComplete: z.boolean(),
   minimumOrderAmount: z.number().nonnegative(),
   isMinimumOrderMet: z.boolean(),
+  availablePaymentMethods: z.array(orderPaymentMethodSchema).default(["dojo_card", "cash_on_delivery"]),
 });
 
 export const placeOrderFromCheckoutInputSchema = z.object({
   checkoutSessionId: z.string().min(1),
-  paymentMode: z.enum(["stripe_payment_intent", "mock_paid"]).default("stripe_payment_intent"),
+  paymentMode: z.enum(["dojo_card", "cash_on_delivery", "mock_paid"]).default("dojo_card"),
 });
 
 export type CreateCheckoutSessionInput = z.infer<typeof createCheckoutSessionInputSchema>;

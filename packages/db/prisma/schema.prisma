@@ -166,6 +166,7 @@ enum CustomerAddressType {
 }
 
 enum PaymentProvider {
+  DOJO   @map("dojo")
   STRIPE @map("stripe")
 
   @@map("payment_provider")
@@ -185,11 +186,20 @@ enum PaymentRecordStatus {
 }
 
 enum PaymentMethodType {
-  CARD       @map("card")
-  APPLE_PAY  @map("apple_pay")
-  GOOGLE_PAY @map("google_pay")
+  CARD             @map("card")
+  APPLE_PAY        @map("apple_pay")
+  GOOGLE_PAY       @map("google_pay")
+  CASH_ON_DELIVERY @map("cash_on_delivery")
 
   @@map("payment_method_type")
+}
+
+enum OrderPaymentMethod {
+  DOJO_CARD        @map("dojo_card")
+  CASH_ON_DELIVERY @map("cash_on_delivery")
+  MANUAL_INVOICE   @map("manual_invoice")
+
+  @@map("order_payment_method")
 }
 
 enum InventoryAdjustmentReason {
@@ -483,6 +493,7 @@ model Order {
   source          OrderSource       @default(WEB)
   status          OrderStatus
   paymentStatus   PaymentStatus     @default(PENDING) @map("payment_status")
+  paymentMethod   OrderPaymentMethod @default(DOJO_CARD) @map("payment_method")
   customerName    String            @map("customer_name")
   customerPhone   String            @map("customer_phone")
   customerEmail   String?           @map("customer_email")
@@ -674,6 +685,8 @@ model Payment {
   stripeCustomerId      String?
   stripePaymentIntentId String?             @unique
   stripeChargeId        String?
+  dojoCustomerId        String?             @map("dojo_customer_id")
+  dojoPaymentIntentId   String?             @unique @map("dojo_payment_intent_id")
   amount                Decimal             @db.Decimal(10, 2)
   currency              String              @db.VarChar(3)
   failureCode           String?

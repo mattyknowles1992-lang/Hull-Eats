@@ -97,7 +97,11 @@ begin
   end if;
 
   if not exists (select 1 from pg_type where typname = 'payment_method_type') then
-    create type public.payment_method_type as enum ('card', 'apple_pay', 'google_pay');
+    create type public.payment_method_type as enum ('card', 'apple_pay', 'google_pay', 'cash_on_delivery');
+  end if;
+
+  if not exists (select 1 from pg_type where typname = 'order_payment_method') then
+    create type public.order_payment_method as enum ('dojo_card', 'cash_on_delivery', 'manual_invoice');
   end if;
 
   if not exists (select 1 from pg_type where typname = 'subscription_status') then
@@ -111,6 +115,10 @@ begin
       'paused',
       'canceled'
     );
+  end if;
+
+  if not exists (select 1 from pg_type where typname = 'payment_provider') then
+    create type public.payment_provider as enum ('dojo', 'stripe');
   end if;
 
   if not exists (select 1 from pg_type where typname = 'service_business_status') then
@@ -416,6 +424,7 @@ create table if not exists public.orders (
   source public.order_source not null default 'web',
   status public.order_status not null default 'pending',
   payment_status public.payment_status not null default 'pending',
+  payment_method public.order_payment_method not null default 'dojo_card',
   customer_name text not null,
   customer_phone text not null,
   customer_email text,
@@ -463,6 +472,8 @@ create table if not exists public.payments (
   stripe_customer_id text,
   stripe_payment_intent_id text unique,
   stripe_charge_id text,
+  dojo_customer_id text,
+  dojo_payment_intent_id text unique,
   amount numeric(10,2) not null,
   currency text not null default 'GBP',
   failure_code text,

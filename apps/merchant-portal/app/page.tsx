@@ -1866,7 +1866,7 @@ export default function MerchantPortalPage() {
                   <div>
                     <strong style={orderNumberStyle}>{order.orderNumber}</strong>
                     <p style={panelCopyDark}>
-                      {order.source.replaceAll("_", " ")} / {order.fulfillmentType} / {order.paymentStatus}
+                      {order.source.replaceAll("_", " ")} / {order.fulfillmentType} / {order.paymentStatus} / {order.paymentMethod.replaceAll("_", " ")}
                     </p>
                   </div>
                   <div style={itemBadgeRow}>

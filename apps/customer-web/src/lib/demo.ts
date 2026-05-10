@@ -31,6 +31,7 @@ export const trackedOrder: OrderSummary = {
   storeId: loadedMunchStore.id,
   status: "assigned",
   paymentStatus: "paid",
+  paymentMethod: "dojo_card",
   fulfillmentType: "delivery",
   source: "ios_app",
   totalAmount: 24.98,

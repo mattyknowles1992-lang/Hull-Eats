@@ -19,7 +19,7 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput): 
   return (await response.json()) as CheckoutSession;
 }
 
-export async function placeCheckoutOrder(checkoutSessionId: string, paymentMode: "stripe_payment_intent" | "mock_paid" = "stripe_payment_intent"): Promise<{
+export async function placeCheckoutOrder(checkoutSessionId: string, paymentMode: "dojo_card" | "cash_on_delivery" | "mock_paid" = "dojo_card"): Promise<{
   checkoutSessionId: string;
   paymentRequired: boolean;
   nextStep: string;
@@ -29,6 +29,8 @@ export async function placeCheckoutOrder(checkoutSessionId: string, paymentMode:
     totalAmount: number;
     currency: string;
     status: string;
+    paymentStatus?: string;
+    paymentMethod?: string;
   };
 }> {
   const response = await fetch(`${apiBaseUrl}/v1/checkout/sessions/${checkoutSessionId}/place-order`, {
@@ -53,6 +55,8 @@ export async function placeCheckoutOrder(checkoutSessionId: string, paymentMode:
       totalAmount: number;
       currency: string;
       status: string;
+      paymentStatus?: string;
+      paymentMethod?: string;
     };
   };
 }

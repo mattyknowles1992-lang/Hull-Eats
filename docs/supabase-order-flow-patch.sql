@@ -31,6 +31,18 @@ begin
   if not exists (select 1 from pg_type where typname = 'print_job_status') then
     create type public.print_job_status as enum ('queued', 'processing', 'completed', 'failed');
   end if;
+
+  if not exists (select 1 from pg_type where typname = 'payment_provider') then
+    create type public.payment_provider as enum ('dojo', 'stripe');
+  end if;
+
+  if not exists (select 1 from pg_type where typname = 'payment_method_type') then
+    create type public.payment_method_type as enum ('card', 'apple_pay', 'google_pay', 'cash_on_delivery');
+  end if;
+
+  if not exists (select 1 from pg_type where typname = 'order_payment_method') then
+    create type public.order_payment_method as enum ('dojo_card', 'cash_on_delivery', 'manual_invoice');
+  end if;
 end $$;
 
 alter type public.customer_account_status add value if not exists 'suspended';
@@ -39,16 +51,25 @@ alter type public.customer_account_status add value if not exists 'deleted';
 alter type public.order_source add value if not exists 'kiosk';
 alter type public.order_status add value if not exists 'ready_for_dispatch';
 alter type public.order_status add value if not exists 'courier_accepted';
+alter type public.payment_method_type add value if not exists 'cash_on_delivery';
+alter type public.payment_provider add value if not exists 'dojo';
 
 alter table public.orders
   add column if not exists address_line_2 text,
   add column if not exists delivery_zone_id uuid,
   add column if not exists fulfillment_type public.fulfillment_type not null default 'delivery',
+  add column if not exists payment_method public.order_payment_method not null default 'dojo_card',
   add column if not exists prep_time_minutes integer,
   add column if not exists accepted_at timestamptz,
   add column if not exists rejected_at timestamptz,
   add column if not exists picked_up_at timestamptz,
   add column if not exists delivered_at timestamptz;
+
+alter table public.payments
+  add column if not exists dojo_customer_id text,
+  add column if not exists dojo_payment_intent_id text;
+
+create unique index if not exists idx_payments_dojo_payment_intent on public.payments(dojo_payment_intent_id) where dojo_payment_intent_id is not null;
 
 alter table public.order_items
   add column if not exists notes text;

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-export const paymentProviders = ["stripe"] as const;
-export const paymentMethodTypes = ["card", "apple_pay", "google_pay"] as const;
+export const paymentProviders = ["dojo", "stripe"] as const;
+export const paymentMethodTypes = ["card", "apple_pay", "google_pay", "cash_on_delivery"] as const;
 export const paymentRecordStatuses = [
   "requires_payment_method",
   "requires_confirmation",
@@ -36,9 +36,10 @@ export const paymentRecordSchema = z.object({
   currency: z.string().length(3),
   stripeCustomerId: z.string().optional(),
   stripePaymentIntentId: z.string().optional(),
+  dojoCustomerId: z.string().optional(),
+  dojoPaymentIntentId: z.string().optional(),
   clientSecret: z.string().optional(),
 });
 
 export type CreatePaymentIntentInput = z.infer<typeof createPaymentIntentInputSchema>;
 export type PaymentRecord = z.infer<typeof paymentRecordSchema>;
-

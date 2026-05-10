@@ -123,6 +123,7 @@ export class PublicController {
       storeId: input.storeId,
       status: "pending",
       paymentStatus: "pending",
+      paymentMethod: "cash_on_delivery",
       fulfillmentType: input.fulfillmentType,
       source: input.source,
       totalAmount: session.totalAmount,
