@@ -82,6 +82,53 @@ textarea {
   margin-bottom: 18px;
 }
 
+.customer-home-topbar.topbar {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: "switcher location trails";
+  gap: 14px;
+  align-items: center;
+}
+
+.customer-home-topbar .app-switcher {
+  grid-area: switcher;
+}
+
+.customer-home-topbar .topbar-location {
+  grid-area: location;
+  min-width: 0;
+}
+
+.customer-home-topbar .topbar-trailing-actions {
+  grid-area: trails;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+@media (min-width: 1025px) {
+  .customer-home-topbar .app-switcher-secondary {
+    margin-left: 100px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .customer-home-topbar.topbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "switcher trails"
+      "location location";
+    align-items: start;
+  }
+
+  .customer-home-topbar .topbar-location {
+    width: 100%;
+  }
+}
+
 .topbar-actions,
 .brand-pill,
 .marketing-nav-actions,
@@ -109,17 +156,14 @@ textarea {
 }
 
 .topbar-auth-loading {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  min-height: 44px;
+  min-height: 58px;
   align-items: center;
   justify-content: stretch;
 }
 
 .topbar-auth-skeleton-pill {
-  height: 44px;
-  border-radius: 14px;
+  height: 58px;
+  border-radius: 18px;
   background: rgba(255, 255, 255, 0.14);
 }
 
@@ -4003,10 +4047,6 @@ button.filter-pill {
     width: 100%;
   }
 
-  .topbar-location {
-    grid-column: 1 / -1;
-  }
-
   .location-button {
     margin-left: auto;
   }
@@ -4024,26 +4064,16 @@ button.filter-pill {
     gap: 8px;
   }
 
+  .topbar-actions .topbar-membership {
+    grid-column: span 1;
+    min-width: 0;
+  }
+
   .topbar-actions .topbar-auth-actions {
-    grid-column: 1 / -1;
+    grid-column: span 1;
+    min-width: 0;
     width: 100%;
     justify-content: stretch;
-  }
-
-  .topbar-actions .topbar-auth-pair {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-  }
-
-  .topbar-actions .topbar-auth-single {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .topbar-actions .topbar-auth-loading {
-    grid-column: 1 / -1;
-    width: 100%;
   }
 
   .topbar-actions > *,

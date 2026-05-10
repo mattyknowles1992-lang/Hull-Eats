@@ -200,25 +200,43 @@ export default function CustomerHomePage() {
       return "Location is not available in this browser";
     }
 
-    return "Use your location for recommendations nearby";
+    return "";
   })();
 
   return (
     <main className="shell customer-marketplace">
-      <header className="topbar">
+      <header className="topbar customer-home-topbar">
         <AppSwitcher />
-
-        <div className="topbar-actions">
-          <section className="location-strip topbar-location" aria-label="Location recommendations">
-            <span className="location-pin" aria-hidden="true" />
-            <div>
-              <p className="eyebrow">Recommended in your area</p>
-              <p>{locationStatusCopy}</p>
+        <section className="location-strip topbar-location" aria-label="Location recommendations">
+          <span className="location-pin" aria-hidden="true" />
+          <div>
+            <p className="eyebrow">Recommended in your area</p>
+            {locationStatusCopy ? <p>{locationStatusCopy}</p> : null}
+          </div>
+          <button type="button" className="primary-button location-button" onClick={handleUseLocation} disabled={locationStatus === "locating"}>
+            {locationStatus === "ready" ? "Update" : locationStatus === "locating" ? "Finding..." : "Use location"}
+          </button>
+        </section>
+        <div className="topbar-trailing-actions">
+          <details className="membership-popover topbar-membership">
+            <summary className="glass-button membership-nav-button">
+              <span>Coming soon</span>
+              <strong>Hull Eats+</strong>
+            </summary>
+            <div className="membership-popover-card">
+              <span className="search-highlight-label">Coming soon</span>
+              <strong>Hull Eats+</strong>
+              <p>
+                A £9.99/month delivery subscription for regular customers. Members will get free delivery on orders
+                across eligible Hull Eats stores, plus early launch perks and faster access to favourite kitchens.
+              </p>
+              <div className="membership-benefit-list">
+                <span>Free delivery on eligible orders</span>
+                <span>One simple monthly price</span>
+                <span>Built for frequent local ordering</span>
+              </div>
             </div>
-            <button type="button" className="primary-button location-button" onClick={handleUseLocation} disabled={locationStatus === "locating"}>
-              {locationStatus === "ready" ? "Update" : locationStatus === "locating" ? "Finding..." : "Use location"}
-            </button>
-          </section>
+          </details>
           <MarketplaceAuthButtons />
         </div>
       </header>

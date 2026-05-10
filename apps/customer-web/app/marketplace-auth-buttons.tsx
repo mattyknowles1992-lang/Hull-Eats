@@ -26,28 +26,26 @@ export function MarketplaceAuthButtons() {
     return (
       <div className="topbar-auth-actions topbar-auth-loading" aria-busy="true" aria-label="Loading sign-in status">
         <span className="topbar-auth-skeleton-pill" />
-        <span className="topbar-auth-skeleton-pill" />
       </div>
     );
   }
 
   if (hasSession) {
     return (
-      <div className="topbar-auth-actions topbar-auth-single">
-        <Link href="/account" className="icon-button">
-          Account
+      <div className="topbar-auth-actions">
+        <Link href="/account" className="glass-button membership-nav-button">
+          <span>Your account</span>
+          <strong>Account</strong>
         </Link>
       </div>
     );
   }
 
   return (
-    <div className="topbar-auth-actions topbar-auth-pair">
-      <Link href="/account" className="glass-button">
-        Sign in
-      </Link>
-      <Link href="/register" className="glass-button">
-        Sign up
+    <div className="topbar-auth-actions">
+      <Link href="/account" className="glass-button membership-nav-button">
+        <span>Customer</span>
+        <strong>Sign in / Sign up</strong>
       </Link>
     </div>
   );
