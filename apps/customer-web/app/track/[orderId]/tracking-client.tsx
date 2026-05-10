@@ -28,16 +28,35 @@ const hullFallbackLocation = {
   longitude: -0.3274,
 };
 
-const buildMapSrc = (latitude: number, longitude: number) => {
+type MapMode = "map" | "street";
+
+const googleMapsEmbedKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_EMBED_KEY;
+
+const buildOpenStreetMapSrc = (latitude: number, longitude: number) => {
   const delta = 0.012;
   const bbox = [longitude - delta, latitude - delta, longitude + delta, latitude + delta].join(",");
 
   return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${latitude},${longitude}`;
 };
 
+const buildMapSrc = (latitude: number, longitude: number, mode: MapMode) => {
+  if (!googleMapsEmbedKey) {
+    return buildOpenStreetMapSrc(latitude, longitude);
+  }
+
+  const location = `${latitude},${longitude}`;
+
+  if (mode === "street") {
+    return `https://www.google.com/maps/embed/v1/streetview?key=${googleMapsEmbedKey}&location=${location}&fov=80&pitch=0`;
+  }
+
+  return `https://www.google.com/maps/embed/v1/view?key=${googleMapsEmbedKey}&center=${location}&zoom=17&maptype=roadmap`;
+};
+
 export function TrackingClient({ orderId }: TrackingClientProps) {
   const [order, setOrder] = useState<TrackedOrder | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [mapMode, setMapMode] = useState<MapMode>("map");
 
   useEffect(() => {
     let isMounted = true;
@@ -70,9 +89,10 @@ export function TrackingClient({ orderId }: TrackingClientProps) {
   const location = delivery?.courierLocation;
   const mapLatitude = location?.latitude ?? hullFallbackLocation.latitude;
   const mapLongitude = location?.longitude ?? hullFallbackLocation.longitude;
-  const mapSrc = useMemo(() => buildMapSrc(mapLatitude, mapLongitude), [mapLatitude, mapLongitude]);
+  const mapSrc = useMemo(() => buildMapSrc(mapLatitude, mapLongitude, mapMode), [mapLatitude, mapLongitude, mapMode]);
   const mapUpdatedAt = location ? new Date(location.updatedAt).toLocaleTimeString("en-GB") : "Waiting for driver scan";
   const mapAccuracy = location?.accuracyMeters ? `Accuracy ${Math.round(location.accuracyMeters)}m` : null;
+  const isGoogleMap = Boolean(googleMapsEmbedKey);
 
   return (
     <main className="tracking-shell">
@@ -105,6 +125,14 @@ export function TrackingClient({ orderId }: TrackingClientProps) {
           <div className={location ? "tracking-driver-pin is-live" : "tracking-driver-pin"} aria-hidden="true">
             <img src="/brand/hull-eats-logo.jpeg" alt="" />
           </div>
+          <div className="tracking-map-mode-toggle" aria-label="Map display mode">
+            <button type="button" className={mapMode === "map" ? "is-active" : ""} onClick={() => setMapMode("map")}>
+              Map
+            </button>
+            <button type="button" className={mapMode === "street" ? "is-active" : ""} onClick={() => setMapMode("street")} disabled={!isGoogleMap}>
+              Street
+            </button>
+          </div>
           <div className="tracking-map-status">
             <span className={location ? "live-dot is-live" : "live-dot"} />
             <span>{location ? "Live driver location" : "Waiting for courier scan"}</span>
@@ -118,7 +146,13 @@ export function TrackingClient({ orderId }: TrackingClientProps) {
             </span>
             <div className="tracking-map-actions">
               <small>Updated {mapUpdatedAt}</small>
-              <small>{location ? "Map follows the courier app" : "No driver position yet"}</small>
+              <small>
+                {location
+                  ? isGoogleMap
+                    ? "Centred on courier GPS"
+                    : "OpenStreetMap fallback"
+                  : "No driver position yet"}
+              </small>
             </div>
           </div>
         </article>
@@ -265,6 +299,42 @@ export function TrackingClient({ orderId }: TrackingClientProps) {
           animation: driver-pulse 1.8s ease-in-out infinite;
         }
 
+        .tracking-map-mode-toggle {
+          position: absolute;
+          z-index: 3;
+          top: 22px;
+          right: 22px;
+          display: inline-flex;
+          overflow: hidden;
+          padding: 4px;
+          border: 1px solid rgba(255, 255, 255, 0.35);
+          border-radius: 999px;
+          background: rgba(7, 17, 24, 0.82);
+          backdrop-filter: blur(14px);
+        }
+
+        .tracking-map-mode-toggle button {
+          min-width: 74px;
+          min-height: 34px;
+          border: 0;
+          border-radius: 999px;
+          color: rgba(255, 255, 255, 0.72);
+          background: transparent;
+          cursor: pointer;
+          font-size: 13px;
+          font-weight: 900;
+        }
+
+        .tracking-map-mode-toggle button.is-active {
+          color: #071118;
+          background: #23cdff;
+        }
+
+        .tracking-map-mode-toggle button:disabled {
+          cursor: not-allowed;
+          opacity: 0.42;
+        }
+
         @keyframes driver-pulse {
           0%,
           100% {
@@ -386,6 +456,15 @@ export function TrackingClient({ orderId }: TrackingClientProps) {
           .tracking-map-status {
             top: 16px;
             left: 16px;
+          }
+
+          .tracking-map-mode-toggle {
+            top: 16px;
+            right: 16px;
+          }
+
+          .tracking-map-mode-toggle button {
+            min-width: 58px;
           }
         }
       `}</style>
