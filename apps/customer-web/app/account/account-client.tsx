@@ -12,7 +12,6 @@ type CustomerProfileRow = {
   full_name: string | null;
   phone: string | null;
   account_status: string;
-  preferred_delivery_plan: string;
 };
 
 type CustomerAddressRow = {
@@ -26,18 +25,11 @@ type CustomerAddressRow = {
   is_default: boolean;
 };
 
-type SubscriptionRow = {
-  status: string;
-  free_delivery_active: boolean;
-  admin_override: boolean;
-};
-
 export function AccountClient() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [profile, setProfile] = useState<CustomerProfileRow | null>(null);
   const [addresses, setAddresses] = useState<CustomerAddressRow[]>([]);
-  const [subscription, setSubscription] = useState<SubscriptionRow | null>(null);
   const [notice, setNotice] = useState("");
   const [sessionWithoutProfile, setSessionWithoutProfile] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -50,7 +42,6 @@ export function AccountClient() {
     if (!userId) {
       setProfile(null);
       setAddresses([]);
-      setSubscription(null);
       setSessionWithoutProfile(false);
       setIsLoading(false);
       return;
@@ -58,14 +49,13 @@ export function AccountClient() {
 
     const { data: profileData, error: profileError } = await supabase
       .from("customer_profiles")
-      .select("id,email,full_name,phone,account_status,preferred_delivery_plan")
+      .select("id,email,full_name,phone,account_status")
       .eq("supabase_auth_user_id", userId)
       .single();
 
     if (profileError || !profileData) {
       setProfile(null);
       setAddresses([]);
-      setSubscription(null);
       setSessionWithoutProfile(true);
       setNotice(
         "Your login works, but we could not load your Hull Eats profile from the database yet. If you just signed up, confirm your email from the message we sent you, then refresh this page.",
@@ -84,17 +74,8 @@ export function AccountClient() {
       .eq("customer_profile_id", customerProfile.id)
       .order("is_default", { ascending: false });
 
-    const { data: subscriptionData } = await supabase
-      .from("subscriptions")
-      .select("status,free_delivery_active,admin_override")
-      .eq("customer_profile_id", customerProfile.id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
     setProfile(customerProfile);
     setAddresses((addressData ?? []) as CustomerAddressRow[]);
-    setSubscription((subscriptionData as SubscriptionRow | null) ?? null);
     setIsLoading(false);
   };
 
@@ -136,7 +117,6 @@ export function AccountClient() {
     await supabase.auth.signOut();
     setProfile(null);
     setAddresses([]);
-    setSubscription(null);
     setSessionWithoutProfile(false);
     setNotice("");
   };
@@ -188,7 +168,7 @@ export function AccountClient() {
             Create account
           </Link>
           <p className="form-helper" style={{ marginTop: 12 }}>
-            Registration collects the customer details shown in the Hull Eats admin console: contact, address, delivery plan, and optional marketing consent.
+            Registration collects the customer details shown in the Hull Eats admin console: contact, address, and optional marketing consent.
           </p>
         </div>
       </div>
@@ -206,10 +186,6 @@ export function AccountClient() {
           <div className="glance-row">
             <span className="muted-copy">Account status</span>
             <strong>{profile.account_status}</strong>
-          </div>
-          <div className="glance-row">
-            <span className="muted-copy">Hull Eats+</span>
-            <strong>{subscription?.free_delivery_active ? "Active" : subscription?.status ?? "Not active"}</strong>
           </div>
           <div className="glance-row">
             <span className="muted-copy">Phone</span>

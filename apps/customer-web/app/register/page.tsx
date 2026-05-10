@@ -39,17 +39,13 @@ export default function RegisterPage() {
               <p>Name, mobile number, email, password, and delivery address.</p>
             </article>
             <article className="register-step">
-              <strong>2. Pick your plan</strong>
-              <p>Choose pay as you go or Hull Eats+ for free delivery.</p>
-            </article>
-            <article className="register-step">
-              <strong>3. Verify your email</strong>
-              <p>You can create your account now, but Hull Eats+ stays inactive until verified.</p>
+              <strong>2. Verify your email</strong>
+              <p>We will send a link so you can confirm your email and finish signing in.</p>
             </article>
           </div>
 
           <div className="register-note">
-            No card details are stored by Hull Eats. Payments and subscriptions are handled by Stripe.
+            No card details are stored when you register. You pay securely at checkout when you place an order.
           </div>
         </section>
 

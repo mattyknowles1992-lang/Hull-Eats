@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 
 import { AppSwitcher } from "./app-switcher";
+import { MarketplaceAuthButtons } from "./marketplace-auth-buttons";
 import { featuredStores, storeMenus } from "../src/lib/demo";
 import { marketplaceCategories } from "../src/lib/marketplace-categories";
 
@@ -208,7 +209,7 @@ export default function CustomerHomePage() {
         <AppSwitcher />
 
         <div className="topbar-actions">
-          <section className="location-strip" aria-label="Location recommendations">
+          <section className="location-strip topbar-location" aria-label="Location recommendations">
             <span className="location-pin" aria-hidden="true" />
             <div>
               <p className="eyebrow">Recommended in your area</p>
@@ -218,31 +219,7 @@ export default function CustomerHomePage() {
               {locationStatus === "ready" ? "Update" : locationStatus === "locating" ? "Finding..." : "Use location"}
             </button>
           </section>
-          <details className="membership-popover">
-            <summary className="glass-button membership-nav-button">
-              <span>Coming soon</span>
-              <strong>Hull Eats+</strong>
-            </summary>
-            <div className="membership-popover-card">
-              <span className="search-highlight-label">Coming soon</span>
-              <strong>Hull Eats+</strong>
-              <p>
-                A £9.99/month delivery subscription for regular customers. Members will get free delivery on orders
-                across eligible Hull Eats stores, plus early launch perks and faster access to favourite kitchens.
-              </p>
-              <div className="membership-benefit-list">
-                <span>Free delivery on eligible orders</span>
-                <span>One simple monthly price</span>
-                <span>Built for frequent local ordering</span>
-              </div>
-            </div>
-          </details>
-          <Link href="/register" className="glass-button">
-            Sign up
-          </Link>
-          <Link href="/account" className="icon-button">
-            Account
-          </Link>
+          <MarketplaceAuthButtons />
         </div>
       </header>
 

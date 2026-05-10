@@ -100,6 +100,29 @@ textarea {
   flex-wrap: wrap;
 }
 
+.topbar-auth-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.topbar-auth-loading {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  min-height: 44px;
+  align-items: center;
+  justify-content: stretch;
+}
+
+.topbar-auth-skeleton-pill {
+  height: 44px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
 .marketing-nav {
   display: flex;
   justify-content: space-between;
@@ -3965,10 +3988,23 @@ button.filter-pill {
     align-items: center;
   }
 
+  .app-switcher {
+    width: 100%;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: nowrap;
+    --app-switcher-icon-size: clamp(56px, 17vw, 72px);
+  }
+
   .location-strip {
     grid-column: 1 / -1;
     justify-content: flex-start;
     width: 100%;
+  }
+
+  .topbar-location {
+    grid-column: 1 / -1;
   }
 
   .location-button {
@@ -3988,6 +4024,28 @@ button.filter-pill {
     gap: 8px;
   }
 
+  .topbar-actions .topbar-auth-actions {
+    grid-column: 1 / -1;
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .topbar-actions .topbar-auth-pair {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .topbar-actions .topbar-auth-single {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .topbar-actions .topbar-auth-loading {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
   .topbar-actions > *,
   .marketing-nav-actions > *,
   .contact-actions > * {
@@ -4003,6 +4061,10 @@ button.filter-pill {
     font-size: 0.86rem;
     line-height: 1.15;
     overflow-wrap: anywhere;
+  }
+
+  .topbar-actions .topbar-auth-actions > a {
+    font-size: 0.92rem;
   }
 
   .membership-popover-card {

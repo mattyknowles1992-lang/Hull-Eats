@@ -5,8 +5,6 @@ import { useState } from "react";
 
 import { getBrowserSupabaseClient } from "../../src/lib/supabase-browser";
 
-type DeliveryPlan = "pay_as_you_go" | "hull_eats_plus";
-
 type FormState = {
   fullName: string;
   phone: string;
@@ -20,7 +18,6 @@ type FormState = {
   city: string;
   postcode: string;
   deliveryNotes: string;
-  deliveryPlan: DeliveryPlan;
   marketingOptIn: boolean;
   termsAccepted: boolean;
 };
@@ -38,7 +35,6 @@ const initialState: FormState = {
   city: "Hull",
   postcode: "",
   deliveryNotes: "",
-  deliveryPlan: "pay_as_you_go",
   marketingOptIn: false,
   termsAccepted: false,
 };
@@ -82,7 +78,7 @@ export function RegisterForm() {
             full_name: formState.fullName.trim(),
             phone: formState.phone.trim(),
             marketing_opt_in: formState.marketingOptIn,
-            preferred_delivery_plan: formState.deliveryPlan,
+            preferred_delivery_plan: "pay_as_you_go",
             signup_promo_code: formState.promoCode.trim() || null,
             address_label: formState.addressLabel.trim() || "Home",
             address_type: "home",
@@ -101,11 +97,7 @@ export function RegisterForm() {
         throw error;
       }
 
-      setSuccessMessage(
-        formState.deliveryPlan === "hull_eats_plus"
-          ? "Account created. Check your email to verify it before activating Hull Eats+."
-          : "Account created. Check your email to verify your address and finish setup.",
-      );
+      setSuccessMessage("Account created. Check your email to verify your address and finish setup.");
       setFormState(initialState);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Something went wrong while creating your account.";
@@ -277,47 +269,6 @@ export function RegisterForm() {
       </div>
       </div>
 
-      <div className="section-heading compact register-subheading">
-        <div>
-          <h2>Choose delivery plan</h2>
-          <p>Pick the option you want to start with. You can change this later.</p>
-        </div>
-      </div>
-
-      <div className="plan-grid">
-        <label className="plan-card">
-          <input
-            type="radio"
-            name="deliveryPlan"
-            checked={formState.deliveryPlan === "pay_as_you_go"}
-            onChange={() => updateField("deliveryPlan", "pay_as_you_go")}
-          />
-          <div className="plan-card-copy">
-            <div className="plan-card-top">
-              <strong>Pay as you go</strong>
-              <span>Standard delivery fees apply</span>
-            </div>
-            <p>Create an account, order whenever you want, and pay the delivery fee per order.</p>
-          </div>
-        </label>
-
-        <label className="plan-card is-featured">
-          <input
-            type="radio"
-            name="deliveryPlan"
-            checked={formState.deliveryPlan === "hull_eats_plus"}
-            onChange={() => updateField("deliveryPlan", "hull_eats_plus")}
-          />
-          <div className="plan-card-copy">
-            <div className="plan-card-top">
-              <strong>Hull Eats+</strong>
-              <span>£9.99 / month</span>
-            </div>
-            <p>Unlimited free delivery on eligible orders after your email address is verified.</p>
-          </div>
-        </label>
-      </div>
-
       <label className="toggle-row">
         <input
           type="checkbox"
@@ -334,12 +285,11 @@ export function RegisterForm() {
           onChange={(event) => updateField("termsAccepted", event.target.checked)}
           required
         />
-        <span>I agree to Hull Eats storing my account and address details securely for ordering, support, subscriptions, and marketplace safety.</span>
+        <span>I agree to Hull Eats storing my account and address details securely for ordering, support, and marketplace safety.</span>
       </label>
 
       <p className="form-helper">
-        Your password is handled securely by Supabase Auth. Hull Eats stores your profile and saved addresses so checkout,
-        support, subscriptions, and marketplace safety work properly. Card details stay with Stripe.
+        Your password is handled securely by Supabase Auth. Hull Eats stores your profile and saved addresses so checkout and support work properly. Card details stay with Stripe when you pay for an order.
       </p>
 
       {errorMessage ? <p className="form-message form-message-error">{errorMessage}</p> : null}

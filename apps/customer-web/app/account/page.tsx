@@ -24,8 +24,8 @@ export default function AccountPage() {
             <Link href="/register" className="ghost-link">
               Create account
             </Link>
-            . Returning customers can sign in — your profile, default address, Hull Eats+ status, and marketplace safety
-            status stay in sync with the admin console.
+            . Returning customers can sign in — your profile, default address, and marketplace safety status stay in sync
+            with the admin console.
           </p>
         </section>
 
