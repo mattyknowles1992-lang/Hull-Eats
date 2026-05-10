@@ -33,9 +33,8 @@ export function MarketplaceAuthButtons() {
   if (hasSession) {
     return (
       <div className="topbar-auth-actions">
-        <Link href="/account" className="glass-button membership-nav-button">
+        <Link href="/account" className="glass-button membership-nav-button membership-nav-button-account-only">
           <span>Your account</span>
-          <strong>Account</strong>
         </Link>
       </div>
     );
@@ -43,8 +42,7 @@ export function MarketplaceAuthButtons() {
 
   return (
     <div className="topbar-auth-actions">
-      <Link href="/account" className="glass-button membership-nav-button">
-        <span>Customer</span>
+      <Link href="/account" className="glass-button membership-nav-button membership-nav-button-title-only">
         <strong>Sign in / Sign up</strong>
       </Link>
     </div>

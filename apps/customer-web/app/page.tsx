@@ -221,11 +221,15 @@ export default function CustomerHomePage() {
           <details className="membership-popover topbar-membership">
             <summary className="glass-button membership-nav-button">
               <span>Coming soon</span>
-              <strong>Hull Eats+</strong>
+              <strong className="membership-nav-title">
+                Hull Eats<span className="membership-brand-plus">+</span>
+              </strong>
             </summary>
             <div className="membership-popover-card">
               <span className="search-highlight-label">Coming soon</span>
-              <strong>Hull Eats+</strong>
+              <strong className="membership-nav-title">
+                Hull Eats<span className="membership-brand-plus">+</span>
+              </strong>
               <p>
                 A £9.99/month delivery subscription for regular customers. Members will get free delivery on orders
                 across eligible Hull Eats stores, plus early launch perks and faster access to favourite kitchens.
@@ -314,7 +318,9 @@ export default function CustomerHomePage() {
 
         <div className="search-meta-row">
           <div className="delivery-pill">Serving Hull and surrounding areas</div>
-          <div className="delivery-pill is-highlighted">Hull Eats+ free delivery subscription coming soon</div>
+          <div className="delivery-pill is-highlighted">
+            Pay per delivery — each store sets fees at checkout (standard for launch)
+          </div>
         </div>
 
         <div className="filter-row" aria-label="Marketplace filters">
@@ -399,15 +405,20 @@ export default function CustomerHomePage() {
           <section className="feature-panel feature-panel-dark">
             <div className="section-heading compact">
               <div>
-                <h2>Hull Eats+ coming soon</h2>
-                <p>A simple free-delivery subscription for customers who order locally often.</p>
+                <h2>Delivery at launch</h2>
+                <p>
+                  You pay each store&apos;s delivery fee at checkout — no platform subscription required. Optional
+                  membership-style perks may be added later as the network grows.
+                </p>
               </div>
             </div>
 
             <div className="membership-card">
-              <div className="membership-price">£9.99/mo</div>
-              <p>Free delivery on eligible orders, launch perks, and quick access to your usual favourites when membership opens.</p>
-              <span className="coming-soon-pill">Coming soon</span>
+              <p className="form-helper" style={{ margin: 0, color: "rgba(255,255,255,0.85)", lineHeight: 1.55 }}>
+                Launch focuses on reliable ordering and clear per-order pricing. Funded rollouts can unlock extras when the
+                time is right.
+              </p>
+              <span className="coming-soon-pill">Pay as you go today</span>
             </div>
           </section>
 

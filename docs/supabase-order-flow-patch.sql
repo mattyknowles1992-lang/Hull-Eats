@@ -74,6 +74,19 @@ create unique index if not exists idx_payments_dojo_payment_intent on public.pay
 alter table public.order_items
   add column if not exists notes text;
 
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'customer_delivery_plan') then
+    create type public.customer_delivery_plan as enum ('pay_as_you_go', 'hull_eats_plus');
+  end if;
+end $$;
+
+alter table public.customer_profiles
+  add column if not exists preferred_delivery_plan public.customer_delivery_plan not null default 'pay_as_you_go';
+
+alter table public.customer_profiles
+  add column if not exists signup_promo_code text;
+
 alter table public.customer_profiles
   add column if not exists terms_accepted_at timestamptz,
   add column if not exists privacy_accepted_at timestamptz,

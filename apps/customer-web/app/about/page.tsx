@@ -5,7 +5,7 @@ import { AppSwitcher } from "../app-switcher";
 const buyerOffers = [
   "Order from Hull restaurants, takeaways, cafes, dessert spots, and shops in one local marketplace.",
   "Track orders from checkout through preparation and delivery as the delivery operation comes online.",
-  "Use Hull Eats+ for launch-period delivery perks and account benefits once subscriptions are enabled.",
+  "Pay delivery fees per order as set by each store at checkout — optional memberships may follow in a later phase.",
 ];
 
 const businessOffers = [

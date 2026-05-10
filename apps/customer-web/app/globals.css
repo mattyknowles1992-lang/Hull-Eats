@@ -129,6 +129,41 @@ textarea {
   }
 }
 
+@media (max-width: 767px) {
+  .customer-home-topbar.topbar {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "switcher"
+      "trails"
+      "location";
+    gap: 10px;
+    align-items: stretch;
+  }
+
+  .customer-home-topbar .topbar-trailing-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
+    justify-content: stretch;
+  }
+
+  .customer-home-topbar .topbar-membership {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .customer-home-topbar .topbar-auth-actions {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .customer-home-topbar .membership-popover .glass-button {
+    width: 100%;
+  }
+}
+
 .topbar-actions,
 .brand-pill,
 .marketing-nav-actions,
@@ -186,6 +221,29 @@ textarea {
   background: rgba(255, 255, 255, 0.6);
   backdrop-filter: blur(10px);
   box-shadow: 0 14px 30px rgba(15, 17, 21, 0.08);
+}
+
+.register-page-topbar .register-page-brand-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.register-page-topbar .app-switcher {
+  flex: 1 1 auto;
+  min-width: 0;
+  justify-content: flex-end;
+  gap: clamp(8px, 2.5vw, 24px);
+}
+
+.register-page-topbar .app-switcher-main {
+  flex-shrink: 0;
+}
+
+.register-page-topbar .app-switcher-secondary {
+  flex-shrink: 0;
 }
 
 .brand-logo {
@@ -567,7 +625,7 @@ textarea {
   line-height: 1.05;
 }
 
-.membership-nav-button span {
+.membership-nav-button > span {
   color: var(--brand-blue-dark);
   font-size: 0.68rem;
   font-weight: 950;
@@ -578,6 +636,35 @@ textarea {
 .membership-nav-button strong {
   color: var(--ink-strong);
   font-size: 0.98rem;
+}
+
+.membership-nav-button-title-only {
+  place-items: center;
+  justify-items: center;
+  text-align: center;
+}
+
+.membership-nav-button-title-only strong {
+  font-size: 0.98rem;
+}
+
+.membership-nav-button.membership-nav-button-account-only {
+  display: grid;
+  place-items: center;
+  justify-items: center;
+  min-height: 58px;
+}
+
+.membership-nav-button.membership-nav-button-account-only > span {
+  color: var(--brand-blue-dark);
+  font-size: 0.98rem;
+  font-weight: 850;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.membership-brand-plus {
+  color: var(--brand-blue-dark);
 }
 
 .membership-popover summary::-webkit-details-marker {
@@ -4039,6 +4126,16 @@ button.filter-pill {
     gap: 12px;
     flex-wrap: nowrap;
     --app-switcher-icon-size: clamp(56px, 17vw, 72px);
+  }
+
+  .register-page-topbar .app-switcher {
+    width: auto;
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 100%;
+    justify-content: flex-end;
+    gap: clamp(8px, 2vw, 14px);
+    --app-switcher-icon-size: clamp(44px, 11vw, 56px);
   }
 
   .location-strip {

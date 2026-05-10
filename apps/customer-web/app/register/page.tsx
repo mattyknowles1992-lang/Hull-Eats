@@ -6,16 +6,12 @@ import { RegisterForm } from "./register-form";
 export default function RegisterPage() {
   return (
     <main className="shell">
-      <header className="topbar">
-        <div className="brand-pill">
+      <header className="topbar register-page-topbar">
+        <div className="brand-pill register-page-brand-pill">
           <Link href="/" className="icon-button">
             Back
           </Link>
           <AppSwitcher />
-          <div>
-            <p className="eyebrow">Customer account</p>
-            <p className="brand-title">Create your Hull Eats account</p>
-          </div>
         </div>
 
         <div className="topbar-actions">

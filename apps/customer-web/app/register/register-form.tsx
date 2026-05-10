@@ -3,6 +3,7 @@
 import type { FormEvent } from "react";
 import { useState } from "react";
 
+import { CUSTOMER_SIGNUP_DELIVERY_PLAN } from "../../src/lib/customer-launch";
 import { getBrowserSupabaseClient } from "../../src/lib/supabase-browser";
 
 type FormState = {
@@ -78,7 +79,7 @@ export function RegisterForm() {
             full_name: formState.fullName.trim(),
             phone: formState.phone.trim(),
             marketing_opt_in: formState.marketingOptIn,
-            preferred_delivery_plan: "pay_as_you_go",
+            preferred_delivery_plan: CUSTOMER_SIGNUP_DELIVERY_PLAN,
             signup_promo_code: formState.promoCode.trim() || null,
             address_label: formState.addressLabel.trim() || "Home",
             address_type: "home",
