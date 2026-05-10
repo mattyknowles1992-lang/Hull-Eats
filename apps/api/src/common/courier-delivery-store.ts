@@ -49,6 +49,18 @@ const demoDeliveryStore = new Map<string, CourierDelivery>();
 const toApiEnum = <T extends string>(value: string) => value.toLowerCase() as T;
 const toDbEnum = (value: string) => value.toUpperCase() as any;
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const hullServiceBounds = {
+  minLatitude: 53.70,
+  maxLatitude: 53.83,
+  minLongitude: -0.48,
+  maxLongitude: -0.18,
+};
+
+const isInsideHullServiceBounds = (input: CourierLocationInput) =>
+  input.latitude >= hullServiceBounds.minLatitude &&
+  input.latitude <= hullServiceBounds.maxLatitude &&
+  input.longitude >= hullServiceBounds.minLongitude &&
+  input.longitude <= hullServiceBounds.maxLongitude;
 
 const toOrderSummary = (order: {
   id: string;
@@ -338,7 +350,11 @@ export const startDeliveryFromScan = async (input: { scanCode?: string; orderNum
   return buildPersistedDelivery(withDelivery);
 };
 
-export const updateCourierLocation = async (deliveryId: string, input: CourierLocationInput) => {
+export const updateCourierLocation = async (deliveryId: string, input: CourierLocationInput, courierProfileId?: string) => {
+  if (!isInsideHullServiceBounds(input)) {
+    throw new BadRequestException("Courier location is outside the Hull delivery area.");
+  }
+
   const delivery = await prisma.delivery.findUnique({
     where: { id: deliveryId },
     include: {
@@ -377,6 +393,10 @@ export const updateCourierLocation = async (deliveryId: string, input: CourierLo
 
     demoDeliveryStore.set(deliveryId, updated);
     return updated;
+  }
+
+  if (courierProfileId && delivery.courierProfileId && delivery.courierProfileId !== courierProfileId) {
+    throw new BadRequestException("This delivery is assigned to a different courier.");
   }
 
   const state = parseTrackingState(delivery.externalReference);

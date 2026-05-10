@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Headers, Inject, Param, Post } from "@nestjs/common";
+import { randomUUID } from "node:crypto";
 
 import {
   courierCompleteDeliveryInputSchema,
@@ -28,10 +29,14 @@ export class CourierController {
   async login(@Body() body: { username?: string; email?: string; password?: string }) {
     const account = await this.courierRegistry.authenticate(body.username ?? body.email ?? "", body.password ?? "");
     const courier = await this.courierRegistry.getCourierAccount(account.courierProfileId);
+    const courierSessionId = randomUUID();
+    await this.courierRegistry.setActiveSession(account.courierProfileId, courierSessionId);
+
     return {
       token: this.internalAuth.issueCourierToken({
         userId: account.userId,
         courierProfileId: account.courierProfileId,
+        courierSessionId,
         username: account.username,
         email: account.user.email,
       }),
@@ -40,40 +45,46 @@ export class CourierController {
   }
 
   @Get("me")
-  me(@Headers("authorization") authorization?: string) {
+  async me(@Headers("authorization") authorization?: string) {
     const session = this.internalAuth.requireCourierToken(authorization);
+    await this.courierRegistry.requireActiveSession(session.courierProfileId!, session.courierSessionId);
     return this.courierRegistry.getCourierAccount(session.courierProfileId!);
   }
 
   @Post("me/password")
-  changePassword(@Headers("authorization") authorization: string | undefined, @Body() body: { currentPassword?: string; newPassword?: string }) {
+  async changePassword(@Headers("authorization") authorization: string | undefined, @Body() body: { currentPassword?: string; newPassword?: string }) {
     const session = this.internalAuth.requireCourierToken(authorization);
+    await this.courierRegistry.requireActiveSession(session.courierProfileId!, session.courierSessionId);
     return this.courierRegistry.changeOwnPassword(session.courierProfileId!, body);
   }
 
   @Get("jobs")
-  listJobs(@Headers("authorization") authorization?: string) {
-    this.internalAuth.requireCourierToken(authorization);
+  async listJobs(@Headers("authorization") authorization?: string) {
+    const session = this.internalAuth.requireCourierToken(authorization);
+    await this.courierRegistry.requireActiveSession(session.courierProfileId!, session.courierSessionId);
     return listCourierJobs();
   }
 
   @Post("deliveries/start")
-  startDelivery(@Headers("authorization") authorization: string | undefined, @Body() body: unknown) {
+  async startDelivery(@Headers("authorization") authorization: string | undefined, @Body() body: unknown) {
     const session = this.internalAuth.requireCourierToken(authorization);
+    await this.courierRegistry.requireActiveSession(session.courierProfileId!, session.courierSessionId);
     const input = courierStartDeliveryInputSchema.parse(body);
     return startDeliveryFromScan({ ...input, driverId: session.courierProfileId });
   }
 
   @Post("deliveries/:deliveryId/location")
-  sendLocation(@Headers("authorization") authorization: string | undefined, @Param("deliveryId") deliveryId: string, @Body() body: unknown) {
-    this.internalAuth.requireCourierToken(authorization);
+  async sendLocation(@Headers("authorization") authorization: string | undefined, @Param("deliveryId") deliveryId: string, @Body() body: unknown) {
+    const session = this.internalAuth.requireCourierToken(authorization);
+    await this.courierRegistry.requireActiveSession(session.courierProfileId!, session.courierSessionId);
     const input = courierLocationInputSchema.parse(body);
-    return updateCourierLocation(deliveryId, input);
+    return updateCourierLocation(deliveryId, input, session.courierProfileId);
   }
 
   @Post("deliveries/:deliveryId/complete")
-  completeDelivery(@Headers("authorization") authorization: string | undefined, @Param("deliveryId") deliveryId: string, @Body() body: unknown) {
-    this.internalAuth.requireCourierToken(authorization);
+  async completeDelivery(@Headers("authorization") authorization: string | undefined, @Param("deliveryId") deliveryId: string, @Body() body: unknown) {
+    const session = this.internalAuth.requireCourierToken(authorization);
+    await this.courierRegistry.requireActiveSession(session.courierProfileId!, session.courierSessionId);
     const input = courierCompleteDeliveryInputSchema.parse(body);
     return completeDeliveryWithCode(deliveryId, input.confirmationCode);
   }

@@ -118,9 +118,13 @@ create table if not exists public.courier_accounts (
   weekly_earnings numeric(10,2) not null default 0,
   reward_points integer not null default 0,
   next_payout_date timestamptz,
+  active_session_id text,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
 );
+
+alter table public.courier_accounts
+  add column if not exists active_session_id text;
 
 create table if not exists public.driver_shifts (
   id text primary key,

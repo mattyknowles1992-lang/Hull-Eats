@@ -14,6 +14,7 @@ type InternalSessionPayload = {
   username?: string;
   role?: string;
   courierProfileId?: string;
+  courierSessionId?: string;
   iat: number;
   exp: number;
 };
@@ -54,11 +55,12 @@ export class InternalAuthService {
     });
   }
 
-  issueCourierToken(input: { userId: string; courierProfileId: string; username: string; email: string }) {
+  issueCourierToken(input: { userId: string; courierProfileId: string; username: string; email: string; courierSessionId: string }) {
     return this.issueToken({
       sub: input.userId,
       scope: "courier",
       courierProfileId: input.courierProfileId,
+      courierSessionId: input.courierSessionId,
       username: input.username,
       email: input.email,
     });

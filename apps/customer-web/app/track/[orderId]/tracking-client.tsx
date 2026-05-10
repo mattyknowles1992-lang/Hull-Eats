@@ -28,9 +28,23 @@ const hullFallbackLocation = {
   longitude: -0.3274,
 };
 
+const hullMapBounds = {
+  minLatitude: 53.7,
+  maxLatitude: 53.83,
+  minLongitude: -0.48,
+  maxLongitude: -0.18,
+};
+
 type MapMode = "map" | "street";
 
 const googleMapsEmbedKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_EMBED_KEY;
+
+const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+
+const clampToHullBounds = (latitude: number, longitude: number) => ({
+  latitude: clamp(latitude, hullMapBounds.minLatitude, hullMapBounds.maxLatitude),
+  longitude: clamp(longitude, hullMapBounds.minLongitude, hullMapBounds.maxLongitude),
+});
 
 const buildOpenStreetMapSrc = (latitude: number, longitude: number) => {
   const delta = 0.012;
@@ -87,8 +101,9 @@ export function TrackingClient({ orderId }: TrackingClientProps) {
 
   const delivery = order?.delivery;
   const location = delivery?.courierLocation;
-  const mapLatitude = location?.latitude ?? hullFallbackLocation.latitude;
-  const mapLongitude = location?.longitude ?? hullFallbackLocation.longitude;
+  const boundedLocation = clampToHullBounds(location?.latitude ?? hullFallbackLocation.latitude, location?.longitude ?? hullFallbackLocation.longitude);
+  const mapLatitude = boundedLocation.latitude;
+  const mapLongitude = boundedLocation.longitude;
   const mapSrc = useMemo(() => buildMapSrc(mapLatitude, mapLongitude, mapMode), [mapLatitude, mapLongitude, mapMode]);
   const mapUpdatedAt = location ? new Date(location.updatedAt).toLocaleTimeString("en-GB") : "Waiting for driver scan";
   const mapAccuracy = location?.accuracyMeters ? `Accuracy ${Math.round(location.accuracyMeters)}m` : null;
@@ -252,6 +267,8 @@ export function TrackingClient({ orderId }: TrackingClientProps) {
           height: 100%;
           border: 0;
           filter: saturate(1.12) contrast(1.04) brightness(1.03);
+          pointer-events: none;
+          user-select: none;
         }
 
         .tracking-driver-pin {

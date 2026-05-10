@@ -575,6 +575,7 @@ model CourierAccount {
   weeklyEarnings      Decimal        @default(0) @map("weekly_earnings") @db.Decimal(10, 2)
   rewardPoints        Int            @default(0) @map("reward_points")
   nextPayoutDate      DateTime?      @map("next_payout_date")
+  activeSessionId     String?        @map("active_session_id")
   createdAt           DateTime       @default(now()) @map("created_at")
   updatedAt           DateTime       @updatedAt @map("updated_at")
   user                User           @relation(fields: [userId], references: [id], onDelete: Cascade)

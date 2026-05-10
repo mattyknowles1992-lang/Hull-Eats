@@ -84,6 +84,31 @@ export class CourierRegistryService {
     return this.toSummary(account);
   }
 
+  async setActiveSession(courierProfileId: string, sessionId: string) {
+    await prisma.$executeRaw`
+      update public.courier_accounts
+      set active_session_id = ${sessionId}, updated_at = timezone('utc', now())
+      where courier_profile_id = ${courierProfileId}
+    `;
+  }
+
+  async requireActiveSession(courierProfileId: string, sessionId?: string) {
+    if (!sessionId) {
+      throw new UnauthorizedException("Courier session expired. Sign in again on this device.");
+    }
+
+    const account = await prisma.$queryRaw<Array<{ active_session_id: string | null }>>`
+      select active_session_id
+      from public.courier_accounts
+      where courier_profile_id = ${courierProfileId}
+      limit 1
+    `;
+
+    if (!account[0] || account[0].active_session_id !== sessionId) {
+      throw new UnauthorizedException("This courier account is active on another device. Sign in again to use this device.");
+    }
+  }
+
   async updateCourier(
     courierProfileId: string,
     input: {
