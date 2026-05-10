@@ -27,7 +27,7 @@ begin
   end if;
 
   if not exists (select 1 from pg_type where typname = 'customer_account_status') then
-    create type public.customer_account_status as enum ('active', 'disabled');
+    create type public.customer_account_status as enum ('active', 'suspended', 'banned', 'disabled', 'deleted');
   end if;
 
   if not exists (select 1 from pg_type where typname = 'customer_delivery_plan') then
@@ -118,6 +118,10 @@ begin
   end if;
 end $$;
 
+alter type public.customer_account_status add value if not exists 'suspended';
+alter type public.customer_account_status add value if not exists 'banned';
+alter type public.customer_account_status add value if not exists 'deleted';
+
 alter type public.order_source add value if not exists 'kiosk';
 
 create table if not exists public.customer_profiles (
@@ -132,9 +136,25 @@ create table if not exists public.customer_profiles (
   preferred_delivery_plan public.customer_delivery_plan not null default 'pay_as_you_go',
   signup_promo_code text,
   stripe_customer_id text unique,
+  terms_accepted_at timestamptz,
+  privacy_accepted_at timestamptz,
+  manual_review_required boolean not null default false,
+  risk_notes text,
+  suspended_at timestamptz,
+  banned_at timestamptz,
+  ban_reason text,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
 );
+
+alter table public.customer_profiles
+  add column if not exists terms_accepted_at timestamptz,
+  add column if not exists privacy_accepted_at timestamptz,
+  add column if not exists manual_review_required boolean not null default false,
+  add column if not exists risk_notes text,
+  add column if not exists suspended_at timestamptz,
+  add column if not exists banned_at timestamptz,
+  add column if not exists ban_reason text;
 
 create table if not exists public.customer_addresses (
   id uuid primary key default gen_random_uuid(),
@@ -346,8 +366,36 @@ create table if not exists public.subscriptions (
   cancel_at_period_end boolean not null default false,
   canceled_at timestamptz,
   free_delivery_active boolean not null default false,
+  admin_override boolean not null default false,
+  override_reason text,
+  access_granted_by text,
+  access_granted_at timestamptz,
+  suspended_by text,
+  suspended_reason text,
+  suspended_at timestamptz,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
+);
+
+alter table public.subscriptions
+  add column if not exists admin_override boolean not null default false,
+  add column if not exists override_reason text,
+  add column if not exists access_granted_by text,
+  add column if not exists access_granted_at timestamptz,
+  add column if not exists suspended_by text,
+  add column if not exists suspended_reason text,
+  add column if not exists suspended_at timestamptz;
+
+create unique index if not exists idx_subscriptions_customer_unique on public.subscriptions(customer_profile_id);
+
+create table if not exists public.customer_account_events (
+  id uuid primary key default gen_random_uuid(),
+  customer_profile_id uuid not null references public.customer_profiles(id) on delete cascade,
+  event_type text not null,
+  severity text not null default 'info',
+  note text not null,
+  created_by text,
+  created_at timestamptz not null default timezone('utc', now())
 );
 
 create table if not exists public.subscription_events (
@@ -513,7 +561,9 @@ begin
     email_verified_at,
     marketing_opt_in,
     preferred_delivery_plan,
-    signup_promo_code
+    signup_promo_code,
+    terms_accepted_at,
+    privacy_accepted_at
   )
   values (
     new.id,
@@ -523,7 +573,9 @@ begin
     new.email_confirmed_at,
     coalesce((new.raw_user_meta_data ->> 'marketing_opt_in')::boolean, false),
     coalesce((new.raw_user_meta_data ->> 'preferred_delivery_plan')::public.customer_delivery_plan, 'pay_as_you_go'),
-    nullif(trim(coalesce(new.raw_user_meta_data ->> 'signup_promo_code', '')), '')
+    nullif(trim(coalesce(new.raw_user_meta_data ->> 'signup_promo_code', '')), ''),
+    coalesce((nullif(new.raw_user_meta_data ->> 'terms_accepted_at', ''))::timestamptz, timezone('utc', now())),
+    coalesce((nullif(new.raw_user_meta_data ->> 'privacy_accepted_at', ''))::timestamptz, timezone('utc', now()))
   )
   on conflict (supabase_auth_user_id) do update
   set
@@ -534,6 +586,8 @@ begin
     marketing_opt_in = excluded.marketing_opt_in,
     preferred_delivery_plan = excluded.preferred_delivery_plan,
     signup_promo_code = coalesce(excluded.signup_promo_code, public.customer_profiles.signup_promo_code),
+    terms_accepted_at = coalesce(public.customer_profiles.terms_accepted_at, excluded.terms_accepted_at),
+    privacy_accepted_at = coalesce(public.customer_profiles.privacy_accepted_at, excluded.privacy_accepted_at),
     updated_at = timezone('utc', now());
 
   select id, default_address_id
@@ -644,6 +698,7 @@ drop trigger if exists enforce_verified_email_for_subscription on public.subscri
 create trigger enforce_verified_email_for_subscription before insert or update on public.subscriptions for each row execute function public.enforce_verified_email_for_subscription();
 alter table public.customer_profiles enable row level security;
 alter table public.customer_addresses enable row level security;
+alter table public.customer_account_events enable row level security;
 alter table public.customer_favourites enable row level security;
 alter table public.subscriptions enable row level security;
 alter table public.subscription_events enable row level security;

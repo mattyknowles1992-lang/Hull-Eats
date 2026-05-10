@@ -12,6 +12,7 @@ type FormState = {
   phone: string;
   email: string;
   password: string;
+  confirmPassword: string;
   addressLabel: string;
   promoCode: string;
   addressLine1: string;
@@ -21,6 +22,7 @@ type FormState = {
   deliveryNotes: string;
   deliveryPlan: DeliveryPlan;
   marketingOptIn: boolean;
+  termsAccepted: boolean;
 };
 
 const initialState: FormState = {
@@ -28,6 +30,7 @@ const initialState: FormState = {
   phone: "",
   email: "",
   password: "",
+  confirmPassword: "",
   addressLabel: "Home",
   promoCode: "",
   addressLine1: "",
@@ -37,6 +40,7 @@ const initialState: FormState = {
   deliveryNotes: "",
   deliveryPlan: "pay_as_you_go",
   marketingOptIn: false,
+  termsAccepted: false,
 };
 
 export function RegisterForm() {
@@ -59,6 +63,15 @@ export function RegisterForm() {
     setSuccessMessage(null);
 
     try {
+      if (formState.password !== formState.confirmPassword) {
+        throw new Error("Passwords must match before we create the account.");
+      }
+
+      if (!formState.termsAccepted) {
+        throw new Error("Please accept the Hull Eats customer terms before creating an account.");
+      }
+
+      const acceptedAt = new Date().toISOString();
       const supabase = getBrowserSupabaseClient();
       const { error } = await supabase.auth.signUp({
         email: formState.email.trim(),
@@ -78,6 +91,8 @@ export function RegisterForm() {
             city: formState.city.trim(),
             postcode: formState.postcode.trim(),
             delivery_notes: formState.deliveryNotes.trim() || null,
+            terms_accepted_at: acceptedAt,
+            privacy_accepted_at: acceptedAt,
           },
         },
       });
@@ -150,10 +165,23 @@ export function RegisterForm() {
           <input
             className="form-input"
             type="password"
-            placeholder="At least 8 characters"
+            placeholder="At least 10 characters"
             value={formState.password}
             onChange={(event) => updateField("password", event.target.value)}
-            minLength={8}
+            minLength={10}
+            required
+          />
+        </label>
+
+        <label className="form-field">
+          <span>Confirm password</span>
+          <input
+            className="form-input"
+            type="password"
+            placeholder="Repeat password"
+            value={formState.confirmPassword}
+            onChange={(event) => updateField("confirmPassword", event.target.value)}
+            minLength={10}
             required
           />
         </label>
@@ -299,7 +327,20 @@ export function RegisterForm() {
         <span>Send me offers, launch updates, and local business promotions.</span>
       </label>
 
-      <p className="form-helper">Your password is handled securely by Supabase Auth. Hull Eats does not store card details.</p>
+      <label className="toggle-row">
+        <input
+          type="checkbox"
+          checked={formState.termsAccepted}
+          onChange={(event) => updateField("termsAccepted", event.target.checked)}
+          required
+        />
+        <span>I agree to Hull Eats storing my account and address details securely for ordering, support, subscriptions, and marketplace safety.</span>
+      </label>
+
+      <p className="form-helper">
+        Your password is handled securely by Supabase Auth. Hull Eats stores your profile and saved addresses so checkout,
+        support, subscriptions, and marketplace safety work properly. Card details stay with Stripe.
+      </p>
 
       {errorMessage ? <p className="form-message form-message-error">{errorMessage}</p> : null}
       {successMessage ? <p className="form-message form-message-success">{successMessage}</p> : null}

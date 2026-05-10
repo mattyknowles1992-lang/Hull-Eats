@@ -14,6 +14,7 @@ import {
   updateBasketQuantity,
   type StoreBasket,
 } from "../../../src/lib/basket";
+import { getBrowserSupabaseClient } from "../../../src/lib/supabase-browser";
 
 type CheckoutClientProps = {
   store: StoreSummary;
@@ -89,6 +90,67 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
       window.removeEventListener("hull-eats-basket-updated", sync as EventListener);
     };
   }, [store.slug]);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const supabase = getBrowserSupabaseClient();
+        const { data: sessionData } = await supabase.auth.getSession();
+        const userId = sessionData.session?.user.id;
+
+        if (!userId) {
+          return;
+        }
+
+        const { data: profileData } = await supabase
+          .from("customer_profiles")
+          .select("id,email,full_name,phone,default_address_id")
+          .eq("supabase_auth_user_id", userId)
+          .single();
+
+        if (!profileData) {
+          return;
+        }
+
+        const profile = profileData as unknown as {
+          id: string;
+          email: string;
+          full_name: string | null;
+          phone: string | null;
+          default_address_id: string | null;
+        };
+
+        const { data: addressData } = await supabase
+          .from("customer_addresses")
+          .select("address_line_1,city,postcode,delivery_notes")
+          .eq("customer_profile_id", profile.id)
+          .order("is_default", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        const address = addressData as
+          | {
+              address_line_1: string;
+              city: string;
+              postcode: string;
+              delivery_notes: string | null;
+            }
+          | null;
+
+        setFormState((current) => ({
+          customerName: current.customerName || profile.full_name || "",
+          customerPhone: current.customerPhone || profile.phone || "",
+          customerEmail: current.customerEmail || profile.email || "",
+          addressLine1: current.addressLine1 || address?.address_line_1 || "",
+          city: current.city || address?.city || "Hull",
+          postcode: current.postcode || address?.postcode || "",
+          notes: current.notes || address?.delivery_notes || "",
+        }));
+      } catch {
+        // Checkout still works for guest customers when Supabase is not configured locally.
+      }
+    })();
+  }, []);
 
   const basketCount = getBasketItemCount(basket);
   const localSubtotal = getBasketSubtotal(basket);

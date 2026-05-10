@@ -8,6 +8,10 @@ begin
     create type public.user_role as enum ('platform_admin', 'merchant_manager', 'merchant_staff', 'courier', 'customer');
   end if;
 
+  if not exists (select 1 from pg_type where typname = 'customer_account_status') then
+    create type public.customer_account_status as enum ('active', 'suspended', 'banned', 'disabled', 'deleted');
+  end if;
+
   if not exists (select 1 from pg_type where typname = 'fulfillment_type') then
     create type public.fulfillment_type as enum ('delivery', 'pickup');
   end if;
@@ -29,6 +33,9 @@ begin
   end if;
 end $$;
 
+alter type public.customer_account_status add value if not exists 'suspended';
+alter type public.customer_account_status add value if not exists 'banned';
+alter type public.customer_account_status add value if not exists 'deleted';
 alter type public.order_source add value if not exists 'kiosk';
 alter type public.order_status add value if not exists 'ready_for_dispatch';
 alter type public.order_status add value if not exists 'courier_accepted';
@@ -45,6 +52,36 @@ alter table public.orders
 
 alter table public.order_items
   add column if not exists notes text;
+
+alter table public.customer_profiles
+  add column if not exists terms_accepted_at timestamptz,
+  add column if not exists privacy_accepted_at timestamptz,
+  add column if not exists manual_review_required boolean not null default false,
+  add column if not exists risk_notes text,
+  add column if not exists suspended_at timestamptz,
+  add column if not exists banned_at timestamptz,
+  add column if not exists ban_reason text;
+
+alter table public.subscriptions
+  add column if not exists admin_override boolean not null default false,
+  add column if not exists override_reason text,
+  add column if not exists access_granted_by text,
+  add column if not exists access_granted_at timestamptz,
+  add column if not exists suspended_by text,
+  add column if not exists suspended_reason text,
+  add column if not exists suspended_at timestamptz;
+
+create unique index if not exists idx_subscriptions_customer_unique on public.subscriptions(customer_profile_id);
+
+create table if not exists public.customer_account_events (
+  id uuid primary key default gen_random_uuid(),
+  customer_profile_id uuid not null references public.customer_profiles(id) on delete cascade,
+  event_type text not null,
+  severity text not null default 'info',
+  note text not null,
+  created_by text,
+  created_at timestamptz not null default timezone('utc', now())
+);
 
 create table if not exists public.platform_users (
   id text primary key,
@@ -263,6 +300,7 @@ create index if not exists idx_customer_push_tokens_order on public.customer_pus
 create index if not exists idx_customer_push_tokens_email on public.customer_push_tokens(lower(customer_email), is_active);
 create index if not exists idx_customer_notifications_order on public.customer_notifications(order_id, created_at desc);
 create index if not exists idx_customer_notifications_event on public.customer_notifications(event, status, created_at desc);
+create index if not exists idx_customer_account_events_customer on public.customer_account_events(customer_profile_id, created_at desc);
 create index if not exists idx_marketplace_categories_active on public.marketplace_categories(active, sort_order);
 create index if not exists idx_marketplace_listings_category on public.marketplace_listings(category_id, active, created_at desc);
 create index if not exists idx_marketplace_listings_seller on public.marketplace_listings(seller_user_id, created_at desc);
@@ -312,6 +350,7 @@ alter table public.printers enable row level security;
 alter table public.print_jobs enable row level security;
 alter table public.customer_push_tokens enable row level security;
 alter table public.customer_notifications enable row level security;
+alter table public.customer_account_events enable row level security;
 alter table public.marketplace_categories enable row level security;
 alter table public.marketplace_listings enable row level security;
 alter table public.marketplace_seller_profiles enable row level security;

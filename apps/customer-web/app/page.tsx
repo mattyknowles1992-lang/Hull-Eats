@@ -237,7 +237,7 @@ export default function CustomerHomePage() {
               </div>
             </div>
           </details>
-          <Link href="/register" className="icon-button">
+          <Link href="/account" className="icon-button">
             Account
           </Link>
         </div>

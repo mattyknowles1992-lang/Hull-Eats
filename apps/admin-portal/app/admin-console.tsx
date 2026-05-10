@@ -62,6 +62,25 @@ type AdminHubUserSummary = {
   status: "active" | "invited" | "disabled";
 };
 
+type AdminCustomerSummary = {
+  id: string;
+  email: string;
+  fullName: string;
+  phone: string;
+  accountStatus: "active" | "suspended" | "banned" | "disabled" | "deleted";
+  emailVerified: boolean;
+  marketingOptIn: boolean;
+  preferredDeliveryPlan: "pay_as_you_go" | "hull_eats_plus";
+  createdAt: string;
+  defaultAddress: string;
+  subscriptionId: string | null;
+  subscriptionStatus: string;
+  hullEatsPlusActive: boolean;
+  adminOverride: boolean;
+  manualReviewRequired: boolean;
+  moderationNoteCount: number;
+};
+
 type AdminLoginResponse = {
   token: string;
   admin: {
@@ -120,6 +139,38 @@ async function fetchAdminUsers(token: string): Promise<AdminHubUserSummary[]> {
   }
 
   return (await response.json()) as AdminHubUserSummary[];
+}
+
+async function fetchAdminCustomers(token: string): Promise<AdminCustomerSummary[]> {
+  const response = await fetch(`${apiBaseUrl}/v1/admin/customers`, {
+    cache: "no-store",
+    headers: {
+      authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Admin customer fetch failed with status ${response.status}`);
+  }
+
+  return (await response.json()) as AdminCustomerSummary[];
+}
+
+async function updateAdminCustomer(token: string, customerId: string, input: Record<string, unknown>): Promise<AdminCustomerSummary> {
+  const response = await fetch(`${apiBaseUrl}/v1/admin/customers/${customerId}`, {
+    method: "PATCH",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Admin customer update failed with status ${response.status}`);
+  }
+
+  return (await response.json()) as AdminCustomerSummary;
 }
 
 async function createAdminHub(
@@ -508,6 +559,9 @@ export function AdminConsole() {
 
   const [hubs, setHubs] = useState(initialHubs);
   const [users, setUsers] = useState(initialUsers.filter((user) => user.loginType === "platform"));
+  const [customers, setCustomers] = useState<AdminCustomerSummary[]>([]);
+  const [customerFilter, setCustomerFilter] = useState<"all" | "plus" | "review" | "suspended">("all");
+  const [customerNotice, setCustomerNotice] = useState("");
   const [couriers, setCouriers] = useState<Array<CourierRecord | AdminCourierSummary>>(initialCouriers);
   const [notifications, setNotifications] = useState<NotificationRecord[]>([
     {
@@ -548,6 +602,8 @@ export function AdminConsole() {
     () => [
       { label: "Live hubs", value: String(hubs.filter((hub) => hub.status === "live").length) },
       { label: "Platform users", value: String(users.filter((user) => user.loginType === "platform").length) },
+      { label: "Customers", value: String(customers.length) },
+      { label: "Hull Eats+ members", value: String(customers.filter((customer) => customer.hullEatsPlusActive).length) },
       { label: "Hub users", value: String(users.filter((user) => user.loginType === "hub").length) },
       { label: "Active couriers", value: String(couriers.filter((courier) => courier.status === "active").length) },
       { label: "Open orders", value: String(hubs.reduce((count, hub) => count + hub.activeOrders.length, 0)) },
@@ -558,8 +614,24 @@ export function AdminConsole() {
           .toLocaleString("en-GB")}`,
       },
     ],
-    [couriers, hubs, users],
+    [couriers, customers, hubs, users],
   );
+
+  const filteredCustomers = useMemo(() => {
+    if (customerFilter === "plus") {
+      return customers.filter((customer) => customer.hullEatsPlusActive);
+    }
+
+    if (customerFilter === "review") {
+      return customers.filter((customer) => customer.manualReviewRequired);
+    }
+
+    if (customerFilter === "suspended") {
+      return customers.filter((customer) => customer.accountStatus !== "active");
+    }
+
+    return customers;
+  }, [customerFilter, customers]);
 
   const activeOrders = useMemo(
     () =>
@@ -613,13 +685,19 @@ export function AdminConsole() {
 
     void (async () => {
       try {
-        const [apiHubs, apiUsers, apiCouriers] = await Promise.all([fetchAdminHubs(authToken), fetchAdminUsers(authToken), fetchAdminCouriers(authToken)]);
+        const [apiHubs, apiUsers, apiCouriers, apiCustomers] = await Promise.all([
+          fetchAdminHubs(authToken),
+          fetchAdminUsers(authToken),
+          fetchAdminCouriers(authToken),
+          fetchAdminCustomers(authToken),
+        ]);
         setHubs(apiHubs.map(mapApiHubToRecord));
         setUsers([
           ...initialUsers.filter((user) => user.loginType === "platform"),
           ...apiUsers.map(mapApiUserToRecord),
         ]);
         setCouriers(apiCouriers);
+        setCustomers(apiCustomers);
       } catch (error) {
         console.error(error);
       }
@@ -897,6 +975,34 @@ export function AdminConsole() {
         setCourierNotice(error instanceof Error ? error.message : "Courier vehicle update failed.");
       }
     })();
+  };
+
+  const handleUpdateCustomer = (customer: AdminCustomerSummary, input: Record<string, unknown>) => {
+    if (!authToken) {
+      return;
+    }
+
+    void (async () => {
+      try {
+        const updated = await updateAdminCustomer(authToken, customer.id, input);
+        setCustomers((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+        setCustomerNotice(`${updated.fullName} updated.`);
+      } catch (error) {
+        setCustomerNotice(error instanceof Error ? error.message : "Customer update failed.");
+      }
+    })();
+  };
+
+  const handleAddCustomerReviewNote = (customer: AdminCustomerSummary) => {
+    const moderationNote = window.prompt(`Manual review note for ${customer.fullName}`);
+    if (!moderationNote?.trim()) {
+      return;
+    }
+
+    handleUpdateCustomer(customer, {
+      manualReviewRequired: true,
+      moderationNote: moderationNote.trim(),
+    });
   };
 
   const handleEditCourierDetails = (courier: AdminCourierSummary) => {
@@ -1773,6 +1879,131 @@ export function AdminConsole() {
                       <p style={{ margin: "8px 0 0", color: "#9fb2c9", lineHeight: 1.6 }}>{notice.body}</p>
                     </article>
                   ))}
+                </div>
+              </section>
+
+              <section style={styles.sectionCard}>
+                <SectionHeading
+                  eyebrow="Customers"
+                  title="Customer accounts"
+                  copy="Review new signups, filter Hull Eats+ members, and manually suspend, ban, or grant subscription access."
+                />
+
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 16 }}>
+                  {[
+                    ["all", "All customers"],
+                    ["plus", "Hull Eats+"],
+                    ["review", "Needs review"],
+                    ["suspended", "Suspended / banned"],
+                  ].map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      style={customerFilter === value ? styles.buttonPrimary : styles.buttonGlass}
+                      onClick={() => setCustomerFilter(value as typeof customerFilter)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                {customerNotice ? <p style={{ margin: "12px 0 0", color: "#9fb2c9", fontWeight: 800 }}>{customerNotice}</p> : null}
+
+                <div style={{ display: "grid", gap: 12, marginTop: 16, maxHeight: 620, overflow: "auto", paddingRight: 4 }}>
+                  {filteredCustomers.length ? (
+                    filteredCustomers.map((customer) => (
+                      <article
+                        key={customer.id}
+                        style={{
+                          borderRadius: 20,
+                          border: "1px solid rgba(255,255,255,0.1)",
+                          background: "rgba(255,255,255,0.04)",
+                          padding: 16,
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                          <div>
+                            <strong style={{ display: "block", fontSize: 17 }}>{customer.fullName}</strong>
+                            <div style={{ marginTop: 8, display: "grid", gap: 5, color: "#9fb2c9", fontSize: 14 }}>
+                              <span>{customer.email}</span>
+                              <span>{customer.phone || "No phone saved"}</span>
+                              <span>{customer.defaultAddress || "No default address saved"}</span>
+                            </div>
+                          </div>
+                          <div style={{ display: "grid", gap: 8, justifyItems: "end" }}>
+                            <StatusPill value={customer.accountStatus} />
+                            <span style={{ color: customer.hullEatsPlusActive ? "#64f0b4" : "#9fb2c9", fontSize: 13, fontWeight: 900 }}>
+                              {customer.hullEatsPlusActive ? "Hull Eats+ active" : `Subscription: ${customer.subscriptionStatus}`}
+                            </span>
+                            {customer.manualReviewRequired ? (
+                              <span style={{ color: "#ffb47d", fontSize: 13, fontWeight: 900 }}>Manual review</span>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
+                          <button
+                            type="button"
+                            style={{ ...styles.buttonPrimary, minHeight: 36, padding: "0 10px", fontSize: 13 }}
+                            onClick={() =>
+                              handleUpdateCustomer(customer, {
+                                hullEatsPlusActive: true,
+                                subscriptionStatus: "active",
+                                overrideReason: "Manual Hull Eats+ access from admin",
+                              })
+                            }
+                          >
+                            Enable Hull Eats+
+                          </button>
+                          <button
+                            type="button"
+                            style={{ ...styles.buttonGlass, minHeight: 36, padding: "0 10px", fontSize: 13 }}
+                            onClick={() =>
+                              handleUpdateCustomer(customer, {
+                                hullEatsPlusActive: false,
+                                subscriptionStatus: "unpaid",
+                                overrideReason: "Subscription unpaid or manually suspended",
+                              })
+                            }
+                          >
+                            Suspend +
+                          </button>
+                          <button
+                            type="button"
+                            style={{ ...styles.buttonGlass, minHeight: 36, padding: "0 10px", fontSize: 13 }}
+                            onClick={() => handleUpdateCustomer(customer, { accountStatus: "suspended", manualReviewRequired: true })}
+                          >
+                            Suspend account
+                          </button>
+                          <button
+                            type="button"
+                            style={{ ...styles.buttonGlass, minHeight: 36, padding: "0 10px", fontSize: 13 }}
+                            onClick={() => handleUpdateCustomer(customer, { accountStatus: "banned", manualReviewRequired: true })}
+                          >
+                            Ban account
+                          </button>
+                          <button
+                            type="button"
+                            style={{ ...styles.buttonGlass, minHeight: 36, padding: "0 10px", fontSize: 13 }}
+                            onClick={() => handleUpdateCustomer(customer, { accountStatus: "active", manualReviewRequired: false })}
+                          >
+                            Restore
+                          </button>
+                          <button
+                            type="button"
+                            style={{ ...styles.buttonGlass, minHeight: 36, padding: "0 10px", fontSize: 13 }}
+                            onClick={() => handleAddCustomerReviewNote(customer)}
+                          >
+                            Review note
+                          </button>
+                        </div>
+                      </article>
+                    ))
+                  ) : (
+                    <p style={{ color: "#9fb2c9", lineHeight: 1.6 }}>
+                      No customers match this filter yet. New Supabase signups will appear here once the API is connected to the live database.
+                    </p>
+                  )}
                 </div>
               </section>
 

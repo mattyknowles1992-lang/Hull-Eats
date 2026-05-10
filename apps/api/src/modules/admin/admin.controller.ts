@@ -7,6 +7,7 @@ import { demoOrders } from "../../common/demo-data";
 import { HubRegistryService } from "../../common/hub-registry.service";
 import { InternalAuthService } from "../../common/internal-auth.service";
 import { CourierRegistryService } from "../../common/courier-registry.service";
+import { CustomerRegistryService } from "../../common/customer-registry.service";
 
 @Controller("admin")
 export class AdminController {
@@ -18,6 +19,8 @@ export class AdminController {
     private readonly internalAuth: InternalAuthService,
     @Inject(CourierRegistryService)
     private readonly courierRegistry: CourierRegistryService,
+    @Inject(CustomerRegistryService)
+    private readonly customerRegistry: CustomerRegistryService,
   ) {}
 
   @Post("auth/login")
@@ -35,6 +38,22 @@ export class AdminController {
   listHubUsers(@Headers("authorization") authorization?: string) {
     this.internalAuth.requireAdminToken(authorization);
     return this.hubRegistry.listHubUsers();
+  }
+
+  @Get("customers")
+  listCustomers(@Headers("authorization") authorization?: string) {
+    this.internalAuth.requireAdminToken(authorization);
+    return this.customerRegistry.listCustomers();
+  }
+
+  @Patch("customers/:customerProfileId")
+  updateCustomer(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("customerProfileId") customerProfileId: string,
+    @Body() body: any,
+  ) {
+    this.internalAuth.requireAdminToken(authorization);
+    return this.customerRegistry.updateCustomer(customerProfileId, body);
   }
 
   @Post("hubs")

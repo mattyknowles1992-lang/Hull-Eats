@@ -102,6 +102,9 @@ export function TrackingClient({ orderId }: TrackingClientProps) {
             loading="lazy"
             referrerPolicy="no-referrer-when-downgrade"
           />
+          <div className={location ? "tracking-driver-pin is-live" : "tracking-driver-pin"} aria-hidden="true">
+            <img src="/brand/hull-eats-logo.jpeg" alt="" />
+          </div>
           <div className="tracking-map-status">
             <span className={location ? "live-dot is-live" : "live-dot"} />
             <span>{location ? "Live driver location" : "Waiting for courier scan"}</span>
@@ -203,8 +206,9 @@ export function TrackingClient({ orderId }: TrackingClientProps) {
           inset: 0;
           pointer-events: none;
           background:
-            linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0)),
-            radial-gradient(circle at 70% 20%, rgba(35, 205, 255, 0.14), transparent 34%);
+            linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0)),
+            radial-gradient(circle at 50% 46%, rgba(35, 205, 255, 0.2), transparent 28%),
+            linear-gradient(135deg, rgba(18, 183, 232, 0.08), rgba(255, 255, 255, 0));
         }
 
         .tracking-map-frame {
@@ -213,7 +217,66 @@ export function TrackingClient({ orderId }: TrackingClientProps) {
           width: 100%;
           height: 100%;
           border: 0;
-          filter: saturate(1.08) contrast(1.03);
+          filter: saturate(1.12) contrast(1.04) brightness(1.03);
+        }
+
+        .tracking-driver-pin {
+          position: absolute;
+          z-index: 2;
+          top: 50%;
+          left: 50%;
+          display: grid;
+          place-items: center;
+          width: 74px;
+          height: 74px;
+          border-radius: 999px;
+          background: #ffffff;
+          border: 5px solid rgba(7, 17, 24, 0.28);
+          box-shadow:
+            0 20px 44px rgba(7, 17, 24, 0.28),
+            0 0 0 10px rgba(35, 205, 255, 0.16);
+          transform: translate(-50%, -84%);
+        }
+
+        .tracking-driver-pin::after {
+          content: "";
+          position: absolute;
+          bottom: -18px;
+          left: 50%;
+          width: 22px;
+          height: 22px;
+          border-radius: 0 0 6px 0;
+          background: #23cdff;
+          box-shadow: 8px 8px 18px rgba(7, 17, 24, 0.2);
+          transform: translateX(-50%) rotate(45deg);
+        }
+
+        .tracking-driver-pin img {
+          position: relative;
+          z-index: 1;
+          width: 58px;
+          height: 58px;
+          border-radius: 999px;
+          object-fit: cover;
+        }
+
+        .tracking-driver-pin.is-live {
+          border-color: #23cdff;
+          animation: driver-pulse 1.8s ease-in-out infinite;
+        }
+
+        @keyframes driver-pulse {
+          0%,
+          100% {
+            box-shadow:
+              0 20px 44px rgba(7, 17, 24, 0.28),
+              0 0 0 10px rgba(35, 205, 255, 0.16);
+          }
+          50% {
+            box-shadow:
+              0 24px 54px rgba(7, 17, 24, 0.32),
+              0 0 0 18px rgba(35, 205, 255, 0.08);
+          }
         }
 
         .tracking-map-status {
