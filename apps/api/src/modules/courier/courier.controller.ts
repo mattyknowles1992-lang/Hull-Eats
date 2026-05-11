@@ -62,7 +62,7 @@ export class CourierController {
   async listJobs(@Headers("authorization") authorization?: string) {
     const session = this.internalAuth.requireCourierToken(authorization);
     await this.courierRegistry.requireActiveSession(session.courierProfileId!, session.courierSessionId);
-    return listCourierJobs();
+    return listCourierJobs(session.courierProfileId!);
   }
 
   @Post("deliveries/start")

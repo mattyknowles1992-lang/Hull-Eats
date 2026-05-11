@@ -1,18 +1,26 @@
 import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 
 import { hashPassword, verifyPassword } from "@hull-eats/auth";
 import { prisma } from "@hull-eats/db";
 import { loadedMunchMenuSections, loadedMunchStore } from "@hull-eats/sdk";
+import {
+  addHubCourierAssignmentInputSchema,
+  createHubPromotionInputSchema,
+  updateHubPromotionInputSchema,
+} from "@hull-eats/types";
 import type {
   ApplyMenuImportInput,
   CreateHubInput,
   CreateHubMenuItemInput,
   CreateHubMenuSectionInput,
+  CreateHubPromotionInput,
   CreateHubUserInput,
   ChangeHubPasswordInput,
   HubMenuImportBatch,
   HubMenuImportCandidate,
   HubMenuSection,
+  HubPromotion,
   HubSettings,
   HubSummary,
   HubUser,
@@ -20,6 +28,7 @@ import type {
   MerchantWorkspaceUpdateInput,
   PreviewMenuImportInput,
   PreviewMenuTextImportInput,
+  UpdateHubPromotionInput,
 } from "@hull-eats/types";
 
 const categoryLikeLine = /^[A-Za-z][A-Za-z\s&/+'->]{1,60}$/;
@@ -711,6 +720,141 @@ export class HubRegistryService {
     };
   }
 
+  async listStorePromotions(hubId: string): Promise<HubPromotion[]> {
+    await this.ensurePilotHub();
+    const store = await this.findPrimaryStore(hubId);
+    const rows = await prisma.storePromotion.findMany({
+      where: { storeId: store.id },
+      orderBy: { createdAt: "desc" },
+    });
+    return rows.map((row) => this.mapStorePromotion(row));
+  }
+
+  async createStorePromotion(hubId: string, body: unknown): Promise<HubPromotion> {
+    await this.ensurePilotHub();
+    const input = createHubPromotionInputSchema.parse(body);
+    const store = await this.findPrimaryStore(hubId);
+    await this.assertPromotionTargetsValid(store.id, input);
+    const row = await prisma.storePromotion.create({
+      data: this.buildPromotionWriteData(store.id, input),
+    });
+    return this.mapStorePromotion(row);
+  }
+
+  async updateStorePromotion(hubId: string, promotionId: string, body: unknown): Promise<HubPromotion> {
+    await this.ensurePilotHub();
+    const patch = updateHubPromotionInputSchema.parse(body);
+    if (Object.keys(patch).length === 0) {
+      throw new BadRequestException("No changes supplied.");
+    }
+    const store = await this.findPrimaryStore(hubId);
+    const existing = await prisma.storePromotion.findFirst({
+      where: { id: promotionId, storeId: store.id },
+    });
+    if (!existing) {
+      throw new NotFoundException(`Offer ${promotionId} was not found.`);
+    }
+    const merged = this.mergePromotionPatch(this.mapStorePromotion(existing), patch);
+    createHubPromotionInputSchema.parse(merged);
+    await this.assertPromotionTargetsValid(store.id, merged);
+    const full = this.buildPromotionWriteData(store.id, merged);
+    const { storeId: _omitStoreId, ...updatePayload } = full;
+    const row = await prisma.storePromotion.update({
+      where: { id: promotionId },
+      data: updatePayload,
+    });
+    return this.mapStorePromotion(row);
+  }
+
+  async deleteStorePromotion(hubId: string, promotionId: string): Promise<{ deletedPromotionId: string }> {
+    await this.ensurePilotHub();
+    const store = await this.findPrimaryStore(hubId);
+    const existing = await prisma.storePromotion.findFirst({
+      where: { id: promotionId, storeId: store.id },
+    });
+    if (!existing) {
+      throw new NotFoundException(`Offer ${promotionId} was not found.`);
+    }
+    await prisma.storePromotion.delete({ where: { id: promotionId } });
+    return { deletedPromotionId: promotionId };
+  }
+
+  async listHubCourierAssignments(hubId: string) {
+    await this.ensurePilotHub();
+    const store = await this.findPrimaryStore(hubId);
+    const rows = await prisma.storeCourierAssignment.findMany({
+      where: { storeId: store.id },
+      include: {
+        courierProfile: {
+          include: {
+            user: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return rows.map((row) => ({
+      id: row.id,
+      courierProfileId: row.courierProfileId,
+      courierEmail: row.courierProfile.user.email,
+      courierName: row.courierProfile.user.fullName,
+      storeId: row.storeId,
+      storeName: store.name,
+      createdAt: row.createdAt.toISOString(),
+    }));
+  }
+
+  async addHubCourierAssignment(hubId: string, body: unknown) {
+    await this.ensurePilotHub();
+    const input = addHubCourierAssignmentInputSchema.parse(body);
+    const store = await this.findPrimaryStore(hubId);
+    const email = input.email.trim().toLowerCase();
+
+    const user = await prisma.user.findFirst({
+      where: { email },
+      include: {
+        courierProfile: true,
+      },
+    });
+
+    if (!user?.courierProfile) {
+      throw new BadRequestException(
+        "No Hull Eats courier account exists for that email. Create the driver in the admin portal first, then add their email here.",
+      );
+    }
+
+    await prisma.storeCourierAssignment.upsert({
+      where: {
+        storeId_courierProfileId: {
+          storeId: store.id,
+          courierProfileId: user.courierProfile.id,
+        },
+      },
+      create: {
+        storeId: store.id,
+        courierProfileId: user.courierProfile.id,
+      },
+      update: {},
+    });
+
+    return this.listHubCourierAssignments(hubId);
+  }
+
+  async removeHubCourierAssignment(hubId: string, courierProfileId: string) {
+    await this.ensurePilotHub();
+    const store = await this.findPrimaryStore(hubId);
+
+    await prisma.storeCourierAssignment.deleteMany({
+      where: {
+        storeId: store.id,
+        courierProfileId,
+      },
+    });
+
+    return { removed: true as const, courierProfileId };
+  }
+
   async previewMenuImport(hubId: string, input: PreviewMenuImportInput) {
     await this.ensurePilotHub();
 
@@ -1176,6 +1320,166 @@ export class HubRegistryService {
       components: Array.isArray(item.components) ? item.components : [],
       optionGroups: Array.isArray(item.optionGroups) ? item.optionGroups : [],
     };
+  }
+
+  private mapStorePromotion(row: any): HubPromotion {
+    const rawLines = row.bundleLines;
+    let bundleLines: HubPromotion["bundleLines"] = null;
+    if (Array.isArray(rawLines)) {
+      bundleLines = rawLines
+        .map((line: any) =>
+          line && typeof line.menuItemId === "string" && typeof line.quantity === "number"
+            ? { menuItemId: line.menuItemId, quantity: line.quantity }
+            : null,
+        )
+        .filter(Boolean) as HubPromotion["bundleLines"];
+    }
+
+    return {
+      id: row.id,
+      title: row.title,
+      isActive: row.isActive,
+      kind: this.mapPromotionKindFromDb(row.kind),
+      scope: this.mapPromotionScopeFromDb(row.scope),
+      percentOff: row.percentOff != null ? Number(row.percentOff) : null,
+      fixedAmountOff: row.fixedAmountOff != null ? Number(row.fixedAmountOff) : null,
+      bundleFixedPrice: row.bundleFixedPrice != null ? Number(row.bundleFixedPrice) : null,
+      menuItemIds: Array.isArray(row.menuItemIds) ? row.menuItemIds : [],
+      categoryIds: Array.isArray(row.categoryIds) ? row.categoryIds : [],
+      bundleLines,
+      validDates: Array.isArray(row.validDates) ? [...row.validDates].sort() : [],
+      dailyStartTime: row.dailyStartTime ?? null,
+      dailyEndTime: row.dailyEndTime ?? null,
+      createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
+      updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : String(row.updatedAt),
+    };
+  }
+
+  private mergePromotionPatch(current: HubPromotion, patch: UpdateHubPromotionInput): CreateHubPromotionInput {
+    const next: CreateHubPromotionInput = {
+      title: patch.title ?? current.title,
+      isActive: patch.isActive ?? current.isActive,
+      kind: patch.kind ?? current.kind,
+      scope: patch.scope ?? current.scope,
+      percentOff: patch.percentOff !== undefined ? patch.percentOff : current.percentOff,
+      fixedAmountOff: patch.fixedAmountOff !== undefined ? patch.fixedAmountOff : current.fixedAmountOff,
+      bundleFixedPrice: patch.bundleFixedPrice !== undefined ? patch.bundleFixedPrice : current.bundleFixedPrice,
+      menuItemIds: patch.menuItemIds ?? [...current.menuItemIds],
+      categoryIds: patch.categoryIds ?? [...current.categoryIds],
+      bundleLines: patch.bundleLines !== undefined ? patch.bundleLines : current.bundleLines ? [...current.bundleLines] : null,
+      validDates: patch.validDates ?? [...current.validDates],
+      dailyStartTime: patch.dailyStartTime !== undefined ? patch.dailyStartTime : current.dailyStartTime,
+      dailyEndTime: patch.dailyEndTime !== undefined ? patch.dailyEndTime : current.dailyEndTime,
+    };
+    return next;
+  }
+
+  private buildPromotionWriteData(storeId: string, input: CreateHubPromotionInput) {
+    return {
+      storeId,
+      title: input.title.trim(),
+      isActive: input.isActive,
+      kind: this.mapPromotionKindToDb(input.kind),
+      scope: this.mapPromotionScopeToDb(input.scope),
+      percentOff: input.percentOff ?? null,
+      fixedAmountOff: input.fixedAmountOff ?? null,
+      bundleFixedPrice: input.bundleFixedPrice ?? null,
+      menuItemIds: input.menuItemIds,
+      categoryIds: input.categoryIds,
+      bundleLines:
+        input.bundleLines && input.bundleLines.length > 0 ? (input.bundleLines as Prisma.InputJsonValue) : Prisma.JsonNull,
+      validDates: [...new Set(input.validDates)].sort(),
+      dailyStartTime: input.dailyStartTime,
+      dailyEndTime: input.dailyEndTime,
+    };
+  }
+
+  private async assertPromotionTargetsValid(storeId: string, input: CreateHubPromotionInput) {
+    const categories = await prisma.menuCategory.findMany({
+      where: { storeId },
+      select: { id: true },
+    });
+    const items = await prisma.menuItem.findMany({
+      where: { category: { storeId } },
+      select: { id: true },
+    });
+    const categorySet = new Set(categories.map((c) => c.id));
+    const itemSet = new Set(items.map((i) => i.id));
+
+    const assertItems = (ids: string[], label: string) => {
+      for (const id of ids) {
+        if (!itemSet.has(id)) {
+          throw new BadRequestException(`${label} references an item that is not on this hub menu.`);
+        }
+      }
+    };
+
+    const assertCategories = (ids: string[]) => {
+      for (const id of ids) {
+        if (!categorySet.has(id)) {
+          throw new BadRequestException("This offer references a category that is not on this hub menu.");
+        }
+      }
+    };
+
+    if (input.kind === "bogo_item") {
+      assertItems(input.menuItemIds, "Buy-one-get-one-free");
+      return;
+    }
+
+    if (input.kind === "bundle_fixed_price") {
+      const lines = input.bundleLines ?? [];
+      assertItems(
+        lines.map((l) => l.menuItemId),
+        "Bundle",
+      );
+      return;
+    }
+
+    if (input.scope === "categories") {
+      assertCategories(input.categoryIds);
+    }
+    if (input.scope === "items") {
+      assertItems(input.menuItemIds, "Selected items");
+    }
+  }
+
+  private mapPromotionKindToDb(kind: CreateHubPromotionInput["kind"]) {
+    const map: Record<CreateHubPromotionInput["kind"], "BOGO_ITEM" | "PERCENT_OFF" | "FIXED_AMOUNT_ITEM" | "BUNDLE_FIXED_PRICE"> = {
+      bogo_item: "BOGO_ITEM",
+      percent_off: "PERCENT_OFF",
+      fixed_amount_item: "FIXED_AMOUNT_ITEM",
+      bundle_fixed_price: "BUNDLE_FIXED_PRICE",
+    };
+    return map[kind];
+  }
+
+  private mapPromotionKindFromDb(value: string): HubPromotion["kind"] {
+    const map: Record<string, HubPromotion["kind"]> = {
+      BOGO_ITEM: "bogo_item",
+      PERCENT_OFF: "percent_off",
+      FIXED_AMOUNT_ITEM: "fixed_amount_item",
+      BUNDLE_FIXED_PRICE: "bundle_fixed_price",
+    };
+    return map[value] ?? "percent_off";
+  }
+
+  private mapPromotionScopeToDb(scope: CreateHubPromotionInput["scope"]) {
+    const map: Record<CreateHubPromotionInput["scope"], "ITEMS" | "CATEGORIES" | "WHOLE_MENU"> = {
+      items: "ITEMS",
+      categories: "CATEGORIES",
+      whole_menu: "WHOLE_MENU",
+    };
+    return map[scope];
+  }
+
+  private mapPromotionScopeFromDb(value: string): HubPromotion["scope"] {
+    const map: Record<string, HubPromotion["scope"]> = {
+      ITEMS: "items",
+      CATEGORIES: "categories",
+      WHOLE_MENU: "whole_menu",
+    };
+    return map[value] ?? "whole_menu";
   }
 
   private mapMenuItem(item: any) {

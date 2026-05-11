@@ -118,6 +118,7 @@ type CourierAccount = {
   weeklyEarnings: number;
   rewardPoints: number;
   nextPayoutDate: string | null;
+  assignedStores?: Array<{ storeId: string; name: string; slug: string }>;
 };
 
 type CourierLoginResponse = {
@@ -475,6 +476,21 @@ export default function App() {
           </Pressable>
         </View>
 
+        {courierAccount.assignedStores && courierAccount.assignedStores.length > 0 ? (
+          <View style={styles.assignBanner}>
+            <Text style={styles.assignBannerTitle}>Assigned takeaways</Text>
+            <Text style={styles.assignBannerCopy}>
+              {courierAccount.assignedStores.map((s) => s.name).join(" · ")}
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.assignBannerMuted}>
+            <Text style={styles.assignBannerCopy}>
+              No takeaway linked yet. Your hub adds your email under Drivers → Courier team — then jobs for that store appear in Orders.
+            </Text>
+          </View>
+        )}
+
         <View style={styles.tabBar}>
           {[
             { id: "orders", label: "Orders" },
@@ -773,6 +789,34 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     textTransform: "capitalize",
+  },
+  assignBanner: {
+    backgroundColor: "#e8f8fb",
+    borderColor: "rgba(13, 138, 168, 0.35)",
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 4,
+  },
+  assignBannerMuted: {
+    backgroundColor: "rgba(15, 17, 21, 0.04)",
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  assignBannerTitle: {
+    color: "#065f78",
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 1,
+    textTransform: "uppercase",
+  },
+  assignBannerCopy: {
+    color: "#374151",
+    fontSize: 14,
+    fontWeight: "600",
+    lineHeight: 20,
   },
   tabBar: {
     backgroundColor: "#ffffff",

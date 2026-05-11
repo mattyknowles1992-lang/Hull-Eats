@@ -333,9 +333,6 @@ export default function CustomerHomePage() {
 
         <div className="search-meta-row">
           <div className="delivery-pill">Serving Hull and surrounding areas</div>
-          <div className="delivery-pill is-highlighted">
-            Pay per delivery — each store sets fees at checkout (standard for launch)
-          </div>
         </div>
 
         <div className="filter-row" aria-label="Marketplace filters">
@@ -418,29 +415,6 @@ export default function CustomerHomePage() {
             ) : null}
           </div>
         </div>
-
-        <aside className="sidebar-stack">
-          <section className="feature-panel feature-panel-dark">
-            <div className="section-heading compact">
-              <div>
-                <h2>Delivery at launch</h2>
-                <p>
-                  You pay each store&apos;s delivery fee at checkout — no platform subscription required. Optional
-                  membership-style perks may be added later as the network grows.
-                </p>
-              </div>
-            </div>
-
-            <div className="membership-card">
-              <p className="form-helper" style={{ margin: 0, color: "rgba(255,255,255,0.85)", lineHeight: 1.55 }}>
-                Launch focuses on reliable ordering and clear per-order pricing. Funded rollouts can unlock extras when the
-                time is right.
-              </p>
-              <span className="coming-soon-pill">Pay as you go today</span>
-            </div>
-          </section>
-
-        </aside>
       </section>
 
       <Link href="/services" className="hull-services-promo marketplace-scene" aria-label="Explore Hull Services">

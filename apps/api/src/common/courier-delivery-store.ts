@@ -315,12 +315,23 @@ const startDemoDelivery = (orderReference: string) => {
   return startedDelivery;
 };
 
-export const listCourierJobs = async () => {
+export const listCourierJobs = async (courierProfileId: string) => {
+  const assignments = await prisma.storeCourierAssignment.findMany({
+    where: { courierProfileId },
+    select: { storeId: true },
+  });
+  const storeIds = assignments.map((row) => row.storeId);
+
+  if (storeIds.length === 0) {
+    return [];
+  }
+
   const persistedOrders = await prisma.order.findMany({
     where: {
       fulfillmentType: "DELIVERY" as any,
       paymentStatus: { in: ["AUTHORIZED", "PAID"] as any },
       status: { notIn: ["DELIVERED", "CANCELLED", "REJECTED"] as any },
+      storeId: { in: storeIds },
     },
     include: {
       store: true,

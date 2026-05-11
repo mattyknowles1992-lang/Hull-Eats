@@ -149,6 +149,7 @@ export class PublicController {
       orderNumber?: string;
       customerEmail?: string;
       customerPhone?: string;
+      customerProfileId?: string;
     };
 
     return this.customerNotifications.registerPushToken(input);

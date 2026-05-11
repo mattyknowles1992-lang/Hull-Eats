@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@prisma/client": "^6.7.0",
     "@hull-eats/auth": "workspace:*",
     "@hull-eats/config": "workspace:*",
     "@hull-eats/db": "workspace:*",

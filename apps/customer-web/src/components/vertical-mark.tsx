@@ -18,7 +18,6 @@ export function VerticalMark({ type, title }: VerticalMarkProps) {
             <stop offset="100%" stopColor="#079bc8" />
           </linearGradient>
         </defs>
-        <rect x="8" y="8" width="72" height="72" rx="22" fill="rgba(7,17,24,0.55)" stroke="url(#vm-tk-a)" strokeWidth="2" />
         <path
           d="M28 58 L44 30 L60 58 Z"
           fill="none"

@@ -1,7 +1,18 @@
 import { NotFoundException } from "@nestjs/common";
 
-import type { CheckoutSession, OrderPaymentMethod, OrderSummary, PaymentStatus, PrintJobPayload } from "@hull-eats/types";
-import { orderSummarySchema, printJobPayloadSchema } from "@hull-eats/types";
+import type {
+  CheckoutSession,
+  MerchantDriverCashUpPeriod,
+  OrderPaymentMethod,
+  OrderSummary,
+  PaymentStatus,
+  PrintJobPayload,
+} from "@hull-eats/types";
+import {
+  merchantDriverCashUpResponseSchema,
+  orderSummarySchema,
+  printJobPayloadSchema,
+} from "@hull-eats/types";
 import { prisma } from "@hull-eats/db";
 
 import { demoStores } from "./demo-data";
@@ -429,6 +440,201 @@ export const listMerchantOrders = async (hubId: string): Promise<OrderSummary[]>
   return orders.map(toOrderSummary);
 };
 
+async function merchantCashUpPeriodBounds(
+  period: MerchantDriverCashUpPeriod,
+): Promise<{ start: Date; end: Date; label: string }> {
+  const rows =
+    period === "today"
+      ? await prisma.$queryRaw<Array<{ start: Date; end: Date }>>`
+          SELECT
+            ((CURRENT_TIMESTAMP AT TIME ZONE 'Europe/London')::date)::timestamp AT TIME ZONE 'Europe/London' AS start,
+            (((CURRENT_TIMESTAMP AT TIME ZONE 'Europe/London')::date + 1))::timestamp AT TIME ZONE 'Europe/London' AS end
+        `
+      : period === "yesterday"
+        ? await prisma.$queryRaw<Array<{ start: Date; end: Date }>>`
+            SELECT
+              (((CURRENT_TIMESTAMP AT TIME ZONE 'Europe/London')::date - 1))::timestamp AT TIME ZONE 'Europe/London' AS start,
+              ((CURRENT_TIMESTAMP AT TIME ZONE 'Europe/London')::date)::timestamp AT TIME ZONE 'Europe/London' AS end
+          `
+        : await prisma.$queryRaw<Array<{ start: Date; end: Date }>>`
+            SELECT
+              (((CURRENT_TIMESTAMP AT TIME ZONE 'Europe/London')::date - 6))::timestamp AT TIME ZONE 'Europe/London' AS start,
+              (((CURRENT_TIMESTAMP AT TIME ZONE 'Europe/London')::date + 1))::timestamp AT TIME ZONE 'Europe/London' AS end
+          `;
+
+  const row = rows[0];
+  if (!row) {
+    throw new Error("Could not resolve reporting period bounds.");
+  }
+
+  const label =
+    period === "today"
+      ? "Today (Europe/London)"
+      : period === "yesterday"
+        ? "Yesterday (Europe/London)"
+        : "Last 7 calendar days (Europe/London)";
+
+  return { start: row.start, end: row.end, label };
+}
+
+async function computeLiveMapAllowedForStore(storeId: string): Promise<{ allowed: boolean; message?: string }> {
+  const hours = await prisma.storeHour.findMany({
+    where: { storeId },
+  });
+
+  if (hours.length === 0) {
+    return {
+      allowed: true,
+      message:
+        "Opening hours are not configured for this store yet — live map stays visible. Add weekly hours in the database (store_hours) to hide the map outside service times.",
+    };
+  }
+
+  const dowRows = await prisma.$queryRaw<Array<{ dow: number }>>`
+    SELECT EXTRACT(DOW FROM (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/London'))::int AS dow
+  `;
+  const dow = dowRows[0]?.dow ?? 0;
+  const row = hours.find((h) => h.dayOfWeek === dow);
+
+  if (!row || row.isClosed) {
+    return {
+      allowed: false,
+      message: "Outside today’s configured opening hours — live driver map is hidden. Customers can still track orders from their link.",
+    };
+  }
+
+  const parseHm = (value: string) => {
+    const parts = value.split(":");
+    const hh = Number(parts[0]);
+    const mm = Number(parts[1] ?? "0");
+    return (Number.isFinite(hh) ? hh : 0) * 60 + (Number.isFinite(mm) ? mm : 0);
+  };
+
+  const londonParts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date());
+
+  const hour = Number(londonParts.find((p) => p.type === "hour")?.value ?? "0");
+  const minute = Number(londonParts.find((p) => p.type === "minute")?.value ?? "0");
+  const nowM = hour * 60 + minute;
+  const openM = parseHm(row.openTime);
+  const closeM = parseHm(row.closeTime);
+
+  if (closeM > openM) {
+    if (nowM >= openM && nowM < closeM) {
+      return { allowed: true };
+    }
+  } else {
+    if (nowM >= openM || nowM < closeM) {
+      return { allowed: true };
+    }
+  }
+
+  return {
+    allowed: false,
+    message: "Outside today’s opening window — live driver map is hidden until the next scheduled service time.",
+  };
+}
+
+export const listMerchantDriverCashUp = async (hubId: string, period: MerchantDriverCashUpPeriod) => {
+  const { start, end, label } = await merchantCashUpPeriodBounds(period);
+
+  const orders = await prisma.order.findMany({
+    where: {
+      placedAt: {
+        gte: start,
+        lt: end,
+      },
+      fulfillmentType: "DELIVERY" as any,
+      status: { notIn: ["CANCELLED", "REJECTED"] as any },
+      store: {
+        merchantId: hubId,
+      },
+      delivery: {
+        courierProfileId: { not: null },
+      },
+    },
+    include: {
+      delivery: {
+        include: {
+          courierProfile: {
+            include: {
+              user: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  const byCourier = new Map<
+    string,
+    {
+      courierProfileId: string;
+      courierName: string;
+      paidOrderCount: number;
+      paidOrderTotal: number;
+      cashOrderCount: number;
+      cashOrderTotal: number;
+    }
+  >();
+
+  for (const order of orders) {
+    const cp = order.delivery?.courierProfile;
+    if (!cp) continue;
+
+    const paymentMethod = String((order as { paymentMethod?: string }).paymentMethod ?? "").toUpperCase();
+    const isCash = paymentMethod === "CASH_ON_DELIVERY";
+    const total = Number(order.totalAmount);
+
+    const existing =
+      byCourier.get(cp.id) ??
+      {
+        courierProfileId: cp.id,
+        courierName: cp.user?.fullName ?? "Courier",
+        paidOrderCount: 0,
+        paidOrderTotal: 0,
+        cashOrderCount: 0,
+        cashOrderTotal: 0,
+      };
+
+    if (isCash) {
+      existing.cashOrderCount += 1;
+      existing.cashOrderTotal += total;
+    } else {
+      existing.paidOrderCount += 1;
+      existing.paidOrderTotal += total;
+    }
+
+    byCourier.set(cp.id, existing);
+  }
+
+  const drivers = Array.from(byCourier.values()).sort((a, b) => a.courierName.localeCompare(b.courierName));
+
+  const totals = drivers.reduce(
+    (acc, row) => {
+      acc.paidOrderCount += row.paidOrderCount;
+      acc.paidOrderTotal += row.paidOrderTotal;
+      acc.cashOrderCount += row.cashOrderCount;
+      acc.cashOrderTotal += row.cashOrderTotal;
+      return acc;
+    },
+    { paidOrderCount: 0, paidOrderTotal: 0, cashOrderCount: 0, cashOrderTotal: 0 },
+  );
+
+  return merchantDriverCashUpResponseSchema.parse({
+    period,
+    rangeLabel: label,
+    rangeStartIso: start.toISOString(),
+    rangeEndIso: end.toISOString(),
+    drivers,
+    totals,
+  });
+};
+
 export const findMerchantOrder = async (hubId: string, orderId: string): Promise<OrderSummary | null> => {
   const order = await prisma.order.findFirst({
     where: {
@@ -553,6 +759,14 @@ export const listMerchantDriverTracking = async (hubId: string) => {
 
   const driverList = Array.from(drivers.values()).sort((first, second) => second.orderCount - first.orderCount);
 
+  const store = await prisma.store.findFirst({
+    where: { merchantId: hubId },
+    orderBy: { createdAt: "asc" },
+    select: { id: true },
+  });
+
+  const liveMap = store ? await computeLiveMapAllowedForStore(store.id) : { allowed: true as boolean, message: undefined as string | undefined };
+
   return {
     drivers: driverList,
     totals: {
@@ -561,6 +775,8 @@ export const listMerchantDriverTracking = async (hubId: string) => {
       cashDue: driverList.reduce((sum, driver) => sum + driver.totalCashDue, 0),
       cashOrderCount: driverList.reduce((sum, driver) => sum + driver.orders.filter((order) => order.cashDue > 0).length, 0),
     },
+    liveMapAllowed: liveMap.allowed,
+    liveMapMessage: liveMap.message,
   };
 };
 

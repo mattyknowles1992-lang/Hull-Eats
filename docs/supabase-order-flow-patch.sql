@@ -221,6 +221,7 @@ create table if not exists public.print_jobs (
 
 create table if not exists public.customer_push_tokens (
   id uuid primary key default gen_random_uuid(),
+  customer_id uuid references public.customer_profiles(id) on delete cascade,
   order_id uuid references public.orders(id) on delete cascade,
   customer_email text,
   customer_phone text,

@@ -14,7 +14,7 @@ export class CourierRegistryService {
       orderBy: { createdAt: "desc" },
     });
 
-    return accounts.map((account) => this.toSummary(account));
+    return Promise.all(accounts.map((account) => this.toSummary(account)));
   }
 
   async createCourier(input: {
@@ -81,7 +81,7 @@ export class CourierRegistryService {
       },
     });
 
-    return this.toSummary(account);
+    return await this.toSummary(account);
   }
 
   async setActiveSession(courierProfileId: string, sessionId: string) {
@@ -198,7 +198,7 @@ export class CourierRegistryService {
       },
     });
 
-    return this.toSummary(updated);
+    return await this.toSummary(updated);
   }
 
   async deleteCourier(courierProfileId: string) {
@@ -264,7 +264,7 @@ export class CourierRegistryService {
       },
     });
 
-    return this.toSummary(updated);
+    return await this.toSummary(updated);
   }
 
   async getCourierAccount(courierProfileId: string) {
@@ -280,7 +280,7 @@ export class CourierRegistryService {
       throw new UnauthorizedException("Courier account was not found.");
     }
 
-    return this.toSummary(account);
+    return await this.toSummary(account);
   }
 
   private nextFriday() {
@@ -300,7 +300,21 @@ export class CourierRegistryService {
         : "active";
   }
 
-  private toSummary(account: any) {
+  private async toSummary(account: any) {
+    const assignments = await prisma.storeCourierAssignment.findMany({
+      where: { courierProfileId: account.courierProfileId },
+      include: {
+        store: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
     return {
       id: account.id,
       userId: account.userId,
@@ -319,6 +333,11 @@ export class CourierRegistryService {
       weeklyEarnings: Number(account.weeklyEarnings),
       rewardPoints: account.rewardPoints,
       nextPayoutDate: account.nextPayoutDate?.toISOString() ?? null,
+      assignedStores: assignments.map((row) => ({
+        storeId: row.store.id,
+        name: row.store.name,
+        slug: row.store.slug,
+      })),
     };
   }
 }

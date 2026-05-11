@@ -13,6 +13,7 @@
     "db:generate": "pnpm --filter @hull-eats/db prisma:generate",
     "db:migrate": "pnpm --filter @hull-eats/db prisma:migrate",
     "db:seed": "pnpm --filter @hull-eats/db seed",
+    "db:diff": "node ./packages/db/node_modules/dotenv-cli/cli.js -e ./.env -- node ./packages/db/node_modules/prisma/build/index.js migrate diff --from-schema-datasource ./packages/db/prisma/schema.prisma --to-schema-datamodel ./packages/db/prisma/schema.prisma --script",
     "docker:up": "docker compose up -d postgres redis",
     "docker:down": "docker compose down"
   },

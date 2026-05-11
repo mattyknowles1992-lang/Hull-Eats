@@ -159,6 +159,23 @@ enum MenuImportStatus {
   @@map("menu_import_status")
 }
 
+enum StorePromotionKind {
+  BOGO_ITEM
+  PERCENT_OFF
+  FIXED_AMOUNT_ITEM
+  BUNDLE_FIXED_PRICE
+
+  @@map("store_promotion_kind")
+}
+
+enum StorePromotionScope {
+  ITEMS
+  CATEGORIES
+  WHOLE_MENU
+
+  @@map("store_promotion_scope")
+}
+
 enum CustomerAddressType {
   HOME
   WORK
@@ -338,8 +355,47 @@ model Store {
   printers          Printer[]
   uploadedAssets    MediaAsset[]       @relation("StoreAssets")
   menuImportBatches MenuImportBatch[]
+  promotions        StorePromotion[]
+  courierAssignments StoreCourierAssignment[]
 
   @@map("stores")
+}
+
+model StoreCourierAssignment {
+  id               String           @id @default(cuid())
+  storeId          String           @map("store_id") @db.Uuid
+  courierProfileId String           @map("courier_profile_id")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  store            Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  courierProfile   CourierProfile   @relation(fields: [courierProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, courierProfileId])
+  @@index([courierProfileId])
+  @@map("store_courier_assignments")
+}
+
+model StorePromotion {
+  id                 String              @id @default(uuid()) @db.Uuid
+  storeId            String              @map("store_id") @db.Uuid
+  title              String
+  isActive           Boolean             @default(true) @map("is_active")
+  kind               StorePromotionKind
+  scope              StorePromotionScope
+  percentOff         Decimal?            @map("percent_off") @db.Decimal(5, 2)
+  fixedAmountOff     Decimal?            @map("fixed_amount_off") @db.Decimal(10, 2)
+  bundleFixedPrice   Decimal?            @map("bundle_fixed_price") @db.Decimal(10, 2)
+  menuItemIds        String[]            @default([]) @map("menu_item_ids")
+  categoryIds        String[]            @default([]) @map("category_ids")
+  bundleLines        Json?               @map("bundle_lines")
+  validDates         String[]            @map("valid_dates")
+  dailyStartTime     String?             @map("daily_start_time")
+  dailyEndTime       String?             @map("daily_end_time")
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+  store              Store               @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
+  @@map("store_promotions")
 }
 
 model StoreHour {
@@ -578,6 +634,7 @@ model CourierProfile {
   shifts        DriverShift[]
   deliveries    Delivery[]
   account       CourierAccount?
+  storeAssignments StoreCourierAssignment[]
 
   @@map("courier_profiles")
 }

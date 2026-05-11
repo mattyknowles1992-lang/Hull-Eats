@@ -4,6 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 
 import type { HubMenuSection, HubSettings, HubUser, MerchantWorkspace, MenuItem, OrderSummary } from "@hull-eats/types";
 
+import { HubDriversWorkbench } from "./hub-drivers-workbench";
+import { HubOffersWorkbench } from "./hub-offers-workbench";
+
 type HubRole = "owner" | "manager" | "staff";
 type StockStatus = "in_stock" | "low_stock" | "out_of_stock";
 type HubSection =
@@ -14,6 +17,7 @@ type HubSection =
   | "earnings"
   | "reports"
   | "menu"
+  | "offers"
   | "businessProfile"
   | "users"
   | "settings"
@@ -59,6 +63,7 @@ type MerchantDriverTracking = {
       customerName: string;
       dropoffAddress: string;
       paymentStatus: string;
+      paymentMethod: string;
       cashDue: number;
       totalAmount: number;
       scannedAt: string | null;
@@ -74,6 +79,8 @@ type MerchantDriverTracking = {
     cashDue: number;
     cashOrderCount: number;
   };
+  liveMapAllowed?: boolean;
+  liveMapMessage?: string;
 };
 
 type CreateItemFormState = {
@@ -1014,6 +1021,7 @@ export default function MerchantPortalPage() {
   const [passwordNotice, setPasswordNotice] = useState("");
   const [orderNotice, setOrderNotice] = useState("");
   const [driverNotice, setDriverNotice] = useState("");
+  const [offersNotice, setOffersNotice] = useState("");
   const [driverTracking, setDriverTracking] = useState<MerchantDriverTracking | null>(null);
   const [activeHubSection, setActiveHubSection] = useState<HubSection>("home");
   const [activeHubPanel, setActiveHubPanel] = useState<"menu" | "import" | "settings" | "account">("menu");
@@ -1757,18 +1765,21 @@ export default function MerchantPortalPage() {
             >
               <span>08</span> Paste menu
             </button>
+            <button type="button" style={activeHubSection === "offers" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("offers")}>
+              <span>09</span> Offers &amp; deals
+            </button>
           </div>
 
           <div style={sidebarGroup}>
             <span style={sidebarGroupTitle}>Business</span>
             <button type="button" style={activeHubSection === "businessProfile" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("businessProfile")}>
-              <span>09</span> Business profile
+              <span>10</span> Business profile
             </button>
             <button type="button" style={activeHubSection === "users" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("users")}>
-              <span>10</span> Users
+              <span>11</span> Users
             </button>
             <button type="button" style={activeHubSection === "settings" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("settings")}>
-              <span>11</span> Settings
+              <span>12</span> Settings
             </button>
           </div>
 
@@ -1815,6 +1826,7 @@ export default function MerchantPortalPage() {
         {passwordNotice ? <p style={successMessageStyle}>{passwordNotice}</p> : null}
         {orderNotice ? <p style={successMessageStyle}>{orderNotice}</p> : null}
         {driverNotice ? <p style={successMessageStyle}>{driverNotice}</p> : null}
+        {offersNotice ? <p style={successMessageStyle}>{offersNotice}</p> : null}
 
         {activeHubSection === "home" ? (
           <section style={dashboardGrid}>
@@ -1883,118 +1895,19 @@ export default function MerchantPortalPage() {
           </section>
         ) : null}
 
-        {activeHubSection === "drivers" ? (
-          <section style={placeholderPanel}>
-            <p style={eyebrowDark}>Driver tracking</p>
-            <div style={itemTopRow}>
-              <div>
-                <h2 style={sectionTitle}>Drivers & cash-up</h2>
-                <p style={panelCopyDark}>
-                  Scanned delivery receipts assign the order to that driver. Track who is carrying what, where they last pinged, and how much cash is due back.
-                </p>
-              </div>
-              <button type="button" style={secondaryButton} onClick={() => void loadDriverTracking()}>
-                Refresh drivers
-              </button>
-            </div>
-
-            <div style={summaryGrid}>
-              <article style={summaryCard}>
-                <span style={summaryLabel}>Drivers with scanned orders</span>
-                <strong style={summaryValue}>{driverTracking?.totals.driverCount ?? 0}</strong>
-              </article>
-              <article style={summaryCard}>
-                <span style={summaryLabel}>Assigned delivery orders</span>
-                <strong style={summaryValue}>{driverTracking?.totals.orderCount ?? 0}</strong>
-              </article>
-              <article style={summaryCard}>
-                <span style={summaryLabel}>Cash orders</span>
-                <strong style={summaryValue}>{driverTracking?.totals.cashOrderCount ?? 0}</strong>
-              </article>
-              <article style={summaryCard}>
-                <span style={summaryLabel}>Cash due back</span>
-                <strong style={summaryValue}>{formatMoney(driverTracking?.totals.cashDue ?? 0)}</strong>
-              </article>
-            </div>
-
-            <section style={driverTrackingGrid}>
-              <article style={driverMapPanel}>
-                <div style={driverMapHeader}>
-                  <div>
-                    <span style={summaryLabel}>Live Hull map</span>
-                    <strong style={driverMapTitle}>On-shift drivers</strong>
-                  </div>
-                  <span style={darkBadge}>Hull only</span>
-                </div>
-                <div style={driverMapCanvas} aria-label="Live driver map preview">
-                  <span style={{ ...driverMapAreaLabel, left: "12%", top: "18%" }}>Beverley Rd</span>
-                  <span style={{ ...driverMapAreaLabel, left: "52%", top: "28%" }}>City centre</span>
-                  <span style={{ ...driverMapAreaLabel, left: "66%", top: "62%" }}>Holderness Rd</span>
-                  <span style={{ ...driverMapAreaLabel, left: "22%", top: "74%" }}>Hessle Rd</span>
-                  {(driverTracking?.drivers ?? []).map((driver, index) =>
-                    driver.latestLocation ? (
-                      <span
-                        key={driver.courierProfileId}
-                        title={`${driver.courierName} / ${formatTrackingTime(driver.latestLocation.updatedAt)}`}
-                        style={{
-                          ...driverMapMarker,
-                          ...mapHullPosition(driver.latestLocation.latitude, driver.latestLocation.longitude),
-                          transform: `translate(-50%, -100%) rotate(${driver.latestLocation.heading ?? 0}deg)`,
-                        }}
-                      >
-                        <span style={{ ...driverMarkerLogo, transform: `rotate(-${driver.latestLocation.heading ?? 0}deg)` }}>
-                          {driver.courierName.slice(0, 1).toUpperCase() || index + 1}
-                        </span>
-                      </span>
-                    ) : null,
-                  )}
-                  {(driverTracking?.drivers ?? []).every((driver) => !driver.latestLocation) ? (
-                    <div style={driverMapEmpty}>Driver locations appear here after the courier app sends a GPS ping.</div>
-                  ) : null}
-                </div>
-              </article>
-
-              <div style={driverCardList}>
-                {(driverTracking?.drivers ?? []).map((driver) => (
-                  <article key={driver.courierProfileId} style={driverCard}>
-                    <div style={itemTopRow}>
-                      <div>
-                        <h3 style={driverName}>{driver.courierName}</h3>
-                        <p style={panelCopyDark}>
-                          {driver.currentStatus.replaceAll("_", " ")} / {driver.orderCount} orders / location {formatTrackingTime(driver.latestLocation?.updatedAt)}
-                        </p>
-                      </div>
-                      <span style={driver.totalCashDue > 0 ? orangeBadge : darkBadge}>
-                        {driver.totalCashDue > 0 ? `Cash due ${formatMoney(driver.totalCashDue)}` : "No cash due"}
-                      </span>
-                    </div>
-
-                    <div style={driverOrderList}>
-                      {driver.orders.map((order) => (
-                        <div key={order.orderId} style={driverOrderRow}>
-                          <div>
-                            <strong>{order.orderNumber}</strong>
-                            <p style={driverOrderMeta}>
-                              {order.customerName} / {order.status.replaceAll("_", " ")} / scanned {formatTrackingTime(order.scannedAt)}
-                            </p>
-                            <p style={driverOrderAddress}>{order.dropoffAddress || "No delivery address saved"}</p>
-                          </div>
-                          <div style={driverOrderTotals}>
-                            <span>{formatMoney(order.totalAmount)}</span>
-                            <small>{order.cashDue > 0 ? `Collect ${formatMoney(order.cashDue)}` : "No cash"}</small>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </article>
-                ))}
-
-                {(driverTracking?.drivers ?? []).length === 0 ? (
-                  <div style={emptyStateCard}>No scanned delivery orders are assigned to drivers yet. Once a courier scans a receipt, the order appears here for tracking and cash-up.</div>
-                ) : null}
-              </div>
-            </section>
-          </section>
+        {activeHubSection === "drivers" && merchantToken && activeHubId ? (
+          <HubDriversWorkbench
+            apiBaseUrl={apiBaseUrl}
+            token={merchantToken}
+            hubId={activeHubId}
+            storeName={hubSettings.name || "Your store"}
+            driverTracking={driverTracking}
+            onRefreshTracking={() => void loadDriverTracking()}
+            onNotice={(message) => {
+              setDriverNotice(message);
+              window.setTimeout(() => setDriverNotice(""), 4500);
+            }}
+          />
         ) : null}
 
         {activeHubSection === "orderHistory" ? (
@@ -2019,6 +1932,19 @@ export default function MerchantPortalPage() {
             <h2 style={sectionTitle}>Menu and service insights</h2>
             <p style={panelCopyDark}>Use this area for product performance, busy periods, missing images, stock issues, and preparation-time reports.</p>
           </section>
+        ) : null}
+
+        {activeHubSection === "offers" && merchantToken && activeHubId ? (
+          <HubOffersWorkbench
+            apiBaseUrl={apiBaseUrl}
+            token={merchantToken}
+            hubId={activeHubId}
+            menuSections={menuSections}
+            onNotice={(message) => {
+              setOffersNotice(message);
+              window.setTimeout(() => setOffersNotice(""), 4500);
+            }}
+          />
         ) : null}
 
         {activeHubSection === "help" ? (

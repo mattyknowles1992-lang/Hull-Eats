@@ -1,4 +1,17 @@
-import { Body, Controller, Delete, Get, Headers, Inject, NotFoundException, Param, Patch, Post } from "@nestjs/common";
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Headers,
+  Inject,
+  NotFoundException,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from "@nestjs/common";
 
 import {
   applyMenuImportInputSchema,
@@ -7,6 +20,7 @@ import {
   createHubMenuSectionInputSchema,
   createHubUserInputSchema,
   merchantAcceptOrderSchema,
+  merchantDriverCashUpPeriodSchema,
   merchantLoginInputSchema,
   merchantRejectOrderSchema,
   merchantWorkspaceUpdateInputSchema,
@@ -20,6 +34,7 @@ import { InternalAuthService } from "../../common/internal-auth.service";
 import {
   buildMerchantOrderReceipt,
   findMerchantOrder,
+  listMerchantDriverCashUp,
   listMerchantDriverTracking,
   listMerchantOrders,
   queueMerchantOrderReceiptPrint,
@@ -171,6 +186,43 @@ export class MerchantController {
     return this.hubRegistry.applyMenuImport(hubId, importId, input);
   }
 
+  @Get("hubs/:hubId/promotions")
+  listPromotions(@Headers("authorization") authorization: string | undefined, @Param("hubId") hubId: string) {
+    this.internalAuth.requireMerchantToken(authorization, hubId);
+    return this.hubRegistry.listStorePromotions(hubId);
+  }
+
+  @Post("hubs/:hubId/promotions")
+  createPromotion(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("hubId") hubId: string,
+    @Body() body: unknown,
+  ) {
+    this.internalAuth.requireMerchantToken(authorization, hubId);
+    return this.hubRegistry.createStorePromotion(hubId, body);
+  }
+
+  @Patch("hubs/:hubId/promotions/:promotionId")
+  updatePromotion(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("hubId") hubId: string,
+    @Param("promotionId") promotionId: string,
+    @Body() body: unknown,
+  ) {
+    this.internalAuth.requireMerchantToken(authorization, hubId);
+    return this.hubRegistry.updateStorePromotion(hubId, promotionId, body);
+  }
+
+  @Delete("hubs/:hubId/promotions/:promotionId")
+  deletePromotion(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("hubId") hubId: string,
+    @Param("promotionId") promotionId: string,
+  ) {
+    this.internalAuth.requireMerchantToken(authorization, hubId);
+    return this.hubRegistry.deleteStorePromotion(hubId, promotionId);
+  }
+
   @Get("orders")
   async listOrders(@Headers("authorization") authorization?: string) {
     const session = this.internalAuth.requireMerchantToken(authorization);
@@ -181,6 +233,42 @@ export class MerchantController {
   async listDriverTracking(@Headers("authorization") authorization?: string) {
     const session = this.internalAuth.requireMerchantToken(authorization);
     return listMerchantDriverTracking(session.hubId!);
+  }
+
+  @Get("hubs/:hubId/drivers/cash-up")
+  async driverCashUp(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("hubId") hubId: string,
+    @Query("period") period?: string,
+  ) {
+    this.internalAuth.requireMerchantToken(authorization, hubId);
+    const parsed = merchantDriverCashUpPeriodSchema.safeParse(period ?? "today");
+    if (!parsed.success) {
+      throw new BadRequestException("period must be today, yesterday, or last_7_days.");
+    }
+    return listMerchantDriverCashUp(hubId, parsed.data);
+  }
+
+  @Get("hubs/:hubId/drivers/assignments")
+  listHubCourierAssignments(@Headers("authorization") authorization: string | undefined, @Param("hubId") hubId: string) {
+    this.internalAuth.requireMerchantToken(authorization, hubId);
+    return this.hubRegistry.listHubCourierAssignments(hubId);
+  }
+
+  @Post("hubs/:hubId/drivers/assignments")
+  addHubCourierAssignment(@Headers("authorization") authorization: string | undefined, @Param("hubId") hubId: string, @Body() body: unknown) {
+    this.internalAuth.requireMerchantToken(authorization, hubId);
+    return this.hubRegistry.addHubCourierAssignment(hubId, body);
+  }
+
+  @Delete("hubs/:hubId/drivers/assignments/:courierProfileId")
+  removeHubCourierAssignment(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("hubId") hubId: string,
+    @Param("courierProfileId") courierProfileId: string,
+  ) {
+    this.internalAuth.requireMerchantToken(authorization, hubId);
+    return this.hubRegistry.removeHubCourierAssignment(hubId, courierProfileId);
   }
 
   @Get("orders/:orderId")

@@ -4344,6 +4344,10 @@ button.filter-pill {
     align-items: start;
   }
 
+  .content-grid.marketplace-scene {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .register-grid-simple {
     grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
     align-items: start;

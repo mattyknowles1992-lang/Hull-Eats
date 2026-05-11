@@ -16,6 +16,8 @@ type RegisterCustomerPushTokenInput = {
   orderNumber?: string;
   customerEmail?: string;
   customerPhone?: string;
+  /** When set, stored as customer_push_tokens.customer_id (matches orders.customer_profile_id). */
+  customerProfileId?: string;
 };
 
 const customerWebBaseUrl = () => (process.env.CUSTOMER_WEB_URL ?? "https://hull-eats.onrender.com").replace(/\/$/, "");
@@ -56,6 +58,9 @@ export class CustomerNotificationsService {
         })
       : null;
 
+    const profileId =
+      input.customerProfileId && uuidPattern.test(input.customerProfileId.trim()) ? input.customerProfileId.trim() : null;
+
     const rows = await prisma.$queryRawUnsafe<Array<{ id: string }>>(
       `
         insert into public.customer_push_tokens (
@@ -65,14 +70,16 @@ export class CustomerNotificationsService {
           token,
           platform,
           is_active,
+          customer_id,
           created_at,
           updated_at
         )
-        values ($1::uuid, $2, $3, $4, $5, true, timezone('utc', now()), timezone('utc', now()))
+        values ($1::uuid, $2, $3, $4, $5, true, $6::uuid, timezone('utc', now()), timezone('utc', now()))
         on conflict (token) do update set
           order_id = coalesce(excluded.order_id, public.customer_push_tokens.order_id),
           customer_email = coalesce(excluded.customer_email, public.customer_push_tokens.customer_email),
           customer_phone = coalesce(excluded.customer_phone, public.customer_push_tokens.customer_phone),
+          customer_id = coalesce(excluded.customer_id, public.customer_push_tokens.customer_id),
           platform = excluded.platform,
           is_active = true,
           updated_at = timezone('utc', now())
@@ -83,6 +90,7 @@ export class CustomerNotificationsService {
       input.customerPhone ?? order?.customerPhone ?? null,
       token,
       input.platform ?? "unknown",
+      profileId,
     );
 
     return {
@@ -114,15 +122,22 @@ export class CustomerNotificationsService {
     const deepLink = `${customerWebBaseUrl()}/track/${encodeURIComponent(order.orderNumber)}`;
     const tokens = await prisma.$queryRawUnsafe<Array<{ token: string }>>(
       `
-        select token
-        from public.customer_push_tokens
-        where is_active = true
+        select t.token
+        from public.customer_push_tokens t
+        where t.is_active = true
           and (
-            order_id = $1::uuid
-            or ($2::text is not null and lower(customer_email) = lower($2::text))
-            or ($3::text is not null and customer_phone = $3::text)
+            t.order_id = $1::uuid
+            or ($2::text is not null and lower(t.customer_email) = lower($2::text))
+            or ($3::text is not null and t.customer_phone = $3::text)
+            or exists (
+              select 1
+              from public.orders o
+              where o.id = $1::uuid
+                and o.customer_profile_id is not null
+                and o.customer_profile_id = t.customer_id
+            )
           )
-        order by updated_at desc
+        order by t.updated_at desc
         limit 10
       `,
       order.id,
