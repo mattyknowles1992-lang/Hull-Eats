@@ -91,6 +91,7 @@ export const createOrderInputSchema = z.object({
   customerName: z.string().min(1),
   customerPhone: z.string().min(1),
   customerEmail: z.string().email().optional(),
+  customerProfileId: z.string().min(1).optional(),
   deliveryZoneId: z.string().min(1).optional(),
   addressLine1: z.string().min(1).optional(),
   city: z.string().min(1).optional(),

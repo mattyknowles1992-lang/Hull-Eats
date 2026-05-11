@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { getBasketItemCount, getBasketSubtotal, loadBasket, type StoreBasket } from "../../../src/lib/basket";
 
@@ -13,9 +13,24 @@ const formatMoney = (value: number) => `£${value.toFixed(2)}`;
 
 export function BasketButton({ storeSlug }: BasketButtonProps) {
   const [basket, setBasket] = useState<StoreBasket | null>(null);
+  const [justUpdated, setJustUpdated] = useState(false);
+  const previousItemCountRef = useRef(0);
 
   useEffect(() => {
-    const sync = () => setBasket(loadBasket(storeSlug));
+    let timeoutId: number | undefined;
+    const sync = () => {
+      const nextBasket = loadBasket(storeSlug);
+      const nextItemCount = getBasketItemCount(nextBasket);
+
+      if (nextItemCount > previousItemCountRef.current) {
+        setJustUpdated(true);
+        window.clearTimeout(timeoutId);
+        timeoutId = window.setTimeout(() => setJustUpdated(false), 1200);
+      }
+
+      previousItemCountRef.current = nextItemCount;
+      setBasket(nextBasket);
+    };
 
     sync();
     window.addEventListener("hull-eats-basket-updated", sync as EventListener);
@@ -24,6 +39,7 @@ export function BasketButton({ storeSlug }: BasketButtonProps) {
     return () => {
       window.removeEventListener("hull-eats-basket-updated", sync as EventListener);
       window.removeEventListener("storage", sync);
+      window.clearTimeout(timeoutId);
     };
   }, [storeSlug]);
 
@@ -31,7 +47,7 @@ export function BasketButton({ storeSlug }: BasketButtonProps) {
   const subtotal = getBasketSubtotal(basket);
 
   return (
-    <Link href={`/checkout/${storeSlug}`} className={`basket-topbar-button${itemCount > 0 ? " has-items" : ""}`}>
+    <Link href={`/checkout/${storeSlug}`} className={`basket-topbar-button${itemCount > 0 ? " has-items" : ""}${justUpdated ? " just-updated" : ""}`}>
       <span>Basket</span>
       {itemCount > 0 ? (
         <strong>

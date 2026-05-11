@@ -81,6 +81,7 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
   const [checkoutSession, setCheckoutSession] = useState<Awaited<ReturnType<typeof createCheckoutSession>> | null>(null);
   const [placedOrder, setPlacedOrder] = useState<Awaited<ReturnType<typeof placeCheckoutOrder>> | null>(null);
   const [paymentMode, setPaymentMode] = useState<CheckoutPaymentMode>("cash_on_delivery");
+  const [customerProfileId, setCustomerProfileId] = useState("");
   const [showClearBasketConfirm, setShowClearBasketConfirm] = useState(false);
 
   useEffect(() => {
@@ -149,6 +150,7 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
           postcode: current.postcode || address?.postcode || "",
           notes: current.notes || address?.delivery_notes || "",
         }));
+        setCustomerProfileId(profile.id);
       } catch {
         // Checkout still works for guest customers when Supabase is not configured locally.
       }
@@ -190,6 +192,7 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
       customerName: formState.customerName.trim(),
       customerPhone: formState.customerPhone.trim(),
       customerEmail: formState.customerEmail.trim() || undefined,
+      customerProfileId: customerProfileId || undefined,
       addressLine1: formState.addressLine1.trim(),
       city: formState.city.trim(),
       postcode: formState.postcode.trim(),

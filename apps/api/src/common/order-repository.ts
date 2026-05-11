@@ -364,6 +364,7 @@ export const persistCheckoutOrder = async (
       status: "PENDING" as any,
       paymentStatus: toDbEnum(options.paymentStatus),
       paymentMethod: toDbEnum(options.paymentMethod),
+      customerProfileId: session.customerProfileId,
       customerName: session.customerName,
       customerPhone: session.customerPhone,
       customerEmail: session.customerEmail,

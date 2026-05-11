@@ -556,6 +556,10 @@ textarea {
   background: rgba(15, 17, 21, 0.1);
 }
 
+.basket-topbar-button.just-updated {
+  animation: basket-pop 780ms ease;
+}
+
 .danger-button {
   color: #8a2121;
   border-color: rgba(138, 33, 33, 0.2);
@@ -3346,6 +3350,45 @@ button.filter-pill {
 .basket-banner {
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   align-items: center;
+}
+
+.basket-floating {
+  position: sticky;
+  top: 12px;
+  z-index: 30;
+  border-color: rgba(7, 155, 200, 0.38);
+  box-shadow:
+    0 20px 38px rgba(15, 17, 21, 0.14),
+    0 10px 24px rgba(7, 155, 200, 0.16);
+  backdrop-filter: blur(18px);
+}
+
+.basket-floating.is-pulsing {
+  animation: basket-pop 780ms ease;
+}
+
+.add-item-button.is-added {
+  color: #101216;
+  border-color: rgba(35, 205, 255, 0.58);
+  background: linear-gradient(180deg, var(--brand-blue-light), var(--brand-blue-dark));
+  animation: basket-pop 780ms ease;
+}
+
+@keyframes basket-pop {
+  0% {
+    transform: scale(1);
+  }
+
+  38% {
+    transform: scale(1.045);
+    box-shadow:
+      0 22px 42px rgba(15, 17, 21, 0.16),
+      0 0 0 8px rgba(35, 205, 255, 0.16);
+  }
+
+  100% {
+    transform: scale(1);
+  }
 }
 
 .basket-added-message {

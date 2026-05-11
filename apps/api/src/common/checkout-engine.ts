@@ -131,6 +131,7 @@ const buildCheckoutSession = (
     customerName: input.customerName,
     customerPhone: input.customerPhone,
     customerEmail: input.customerEmail,
+    customerProfileId: input.customerProfileId,
     customerAddressId: input.customerAddressId,
     addressLine1: input.addressLine1,
     city: input.city,

@@ -25,11 +25,32 @@ type CustomerAddressRow = {
   is_default: boolean;
 };
 
+type CustomerOrderRow = {
+  id: string;
+  order_number: string;
+  status: string;
+  payment_status: string;
+  payment_method: string | null;
+  total_amount: number | string;
+  currency: string;
+  placed_at: string;
+  store_id: string;
+};
+
+const completedOrderStatuses = new Set(["delivered", "cancelled", "rejected"]);
+
+const formatMoney = (value: number | string, currency = "GBP") =>
+  new Intl.NumberFormat("en-GB", {
+    style: "currency",
+    currency,
+  }).format(Number(value));
+
 export function AccountClient() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [profile, setProfile] = useState<CustomerProfileRow | null>(null);
   const [addresses, setAddresses] = useState<CustomerAddressRow[]>([]);
+  const [orders, setOrders] = useState<CustomerOrderRow[]>([]);
   const [notice, setNotice] = useState("");
   const [sessionWithoutProfile, setSessionWithoutProfile] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -42,6 +63,7 @@ export function AccountClient() {
     if (!userId) {
       setProfile(null);
       setAddresses([]);
+      setOrders([]);
       setSessionWithoutProfile(false);
       setIsLoading(false);
       return;
@@ -56,6 +78,7 @@ export function AccountClient() {
     if (profileError || !profileData) {
       setProfile(null);
       setAddresses([]);
+      setOrders([]);
       setSessionWithoutProfile(true);
       setNotice(
         "Your login works, but we could not load your Hull Eats profile from the database yet. If you just signed up, confirm your email from the message we sent you, then refresh this page.",
@@ -74,8 +97,27 @@ export function AccountClient() {
       .eq("customer_profile_id", customerProfile.id)
       .order("is_default", { ascending: false });
 
+    const { data: profileOrderData } = await supabase
+      .from("orders")
+      .select("id,order_number,status,payment_status,payment_method,total_amount,currency,placed_at,store_id")
+      .eq("customer_profile_id", customerProfile.id)
+      .order("placed_at", { ascending: false });
+
+    const { data: emailOrderData } = await supabase
+      .from("orders")
+      .select("id,order_number,status,payment_status,payment_method,total_amount,currency,placed_at,store_id")
+      .is("customer_profile_id", null)
+      .eq("customer_email", customerProfile.email)
+      .order("placed_at", { ascending: false });
+
+    const orderMap = new Map<string, CustomerOrderRow>();
+    [...((profileOrderData ?? []) as CustomerOrderRow[]), ...((emailOrderData ?? []) as CustomerOrderRow[])].forEach((order) => {
+      orderMap.set(order.id, order);
+    });
+
     setProfile(customerProfile);
     setAddresses((addressData ?? []) as CustomerAddressRow[]);
+    setOrders(Array.from(orderMap.values()).sort((first, second) => Date.parse(second.placed_at) - Date.parse(first.placed_at)));
     setIsLoading(false);
   };
 
@@ -117,6 +159,7 @@ export function AccountClient() {
     await supabase.auth.signOut();
     setProfile(null);
     setAddresses([]);
+    setOrders([]);
     setSessionWithoutProfile(false);
     setNotice("");
   };
@@ -175,6 +218,28 @@ export function AccountClient() {
     );
   }
 
+  const currentOrders = orders.filter((order) => !completedOrderStatuses.has(order.status));
+  const previousOrders = orders.filter((order) => completedOrderStatuses.has(order.status));
+
+  const renderOrderCard = (order: CustomerOrderRow) => (
+    <article className="checkout-summary" key={order.id}>
+      <div className="glance-row">
+        <span className="muted-copy">{new Date(order.placed_at).toLocaleString("en-GB")}</span>
+        <strong>{formatMoney(order.total_amount, order.currency)}</strong>
+      </div>
+      <div className="glance-row">
+        <span>{order.order_number}</span>
+        <strong>{order.status.replaceAll("_", " ")}</strong>
+      </div>
+      <p className="form-helper">
+        Payment: {order.payment_status.replaceAll("_", " ")} / {(order.payment_method ?? "dojo_card").replaceAll("_", " ")}
+      </p>
+      <Link href={`/track/${order.order_number}`} className="secondary-button" style={{ width: "100%", marginTop: 12, display: "inline-flex" }}>
+        Track or view order
+      </Link>
+    </article>
+  );
+
   return (
     <div className="register-form">
       <div className="register-form-block">
@@ -192,6 +257,22 @@ export function AccountClient() {
             <strong>{profile.phone ?? "Not saved"}</strong>
           </div>
         </div>
+      </div>
+
+      <div className="register-form-block">
+        <div className="register-form-heading">
+          <h3>Current orders</h3>
+          <p>Orders stay here while they are active, so refreshing the page will not lose them.</p>
+        </div>
+        {currentOrders.length > 0 ? currentOrders.map(renderOrderCard) : <p className="form-helper">No current orders.</p>}
+      </div>
+
+      <div className="register-form-block">
+        <div className="register-form-heading">
+          <h3>Previous orders</h3>
+          <p>Delivered, cancelled, and rejected orders are kept for your records.</p>
+        </div>
+        {previousOrders.length > 0 ? previousOrders.map(renderOrderCard) : <p className="form-helper">No previous orders yet.</p>}
       </div>
 
       <div className="register-form-block">

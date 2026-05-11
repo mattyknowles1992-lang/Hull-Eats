@@ -92,6 +92,7 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
   const [isClient, setIsClient] = useState(false);
   const [activeCategoryId, setActiveCategoryId] = useState("all");
   const [expandedCategoryIds, setExpandedCategoryIds] = useState<string[]>([]);
+  const [addedItemId, setAddedItemId] = useState("");
 
   useEffect(() => {
     const sync = () => setBasket(loadBasket(storeSlug));
@@ -126,8 +127,12 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
       return;
     }
 
-    const timeout = window.setTimeout(() => setAddedMessage(""), 2200);
-    return () => window.clearTimeout(timeout);
+    const messageTimeout = window.setTimeout(() => setAddedMessage(""), 2200);
+    const itemTimeout = window.setTimeout(() => setAddedItemId(""), 1200);
+    return () => {
+      window.clearTimeout(messageTimeout);
+      window.clearTimeout(itemTimeout);
+    };
   }, [addedMessage]);
 
   const itemCount = getBasketItemCount(basket);
@@ -169,6 +174,7 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
         getDefaultCustomisationSelection(item),
       );
       setAddedMessage(`${item.name} added to your basket`);
+      setAddedItemId(item.id);
       return;
     }
 
@@ -276,13 +282,14 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
       selection,
     );
     setAddedMessage(`${activeItem.name} added to your basket`);
+    setAddedItemId(activeItem.id);
     closeCustomise();
   };
 
   return (
     <div className="menu-section-stack">
       {itemCount > 0 ? (
-        <section className="basket-banner">
+        <section className={`basket-banner basket-floating${addedMessage ? " is-pulsing" : ""}`}>
           <div>
             <p className="eyebrow">Basket ready</p>
             <h3>
@@ -295,7 +302,7 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
           </Link>
         </section>
       ) : addedMessage ? (
-        <section className="basket-banner">
+        <section className="basket-banner basket-floating is-pulsing">
           <div>
             <p className="eyebrow">Added to basket</p>
             <h3>{addedMessage}</h3>
@@ -388,7 +395,7 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
                     ) : null}
 
                     <div className="menu-item-footer">
-                      <button type="button" className="glass-button" onClick={() => openCustomise(item)}>
+                      <button type="button" className={`glass-button add-item-button${addedItemId === item.id ? " is-added" : ""}`} onClick={() => openCustomise(item)}>
                         {item.components.length > 0 || item.optionGroups.length > 0 ? "Customise and add" : "Add"}
                       </button>
                     </div>
