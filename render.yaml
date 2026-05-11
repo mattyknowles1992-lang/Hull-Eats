@@ -12,8 +12,9 @@ services:
     plan: starter
     region: frankfurt
     rootDir: .
-    buildCommand: npm install -g pnpm@10.11.0 && pnpm install --frozen-lockfile && pnpm --filter @hull-eats/db exec prisma generate && pnpm --filter @hull-eats/api build
-    startCommand: ./node_modules/.bin/pnpm --filter @hull-eats/api start
+    # npx avoids global installs (Render build FS is read-only under /usr)
+    buildCommand: npx --yes pnpm@10.11.0 install --frozen-lockfile && npx --yes pnpm@10.11.0 --filter @hull-eats/db exec prisma generate && npx --yes pnpm@10.11.0 --filter @hull-eats/api build
+    startCommand: npx --yes pnpm@10.11.0 --filter @hull-eats/api start
     healthCheckPath: /v1/health
     autoDeployTrigger: commit
     envVars:
@@ -68,8 +69,8 @@ services:
     plan: starter
     region: frankfurt
     rootDir: .
-    buildCommand: npm install -g pnpm@10.11.0 && pnpm install --frozen-lockfile && pnpm --filter @hull-eats/db exec prisma generate && pnpm --filter @hull-eats/worker build
-    startCommand: ./node_modules/.bin/pnpm --filter @hull-eats/worker start
+    buildCommand: npx --yes pnpm@10.11.0 install --frozen-lockfile && npx --yes pnpm@10.11.0 --filter @hull-eats/db exec prisma generate && npx --yes pnpm@10.11.0 --filter @hull-eats/worker build
+    startCommand: npx --yes pnpm@10.11.0 --filter @hull-eats/worker start
     autoDeployTrigger: commit
     envVars:
       - key: NODE_ENV
@@ -123,8 +124,8 @@ services:
     plan: starter
     region: frankfurt
     rootDir: .
-    buildCommand: npm install -g pnpm@10.11.0 && pnpm install --frozen-lockfile && pnpm --filter @hull-eats/customer-web build
-    startCommand: ./node_modules/.bin/pnpm --filter @hull-eats/customer-web exec next start --port $PORT
+    buildCommand: npx --yes pnpm@10.11.0 install --frozen-lockfile && npx --yes pnpm@10.11.0 --filter @hull-eats/customer-web build
+    startCommand: npx --yes pnpm@10.11.0 --filter @hull-eats/customer-web exec next start --port $PORT
     autoDeployTrigger: commit
     envVars:
       - key: NODE_ENV
@@ -166,8 +167,8 @@ services:
     plan: starter
     region: frankfurt
     rootDir: .
-    buildCommand: npm install -g pnpm@10.11.0 && pnpm install --frozen-lockfile && pnpm --filter @hull-eats/admin-portal build
-    startCommand: ./node_modules/.bin/pnpm --filter @hull-eats/admin-portal exec next start --port $PORT
+    buildCommand: npx --yes pnpm@10.11.0 install --frozen-lockfile && npx --yes pnpm@10.11.0 --filter @hull-eats/admin-portal build
+    startCommand: npx --yes pnpm@10.11.0 --filter @hull-eats/admin-portal exec next start --port $PORT
     autoDeployTrigger: commit
     envVars:
       - key: NODE_ENV
