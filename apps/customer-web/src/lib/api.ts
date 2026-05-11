@@ -1,4 +1,5 @@
 import type { CheckoutSession, CreateCheckoutSessionInput, TrackedOrder } from "@hull-eats/types";
+import { trackedOrderSchema } from "@hull-eats/types";
 
 const defaultApiBaseUrl = process.env.NODE_ENV === "production" ? "https://hull-eats-api.onrender.com" : "http://localhost:4000";
 const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL ?? defaultApiBaseUrl).replace(/\/$/, "");
@@ -70,5 +71,6 @@ export async function trackOrder(orderId: string): Promise<TrackedOrder> {
     throw new Error(`Order tracking request failed with status ${response.status}`);
   }
 
-  return (await response.json()) as TrackedOrder;
+  const raw: unknown = await response.json();
+  return trackedOrderSchema.parse(raw);
 }

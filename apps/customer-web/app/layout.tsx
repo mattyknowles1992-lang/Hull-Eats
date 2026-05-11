@@ -4,6 +4,8 @@ import type { PropsWithChildren } from "react";
 
 import "./globals.css";
 
+import { ActiveOrderStrip } from "../src/components/active-order-strip";
+
 const headingFont = Fraunces({
   subsets: ["latin"],
   variable: "--font-heading",
@@ -22,7 +24,16 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: PropsWithChildren) {
   return (
     <html lang="en" className={`${headingFont.variable} ${bodyFont.variable}`}>
-      <body>{children}</body>
+      <body>
+        <a className="he-skip-link" href="#site-main">
+          Skip to main content
+        </a>
+        <div className="he-ambient-ground" aria-hidden="true" />
+        <div id="site-main">
+          {children}
+          <ActiveOrderStrip />
+        </div>
+      </body>
     </html>
   );
 }

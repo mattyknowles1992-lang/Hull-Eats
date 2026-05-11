@@ -368,6 +368,8 @@ These areas are not complete and should be treated as future work unless the use
 - Fine-grained RBAC
 - Rate limiting and account lockout
 - Full live courier/location tracking
+- Hull Marketplace resale: Prisma tables `resale_*` (listings, conversations, messages, offers, purchases, reviews, resolution cases) and migrations `20260511180000_resale_marketplace`, `20260511190000_resale_reviews_resolution`; public HTTP APIs for publish, threads, offers, paid/not-sold, mandatory buyer reviews, seller trust metrics, and resolution cases are still to be built
+- Customer web: `NEXT_PUBLIC_MARKETPLACE_LISTING_REQUIRES_HULL_EATS_PLUS` (default false) gates listing copy and sell form; set `true` when Hull Eats+ listing rules go live
 
 ## User Direction To Preserve
 

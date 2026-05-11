@@ -14,6 +14,7 @@ import {
   updateBasketQuantity,
   type StoreBasket,
 } from "../../../src/lib/basket";
+import { playOrderSuccessDelight, saveActiveOrderSnapshot } from "../../../src/lib/customer-experience";
 import { getBrowserSupabaseClient } from "../../../src/lib/supabase-browser";
 
 type CheckoutClientProps = {
@@ -234,6 +235,14 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
 
       const result = await placeCheckoutOrder(session.id, paymentMode);
       setPlacedOrder(result);
+      saveActiveOrderSnapshot({
+        orderNumber: result.order.orderNumber,
+        storeName: store.name,
+        storeSlug: store.slug,
+        placedAt: new Date().toISOString(),
+        etaMinutesHint: store.etaMinutes ?? null,
+      });
+      playOrderSuccessDelight();
       clearBasket(store.slug);
       setBasket(null);
     } catch (error) {

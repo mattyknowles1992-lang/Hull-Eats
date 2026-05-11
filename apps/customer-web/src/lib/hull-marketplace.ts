@@ -1,3 +1,8 @@
+import {
+  marketplaceSellerBadgeLabel,
+  marketplaceSellerMemberLine,
+} from "./marketplace-policy";
+
 export type MarketplaceDeliveryMode = "collection" | "small_delivery" | "van_required";
 export type MarketplaceListingStatus = "available" | "reserved" | "sold";
 
@@ -20,6 +25,8 @@ export type MarketplaceListing = {
   sellerLabel: string;
   sellerName: string;
   sellerMemberSince: string;
+  /** Demo / API: true once seller has {3}+ completed sales each rated 5.0 — see marketplace-trust.ts */
+  sellerTrustVerified?: boolean;
   listedAtLabel: string;
   description: string;
   itemFacts: string[];
@@ -67,6 +74,9 @@ export const marketplaceItemCategories: MarketplaceItemCategory[] = [
   },
 ];
 
+const sellerBadge = marketplaceSellerBadgeLabel();
+const sellerMemberLine = marketplaceSellerMemberLine();
+
 export const marketplaceListings: MarketplaceListing[] = [
   {
     id: "listing-sofa-01",
@@ -77,15 +87,16 @@ export const marketplaceListings: MarketplaceListing[] = [
     condition: "Good condition",
     deliveryMode: "van_required",
     imageUrl: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=1200&q=82",
-    sellerLabel: "Hull Eats+ member",
+    sellerLabel: sellerBadge,
     sellerName: "Megan R.",
-    sellerMemberSince: "Hull Eats+ since 2025",
+    sellerMemberSince: sellerMemberLine,
     listedAtLabel: "Listed today",
     description: "Large corner sofa ready for a local buyer. Van collection or arranged van delivery required.",
     itemFacts: ["Three-seat corner sofa", "Separates into two sections", "Smoke-free home", "Approx 245cm x 165cm"],
     deliveryNotes: "Large item. Buyer can collect with a van, or request van delivery when arranging the sale.",
     acceptsOffers: true,
     status: "available",
+    sellerTrustVerified: true,
   },
   {
     id: "listing-fridge-01",
@@ -96,15 +107,16 @@ export const marketplaceListings: MarketplaceListing[] = [
     condition: "Working, used",
     deliveryMode: "van_required",
     imageUrl: "https://images.unsplash.com/photo-1571175443880-49e1d25b2bc5?auto=format&fit=crop&w=1200&q=82",
-    sellerLabel: "Hull Eats+ member",
+    sellerLabel: sellerBadge,
     sellerName: "Darren K.",
-    sellerMemberSince: "Hull Eats+ since 2024",
+    sellerMemberSince: sellerMemberLine,
     listedAtLabel: "Listed yesterday",
     description: "Clean fridge freezer. Buyer can collect, or request van help when that option goes live.",
     itemFacts: ["Tall freestanding fridge freezer", "Working and cleaned", "Minor marks on side panel", "Collect from ground floor"],
     deliveryNotes: "Van required. Seller can share collection address after purchase or agreed offer.",
     acceptsOffers: true,
     status: "available",
+    sellerTrustVerified: false,
   },
   {
     id: "listing-pram-01",
@@ -115,15 +127,16 @@ export const marketplaceListings: MarketplaceListing[] = [
     condition: "Very good",
     deliveryMode: "collection",
     imageUrl: "https://images.unsplash.com/photo-1585336261022-680e295ce3fe?auto=format&fit=crop&w=1200&q=82",
-    sellerLabel: "Hull Eats+ member",
+    sellerLabel: sellerBadge,
     sellerName: "Aisha B.",
-    sellerMemberSince: "Hull Eats+ since 2026",
+    sellerMemberSince: sellerMemberLine,
     listedAtLabel: "Listed 2 days ago",
     description: "Compact pram with rain cover. Collection only from East Hull.",
     itemFacts: ["Pram, rain cover, and footmuff", "Folds down for car boot", "Clean fabric", "Suitable from 6 months"],
     deliveryNotes: "Collection only. Address shared in marketplace messages once the seller accepts.",
     acceptsOffers: true,
     status: "available",
+    sellerTrustVerified: false,
   },
   {
     id: "listing-console-01",
@@ -134,15 +147,16 @@ export const marketplaceListings: MarketplaceListing[] = [
     condition: "Used",
     deliveryMode: "small_delivery",
     imageUrl: "https://images.unsplash.com/photo-1606144042614-b2417e99c4e3?auto=format&fit=crop&w=1200&q=82",
-    sellerLabel: "Hull Eats+ member",
+    sellerLabel: sellerBadge,
     sellerName: "Lewis T.",
-    sellerMemberSince: "Hull Eats+ since 2025",
+    sellerMemberSince: sellerMemberLine,
     listedAtLabel: "Listed this week",
     description: "Console, two controllers, and games. Local collection or small-item delivery option.",
     itemFacts: ["Console with two controllers", "Includes HDMI and power cable", "Four games included", "Factory reset ready"],
     deliveryNotes: "Collection or small local delivery can be arranged with the seller.",
     acceptsOffers: true,
     status: "reserved",
+    sellerTrustVerified: true,
   },
 ];
 

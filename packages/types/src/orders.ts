@@ -127,6 +127,17 @@ export const orderSummarySchema = z.object({
   prepTimeMinutes: z.number().int().nullable(),
 });
 
+/** Line items included on the public track-order payload for customer receipts. */
+export const trackedOrderLineItemSchema = z.object({
+  id: z.string().min(1).optional(),
+  menuItemId: z.string().min(1).nullable().optional(),
+  name: z.string().min(1),
+  quantity: z.number().int().positive(),
+  unitPrice: z.number().nonnegative(),
+  totalPrice: z.number().nonnegative(),
+  notes: z.string().max(500).nullable().optional(),
+});
+
 export const courierLocationSchema = z.object({
   latitude: z.number(),
   longitude: z.number(),
@@ -176,6 +187,7 @@ export const courierCompleteDeliveryInputSchema = z.object({
 
 export const trackedOrderSchema = orderSummarySchema.extend({
   delivery: courierDeliverySchema.optional(),
+  items: z.array(trackedOrderLineItemSchema).default([]),
 });
 
 export type CreateOrderInput = z.infer<typeof createOrderInputSchema>;
@@ -192,3 +204,4 @@ export type CourierStartDeliveryInput = z.infer<typeof courierStartDeliveryInput
 export type CourierLocationInput = z.infer<typeof courierLocationInputSchema>;
 export type CourierCompleteDeliveryInput = z.infer<typeof courierCompleteDeliveryInputSchema>;
 export type TrackedOrder = z.infer<typeof trackedOrderSchema>;
+export type TrackedOrderLineItem = z.infer<typeof trackedOrderLineItemSchema>;

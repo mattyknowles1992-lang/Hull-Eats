@@ -2,8 +2,15 @@ import Link from "next/link";
 
 import { AppSwitcher } from "../../app-switcher";
 import { marketplaceItemCategories } from "../../../src/lib/hull-marketplace";
+import {
+  marketplaceListingGateBody,
+  marketplaceListingGateHeadline,
+  marketplaceListingRequiresHullEatsPlus,
+} from "../../../src/lib/marketplace-policy";
 
 export default function MarketplaceSellPage() {
+  const requiresPlus = marketplaceListingRequiresHullEatsPlus();
+
   return (
     <main className="shell customer-marketplace hull-marketplace-page">
       <header className="topbar">
@@ -20,21 +27,20 @@ export default function MarketplaceSellPage() {
         <aside className="marketplace-gate-card">
           <p className="eyebrow">Seller account</p>
           <h1>Sign in before listing.</h1>
-          <p>
-            Hull Marketplace listings are only available to active Hull Eats+ members. Buyers can browse without listing
-            access, but sellers must have an account so offers, messages, collection details, and sold status are tracked.
-          </p>
+          <p>{marketplaceListingGateBody()}</p>
 
           <div className="marketplace-action-stack">
-            <button type="button" className="primary-button">
+            <Link href="/register" className="primary-button">
               Create account
-            </button>
-            <button type="button" className="secondary-button">
+            </Link>
+            <Link href="/account" className="secondary-button">
               Sign in
-            </button>
-            <button type="button" className="secondary-button">
-              Check Hull Eats+ membership
-            </button>
+            </Link>
+            {requiresPlus ? (
+              <p className="listing-note" style={{ margin: 0 }}>
+                Hull Eats+ must be active on your profile before publish is allowed (toggle via platform config).
+              </p>
+            ) : null}
           </div>
         </aside>
 
@@ -42,13 +48,16 @@ export default function MarketplaceSellPage() {
           <div className="section-heading compact">
             <div>
               <p className="eyebrow">Listing builder</p>
-              <h2>Ready once membership is verified</h2>
-              <p>Capture enough detail for local buyers without making a sofa or fridge listing painful to create.</p>
+              <h2>{marketplaceListingGateHeadline()}</h2>
+              <p>
+                Capture enough detail for local buyers. Offers, chat, buy now, pending payment, and seller paid / not
+                sold actions map to the resale data model (same flow as Vinted, local handoff).
+              </p>
             </div>
           </div>
 
           <form className="marketplace-listing-form">
-            <fieldset disabled>
+            <fieldset disabled={requiresPlus}>
               <label>
                 Item title
                 <input placeholder="Grey corner sofa" />
@@ -104,7 +113,11 @@ export default function MarketplaceSellPage() {
             <button type="button" className="primary-button" disabled>
               Publish listing
             </button>
-            <p className="listing-note">Publishing unlocks after sign-in and Hull Eats+ membership verification.</p>
+            <p className="listing-note">
+              {requiresPlus
+                ? "Publishing unlocks after Hull Eats+ is active on your account."
+                : "Database tables for listings, threads, offers, and purchases are in place. The publish API is wired next so listings save securely to your hub."}
+            </p>
           </form>
         </section>
       </section>

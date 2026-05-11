@@ -22,6 +22,7 @@ import {
   type StoreBasket,
 } from "../../../../src/lib/basket";
 import { createCheckoutSession, placeCheckoutOrder } from "../../../../src/lib/api";
+import { playOrderSuccessDelight, saveActiveOrderSnapshot } from "../../../../src/lib/customer-experience";
 
 type MenuCategory = {
   id: string;
@@ -235,6 +236,14 @@ export function KioskMenuClient({ storeId, storeSlug, storeName, categories }: K
 
       const order = await placeCheckoutOrder(session.id, "mock_paid");
       setPlacedOrder(order);
+      saveActiveOrderSnapshot({
+        orderNumber: order.order.orderNumber,
+        storeName,
+        storeSlug,
+        placedAt: new Date().toISOString(),
+        etaMinutesHint: null,
+      });
+      playOrderSuccessDelight();
       clearBasket(storeSlug);
     } catch (error) {
       setOrderError(error instanceof Error ? error.message : "Kiosk order failed.");

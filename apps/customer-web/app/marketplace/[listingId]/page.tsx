@@ -66,6 +66,9 @@ export default async function MarketplaceListingPage({ params }: ListingPageProp
             <span className="store-tag">{listing.condition}</span>
             <span className="store-tag">{listing.listedAtLabel}</span>
             <span className="store-tag">{listing.sellerLabel}</span>
+            {listing.sellerTrustVerified ? (
+              <span className="store-tag store-tag-trust">Trust verified</span>
+            ) : null}
           </div>
 
           <section className="marketplace-panel">
@@ -107,8 +110,11 @@ export default async function MarketplaceListingPage({ params }: ListingPageProp
           </div>
 
           <p className="listing-note">
-            Address details stay in marketplace messages. The item becomes reserved when a buyer purchases or the seller
-            accepts an offer, then sold when the seller marks the sale complete.
+            Address and handoff details stay in the thread. Buy now or an accepted offer sets the sale to pending
+            payment; the seller marks paid (listing sold) or not sold (listing available again). Cash or bank transfer is
+            between buyer and seller — Hull Eats records status for trust and support. After paid, your next visit to
+            Hull Marketplace asks for a required star rating (0.1 steps) and optional comment.{" "}
+            <Link href="/marketplace/resolution">Resolution centre</Link> is for disputes.
           </p>
         </aside>
       </section>

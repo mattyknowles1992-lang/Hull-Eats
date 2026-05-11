@@ -3,6 +3,7 @@ export * from "./checkout";
 export * from "./customers";
 export * from "./events";
 export * from "./hubs";
+export * from "./marketplace-resale";
 export * from "./orders";
 export * from "./payments";
 export * from "./printer";

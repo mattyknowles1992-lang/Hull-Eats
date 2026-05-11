@@ -1,7 +1,14 @@
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 
-import type { CourierDelivery, CourierLocation, CourierLocationInput, DeliveryStatus, OrderSummary } from "@hull-eats/types";
-import { courierDeliverySchema, orderSummarySchema } from "@hull-eats/types";
+import type {
+  CourierDelivery,
+  CourierLocation,
+  CourierLocationInput,
+  DeliveryStatus,
+  OrderSummary,
+  TrackedOrderLineItem,
+} from "@hull-eats/types";
+import { courierDeliverySchema, orderSummarySchema, trackedOrderSchema } from "@hull-eats/types";
 import { prisma } from "@hull-eats/db";
 
 import { customerNotifications } from "./customer-notifications.service";
@@ -164,6 +171,7 @@ const findPersistedOrder = async (orderReference: string) =>
     },
     include: {
       store: true,
+      items: true,
       delivery: {
         include: {
           courierProfile: {
@@ -176,6 +184,38 @@ const findPersistedOrder = async (orderReference: string) =>
       },
     },
   });
+
+const mapPersistedOrderLineItems = (rows: Array<{ id: string; menuItemId: string | null; nameSnapshot: string; quantity: number; unitPrice: unknown; totalPrice: unknown; notes: string | null }>): TrackedOrderLineItem[] =>
+  rows.map((row) => ({
+    id: row.id,
+    menuItemId: row.menuItemId,
+    name: row.nameSnapshot,
+    quantity: row.quantity,
+    unitPrice: Number(row.unitPrice),
+    totalPrice: Number(row.totalPrice),
+    notes: row.notes,
+  }));
+
+const demoTrackedLineItems = (orderNumber: string): TrackedOrderLineItem[] => {
+  const seeded: Record<string, TrackedOrderLineItem[]> = {
+    "HE-0998": [
+      { name: "Double smash stack", quantity: 1, unitPrice: 11.99, totalPrice: 11.99 },
+      { name: "Loaded fries tray", quantity: 1, unitPrice: 7.99, totalPrice: 7.99 },
+      { name: "House lemonade", quantity: 2, unitPrice: 3.99, totalPrice: 7.98 },
+    ],
+    "HE-1001": [
+      { name: "Classic cheeseburger", quantity: 2, unitPrice: 6.49, totalPrice: 12.98 },
+      { name: "Vanilla thick shake", quantity: 1, unitPrice: 4.49, totalPrice: 4.49 },
+    ],
+    "HE-1002": [
+      { name: "Wings bucket (8)", quantity: 1, unitPrice: 9.99, totalPrice: 9.99 },
+      { name: "Garlic mayo dip", quantity: 2, unitPrice: 0.99, totalPrice: 1.98 },
+      { name: "Choc fudge brownie", quantity: 1, unitPrice: 4.49, totalPrice: 4.49 },
+    ],
+  };
+
+  return seeded[orderNumber] ?? [{ name: "Sample menu items", quantity: 1, unitPrice: 12.5, totalPrice: 12.5 }];
+};
 
 const ensurePersistedDelivery = async (order: any, status: DeliveryStatus, courierProfileId?: string) => {
   const existingState = parseTrackingState(order.delivery?.externalReference);
@@ -525,16 +565,18 @@ export const findTrackedOrder = async (orderId: string) => {
   const persistedOrder = await findPersistedOrder(orderReference);
 
   if (persistedOrder) {
-    return {
+    return trackedOrderSchema.parse({
       ...toOrderSummary(persistedOrder),
       delivery: buildPersistedDelivery(persistedOrder),
-    };
+      items: mapPersistedOrderLineItems(persistedOrder.items ?? []),
+    });
   }
 
   const demoOrder = findDemoOrder(orderReference) ?? demoOrders[0]!;
 
-  return {
+  return trackedOrderSchema.parse({
     ...demoOrder,
     delivery: demoDeliveryStore.get(deliveryIdForOrder(demoOrder.orderNumber)) ?? buildDemoDelivery(demoOrder, demoOrder.status === "delivered" ? "delivered" : "assigned"),
-  };
+    items: demoTrackedLineItems(demoOrder.orderNumber),
+  });
 };

@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { AppSwitcher } from "../../app-switcher";
 import { formatMarketplacePrice, marketplaceListings } from "../../../src/lib/hull-marketplace";
+import { marketplaceListingGateBody } from "../../../src/lib/marketplace-policy";
 
 const sampleListing = marketplaceListings[0]!;
 
@@ -23,16 +24,19 @@ export default function MarketplaceMessagesPage() {
           <p className="eyebrow">Messages</p>
           <h1>Sign in to message sellers.</h1>
           <p>
-            Marketplace conversations keep offers, pickup notes, delivery requirements, and address details attached to
-            the listing until the seller marks it sold.
+            Each chat thread is tied to a listing and buyer. You can send text, send a cash offer in pounds, buy now
+            (listing moves to pending payment), and the seller marks paid or not sold so the listing reopens or closes.
+          </p>
+          <p className="listing-note" style={{ marginTop: 12 }}>
+            {marketplaceListingGateBody()}
           </p>
           <div className="marketplace-action-stack">
-            <button type="button" className="primary-button">
+            <Link href="/account" className="primary-button">
               Sign in
-            </button>
-            <button type="button" className="secondary-button">
+            </Link>
+            <Link href="/register" className="secondary-button">
               Create account
-            </button>
+            </Link>
           </div>
         </aside>
 

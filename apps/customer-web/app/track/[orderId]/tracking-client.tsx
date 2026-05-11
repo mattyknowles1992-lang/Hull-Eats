@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { TrackedOrder } from "@hull-eats/types";
 
 import { AppSwitcher } from "../../app-switcher";
 import { trackOrder } from "../../../src/lib/api";
+import { TrackingLiveMap } from "./tracking-live-map";
 
 type TrackingClientProps = {
   orderId: string;
@@ -23,6 +24,8 @@ const statusCopy: Record<string, string> = {
 
 const formatStatus = (status: string) => status.replaceAll("_", " ");
 
+const formatMoney = (value: number) => `£${value.toFixed(2)}`;
+
 const hullFallbackLocation = {
   latitude: 53.7676,
   longitude: -0.3274,
@@ -35,9 +38,8 @@ const hullMapBounds = {
   maxLongitude: -0.18,
 };
 
-type MapMode = "map" | "street";
-
-const googleMapsEmbedKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_EMBED_KEY;
+const googleMapsApiKeyRaw = process.env.NEXT_PUBLIC_GOOGLE_MAPS_JS_KEY ?? process.env.NEXT_PUBLIC_GOOGLE_MAPS_EMBED_KEY;
+const googleMapsApiKey = googleMapsApiKeyRaw && googleMapsApiKeyRaw.length > 0 ? googleMapsApiKeyRaw : null;
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
@@ -46,32 +48,9 @@ const clampToHullBounds = (latitude: number, longitude: number) => ({
   longitude: clamp(longitude, hullMapBounds.minLongitude, hullMapBounds.maxLongitude),
 });
 
-const buildOpenStreetMapSrc = (latitude: number, longitude: number) => {
-  const delta = 0.012;
-  const bbox = [longitude - delta, latitude - delta, longitude + delta, latitude + delta].join(",");
-
-  return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${latitude},${longitude}`;
-};
-
-const buildMapSrc = (latitude: number, longitude: number, mode: MapMode) => {
-  if (!googleMapsEmbedKey) {
-    return buildOpenStreetMapSrc(latitude, longitude);
-  }
-
-  const location = `${latitude},${longitude}`;
-
-  if (mode === "street") {
-    return `https://www.google.com/maps/embed/v1/streetview?key=${googleMapsEmbedKey}&location=${location}&fov=80&pitch=0`;
-  }
-
-  return `https://www.google.com/maps/embed/v1/view?key=${googleMapsEmbedKey}&center=${location}&zoom=17&maptype=roadmap`;
-};
-
 export function TrackingClient({ orderId }: TrackingClientProps) {
   const [order, setOrder] = useState<TrackedOrder | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [mapMode, setMapMode] = useState<MapMode>("map");
-
   useEffect(() => {
     let isMounted = true;
 
@@ -104,10 +83,11 @@ export function TrackingClient({ orderId }: TrackingClientProps) {
   const boundedLocation = clampToHullBounds(location?.latitude ?? hullFallbackLocation.latitude, location?.longitude ?? hullFallbackLocation.longitude);
   const mapLatitude = boundedLocation.latitude;
   const mapLongitude = boundedLocation.longitude;
-  const mapSrc = useMemo(() => buildMapSrc(mapLatitude, mapLongitude, mapMode), [mapLatitude, mapLongitude, mapMode]);
   const mapUpdatedAt = location ? new Date(location.updatedAt).toLocaleTimeString("en-GB") : "Waiting for driver scan";
   const mapAccuracy = location?.accuracyMeters ? `Accuracy ${Math.round(location.accuracyMeters)}m` : null;
-  const isGoogleMap = Boolean(googleMapsEmbedKey);
+  const isDelivered = order ? order.status === "delivered" || delivery?.status === "delivered" : false;
+  const lineItems = order?.items ?? [];
+  const linesSubtotal = lineItems.reduce((sum, line) => sum + line.totalPrice, 0);
 
   return (
     <main className="tracking-shell">
@@ -128,80 +108,109 @@ export function TrackingClient({ orderId }: TrackingClientProps) {
 
       {errorMessage ? <p className="form-message form-message-error">{errorMessage}</p> : null}
 
-      <section className="tracking-grid">
-        <article className="tracking-map">
-          <iframe
-            className="tracking-map-frame"
-            title="Live Hull Eats courier location"
-            src={mapSrc}
-            loading="lazy"
-            referrerPolicy="no-referrer-when-downgrade"
-          />
-          <div className={location ? "tracking-driver-pin is-live" : "tracking-driver-pin"} aria-hidden="true">
-            <img src="/brand/hull-eats-logo.jpeg" alt="" />
-          </div>
-          <div className="tracking-map-mode-toggle" aria-label="Map display mode">
-            <button type="button" className={mapMode === "map" ? "is-active" : ""} onClick={() => setMapMode("map")}>
-              Map
-            </button>
-            <button type="button" className={mapMode === "street" ? "is-active" : ""} onClick={() => setMapMode("street")} disabled={!isGoogleMap}>
-              Street
-            </button>
-          </div>
-          <div className="tracking-map-status">
-            <span className={location ? "live-dot is-live" : "live-dot"} />
-            <span>{location ? "Live driver location" : "Waiting for courier scan"}</span>
-          </div>
-          <div className="tracking-map-copy">
-            <strong>{location ? "Driver on the map" : formatStatus(order?.status ?? "loading")}</strong>
-            <span>
-              {location
-                ? `${location.latitude.toFixed(5)}, ${location.longitude.toFixed(5)}${mapAccuracy ? ` - ${mapAccuracy}` : ""}`
-                : "When the courier scans the receipt, this map follows their latest phone location."}
-            </span>
-            <div className="tracking-map-actions">
-              <small>Updated {mapUpdatedAt}</small>
-              <small>
-                {location
-                  ? isGoogleMap
-                    ? "Centred on courier GPS"
-                    : "OpenStreetMap fallback"
-                  : "No driver position yet"}
-              </small>
-            </div>
-          </div>
-        </article>
+      {!isDelivered ? (
+        <section className="tracking-grid">
+          <article className="tracking-map tracking-map-live">
+            <TrackingLiveMap
+              latitude={location ? location.latitude : mapLatitude}
+              longitude={location ? location.longitude : mapLongitude}
+              hasLiveLocation={Boolean(location)}
+              statusFallbackLabel={formatStatus(order?.status ?? "loading")}
+              mapUpdatedAt={mapUpdatedAt}
+              mapAccuracy={mapAccuracy}
+              googleMapsApiKey={googleMapsApiKey}
+            />
+          </article>
 
-        <aside className="tracking-panel">
+          <aside className="tracking-panel">
+            <div>
+              <span className="muted-copy">Customer delivery PIN</span>
+              <strong className="tracking-pin">{delivery?.confirmationCode ?? "----"}</strong>
+              <p>
+                Tell the courier this PIN when they arrive. They enter it to complete delivery only after you confirm it matches
+                your order.
+              </p>
+            </div>
+            <div className="checkout-summary">
+              <div className="glance-row">
+                <span className="muted-copy">Store</span>
+                <strong>{delivery?.storeName ?? "Hull Eats"}</strong>
+              </div>
+              <div className="glance-row">
+                <span className="muted-copy">Dropoff</span>
+                <strong>{delivery?.dropoffAddress ?? "Waiting for delivery details"}</strong>
+              </div>
+              <div className="glance-row">
+                <span className="muted-copy">Updated</span>
+                <strong>{mapUpdatedAt}</strong>
+              </div>
+              <div className="glance-row">
+                <span className="muted-copy">Courier</span>
+                <strong>
+                  {delivery?.courierName
+                    ? `${delivery.courierName}${delivery.courierRating ? ` · ${delivery.courierRating.toFixed(1)} rating` : ""}`
+                    : "Shown after scan"}
+                </strong>
+              </div>
+            </div>
+          </aside>
+        </section>
+      ) : (
+        <section className="tracking-delivered-panel" aria-live="polite">
+          <div className="tracking-delivered-icon" aria-hidden="true">
+            <span>✓</span>
+          </div>
           <div>
-            <span className="muted-copy">Customer delivery PIN</span>
-            <strong className="tracking-pin">{delivery?.confirmationCode ?? "----"}</strong>
-            <p>This is the delivery code for this order. Give it to the courier at the door; the order only marks delivered when it matches.</p>
-          </div>
-          <div className="checkout-summary">
-            <div className="glance-row">
-              <span className="muted-copy">Store</span>
-              <strong>{delivery?.storeName ?? "Hull Eats"}</strong>
-            </div>
-            <div className="glance-row">
-              <span className="muted-copy">Dropoff</span>
-              <strong>{delivery?.dropoffAddress ?? "Waiting for delivery details"}</strong>
-            </div>
-            <div className="glance-row">
-              <span className="muted-copy">Updated</span>
-              <strong>{mapUpdatedAt}</strong>
-            </div>
-            <div className="glance-row">
-              <span className="muted-copy">Courier</span>
-              <strong>
-                {delivery?.courierName
-                  ? `${delivery.courierName}${delivery.courierRating ? ` · ${delivery.courierRating.toFixed(1)} rating` : ""}`
-                  : "Shown after scan"}
-              </strong>
+            <p className="eyebrow">Delivered</p>
+            <h2 className="tracking-delivered-title">Live tracking closed</h2>
+            <p className="tracking-delivered-copy">
+              Your order is marked delivered. The courier confirmed your delivery PIN with you before completing the drop-off.
+            </p>
+            <div className="checkout-summary tracking-delivered-meta">
+              <div className="glance-row">
+                <span className="muted-copy">Store</span>
+                <strong>{delivery?.storeName ?? "Hull Eats"}</strong>
+              </div>
+              {delivery?.deliveredAt ? (
+                <div className="glance-row">
+                  <span className="muted-copy">Completed</span>
+                  <strong>{new Date(delivery.deliveredAt).toLocaleString("en-GB")}</strong>
+                </div>
+              ) : null}
             </div>
           </div>
-        </aside>
-      </section>
+        </section>
+      )}
+
+      {lineItems.length > 0 ? (
+        <section className="tracking-order-items" aria-labelledby="tracking-order-items-heading">
+          <div className="tracking-order-items-header">
+            <h2 id="tracking-order-items-heading">Your order</h2>
+            <p className="muted-copy">Items on this receipt stay here for reference after tracking ends.</p>
+          </div>
+          <ul className="tracking-order-items-list">
+            {lineItems.map((line, index) => (
+              <li key={line.id ?? `${line.name}-${index}`} className="tracking-order-line">
+                <div>
+                  <strong>
+                    {line.quantity} × {line.name}
+                  </strong>
+                  {line.notes ? <p className="tracking-order-line-notes">{line.notes}</p> : null}
+                </div>
+                <div className="tracking-order-line-prices">
+                  <span className="muted-copy">{formatMoney(line.unitPrice)} each</span>
+                  <strong>{formatMoney(line.totalPrice)}</strong>
+                </div>
+              </li>
+            ))}
+          </ul>
+          <div className="tracking-order-items-footer">
+            <span className="muted-copy">Lines subtotal</span>
+            <strong>{formatMoney(linesSubtotal)}</strong>
+            <span className="muted-copy">· order total {order ? formatMoney(order.totalAmount) : "—"}</span>
+          </div>
+        </section>
+      ) : null}
 
       <style jsx>{`
         .tracking-shell {
@@ -243,195 +252,10 @@ export function TrackingClient({ orderId }: TrackingClientProps) {
           box-shadow: 0 24px 70px rgba(15, 15, 15, 0.08);
         }
 
-        .tracking-map {
-          min-height: 520px;
-          overflow: hidden;
-          position: relative;
-        }
-
-        .tracking-map::after {
-          content: "";
-          position: absolute;
-          inset: 0;
-          pointer-events: none;
-          background:
-            linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0)),
-            radial-gradient(circle at 50% 46%, rgba(35, 205, 255, 0.2), transparent 28%),
-            linear-gradient(135deg, rgba(18, 183, 232, 0.08), rgba(255, 255, 255, 0));
-        }
-
-        .tracking-map-frame {
-          position: absolute;
-          inset: 0;
-          width: 100%;
-          height: 100%;
-          border: 0;
-          filter: saturate(1.12) contrast(1.04) brightness(1.03);
-          pointer-events: none;
-          user-select: none;
-        }
-
-        .tracking-driver-pin {
-          position: absolute;
-          z-index: 2;
-          top: 50%;
-          left: 50%;
-          display: grid;
-          place-items: center;
-          width: 74px;
-          height: 74px;
-          border-radius: 999px;
-          background: #ffffff;
-          border: 5px solid rgba(7, 17, 24, 0.28);
-          box-shadow:
-            0 20px 44px rgba(7, 17, 24, 0.28),
-            0 0 0 10px rgba(35, 205, 255, 0.16);
-          transform: translate(-50%, -84%);
-        }
-
-        .tracking-driver-pin::after {
-          content: "";
-          position: absolute;
-          bottom: -18px;
-          left: 50%;
-          width: 22px;
-          height: 22px;
-          border-radius: 0 0 6px 0;
-          background: #23cdff;
-          box-shadow: 8px 8px 18px rgba(7, 17, 24, 0.2);
-          transform: translateX(-50%) rotate(45deg);
-        }
-
-        .tracking-driver-pin img {
-          position: relative;
-          z-index: 1;
-          width: 58px;
-          height: 58px;
-          border-radius: 999px;
-          object-fit: cover;
-        }
-
-        .tracking-driver-pin.is-live {
-          border-color: #23cdff;
-          animation: driver-pulse 1.8s ease-in-out infinite;
-        }
-
-        .tracking-map-mode-toggle {
-          position: absolute;
-          z-index: 3;
-          top: 22px;
-          right: 22px;
-          display: inline-flex;
-          overflow: hidden;
-          padding: 4px;
-          border: 1px solid rgba(255, 255, 255, 0.35);
-          border-radius: 999px;
-          background: rgba(7, 17, 24, 0.82);
-          backdrop-filter: blur(14px);
-        }
-
-        .tracking-map-mode-toggle button {
-          min-width: 74px;
-          min-height: 34px;
-          border: 0;
-          border-radius: 999px;
-          color: rgba(255, 255, 255, 0.72);
-          background: transparent;
-          cursor: pointer;
-          font-size: 13px;
-          font-weight: 900;
-        }
-
-        .tracking-map-mode-toggle button.is-active {
-          color: #071118;
-          background: #23cdff;
-        }
-
-        .tracking-map-mode-toggle button:disabled {
-          cursor: not-allowed;
-          opacity: 0.42;
-        }
-
-        @keyframes driver-pulse {
-          0%,
-          100% {
-            box-shadow:
-              0 20px 44px rgba(7, 17, 24, 0.28),
-              0 0 0 10px rgba(35, 205, 255, 0.16);
-          }
-          50% {
-            box-shadow:
-              0 24px 54px rgba(7, 17, 24, 0.32),
-              0 0 0 18px rgba(35, 205, 255, 0.08);
-          }
-        }
-
-        .tracking-map-status {
-          position: absolute;
-          z-index: 1;
-          top: 22px;
-          left: 22px;
-          display: inline-flex;
-          align-items: center;
-          gap: 10px;
-          padding: 10px 14px;
-          border: 1px solid rgba(255, 255, 255, 0.35);
-          border-radius: 999px;
-          background: rgba(7, 17, 24, 0.82);
-          color: #ffffff;
-          font-size: 13px;
-          font-weight: 800;
-          backdrop-filter: blur(14px);
-        }
-
-        .live-dot {
-          width: 10px;
-          height: 10px;
-          border-radius: 999px;
-          background: rgba(255, 255, 255, 0.55);
-        }
-
-        .live-dot.is-live {
-          background: #23cdff;
-          box-shadow: 0 0 0 6px rgba(35, 205, 255, 0.22);
-        }
-
-        .tracking-map-copy {
-          position: absolute;
-          left: 24px;
-          right: 24px;
-          bottom: 24px;
-          z-index: 1;
-          display: grid;
-          gap: 10px;
-          width: auto;
-          padding: 22px;
-          border-radius: 22px;
-          background: rgba(7, 17, 24, 0.92);
-          color: #ffffff;
-          backdrop-filter: blur(16px);
-        }
-
-        .tracking-map-copy strong {
-          text-transform: capitalize;
-          font-size: 30px;
-        }
-
-        .tracking-map-copy span {
-          color: rgba(255, 255, 255, 0.72);
-        }
-
-        .tracking-map-actions {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 12px;
-          align-items: center;
-          justify-content: space-between;
-        }
-
-        .tracking-map-actions small {
-          color: rgba(255, 255, 255, 0.62);
-          font-weight: 700;
+        .tracking-map-live {
+          padding: 14px 14px 18px;
+          overflow: visible;
+          min-height: 0;
         }
 
         .tracking-panel {
@@ -453,35 +277,125 @@ export function TrackingClient({ orderId }: TrackingClientProps) {
           line-height: 1.6;
         }
 
+        .tracking-delivered-panel {
+          display: grid;
+          grid-template-columns: auto minmax(0, 1fr);
+          gap: 22px;
+          align-items: start;
+          padding: 28px;
+          border: 1px solid rgba(23, 156, 106, 0.28);
+          border-radius: 28px;
+          background: linear-gradient(135deg, rgba(23, 156, 106, 0.08), rgba(255, 255, 255, 0.98));
+          box-shadow: 0 24px 70px rgba(15, 15, 15, 0.08);
+        }
+
+        .tracking-delivered-icon {
+          width: 64px;
+          height: 64px;
+          border-radius: 999px;
+          display: grid;
+          place-items: center;
+          background: #179c6b;
+          color: #ffffff;
+          font-size: 28px;
+          font-weight: 900;
+          box-shadow: 0 16px 36px rgba(23, 156, 106, 0.35);
+        }
+
+        .tracking-delivered-title {
+          margin: 6px 0 10px;
+          font-size: clamp(1.5rem, 3vw, 2rem);
+          color: #151515;
+        }
+
+        .tracking-delivered-copy {
+          margin: 0 0 16px;
+          max-width: 640px;
+          color: #5d6268;
+          line-height: 1.6;
+        }
+
+        .tracking-delivered-meta {
+          margin-top: 8px;
+        }
+
+        .tracking-order-items {
+          border: 1px solid rgba(18, 18, 18, 0.1);
+          background: #ffffff;
+          border-radius: 28px;
+          padding: 24px 26px 26px;
+          box-shadow: 0 24px 70px rgba(15, 15, 15, 0.08);
+        }
+
+        .tracking-order-items-header h2 {
+          margin: 0 0 6px;
+          font-size: clamp(1.35rem, 2.6vw, 1.75rem);
+          color: #151515;
+        }
+
+        .tracking-order-items-header p {
+          margin: 0;
+        }
+
+        .tracking-order-items-list {
+          list-style: none;
+          margin: 18px 0 0;
+          padding: 0;
+          display: grid;
+          gap: 12px;
+        }
+
+        .tracking-order-line {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 16px;
+          padding: 14px 16px;
+          border-radius: 18px;
+          border: 1px solid rgba(18, 18, 18, 0.08);
+          background: rgba(246, 251, 255, 0.65);
+        }
+
+        .tracking-order-line strong {
+          color: #151515;
+        }
+
+        .tracking-order-line-notes {
+          margin: 6px 0 0;
+          font-size: 14px;
+          color: #5d6268;
+        }
+
+        .tracking-order-line-prices {
+          text-align: right;
+          display: grid;
+          gap: 4px;
+          flex-shrink: 0;
+        }
+
+        .tracking-order-items-footer {
+          margin-top: 18px;
+          padding-top: 16px;
+          border-top: 1px solid rgba(18, 18, 18, 0.08);
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px 14px;
+          align-items: baseline;
+        }
+
+        .tracking-order-items-footer strong {
+          font-size: 1.15rem;
+          color: #151515;
+        }
+
         @media (max-width: 900px) {
           .tracking-hero,
           .tracking-grid {
             grid-template-columns: 1fr;
           }
 
-          .tracking-map {
-            min-height: 440px;
-          }
-
-          .tracking-map-copy {
-            left: 16px;
-            right: 16px;
-            bottom: 16px;
-            padding: 18px;
-          }
-
-          .tracking-map-status {
-            top: 16px;
-            left: 16px;
-          }
-
-          .tracking-map-mode-toggle {
-            top: 16px;
-            right: 16px;
-          }
-
-          .tracking-map-mode-toggle button {
-            min-width: 58px;
+          .tracking-delivered-panel {
+            grid-template-columns: 1fr;
           }
         }
       `}</style>

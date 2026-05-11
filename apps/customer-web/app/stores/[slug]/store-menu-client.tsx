@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import type { MenuItem } from "@hull-eats/types";
@@ -93,6 +93,8 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
   const [activeCategoryId, setActiveCategoryId] = useState("all");
   const [expandedCategoryIds, setExpandedCategoryIds] = useState<string[]>([]);
   const [addedItemId, setAddedItemId] = useState("");
+  const [basketBarHeight, setBasketBarHeight] = useState(0);
+  const basketPortalRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const sync = () => setBasket(loadBasket(storeSlug));
@@ -137,6 +139,30 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
 
   const itemCount = getBasketItemCount(basket);
   const subtotal = getBasketSubtotal(basket);
+
+  useLayoutEffect(() => {
+    if (!isClient || itemCount === 0) {
+      setBasketBarHeight(0);
+      return;
+    }
+
+    const node = basketPortalRef.current;
+    if (!node) {
+      return;
+    }
+
+    const measure = () => {
+      const next = Math.ceil(node.getBoundingClientRect().height) + 16;
+      setBasketBarHeight((current) => (current === next ? current : next));
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+
+    return () => observer.disconnect();
+  }, [isClient, itemCount, subtotal, addedMessage]);
+
   const visibleCategories = useMemo(
     () => (activeCategoryId === "all" ? categories : categories.filter((category) => category.id === activeCategoryId)),
     [activeCategoryId, categories],
@@ -289,18 +315,43 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
   return (
     <div className="menu-section-stack">
       {itemCount > 0 ? (
-        <section className={`basket-banner basket-floating${addedMessage ? " is-pulsing" : ""}`}>
-          <div>
-            <p className="eyebrow">Basket ready</p>
-            <h3>
-              {itemCount} item{itemCount === 1 ? "" : "s"} / {formatMoney(subtotal)}
-            </h3>
-            {addedMessage ? <p className="basket-added-message">{addedMessage}</p> : null}
-          </div>
-          <Link href={`/checkout/${storeSlug}`} className="primary-button gold-button">
-            Go to checkout
-          </Link>
-        </section>
+        <>
+          {isClient ? (
+            <>
+              <div className="basket-viewport-spacer" style={{ height: basketBarHeight }} aria-hidden />
+              {createPortal(
+                <div className="basket-floating-viewport" ref={basketPortalRef}>
+                  <section className={`basket-banner basket-floating${addedMessage ? " is-pulsing" : ""}`}>
+                    <div>
+                      <p className="eyebrow">Basket ready</p>
+                      <h3>
+                        {itemCount} item{itemCount === 1 ? "" : "s"} / {formatMoney(subtotal)}
+                      </h3>
+                      {addedMessage ? <p className="basket-added-message">{addedMessage}</p> : null}
+                    </div>
+                    <Link href={`/checkout/${storeSlug}`} className="primary-button gold-button">
+                      Go to checkout
+                    </Link>
+                  </section>
+                </div>,
+                document.body,
+              )}
+            </>
+          ) : (
+            <section className={`basket-banner basket-floating${addedMessage ? " is-pulsing" : ""}`}>
+              <div>
+                <p className="eyebrow">Basket ready</p>
+                <h3>
+                  {itemCount} item{itemCount === 1 ? "" : "s"} / {formatMoney(subtotal)}
+                </h3>
+                {addedMessage ? <p className="basket-added-message">{addedMessage}</p> : null}
+              </div>
+              <Link href={`/checkout/${storeSlug}`} className="primary-button gold-button">
+                Go to checkout
+              </Link>
+            </section>
+          )}
+        </>
       ) : addedMessage ? (
         <section className="basket-banner basket-floating is-pulsing">
           <div>

@@ -139,6 +139,9 @@ services:
         sync: false
       - key: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
         sync: false
+      - key: NEXT_PUBLIC_MARKETPLACE_LISTING_REQUIRES_HULL_EATS_PLUS
+        value: "false"
+        sync: false
       - key: DEFAULT_CURRENCY
         value: GBP
 

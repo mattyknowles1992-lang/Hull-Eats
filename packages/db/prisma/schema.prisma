@@ -245,6 +245,14 @@ model CustomerProfile {
   addresses          CustomerAddress[]
   orders             Order[]
   payments           Payment[]
+  resaleListings     ResaleListing[]    @relation("ResaleListingSeller")
+  resaleConversationsAsBuyer ResaleConversation[] @relation("ResaleConversationBuyer")
+  resaleConversationsAsSeller ResaleConversation[] @relation("ResaleConversationSeller")
+  resaleMessagesSent ResaleMessage[]   @relation("ResaleMessageSender")
+  resaleOffersMade   ResaleOffer[]     @relation("ResaleOfferAuthor")
+  resalePurchasesAsBuyer ResalePurchase[] @relation("ResalePurchaseBuyer")
+  resaleReviewsWritten ResaleReview[]   @relation("ResaleReviewAuthor")
+  resaleResolutionCasesOpened ResaleResolutionCase[] @relation("ResaleResolutionOpener")
 }
 
 model CustomerAddress {
@@ -789,4 +797,205 @@ model ServiceListing {
   @@index([categoryId, active])
   @@index([serviceBusinessId, active])
   @@map("service_listings")
+}
+
+// --- Hull Marketplace (local resale, Vinted-style offers + messages) ---
+
+enum ResaleListingStatus {
+  AVAILABLE
+  RESERVED
+  SOLD
+  ARCHIVED
+
+  @@map("resale_listing_status")
+}
+
+enum ResaleDeliveryMode {
+  COLLECTION
+  SMALL_DELIVERY
+  VAN_REQUIRED
+
+  @@map("resale_delivery_mode")
+}
+
+enum ResaleOfferStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  WITHDRAWN
+
+  @@map("resale_offer_status")
+}
+
+enum ResalePurchaseStatus {
+  PENDING_PAYMENT
+  PAID
+  CANCELLED
+  NOT_SOLD
+
+  @@map("resale_purchase_status")
+}
+
+enum ResaleMessageKind {
+  TEXT
+  SYSTEM
+
+  @@map("resale_message_kind")
+}
+
+model ResaleListing {
+  id                    String              @id @default(cuid())
+  sellerCustomerProfileId String            @map("seller_customer_profile_id")
+  title                 String
+  description           String?
+  categorySlug          String              @map("category_slug")
+  conditionLabel        String              @map("condition_label")
+  pricePence            Int                 @map("price_pence")
+  currency              String              @default("GBP") @db.VarChar(3)
+  deliveryMode          ResaleDeliveryMode  @map("delivery_mode")
+  imageUrls             String[]            @default([]) @map("image_urls")
+  acceptsOffers         Boolean             @default(true) @map("accepts_offers")
+  status                ResaleListingStatus @default(AVAILABLE)
+  createdAt             DateTime            @default(now()) @map("created_at")
+  updatedAt             DateTime            @updatedAt @map("updated_at")
+  seller                CustomerProfile     @relation("ResaleListingSeller", fields: [sellerCustomerProfileId], references: [id], onDelete: Cascade)
+  conversations         ResaleConversation[]
+  purchases             ResalePurchase[]
+  reviews               ResaleReview[]
+  resolutionCases       ResaleResolutionCase[]
+
+  @@index([sellerCustomerProfileId, status])
+  @@index([status, createdAt])
+  @@map("resale_listings")
+}
+
+model ResaleConversation {
+  id                      String            @id @default(cuid())
+  listingId               String            @map("listing_id")
+  buyerCustomerProfileId  String            @map("buyer_customer_profile_id")
+  sellerCustomerProfileId String            @map("seller_customer_profile_id")
+  lastMessageAt           DateTime?         @map("last_message_at")
+  createdAt               DateTime          @default(now()) @map("created_at")
+  updatedAt               DateTime          @updatedAt @map("updated_at")
+  listing                 ResaleListing     @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  buyer                   CustomerProfile   @relation("ResaleConversationBuyer", fields: [buyerCustomerProfileId], references: [id], onDelete: Cascade)
+  seller                  CustomerProfile   @relation("ResaleConversationSeller", fields: [sellerCustomerProfileId], references: [id], onDelete: Cascade)
+  messages                ResaleMessage[]
+  offers                  ResaleOffer[]
+  purchases               ResalePurchase[]
+
+  @@unique([listingId, buyerCustomerProfileId])
+  @@index([buyerCustomerProfileId, lastMessageAt])
+  @@index([sellerCustomerProfileId, lastMessageAt])
+  @@map("resale_conversations")
+}
+
+model ResaleMessage {
+  id                       String           @id @default(cuid())
+  conversationId           String           @map("conversation_id")
+  senderCustomerProfileId  String           @map("sender_customer_profile_id")
+  body                     String
+  kind                     ResaleMessageKind @default(TEXT)
+  createdAt                DateTime         @default(now()) @map("created_at")
+  conversation             ResaleConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender                   CustomerProfile  @relation("ResaleMessageSender", fields: [senderCustomerProfileId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("resale_messages")
+}
+
+model ResaleOffer {
+  id                        String          @id @default(cuid())
+  conversationId            String          @map("conversation_id")
+  offeredByCustomerProfileId String         @map("offered_by_customer_profile_id")
+  amountPence               Int             @map("amount_pence")
+  currency                  String          @default("GBP") @db.VarChar(3)
+  status                    ResaleOfferStatus @default(PENDING)
+  createdAt                 DateTime        @default(now()) @map("created_at")
+  updatedAt                 DateTime        @updatedAt @map("updated_at")
+  conversation              ResaleConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  offeredBy                 CustomerProfile @relation("ResaleOfferAuthor", fields: [offeredByCustomerProfileId], references: [id], onDelete: Cascade)
+  purchaseWhereAccepted     ResalePurchase? @relation("ResalePurchaseAcceptedOffer")
+
+  @@index([conversationId, status])
+  @@map("resale_offers")
+}
+
+model ResalePurchase {
+  id                       String               @id @default(cuid())
+  listingId                String               @map("listing_id")
+  conversationId         String?              @map("conversation_id")
+  buyerCustomerProfileId String               @map("buyer_customer_profile_id")
+  amountPence            Int                  @map("amount_pence")
+  currency               String               @default("GBP") @db.VarChar(3)
+  status                 ResalePurchaseStatus @default(PENDING_PAYMENT)
+  acceptedOfferId        String?              @unique @map("accepted_offer_id")
+  createdAt              DateTime             @default(now()) @map("created_at")
+  updatedAt              DateTime             @updatedAt @map("updated_at")
+  listing                ResaleListing        @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  conversation           ResaleConversation?  @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  buyer                  CustomerProfile      @relation("ResalePurchaseBuyer", fields: [buyerCustomerProfileId], references: [id], onDelete: Cascade)
+  acceptedOffer          ResaleOffer?         @relation("ResalePurchaseAcceptedOffer", fields: [acceptedOfferId], references: [id], onDelete: SetNull)
+  paidAt                 DateTime?            @map("paid_at")
+  buyerReview            ResaleReview?
+  resolutionCases        ResaleResolutionCase[]
+
+  @@index([listingId, status])
+  @@index([buyerCustomerProfileId, status])
+  @@map("resale_purchases")
+}
+
+enum ResaleResolutionStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+
+  @@map("resale_resolution_status")
+}
+
+enum ResaleResolutionCategory {
+  ITEM_NOT_AS_DESCRIBED
+  PAYMENT_OR_PICKUP
+  HARASSMENT_OR_SAFETY
+  OTHER
+
+  @@map("resale_resolution_category")
+}
+
+model ResaleReview {
+  id                          String          @id @default(cuid())
+  purchaseId                  String          @unique @map("purchase_id")
+  listingId                   String          @map("listing_id")
+  reviewerCustomerProfileId   String          @map("reviewer_customer_profile_id")
+  ratingTenths                Int             @map("rating_tenths")
+  comment                     String?
+  createdAt                   DateTime        @default(now()) @map("created_at")
+  purchase                    ResalePurchase  @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  listing                     ResaleListing   @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  reviewer                    CustomerProfile @relation("ResaleReviewAuthor", fields: [reviewerCustomerProfileId], references: [id], onDelete: Cascade)
+
+  @@index([listingId, createdAt])
+  @@index([reviewerCustomerProfileId, createdAt])
+  @@map("resale_reviews")
+}
+
+model ResaleResolutionCase {
+  id                        String                  @id @default(cuid())
+  openedByCustomerProfileId String                 @map("opened_by_customer_profile_id")
+  purchaseId                String?                 @map("purchase_id")
+  listingId                 String?                 @map("listing_id")
+  category                  ResaleResolutionCategory
+  summary                   String
+  details                   String
+  status                    ResaleResolutionStatus  @default(OPEN)
+  createdAt                 DateTime                @default(now()) @map("created_at")
+  updatedAt                 DateTime                @updatedAt @map("updated_at")
+  openedBy                  CustomerProfile         @relation("ResaleResolutionOpener", fields: [openedByCustomerProfileId], references: [id], onDelete: Cascade)
+  purchase                  ResalePurchase?         @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
+  listing                   ResaleListing?          @relation(fields: [listingId], references: [id], onDelete: SetNull)
+
+  @@index([openedByCustomerProfileId, status])
+  @@index([status, createdAt])
+  @@map("resale_resolution_cases")
 }

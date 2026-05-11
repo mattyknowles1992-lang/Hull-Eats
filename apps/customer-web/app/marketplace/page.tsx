@@ -7,6 +7,14 @@ import {
   marketplaceItemCategories,
   marketplaceListings,
 } from "../../src/lib/hull-marketplace";
+import {
+  marketplaceListingGateBody,
+  marketplaceListingGateHeadline,
+} from "../../src/lib/marketplace-policy";
+import {
+  SELLER_TRUST_VERIFIED_MIN_RATED_SALES,
+  SELLER_TRUST_VERIFIED_MIN_RATING_TENTHS,
+} from "../../src/lib/marketplace-trust";
 
 export default function HullMarketplacePage() {
   return (
@@ -15,19 +23,32 @@ export default function HullMarketplacePage() {
         <AppSwitcher />
 
         <div className="topbar-actions">
+          <Link href="/marketplace/resolution" className="glass-button">
+            Resolution centre
+          </Link>
           <Link href="/" className="primary-button service-back-button">
             Back to Hull Eats Marketplace
           </Link>
         </div>
       </header>
 
+      <nav className="marketplace-category-rail" aria-label="Hull Marketplace categories">
+        {marketplaceItemCategories.map((category) => (
+          <a key={category.slug} href={`#cat-${category.slug}`} className="marketplace-category-chip">
+            <span className="marketplace-category-chip-image" style={{ backgroundImage: `url(${category.imageUrl})` }} />
+            <span>{category.label}</span>
+          </a>
+        ))}
+      </nav>
+
       <section className="marketplace-resale-hero marketplace-scene">
         <div className="marketplace-resale-copy">
           <p className="hero-badge">Hull Marketplace</p>
           <h1>Buy and sell locally in Hull.</h1>
           <p>
-            Anyone can browse and buy. Hull Eats+ members can list items, message local buyers, accept offers, and mark
-            items as sold once the sale is arranged.
+            Anyone can browse. Signed-in customers can message sellers, send offers, and buy locally.{" "}
+            {marketplaceListingGateHeadline()} Listings, offers, and paid / not-sold states are stored on Hull Eats
+            servers (Vinted-style flow).
           </p>
 
           <div className="marketplace-search resale-search" aria-label="Search Hull Marketplace">
@@ -40,11 +61,8 @@ export default function HullMarketplacePage() {
 
         <aside className="marketplace-member-card">
           <p className="eyebrow">Listing access</p>
-          <h2>Hull Eats+ members can sell.</h2>
-          <p>
-            Buyers stay open to everyone. Sellers need an account and an active Hull Eats+ membership before an item can
-            go live.
-          </p>
+          <h2>{marketplaceListingGateHeadline()}</h2>
+          <p>{marketplaceListingGateBody()}</p>
           <Link href="/marketplace/sell" className="primary-button">
             Start selling
           </Link>
@@ -56,7 +74,11 @@ export default function HullMarketplacePage() {
           <div>
             <p className="eyebrow">Browse local resale categories</p>
             <h2>Find second-hand items nearby</h2>
-            <p>Built for local buyers first: collection, small local delivery, and van delivery for large items.</p>
+            <p>
+            Built for local buyers first: collection, small local delivery, and van delivery for large items. Sellers
+            earn a <strong>Trust verified</strong> badge after {SELLER_TRUST_VERIFIED_MIN_RATED_SALES} completed sales
+            each rated {(SELLER_TRUST_VERIFIED_MIN_RATING_TENTHS / 10).toFixed(1)} stars by buyers.
+          </p>
           </div>
         </div>
 
@@ -64,7 +86,7 @@ export default function HullMarketplacePage() {
           {marketplaceItemCategories.map((category) => (
             <a
               key={category.slug}
-              href={`#${category.slug}`}
+              href={`#cat-${category.slug}`}
               className="resale-category-card"
               style={{
                 backgroundImage: `linear-gradient(180deg, rgba(3, 9, 22, 0.04), rgba(3, 9, 22, 0.72)), url(${category.imageUrl})`,
@@ -87,32 +109,42 @@ export default function HullMarketplacePage() {
           </div>
 
           <div className="resale-listing-grid">
-            {marketplaceListings.map((listing) => (
-              <Link className="resale-listing-card" key={listing.id} id={listing.categorySlug} href={`/marketplace/${listing.id}`}>
-                <div className="resale-listing-media" style={{ backgroundImage: `url(${listing.imageUrl})` }}>
-                  <span>{getDeliveryModeLabel(listing.deliveryMode)}</span>
-                </div>
-                <div className="resale-listing-body">
-                  <div className="resale-listing-top">
-                    <div>
-                      <h3>{listing.title}</h3>
-                      <p>{listing.location}</p>
-                    </div>
-                    <strong>{formatMarketplacePrice(listing.price)}</strong>
-                  </div>
-                  <p>{listing.description}</p>
-                  <div className="store-tags">
-                    <span className="store-tag">{listing.condition}</span>
-                    <span className="store-tag">{listing.sellerLabel}</span>
-                    <span className="store-tag">{listing.status}</span>
-                    <span className="store-tag">{listing.listedAtLabel}</span>
-                  </div>
-                  <div className="store-card-footer">
-                    <span className="card-cta">View item</span>
-                    <span className="ghost-link">Offers and messages</span>
-                  </div>
-                </div>
-              </Link>
+            {marketplaceItemCategories.map((category) => (
+              <div key={category.slug} className="resale-listing-category-block">
+                <div id={`cat-${category.slug}`} className="marketplace-category-anchor" aria-hidden="true" />
+                {marketplaceListings
+                  .filter((listing) => listing.categorySlug === category.slug)
+                  .map((listing) => (
+                    <Link className="resale-listing-card" key={listing.id} href={`/marketplace/${listing.id}`}>
+                      <div className="resale-listing-media" style={{ backgroundImage: `url(${listing.imageUrl})` }}>
+                        <span>{getDeliveryModeLabel(listing.deliveryMode)}</span>
+                      </div>
+                      <div className="resale-listing-body">
+                        <div className="resale-listing-top">
+                          <div>
+                            <h3>{listing.title}</h3>
+                            <p>{listing.location}</p>
+                          </div>
+                          <strong>{formatMarketplacePrice(listing.price)}</strong>
+                        </div>
+                        <p>{listing.description}</p>
+                        <div className="store-tags">
+                          <span className="store-tag">{listing.condition}</span>
+                          <span className="store-tag">{listing.sellerLabel}</span>
+                          {listing.sellerTrustVerified ? (
+                            <span className="store-tag store-tag-trust">Trust verified</span>
+                          ) : null}
+                          <span className="store-tag">{listing.status}</span>
+                          <span className="store-tag">{listing.listedAtLabel}</span>
+                        </div>
+                        <div className="store-card-footer">
+                          <span className="card-cta">View item</span>
+                          <span className="ghost-link">Offers and messages</span>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+              </div>
             ))}
           </div>
         </div>
@@ -123,7 +155,7 @@ export default function HullMarketplacePage() {
               <div>
                 <p className="eyebrow">Account required</p>
                 <h2>Sell through Hull Marketplace</h2>
-                <p>Only active Hull Eats+ members can publish listings. Buyers can browse, buy, message, and send offers.</p>
+                <p>{marketplaceListingGateBody()}</p>
               </div>
             </div>
 

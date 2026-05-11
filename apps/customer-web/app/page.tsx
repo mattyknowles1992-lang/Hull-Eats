@@ -3,6 +3,11 @@
 import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 
+import { HullMicrocopy } from "../src/components/hull-microcopy";
+import { SensoryDelightsToggle } from "../src/components/sensory-delights-toggle";
+import { VerticalMark } from "../src/components/vertical-mark";
+import { YouAreHereWidget } from "../src/components/you-are-here-widget";
+import { playOrderSuccessDelight } from "../src/lib/customer-experience";
 import { AppSwitcher } from "./app-switcher";
 import { MarketplaceAuthButtons } from "./marketplace-auth-buttons";
 import { featuredStores, storeMenus } from "../src/lib/demo";
@@ -87,6 +92,7 @@ export default function CustomerHomePage() {
           longitude: position.coords.longitude,
         });
         setLocationStatus("ready");
+        playOrderSuccessDelight();
         focusResults();
       },
       () => {
@@ -265,7 +271,7 @@ export default function CustomerHomePage() {
           <span className="hero-slide hero-slide-portrait-two" />
         </div>
         <div className="marketplace-hero-copy">
-          <p className="hero-badge">Hull's food marketplace</p>
+          <p className="hero-badge">Hull's Delivery Hub</p>
           <h1>From local businesses to your door.</h1>
 
           <div className="marketplace-search">
@@ -292,6 +298,15 @@ export default function CustomerHomePage() {
             <span>No hidden extras</span>
             <span>Clear delivery price</span>
           </div>
+
+          <div className="marketplace-hero-delights">
+            <HullMicrocopy />
+            <SensoryDelightsToggle />
+          </div>
+
+          {customerCoordinates ? (
+            <YouAreHereWidget latitude={customerCoordinates.latitude} longitude={customerCoordinates.longitude} />
+          ) : null}
         </div>
 
       </section>
@@ -358,6 +373,9 @@ export default function CustomerHomePage() {
                   }}
                 >
                   <div className="store-card-overlay">
+                    <span className="store-card-vertical-mark" aria-hidden="true">
+                      <VerticalMark type={store.type} title={store.name} />
+                    </span>
                     <span className="status-chip pending">{getStoreStatus(store.storefrontStatus, store.isOpen)}</span>
                   </div>
                 </div>
