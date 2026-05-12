@@ -496,7 +496,8 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
           </div>
 
           {isExpanded ? (
-            <div className="menu-item-grid" id={`menu-category-items-${category.id}`}>
+            <div className="menu-category-items-panel">
+              <div className="menu-item-grid" id={`menu-category-items-${category.id}`}>
               {category.items.map((item) => (
                 <article key={item.id} className="menu-item-card menu-item-card-visual">
                   <div
@@ -530,6 +531,7 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
                   </div>
                 </article>
               ))}
+              </div>
             </div>
           ) : null}
         </section>
