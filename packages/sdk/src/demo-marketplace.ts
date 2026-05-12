@@ -300,8 +300,8 @@ export const loadedMunchStore: StoreSummary = {
   menuSetupComplete: true,
   onboardingMessage:
     "Launch partner takeaway with a live seeded menu. Ongoing edits, prices, images, and availability still belong only in the merchant hub.",
-  heroImageUrl: "/stores/loaded-munch/hero.webp",
-  logoImageUrl: "/stores/loaded-munch/logo.gif",
+  heroImageUrl: "/stores/loaded-munch/hero.jpg",
+  logoImageUrl: "/stores/loaded-munch/hero.jpg",
 };
 
 export const loadedMunchMenuSections: DemoMenuSection[] = [

@@ -5,7 +5,6 @@ import { useMemo, useRef, useState } from "react";
 
 import { HullMicrocopy } from "../src/components/hull-microcopy";
 import { SensoryDelightsToggle } from "../src/components/sensory-delights-toggle";
-import { VerticalMark } from "../src/components/vertical-mark";
 import { YouAreHereWidget } from "../src/components/you-are-here-widget";
 import { playOrderSuccessDelight } from "../src/lib/customer-experience";
 import { AppSwitcher } from "./app-switcher";
@@ -370,9 +369,6 @@ export default function CustomerHomePage() {
                   }}
                 >
                   <div className="store-card-overlay">
-                    <span className="store-card-vertical-mark" aria-hidden="true">
-                      <VerticalMark type={store.type} title={store.name} />
-                    </span>
                     <span className="status-chip pending">{getStoreStatus(store.storefrontStatus, store.isOpen)}</span>
                   </div>
                 </div>
