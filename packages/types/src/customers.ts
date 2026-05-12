@@ -62,7 +62,7 @@ export const createCustomerSignupInputSchema = z.object({
   fullName: z.string().min(1),
   phone: z.string().min(1),
   email: z.string().email(),
-  password: z.string().min(10),
+  password: z.string().min(5),
   promoCode: z.string().optional(),
   deliveryPlan: customerDeliveryPlanOptionSchema,
   marketingOptIn: z.boolean().default(false),

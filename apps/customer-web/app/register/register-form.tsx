@@ -45,6 +45,8 @@ export function RegisterForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const updateField = <K extends keyof FormState>(field: K, value: FormState[K]) => {
     setFormState((current) => ({
@@ -62,6 +64,10 @@ export function RegisterForm() {
     try {
       if (formState.password !== formState.confirmPassword) {
         throw new Error("Passwords must match before we create the account.");
+      }
+
+      if (formState.password.length < 5) {
+        throw new Error("Password must be at least 5 characters.");
       }
 
       if (!formState.termsAccepted) {
@@ -98,7 +104,7 @@ export function RegisterForm() {
         throw error;
       }
 
-      setSuccessMessage("Account created. Check your email to verify your address and finish setup.");
+      setSuccessMessage("Account created. You can sign in straight away from My account.");
       setFormState(initialState);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Something went wrong while creating your account.";
@@ -153,30 +159,42 @@ export function RegisterForm() {
           />
         </label>
 
-        <label className="form-field">
+        <label className="form-field form-field-password">
           <span>Password</span>
-          <input
-            className="form-input"
-            type="password"
-            placeholder="At least 10 characters"
-            value={formState.password}
-            onChange={(event) => updateField("password", event.target.value)}
-            minLength={10}
-            required
-          />
+          <div className="form-password-wrap">
+            <input
+              className="form-input"
+              type={showPassword ? "text" : "password"}
+              placeholder="At least 5 characters"
+              value={formState.password}
+              onChange={(event) => updateField("password", event.target.value)}
+              minLength={5}
+              autoComplete="new-password"
+              required
+            />
+            <button type="button" className="form-password-toggle" onClick={() => setShowPassword((current) => !current)}>
+              {showPassword ? "Hide" : "Show"}
+            </button>
+          </div>
         </label>
 
-        <label className="form-field">
+        <label className="form-field form-field-password">
           <span>Confirm password</span>
-          <input
-            className="form-input"
-            type="password"
-            placeholder="Repeat password"
-            value={formState.confirmPassword}
-            onChange={(event) => updateField("confirmPassword", event.target.value)}
-            minLength={10}
-            required
-          />
+          <div className="form-password-wrap">
+            <input
+              className="form-input"
+              type={showConfirmPassword ? "text" : "password"}
+              placeholder="Repeat password"
+              value={formState.confirmPassword}
+              onChange={(event) => updateField("confirmPassword", event.target.value)}
+              minLength={5}
+              autoComplete="new-password"
+              required
+            />
+            <button type="button" className="form-password-toggle" onClick={() => setShowConfirmPassword((current) => !current)}>
+              {showConfirmPassword ? "Hide" : "Show"}
+            </button>
+          </div>
         </label>
       </div>
       </div>

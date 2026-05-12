@@ -37,6 +37,8 @@ html {
   scroll-behavior: smooth;
   background: linear-gradient(180deg, #ffffff 0%, #ffffff 48%, #f4f7fb 100%);
   color: var(--ink);
+  overflow-x: clip;
+  max-width: 100%;
 }
 
 body {
@@ -46,6 +48,12 @@ body {
   color: var(--ink);
   font-family: var(--font-body), sans-serif;
   background: transparent;
+}
+
+#site-main {
+  overflow-x: clip;
+  width: 100%;
+  max-width: 100%;
 }
 
 ::selection {
@@ -1553,10 +1561,8 @@ textarea {
 }
 
 .store-card:hover {
-  border-color: rgba(18, 183, 232, 0.72);
-  box-shadow:
-    0 0 0 1px rgba(18, 183, 232, 0.18),
-    0 24px 46px rgba(15, 17, 21, 0.13);
+  border-color: rgba(18, 183, 232, 0.55);
+  box-shadow: none;
 }
 
 .marketplace-panel {
@@ -2724,6 +2730,12 @@ button.filter-pill {
 .sidebar-stack {
   display: grid;
   gap: 18px;
+  min-width: 0;
+}
+
+.detail-grid > .content-stack,
+.detail-grid > .sidebar-stack {
+  min-width: 0;
 }
 
 .section-heading {
@@ -2757,14 +2769,13 @@ button.filter-pill {
 .store-card {
   overflow: hidden;
   border-radius: 30px;
-  border: 1px solid rgba(15, 17, 21, 0.08);
+  border: 1px solid rgba(15, 17, 21, 0.06);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(246, 251, 255, 0.96)),
     rgba(255, 255, 255, 0.4);
-  box-shadow: 0 22px 40px rgba(15, 17, 21, 0.08);
+  box-shadow: none;
   transition:
     transform 220ms ease,
-    box-shadow 220ms ease,
     border-color 220ms ease;
 }
 
@@ -2772,7 +2783,8 @@ button.filter-pill {
   min-height: 250px;
   background-size: cover;
   background-position: center;
-  border-bottom: 1px solid rgba(15, 17, 21, 0.1);
+  border-bottom: 1px solid rgba(15, 17, 21, 0.06);
+  filter: saturate(1.12) contrast(1.04);
 }
 
 .store-card-overlay {
@@ -2786,10 +2798,11 @@ button.filter-pill {
 
 .store-card-overlay .status-chip,
 .store-card-overlay .glass-tag {
-  border-color: rgba(255, 255, 255, 0.34);
-  background: rgba(3, 10, 20, 0.42);
-  color: #fff;
-  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.18);
+  border-color: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.22);
+  color: #0a1018;
+  box-shadow: none;
+  backdrop-filter: blur(10px);
 }
 
 .store-card-body,
@@ -2860,6 +2873,7 @@ button.filter-pill {
 }
 
 .feature-panel {
+  min-width: 0;
   border-radius: 28px;
   border: 1px solid rgba(15, 17, 21, 0.08);
 }
@@ -3234,8 +3248,10 @@ button.filter-pill {
   color: var(--warning);
 }
 
-.store-card .status-chip.pending,
-.store-card-overlay .status-chip.pending,
+.store-card-overlay .status-chip.pending {
+  color: #0a1018;
+}
+
 .live-menu-card .status-chip.pending {
   color: #fff;
 }
@@ -3365,6 +3381,7 @@ button.filter-pill {
 
 .menu-category-visual {
   min-height: 230px;
+  min-width: 0;
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
@@ -3611,6 +3628,122 @@ button.filter-pill {
   top: auto;
 }
 
+.basket-floating.basket-banner {
+  grid-template-columns: 1fr;
+  align-items: stretch;
+}
+
+.basket-floating-inner {
+  display: grid;
+  gap: 14px;
+  width: 100%;
+  min-width: 0;
+}
+
+.basket-floating-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.basket-floating-summary {
+  min-width: 0;
+}
+
+.basket-floating-summary h3 {
+  margin: 4px 0 0;
+}
+
+.basket-floating-clear {
+  flex-shrink: 0;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(201, 88, 88, 0.35);
+  background: rgba(255, 248, 246, 0.95);
+  color: #8f2a2a;
+  font-weight: 900;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.basket-floating-clear:hover {
+  border-color: rgba(201, 88, 88, 0.55);
+  background: #fff;
+}
+
+.basket-floating-lines {
+  list-style: none;
+  margin: 0;
+  padding: 8px 4px 4px;
+  display: grid;
+  gap: 12px;
+  max-height: min(42vh, 300px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  border-top: 1px solid rgba(15, 17, 21, 0.08);
+  border-bottom: 1px solid rgba(15, 17, 21, 0.08);
+}
+
+.basket-floating-line {
+  margin: 0;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(15, 17, 21, 0.06);
+}
+
+.basket-floating-line:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.basket-floating-line-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.basket-floating-line-qty {
+  font-weight: 900;
+  color: var(--ink-strong);
+  font-size: 0.95rem;
+}
+
+.basket-floating-line-price {
+  font-weight: 900;
+  color: var(--ink-strong);
+  flex-shrink: 0;
+}
+
+.basket-floating-line-details {
+  margin: 6px 0 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.basket-floating-cta {
+  display: grid;
+  gap: 10px;
+}
+
+.basket-floating-toggle {
+  width: 100%;
+  justify-content: center;
+  text-align: center;
+}
+
+.basket-floating-checkout {
+  width: 100%;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  box-sizing: border-box;
+}
+
 .basket-viewport-spacer {
   width: 100%;
   flex-shrink: 0;
@@ -3736,10 +3869,39 @@ button.filter-pill {
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   display: flex;
   flex-direction: column;
   gap: 16px;
   padding: 22px 22px 12px;
+}
+
+.form-field-password .form-password-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.form-field-password .form-input {
+  padding-right: 5.25rem;
+}
+
+.form-password-toggle {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(15, 17, 21, 0.12);
+  background: rgba(255, 255, 255, 0.96);
+  font-weight: 800;
+  font-size: 0.85rem;
+  cursor: pointer;
+  color: var(--ink-strong);
+}
+
+.form-password-toggle:hover {
+  border-color: rgba(18, 183, 232, 0.45);
 }
 
 .customise-modal-footer {

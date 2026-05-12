@@ -1,5 +1,6 @@
 ﻿import { Module } from "@nestjs/common";
 
+import { RootController } from "./modules/root/root.controller";
 import { HealthController } from "./modules/health/health.controller";
 import { PublicController } from "./modules/public/public.controller";
 import { MerchantController } from "./modules/merchant/merchant.controller";
@@ -18,6 +19,7 @@ import { CustomerRegistryService } from "./common/customer-registry.service";
 
 @Module({
   controllers: [
+    RootController,
     HealthController,
     PublicController,
     MerchantController,

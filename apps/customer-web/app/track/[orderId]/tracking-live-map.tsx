@@ -336,7 +336,7 @@ export function TrackingLiveMap({
           border-radius: 22px;
           overflow: hidden;
           background: #0d1419;
-          border: 2px solid rgba(15, 17, 21, 0.14);
+          border: 2px solid #23cdff;
           box-shadow:
             inset 0 0 0 1px rgba(255, 255, 255, 0.06),
             0 18px 40px rgba(7, 17, 24, 0.12);

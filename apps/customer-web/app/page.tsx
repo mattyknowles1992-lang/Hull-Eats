@@ -94,13 +94,17 @@ export default function CustomerHomePage() {
         playOrderSuccessDelight();
         focusResults();
       },
-      () => {
-        setLocationStatus("denied");
+      (geoError) => {
+        if (geoError.code === 1) {
+          setLocationStatus("denied");
+          return;
+        }
+        setLocationStatus("unsupported");
       },
       {
         enableHighAccuracy: false,
         maximumAge: 300000,
-        timeout: 10000,
+        timeout: 15000,
       },
     );
   }
@@ -198,11 +202,11 @@ export default function CustomerHomePage() {
     }
 
     if (locationStatus === "denied") {
-      return "Location access was not allowed";
+      return "Location blocked — allow location for this site in browser settings, then tap Use location again";
     }
 
     if (locationStatus === "unsupported") {
-      return "Location is not available in this browser";
+      return "Location unavailable — check signal or try again";
     }
 
     return "";
@@ -365,7 +369,7 @@ export default function CustomerHomePage() {
                 <div
                   className="store-card-media"
                   style={{
-                    backgroundImage: `linear-gradient(180deg, rgba(3, 9, 22, 0.04), rgba(3, 9, 22, 0.88)), url(${store.heroImageUrl})`,
+                    backgroundImage: `linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0) 42%, rgba(8, 14, 24, 0.28)), url(${store.heroImageUrl})`,
                   }}
                 >
                   <div className="store-card-overlay">

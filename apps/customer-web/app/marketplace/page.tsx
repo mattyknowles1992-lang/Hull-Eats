@@ -89,7 +89,7 @@ export default function HullMarketplacePage() {
               href={`#cat-${category.slug}`}
               className="resale-category-card"
               style={{
-                backgroundImage: `linear-gradient(180deg, rgba(3, 9, 22, 0.04), rgba(3, 9, 22, 0.72)), url(${category.imageUrl})`,
+                backgroundImage: `linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0) 42%, rgba(8, 14, 24, 0.28)), url(${category.imageUrl})`,
               }}
             >
               <strong>{category.label}</strong>

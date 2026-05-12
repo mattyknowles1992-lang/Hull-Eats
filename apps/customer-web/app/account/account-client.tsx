@@ -48,6 +48,7 @@ const formatMoney = (value: number | string, currency = "GBP") =>
 export function AccountClient() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [profile, setProfile] = useState<CustomerProfileRow | null>(null);
   const [addresses, setAddresses] = useState<CustomerAddressRow[]>([]);
   const [orders, setOrders] = useState<CustomerOrderRow[]>([]);
@@ -81,7 +82,7 @@ export function AccountClient() {
       setOrders([]);
       setSessionWithoutProfile(true);
       setNotice(
-        "Your login works, but we could not load your Hull Eats profile from the database yet. If you just signed up, confirm your email from the message we sent you, then refresh this page.",
+        "Your login works, but we could not load your Hull Eats profile from the database yet. If you just signed up, wait a moment and refresh this page.",
       );
       setIsLoading(false);
       return;
@@ -181,9 +182,21 @@ export function AccountClient() {
               <span>Email address</span>
               <input className="form-input" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
             </label>
-            <label className="form-field">
+            <label className="form-field form-field-password">
               <span>Password</span>
-              <input className="form-input" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+              <div className="form-password-wrap">
+                <input
+                  className="form-input"
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  autoComplete="current-password"
+                  required
+                />
+                <button type="button" className="form-password-toggle" onClick={() => setShowPassword((current) => !current)}>
+                  {showPassword ? "Hide" : "Show"}
+                </button>
+              </div>
             </label>
           </div>
           {notice ? (

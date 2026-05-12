@@ -50,7 +50,7 @@ export default function ServicesPage() {
               key={category.slug}
               href={`#${category.slug}`}
               className="service-category-card"
-              style={{ backgroundImage: `linear-gradient(180deg, rgba(3, 9, 22, 0.02), rgba(3, 9, 22, 0.68)), url(${category.imageUrl})` }}
+              style={{ backgroundImage: `linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0) 42%, rgba(8, 14, 24, 0.28)), url(${category.imageUrl})` }}
             >
               <strong>{category.label}</strong>
               <span>{category.description}</span>
@@ -75,7 +75,7 @@ export default function ServicesPage() {
                 <div
                   className="store-card-media"
                   style={{
-                    backgroundImage: `linear-gradient(180deg, rgba(3, 9, 22, 0.04), rgba(3, 9, 22, 0.82)), url(${business.imageUrl})`,
+                    backgroundImage: `linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0) 42%, rgba(8, 14, 24, 0.28)), url(${business.imageUrl})`,
                   }}
                 >
                   <div className="store-card-overlay">

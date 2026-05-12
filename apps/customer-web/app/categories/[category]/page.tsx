@@ -184,7 +184,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ categ
                 <div
                   className="store-card-media"
                   style={{
-                    backgroundImage: `linear-gradient(180deg, rgba(3, 9, 22, 0.04), rgba(3, 9, 22, 0.88)), url(${store.heroImageUrl ?? category.imageUrl})`,
+                    backgroundImage: `linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0) 42%, rgba(8, 14, 24, 0.28)), url(${store.heroImageUrl ?? category.imageUrl})`,
                   }}
                 >
                   <div className="store-card-overlay">
@@ -215,7 +215,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ categ
                 <div
                   className="store-card-media"
                   style={{
-                    backgroundImage: `linear-gradient(180deg, rgba(3, 9, 22, 0.04), rgba(3, 9, 22, 0.78)), url(${category.imageUrl})`,
+                    backgroundImage: `linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0) 42%, rgba(8, 14, 24, 0.28)), url(${category.imageUrl})`,
                   }}
                 />
                 <div className="store-card-body">

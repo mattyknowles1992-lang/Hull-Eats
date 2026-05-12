@@ -138,8 +138,11 @@ export default function App() {
   const [courierAccount, setCourierAccount] = useState<CourierAccount | null>(null);
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
   const [orderInput, setOrderInput] = useState("HE-1002");
   const [pinInput, setPinInput] = useState("");
   const [delivery, setDelivery] = useState<CourierDelivery | null>(null);
@@ -442,14 +445,19 @@ export default function App() {
               placeholder="Username or email"
               placeholderTextColor="#87909d"
             />
-            <TextInput
-              style={styles.input}
-              value={loginPassword}
-              onChangeText={setLoginPassword}
-              secureTextEntry
-              placeholder="Password"
-              placeholderTextColor="#87909d"
-            />
+            <View style={styles.passwordFieldRow}>
+              <TextInput
+                style={[styles.input, styles.passwordInput]}
+                value={loginPassword}
+                onChangeText={setLoginPassword}
+                secureTextEntry={!showLoginPassword}
+                placeholder="Password"
+                placeholderTextColor="#87909d"
+              />
+              <Pressable accessibilityRole="button" onPress={() => setShowLoginPassword((current) => !current)} hitSlop={8}>
+                <Text style={styles.passwordToggleText}>{showLoginPassword ? "Hide" : "Show"}</Text>
+              </Pressable>
+            </View>
             <Pressable style={styles.primaryButton} onPress={loginCourier} disabled={isWorking}>
               <Text style={styles.primaryButtonText}>Sign in</Text>
             </Pressable>
@@ -537,22 +545,32 @@ export default function App() {
         <View style={styles.panel}>
           <Text style={styles.panelTitle}>Account security</Text>
           <Text style={styles.copy}>Change the temporary password from admin once you have signed in.</Text>
-          <TextInput
-            style={styles.input}
-            value={currentPassword}
-            onChangeText={setCurrentPassword}
-            secureTextEntry
-            placeholder="Current password"
-            placeholderTextColor="#87909d"
-          />
-          <TextInput
-            style={styles.input}
-            value={newPassword}
-            onChangeText={setNewPassword}
-            secureTextEntry
-            placeholder="New password"
-            placeholderTextColor="#87909d"
-          />
+          <View style={styles.passwordFieldRow}>
+            <TextInput
+              style={[styles.input, styles.passwordInput]}
+              value={currentPassword}
+              onChangeText={setCurrentPassword}
+              secureTextEntry={!showCurrentPassword}
+              placeholder="Current password"
+              placeholderTextColor="#87909d"
+            />
+            <Pressable accessibilityRole="button" onPress={() => setShowCurrentPassword((current) => !current)} hitSlop={8}>
+              <Text style={styles.passwordToggleText}>{showCurrentPassword ? "Hide" : "Show"}</Text>
+            </Pressable>
+          </View>
+          <View style={styles.passwordFieldRow}>
+            <TextInput
+              style={[styles.input, styles.passwordInput]}
+              value={newPassword}
+              onChangeText={setNewPassword}
+              secureTextEntry={!showNewPassword}
+              placeholder="New password"
+              placeholderTextColor="#87909d"
+            />
+            <Pressable accessibilityRole="button" onPress={() => setShowNewPassword((current) => !current)} hitSlop={8}>
+              <Text style={styles.passwordToggleText}>{showNewPassword ? "Hide" : "Show"}</Text>
+            </Pressable>
+          </View>
           <Pressable style={styles.secondaryButton} onPress={changePassword} disabled={isWorking}>
             <Text style={styles.secondaryButtonText}>Update password</Text>
           </Pressable>
@@ -912,6 +930,20 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     paddingHorizontal: 14,
     paddingVertical: 14,
+  },
+  passwordFieldRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  passwordInput: {
+    flex: 1,
+    minWidth: 0,
+  },
+  passwordToggleText: {
+    color: brandBlue,
+    fontSize: 14,
+    fontWeight: "900",
   },
   primaryButton: {
     alignItems: "center",

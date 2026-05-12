@@ -1029,6 +1029,10 @@ export default function MerchantPortalPage() {
   const [selectedItemId, setSelectedItemId] = useState("");
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showAccountPasswords, setShowAccountPasswords] = useState(false);
+  const [showHubPasswordCurrent, setShowHubPasswordCurrent] = useState(false);
+  const [showHubPasswordNew, setShowHubPasswordNew] = useState(false);
+  const [showHubPasswordConfirm, setShowHubPasswordConfirm] = useState(false);
+  const [showCreateUserPassword, setShowCreateUserPassword] = useState(false);
 
   const menuStats = useMemo(() => {
     const totalItems = menuSections.reduce((sum, section) => sum + section.items.length, 0);
@@ -2662,30 +2666,45 @@ export default function MerchantPortalPage() {
             <div style={{ display: "grid", gap: 12 }}>
               <label style={field}>
                 <span style={darkFieldLabel}>Current password</span>
-                <input
-                  type="password"
-                  style={lightInput}
-                  value={passwordForm.currentPassword}
-                  onChange={(event) => setPasswordForm((current) => ({ ...current, currentPassword: event.target.value }))}
-                />
+                <span style={passwordFieldWrap}>
+                  <input
+                    type={showHubPasswordCurrent ? "text" : "password"}
+                    style={{ ...lightInput, paddingRight: 88 }}
+                    value={passwordForm.currentPassword}
+                    onChange={(event) => setPasswordForm((current) => ({ ...current, currentPassword: event.target.value }))}
+                  />
+                  <button type="button" style={passwordRevealButton} onClick={() => setShowHubPasswordCurrent((current) => !current)}>
+                    {showHubPasswordCurrent ? "Hide" : "Show"}
+                  </button>
+                </span>
               </label>
               <label style={field}>
                 <span style={darkFieldLabel}>New password</span>
-                <input
-                  type="password"
-                  style={lightInput}
-                  value={passwordForm.newPassword}
-                  onChange={(event) => setPasswordForm((current) => ({ ...current, newPassword: event.target.value }))}
-                />
+                <span style={passwordFieldWrap}>
+                  <input
+                    type={showHubPasswordNew ? "text" : "password"}
+                    style={{ ...lightInput, paddingRight: 88 }}
+                    value={passwordForm.newPassword}
+                    onChange={(event) => setPasswordForm((current) => ({ ...current, newPassword: event.target.value }))}
+                  />
+                  <button type="button" style={passwordRevealButton} onClick={() => setShowHubPasswordNew((current) => !current)}>
+                    {showHubPasswordNew ? "Hide" : "Show"}
+                  </button>
+                </span>
               </label>
               <label style={field}>
                 <span style={darkFieldLabel}>Confirm new password</span>
-                <input
-                  type="password"
-                  style={lightInput}
-                  value={passwordForm.confirmPassword}
-                  onChange={(event) => setPasswordForm((current) => ({ ...current, confirmPassword: event.target.value }))}
-                />
+                <span style={passwordFieldWrap}>
+                  <input
+                    type={showHubPasswordConfirm ? "text" : "password"}
+                    style={{ ...lightInput, paddingRight: 88 }}
+                    value={passwordForm.confirmPassword}
+                    onChange={(event) => setPasswordForm((current) => ({ ...current, confirmPassword: event.target.value }))}
+                  />
+                  <button type="button" style={passwordRevealButton} onClick={() => setShowHubPasswordConfirm((current) => !current)}>
+                    {showHubPasswordConfirm ? "Hide" : "Show"}
+                  </button>
+                </span>
               </label>
               <button type="button" onClick={handleChangePassword} style={primaryButton}>
                 Change password
@@ -3182,13 +3201,18 @@ export default function MerchantPortalPage() {
                 </label>
                 <label style={field}>
                   <span style={darkFieldLabel}>Password</span>
-                  <input
-                    type="password"
-                    style={lightInput}
-                    value={newUser.password}
-                    onChange={(event) => setNewUser((current) => ({ ...current, password: event.target.value }))}
-                    placeholder="Create password"
-                  />
+                  <span style={passwordFieldWrap}>
+                    <input
+                      type={showCreateUserPassword ? "text" : "password"}
+                      style={{ ...lightInput, paddingRight: 88 }}
+                      value={newUser.password}
+                      onChange={(event) => setNewUser((current) => ({ ...current, password: event.target.value }))}
+                      placeholder="Create password"
+                    />
+                    <button type="button" style={passwordRevealButton} onClick={() => setShowCreateUserPassword((current) => !current)}>
+                      {showCreateUserPassword ? "Hide" : "Show"}
+                    </button>
+                  </span>
                 </label>
                 <label style={field}>
                   <span style={darkFieldLabel}>Role</span>
@@ -3221,30 +3245,45 @@ export default function MerchantPortalPage() {
               <div style={{ display: "grid", gap: 12 }}>
                 <label style={field}>
                   <span style={darkFieldLabel}>Current password</span>
-                  <input
-                    type="password"
-                    style={lightInput}
-                    value={passwordForm.currentPassword}
-                    onChange={(event) => setPasswordForm((current) => ({ ...current, currentPassword: event.target.value }))}
-                  />
+                  <span style={passwordFieldWrap}>
+                    <input
+                      type={showHubPasswordCurrent ? "text" : "password"}
+                      style={{ ...lightInput, paddingRight: 88 }}
+                      value={passwordForm.currentPassword}
+                      onChange={(event) => setPasswordForm((current) => ({ ...current, currentPassword: event.target.value }))}
+                    />
+                    <button type="button" style={passwordRevealButton} onClick={() => setShowHubPasswordCurrent((current) => !current)}>
+                      {showHubPasswordCurrent ? "Hide" : "Show"}
+                    </button>
+                  </span>
                 </label>
                 <label style={field}>
                   <span style={darkFieldLabel}>New password</span>
-                  <input
-                    type="password"
-                    style={lightInput}
-                    value={passwordForm.newPassword}
-                    onChange={(event) => setPasswordForm((current) => ({ ...current, newPassword: event.target.value }))}
-                  />
+                  <span style={passwordFieldWrap}>
+                    <input
+                      type={showHubPasswordNew ? "text" : "password"}
+                      style={{ ...lightInput, paddingRight: 88 }}
+                      value={passwordForm.newPassword}
+                      onChange={(event) => setPasswordForm((current) => ({ ...current, newPassword: event.target.value }))}
+                    />
+                    <button type="button" style={passwordRevealButton} onClick={() => setShowHubPasswordNew((current) => !current)}>
+                      {showHubPasswordNew ? "Hide" : "Show"}
+                    </button>
+                  </span>
                 </label>
                 <label style={field}>
                   <span style={darkFieldLabel}>Confirm new password</span>
-                  <input
-                    type="password"
-                    style={lightInput}
-                    value={passwordForm.confirmPassword}
-                    onChange={(event) => setPasswordForm((current) => ({ ...current, confirmPassword: event.target.value }))}
-                  />
+                  <span style={passwordFieldWrap}>
+                    <input
+                      type={showHubPasswordConfirm ? "text" : "password"}
+                      style={{ ...lightInput, paddingRight: 88 }}
+                      value={passwordForm.confirmPassword}
+                      onChange={(event) => setPasswordForm((current) => ({ ...current, confirmPassword: event.target.value }))}
+                    />
+                    <button type="button" style={passwordRevealButton} onClick={() => setShowHubPasswordConfirm((current) => !current)}>
+                      {showHubPasswordConfirm ? "Hide" : "Show"}
+                    </button>
+                  </span>
                 </label>
                 <button type="button" onClick={handleChangePassword} style={primaryButton}>
                   Change password

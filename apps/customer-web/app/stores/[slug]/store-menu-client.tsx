@@ -8,6 +8,7 @@ import type { MenuItem } from "@hull-eats/types";
 
 import {
   addConfiguredItemToBasket,
+  clearBasket,
   getBasketItemCount,
   getBasketLineDetails,
   getBasketSubtotal,
@@ -18,6 +19,7 @@ import {
   loadBasket,
   synchroniseSelection,
   type BasketCustomisationSelection,
+  type BasketLine,
   type StoreBasket,
 } from "../../../src/lib/basket";
 
@@ -84,6 +86,22 @@ const getGroupCountLabel = (group: MenuItem["optionGroups"][number]) => {
   return group.maxSelections ? `${requirementLabel} / max ${group.maxSelections}` : requirementLabel;
 };
 
+const formatBasketLineSubtotal = (line: BasketLine) =>
+  formatMoney(Number((line.unitPrice * line.quantity).toFixed(2)));
+
+const summariseBasketLine = (line: BasketLine) => {
+  const detailParts: string[] = [];
+  if (line.selectedOptions?.length) {
+    line.selectedOptions.forEach((option) => {
+      detailParts.push(option.quantity > 1 ? `${option.quantity}× ${option.valueName}` : option.valueName);
+    });
+  }
+  if (line.removedComponents?.length) {
+    line.removedComponents.forEach((removed) => detailParts.push(`No ${removed.label}`));
+  }
+  return detailParts.join(" · ");
+};
+
 export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: StoreMenuClientProps) {
   const [basket, setBasket] = useState<StoreBasket | null>(null);
   const [activeItem, setActiveItem] = useState<MenuItem | null>(null);
@@ -94,6 +112,7 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
   const [expandedCategoryIds, setExpandedCategoryIds] = useState<string[]>([]);
   const [addedItemId, setAddedItemId] = useState("");
   const [basketBarHeight, setBasketBarHeight] = useState(0);
+  const [basketExpanded, setBasketExpanded] = useState(false);
   const basketPortalRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -116,11 +135,32 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
       return;
     }
 
+    const scrollY = window.scrollY;
     const previousOverflow = document.body.style.overflow;
+    const previousPosition = document.body.style.position;
+    const previousTop = document.body.style.top;
+    const previousLeft = document.body.style.left;
+    const previousRight = document.body.style.right;
+    const previousWidth = document.body.style.width;
+    const previousHtmlTouchAction = document.documentElement.style.touchAction;
+
+    document.documentElement.style.touchAction = "none";
     document.body.style.overflow = "hidden";
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.left = "0";
+    document.body.style.right = "0";
+    document.body.style.width = "100%";
 
     return () => {
+      document.documentElement.style.touchAction = previousHtmlTouchAction;
       document.body.style.overflow = previousOverflow;
+      document.body.style.position = previousPosition;
+      document.body.style.top = previousTop;
+      document.body.style.left = previousLeft;
+      document.body.style.right = previousRight;
+      document.body.style.width = previousWidth;
+      window.scrollTo(0, scrollY);
     };
   }, [activeItem, selection]);
 
@@ -161,7 +201,7 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
     observer.observe(node);
 
     return () => observer.disconnect();
-  }, [isClient, itemCount, subtotal, addedMessage]);
+  }, [isClient, itemCount, subtotal, addedMessage, basketExpanded]);
 
   const visibleCategories = useMemo(
     () => (activeCategoryId === "all" ? categories : categories.filter((category) => category.id === activeCategoryId)),
@@ -312,6 +352,65 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
     closeCustomise();
   };
 
+  const handleClearBasket = () => {
+    clearBasket(storeSlug);
+    setBasketExpanded(false);
+  };
+
+  const floatingBasketClassName = `basket-banner basket-floating${addedMessage ? " is-pulsing" : ""}${basketExpanded ? " is-expanded" : ""}`;
+
+  const renderFloatingBasket = () => (
+    <section className={floatingBasketClassName} aria-label="Your basket">
+      <div className="basket-floating-inner">
+        <div className="basket-floating-top">
+          <div className="basket-floating-summary">
+            <p className="eyebrow">Basket ready</p>
+            <h3>
+              {itemCount} item{itemCount === 1 ? "" : "s"} / {formatMoney(subtotal)}
+            </h3>
+            {addedMessage ? <p className="basket-added-message">{addedMessage}</p> : null}
+          </div>
+          <button type="button" className="basket-floating-clear" onClick={handleClearBasket}>
+            Clear basket
+          </button>
+        </div>
+
+        {basketExpanded && basket && basket.items.length > 0 ? (
+          <ul className="basket-floating-lines" aria-label="Items in your basket">
+            {basket.items.map((line) => {
+              const details = summariseBasketLine(line);
+              return (
+                <li key={line.lineId} className="basket-floating-line">
+                  <div className="basket-floating-line-main">
+                    <span className="basket-floating-line-qty">
+                      {line.quantity}× {line.name}
+                    </span>
+                    <span className="basket-floating-line-price">{formatBasketLineSubtotal(line)}</span>
+                  </div>
+                  {details ? <p className="basket-floating-line-details">{details}</p> : null}
+                </li>
+              );
+            })}
+          </ul>
+        ) : null}
+
+        <div className="basket-floating-cta">
+          <button
+            type="button"
+            className="glass-button basket-floating-toggle"
+            onClick={() => setBasketExpanded((current) => !current)}
+            aria-expanded={basketExpanded}
+          >
+            {basketExpanded ? "Show less" : "View basket"}
+          </button>
+          <Link href={`/checkout/${storeSlug}`} className="primary-button gold-button basket-floating-checkout">
+            Go to checkout
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+
   return (
     <div className="menu-section-stack">
       {itemCount > 0 ? (
@@ -321,35 +420,13 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
               <div className="basket-viewport-spacer" style={{ height: basketBarHeight }} aria-hidden />
               {createPortal(
                 <div className="basket-floating-viewport" ref={basketPortalRef}>
-                  <section className={`basket-banner basket-floating${addedMessage ? " is-pulsing" : ""}`}>
-                    <div>
-                      <p className="eyebrow">Basket ready</p>
-                      <h3>
-                        {itemCount} item{itemCount === 1 ? "" : "s"} / {formatMoney(subtotal)}
-                      </h3>
-                      {addedMessage ? <p className="basket-added-message">{addedMessage}</p> : null}
-                    </div>
-                    <Link href={`/checkout/${storeSlug}`} className="primary-button gold-button">
-                      Go to checkout
-                    </Link>
-                  </section>
+                  {renderFloatingBasket()}
                 </div>,
                 document.body,
               )}
             </>
           ) : (
-            <section className={`basket-banner basket-floating${addedMessage ? " is-pulsing" : ""}`}>
-              <div>
-                <p className="eyebrow">Basket ready</p>
-                <h3>
-                  {itemCount} item{itemCount === 1 ? "" : "s"} / {formatMoney(subtotal)}
-                </h3>
-                {addedMessage ? <p className="basket-added-message">{addedMessage}</p> : null}
-              </div>
-              <Link href={`/checkout/${storeSlug}`} className="primary-button gold-button">
-                Go to checkout
-              </Link>
-            </section>
+            renderFloatingBasket()
           )}
         </>
       ) : addedMessage ? (
@@ -462,11 +539,12 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
       {isClient && activeItem && selection
         ? createPortal(
         <div className="customise-modal-backdrop" onClick={closeCustomise}>
-          <section className="customise-modal" onClick={(event) => event.stopPropagation()}>
+          <section className="customise-modal" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="customise-modal-title">
+            <div className="customise-modal-scroll">
             <div className="customise-modal-header">
               <div>
                 <p className="eyebrow">Customise item</p>
-                <h3>{activeItem.name}</h3>
+                <h3 id="customise-modal-title">{activeItem.name}</h3>
                 <p>{activeItem.description}</p>
               </div>
               <button type="button" className="icon-button" onClick={closeCustomise}>
@@ -622,7 +700,9 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
               ) : null}
             </section>
 
-            <div className="button-row">
+            </div>
+
+            <div className="customise-modal-footer button-row">
               <button type="button" className="glass-button" onClick={closeCustomise}>
                 Cancel
               </button>

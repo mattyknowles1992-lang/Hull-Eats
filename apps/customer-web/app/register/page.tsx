@@ -26,7 +26,7 @@ export default function RegisterPage() {
           <div className="hero-badge register-badge">Create account</div>
           <h1 className="register-title">Create your account, add your address, and start ordering.</h1>
           <p className="register-copy">
-            Fill in your details below. We will create your Hull Eats account and ask you to verify your email after sign up.
+            Fill in your details below. We will create your Hull Eats account so you can sign in from My account straight away.
           </p>
 
           <div className="register-step-list" aria-label="Signup steps">
@@ -35,8 +35,8 @@ export default function RegisterPage() {
               <p>Name, mobile number, email, password, and delivery address.</p>
             </article>
             <article className="register-step">
-              <strong>2. Verify your email</strong>
-              <p>We will send a link so you can confirm your email and finish signing in.</p>
+              <strong>2. Start ordering</strong>
+              <p>Use My account to manage your profile and saved addresses whenever you order.</p>
             </article>
           </div>
 

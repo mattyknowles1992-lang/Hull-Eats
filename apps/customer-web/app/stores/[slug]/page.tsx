@@ -39,7 +39,7 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
       <section
         className="store-hero"
         style={{
-          backgroundImage: `linear-gradient(180deg, rgba(5, 12, 28, 0.1), rgba(5, 12, 28, 0.82)), url(${store.heroImageUrl})`,
+          backgroundImage: `linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0) 42%, rgba(8, 14, 24, 0.28)), url(${store.heroImageUrl})`,
         }}
       >
         <div className="store-hero-content">
