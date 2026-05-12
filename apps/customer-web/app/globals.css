@@ -3396,14 +3396,12 @@ button.filter-pill {
   padding: 16px 18px;
   border-radius: 20px;
   color: #f7fbff;
-  /* Light glass: image stays visible; blur + shadows keep type readable */
-  background: rgba(6, 10, 16, 0.36);
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  backdrop-filter: blur(14px) saturate(1.08);
-  -webkit-backdrop-filter: blur(14px) saturate(1.08);
+  /* Transparent tint — no backdrop blur so the photo stays sharp */
+  background: rgba(6, 10, 16, 0.44);
+  border: 1px solid rgba(255, 255, 255, 0.26);
   box-shadow:
-    0 12px 36px rgba(0, 0, 0, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+    0 10px 32px rgba(0, 0, 0, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
 }
 
 .menu-category-copy .eyebrow {
@@ -3460,15 +3458,27 @@ button.filter-pill {
   box-shadow: 0 18px 28px rgba(35, 205, 255, 0.24);
 }
 
-.menu-category-toggle span:last-child {
+.menu-category-toggle-chevron {
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   border-radius: 999px;
   color: #f7fbff;
   background: #0f1115;
-  line-height: 1;
+  line-height: 0;
+  flex-shrink: 0;
+  transition: transform 220ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.menu-category-toggle-chevron.is-expanded {
+  transform: rotate(180deg);
+}
+
+.menu-category-toggle-chevron-svg {
+  width: 15px;
+  height: 15px;
+  display: block;
 }
 
 .menu-section-header {
@@ -3490,8 +3500,9 @@ button.filter-pill {
   padding: 14px 14px 18px;
   margin: 0;
   min-width: 0;
-  border-top: 1px solid rgba(15, 17, 21, 0.1);
-  background: linear-gradient(180deg, rgba(246, 251, 255, 0.96), rgba(255, 255, 255, 1));
+  border-top: 2px solid #23cdff;
+  background: linear-gradient(180deg, rgba(35, 205, 255, 0.18), rgba(35, 205, 255, 0.06));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
   border-radius: 0 0 22px 22px;
 }
 
@@ -3546,8 +3557,7 @@ button.filter-pill {
   border-radius: 20px;
   border: 1px solid rgba(15, 17, 21, 0.1);
   color: #111318;
-  background: rgba(255, 255, 255, 0.96);
-  backdrop-filter: blur(14px);
+  background: rgba(255, 255, 255, 0.98);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.78),
     0 18px 32px rgba(15, 17, 21, 0.14);
@@ -3556,6 +3566,32 @@ button.filter-pill {
 .menu-item-top {
   display: grid;
   gap: 12px;
+}
+
+.menu-item-card-visual .menu-item-top {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+}
+
+.menu-item-heading-block {
+  width: 100%;
+}
+
+.menu-item-card-visual .menu-item-heading-block {
+  max-width: 22rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.menu-item-summary-line {
+  margin: 6px auto 0;
+  max-width: 22rem;
+  font-size: 0.78rem;
+  line-height: 1.38;
+  color: #5d6775;
 }
 
 .menu-item-top h4 {
@@ -3569,7 +3605,12 @@ button.filter-pill {
   line-height: 1.6;
 }
 
-.menu-item-top strong {
+.menu-item-card-visual .menu-item-top p.menu-item-summary-line {
+  margin-top: 6px;
+}
+
+.menu-item-top strong,
+.menu-item-price-pill {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -3588,6 +3629,23 @@ button.filter-pill {
   gap: 12px;
   align-items: center;
   margin-top: 4px;
+}
+
+.menu-item-card-visual .menu-item-footer {
+  justify-content: center;
+}
+
+.menu-item-card-visual .menu-item-footer .glass-button {
+  width: 100%;
+  max-width: 240px;
+  justify-content: center;
+}
+
+.menu-item-card-visual .menu-item-customise-summary {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
 }
 
 .menu-item-footer .glass-button {

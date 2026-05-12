@@ -86,6 +86,21 @@ const getGroupCountLabel = (group: MenuItem["optionGroups"][number]) => {
   return group.maxSelections ? `${requirementLabel} / max ${group.maxSelections}` : requirementLabel;
 };
 
+/** Compact line under the title: lists included parts when present; otherwise a short slice of copy. Full menu description stays on title/tooltip. */
+const getMenuItemListingLine = (item: MenuItem): string | null => {
+  const labels = item.components.map((component) => component.label.trim()).filter(Boolean);
+  if (labels.length > 0) {
+    return labels.join(" · ");
+  }
+
+  const description = item.description?.trim();
+  if (!description) {
+    return null;
+  }
+
+  return description.length > 88 ? `${description.slice(0, 85)}…` : description;
+};
+
 const formatBasketLineSubtotal = (line: BasketLine) =>
   formatMoney(Number((line.unitPrice * line.quantity).toFixed(2)));
 
@@ -101,6 +116,16 @@ const summariseBasketLine = (line: BasketLine) => {
   }
   return detailParts.join(" · ");
 };
+
+function MenuCategoryChevron({ expanded }: { expanded: boolean }) {
+  return (
+    <span className={`menu-category-toggle-chevron${expanded ? " is-expanded" : ""}`} aria-hidden="true">
+      <svg className="menu-category-toggle-chevron-svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M7 10l5 5 5-5" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </span>
+  );
+}
 
 export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: StoreMenuClientProps) {
   const [basket, setBasket] = useState<StoreBasket | null>(null);
@@ -491,14 +516,18 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
               onClick={() => toggleCategoryExpanded(category.id)}
             >
               <span>{isExpanded ? "Hide items" : `Show ${category.items.length} item${category.items.length === 1 ? "" : "s"}`}</span>
-              <span aria-hidden="true">{isExpanded ? "^" : "v"}</span>
+              <MenuCategoryChevron expanded={isExpanded} />
             </button>
           </div>
 
           {isExpanded ? (
             <div className="menu-category-items-panel">
               <div className="menu-item-grid" id={`menu-category-items-${category.id}`}>
-              {category.items.map((item) => (
+              {category.items.map((item) => {
+                const listing = getMenuItemListingLine(item);
+                const fullDescription = item.description?.trim();
+
+                return (
                 <article key={item.id} className="menu-item-card menu-item-card-visual">
                   <div
                     className="menu-item-image"
@@ -509,11 +538,15 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
                   />
                   <div className="menu-item-content-panel">
                     <div className="menu-item-top">
-                      <div>
-                        <h4>{item.name}</h4>
-                        <p>{item.description}</p>
+                      <div className="menu-item-heading-block">
+                        <h4 title={fullDescription || undefined}>{item.name}</h4>
+                        {listing ? (
+                          <p className="menu-item-summary-line" title={fullDescription || undefined}>
+                            {listing}
+                          </p>
+                        ) : null}
                       </div>
-                      <strong>{formatMoney(item.price)}</strong>
+                      <strong className="menu-item-price-pill">{formatMoney(item.price)}</strong>
                     </div>
 
                     {item.components.length > 0 || item.optionGroups.length > 0 ? (
@@ -530,7 +563,8 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
                     </div>
                   </div>
                 </article>
-              ))}
+                );
+              })}
               </div>
             </div>
           ) : null}
