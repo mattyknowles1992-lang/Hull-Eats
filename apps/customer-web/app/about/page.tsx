@@ -1,72 +1,38 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { AppSwitcher } from "../app-switcher";
 
-const buyerOffers = [
-  "Order from Hull restaurants, takeaways, cafes, dessert spots, and shops in one local marketplace.",
-  "Track orders from checkout through preparation and delivery as the delivery operation comes online.",
-  "Pay delivery fees per order as set by each store at checkout — optional memberships may follow in a later phase.",
+export const metadata: Metadata = {
+  title: "About Hull Eats | For customers",
+  description:
+    "Hull Eats helps you discover Hull takeaways, cafés, shops, and more — order online, pay at checkout, and track your food in one place.",
+};
+
+const customerBasics = [
+  "Browse live menus from local kitchens and shops, with clear prices before you add anything to your basket.",
+  "Check out in a few steps. Delivery fees and minimum spends are set by each business and shown up front on the order screen.",
+  "Create an account to save your details and addresses, then sign in on the website or the Hull Eats app with the same login.",
+  "Track your order when tracking is available for that store, so you spend less time guessing when dinner will arrive.",
 ];
 
-const businessOffers = [
-  "A secure hub portal for menus, pricing, descriptions, options, delivery settings, users, and live item control.",
-  "Optional Hull Eats marketplace exposure, delivery support, order printing, paperless workflows, and future add-ons.",
-  "One login for each business hub, with Hull Eats admin support for setup, onboarding, and operational changes.",
-];
-
-const courierOffers = [
-  "A dedicated courier app for Hull Eats couriers as our own delivery operation grows.",
-  "Delivery status updates for pickup, handoff, and completed orders.",
-  "A modular delivery-only option for businesses that want Hull Eats courier support without needing every product.",
-];
-
-const timeSavingFeatures = [
+const alsoOnHullEats = [
   {
-    title: "AI phone call assistant",
-    saving: "Save 3-8 staff hours a week",
+    eyebrow: "Hull Marketplace",
+    lead: "Local listings",
     copy:
-      "The assistant can answer common calls, take order details, and handle order-status questions so staff are not constantly pulled away from cooking, packing, and serving.",
-    calculation:
-      "Example: 25 calls a day x 2 minutes each = 50 minutes/day. Over 6 days, that is 5 hours a week back to the team.",
+      "A separate corner of Hull Eats for local buying and selling — think second-hand finds, homeware, and neighbourhood listings. It uses the same account and the same care for trust and safety.",
+    href: "/marketplace",
+    cta: "Browse marketplace",
   },
   {
-    title: "Live order tracking",
-    saving: "Fewer where-is-my-order calls",
+    eyebrow: "Hull Services",
+    lead: "Local trades",
     copy:
-      "Customers can see progress instead of calling the shop. That reduces interruptions and keeps the business focused on getting orders out.",
-    calculation:
-      "Example: removing 15 update calls a night at 90 seconds each saves 22 minutes per shift, plus the stress of constant interruptions.",
+      "Discover local trades and professionals — cleaners, gardeners, repairs, and more — as listings grow. Again, one Hull Eats account across food, marketplace, and services where we turn those areas on.",
+    href: "/services",
+    cta: "Explore Hull Services",
   },
-  {
-    title: "Hull Eats courier service",
-    saving: "Deliver faster without managing every driver yourself",
-    copy:
-      "A dedicated courier flow helps orders move from accepted, to ready, to collected, to delivered. Faster delivery means happier customers and more capacity at busy times.",
-    calculation:
-      "Example: if quicker courier handoff lets a kitchen process just 4 extra £35 orders a night, that is £140 extra order value per night before costs.",
-  },
-  {
-    title: "Order marketplace",
-    saving: "More orders without building your own ordering system",
-    copy:
-      "The marketplace gives buyers a simple place to discover and order while the business still controls menu, pricing, descriptions, and availability from the hub.",
-    calculation:
-      "Example: 30 extra marketplace orders a week at £35 average order value creates £1,050 extra weekly order value.",
-  },
-  {
-    title: "Other ordering app manager",
-    saving: "One workflow instead of tablet chaos",
-    copy:
-      "The goal is to pull outside platform orders into one operational view, so staff can accept, prepare, print, and complete orders without jumping between systems.",
-    calculation:
-      "Example: saving 45 seconds on 80 orders a day is 1 hour a day back, and fewer missed tickets or duplicated checks.",
-  },
-];
-
-const savingBreakdown = [
-  { label: "Staff time saved", value: "5 hrs/week", detail: "from fewer calls and less app switching" },
-  { label: "At £12/hour", value: "£60/week", detail: "or roughly £240/month in staff time" },
-  { label: "Extra capacity", value: "4 orders/night", detail: "at £35 average order value = £140/night" },
 ];
 
 export default function AboutHullEatsPage() {
@@ -77,19 +43,19 @@ export default function AboutHullEatsPage() {
           <AppSwitcher />
           <div>
             <p className="eyebrow">Hull Eats</p>
-            <p className="brand-title">Local food, local software, local delivery.</p>
+            <p className="brand-title">Local food and local favourites, ordered your way.</p>
           </div>
         </div>
 
-        <nav className="marketing-nav-actions" aria-label="Hull Eats website navigation">
-          <a href="#offers" className="glass-button">
-            What we offer
+        <nav className="marketing-nav-actions" aria-label="About page sections">
+          <a href="#for-you" className="glass-button">
+            For you
           </a>
-          <a href="#pricing" className="glass-button">
-            Pricing
+          <a href="#more-hull-eats" className="glass-button">
+            Marketplace &amp; services
           </a>
           <Link href="/contact" className="primary-button">
-            Contact us
+            Help &amp; contact
           </Link>
         </nav>
       </header>
@@ -97,85 +63,40 @@ export default function AboutHullEatsPage() {
       <section className="marketing-hero">
         <div className="marketing-hero-copy">
           <p className="eyebrow">Built for Hull</p>
-          <h1>Hull Eats is a local marketplace and operations platform for food businesses.</h1>
+          <h1>Order from Hull businesses you already love — and find new ones along the way.</h1>
           <p>
-            We connect buyers, businesses, and Hull Eats couriers through three systems that can work together or stand
-            alone: the buyer marketplace, the business hub portal, and the courier app.
+            Hull Eats is your home for takeaway and shop orders in Hull: one place to search menus, customise dishes when
+            a store offers options, pay securely, and follow your order. We keep the experience simple on purpose; the
+            kitchen still cooks your meal, and each store sets its own menu, prices, and delivery rules.
           </p>
           <div className="button-row">
-            <a href="#contact" className="primary-button">
-              Start a conversation
-            </a>
-            <Link href="/" className="secondary-button">
-              View marketplace
+            <Link href="/" className="primary-button">
+              Browse &amp; order
+            </Link>
+            <Link href="/account" className="secondary-button">
+              My account
             </Link>
           </div>
         </div>
 
         <div className="marketing-snapshot">
-          <span className="snapshot-label">Three core pillars</span>
-          <strong>Marketplace. Portal. Couriers.</strong>
+          <span className="snapshot-label">For customers</span>
+          <strong>Discover. Order. Track.</strong>
           <p>
-            Businesses can use the full Hull Eats stack, or start with the specific system they need first.
+            Use Hull Eats on the web or in the app. Your basket, addresses, and order history stay with your account so
+            repeat orders feel quicker.
           </p>
         </div>
       </section>
 
-      <section className="savings-band">
-        <div>
-          <p className="eyebrow">Time saved is money saved</p>
-          <h2>We reduce the jobs that slow food businesses down.</h2>
-          <p>
-            Hull Eats is being built around real operational problems: missed calls, repeated order-update questions,
-            slow courier handoff, menu changes, app switching, printing, and busy-shift pressure. The goal is not just
-            more orders. It is fewer interruptions, faster fulfilment, and a calmer way to run service.
-          </p>
-        </div>
-
-        <div className="savings-metrics" aria-label="Example business savings">
-          {savingBreakdown.map((item) => (
-            <article key={item.label} className="saving-metric-card">
-              <span>{item.label}</span>
-              <strong>{item.value}</strong>
-              <p>{item.detail}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="marketing-section">
+      <section id="for-you" className="marketing-section">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Feature value</p>
-            <h2>Each feature is designed to remove hassle from the shift</h2>
+            <p className="eyebrow">What you get</p>
+            <h2>Everything we build on the customer side is for diners, families, and late-night snack runs</h2>
             <p>
-              These example savings use simple real-world assumptions. The exact saving depends on call volume, order
-              volume, staffing, delivery setup, and how many systems the business currently runs.
-            </p>
-          </div>
-        </div>
-
-        <div className="feature-savings-grid">
-          {timeSavingFeatures.map((feature) => (
-            <article key={feature.title} className="feature-saving-card">
-              <div>
-                <span className="pricing-label">{feature.saving}</span>
-                <h3>{feature.title}</h3>
-                <p>{feature.copy}</p>
-              </div>
-              <div className="calculation-box">{feature.calculation}</div>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section id="offers" className="marketing-section">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">What we offer</p>
-            <h2>Separate systems that work together</h2>
-            <p>
-              Hull Eats is designed so each part can grow without trapping businesses into one fixed setup.
+              You do not need to know how restaurants run their back office. You only need a clear menu, honest totals at
+              checkout, and a fair way to get help if something goes wrong.
             </p>
           </div>
         </div>
@@ -183,86 +104,93 @@ export default function AboutHullEatsPage() {
         <div className="pillar-grid">
           <article className="pillar-card">
             <span className="pillar-index">01</span>
-            <h3>Marketplace for buyers</h3>
+            <h3>Ordering</h3>
             <ul>
-              {buyerOffers.map((offer) => (
-                <li key={offer}>{offer}</li>
+              {customerBasics.map((line) => (
+                <li key={line}>{line}</li>
               ))}
             </ul>
           </article>
 
           <article className="pillar-card">
             <span className="pillar-index">02</span>
-            <h3>Portal for businesses</h3>
+            <h3>Trust &amp; privacy</h3>
             <ul>
-              {businessOffers.map((offer) => (
-                <li key={offer}>{offer}</li>
-              ))}
+              <li>
+                We handle sign-in and personal details so checkout and support work properly. Read the full picture in our{" "}
+                <Link href="/legal/privacy">privacy notice</Link>.
+              </li>
+              <li>
+                Terms for ordering and your account are written for shoppers — see{" "}
+                <Link href="/legal/terms-hull-eats">terms for Hull Eats ordering</Link>.
+              </li>
+              <li>
+                Want to leave? You can request account closure — see{" "}
+                <Link href="/legal/close-account">close your account</Link>.
+              </li>
             </ul>
           </article>
 
           <article className="pillar-card">
             <span className="pillar-index">03</span>
-            <h3>Courier app for our couriers</h3>
+            <h3>Help</h3>
             <ul>
-              {courierOffers.map((offer) => (
-                <li key={offer}>{offer}</li>
-              ))}
+              <li>
+                Questions about a charge, a missing item, or a late order? Start with the store where you ordered, then
+                reach our team through <Link href="/contact">contact us</Link> if you still need support.
+              </li>
+              <li>
+                Run a takeaway or shop and want to join Hull Eats? That is a separate conversation — see{" "}
+                <Link href="/partner">partner with us</Link> (we will point you to the right team).
+              </li>
             </ul>
           </article>
         </div>
       </section>
 
-      <section id="pricing" className="marketing-section">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Pricing</p>
-            <h2>Simple launch pricing while we onboard local partners</h2>
-            <p>
-              Exact add-on prices are confirmed business by business during setup, especially where delivery support,
-              printing, kiosk software, or AI phone handling is required.
-            </p>
-          </div>
+      <section id="more-hull-eats" className="savings-band">
+        <div>
+          <p className="eyebrow">Beyond takeaway</p>
+          <h2>Marketplace and services use the same Hull Eats account</h2>
+          <p>
+            Food is where most people start, but Hull Eats also hosts other local experiences. Each area has its own terms
+            so you always know what you are agreeing to.
+          </p>
         </div>
 
-        <div className="pricing-grid">
-          <article className="pricing-card is-featured">
-            <span className="pricing-label">Marketplace orders</span>
-            <strong>20%</strong>
-            <p>Commission on completed marketplace orders, based on the order value agreed during onboarding.</p>
-          </article>
-
-          <article className="pricing-card">
-            <span className="pricing-label">Business hub portal</span>
-            <strong>Launch partner setup</strong>
-            <p>Menu setup, hub access, item control, pricing, descriptions, and business settings.</p>
-          </article>
-
-          <article className="pricing-card">
-            <span className="pricing-label">Optional extras</span>
-            <strong>Quoted per business</strong>
-            <p>Courier support, printing, paperless workflows, multi-app management, kiosk software, and AI phone handling.</p>
-          </article>
+        <div className="savings-metrics" aria-label="Other Hull Eats areas">
+          {alsoOnHullEats.map((block) => (
+            <article key={block.eyebrow} className="saving-metric-card">
+              <span>{block.eyebrow}</span>
+              <strong>{block.lead}</strong>
+              <p>{block.copy}</p>
+              <div className="about-band-cta">
+                <Link href={block.href} className="secondary-button">
+                  {block.cta}
+                </Link>
+              </div>
+            </article>
+          ))}
         </div>
       </section>
 
-      <section id="contact" className="contact-band">
+      <section className="contact-band">
         <div>
-          <p className="eyebrow">Contact us</p>
-          <h2>Want your business on Hull Eats?</h2>
+          <p className="eyebrow">We are here</p>
+          <h2>Help with an order, your account, or a listing</h2>
           <p>
-            Tell us who you are, what you sell, and whether you need marketplace orders, a business portal, delivery
-            support, or the full Hull Eats setup.
+            Pick the channel that fits: customer support, privacy requests, marketplace safety, or business onboarding —
+            all routed from one contact page.
           </p>
         </div>
 
         <div className="contact-actions">
           <Link className="primary-button" href="/contact">
-            Contact options
+            Contact Hull Eats
           </Link>
-          <a className="secondary-button" href="mailto:hello@hulleats.co.uk?subject=Hull%20Eats%20business%20enquiry">
-            Email directly
-          </a>
+          <Link className="secondary-button" href="/legal">
+            Legal &amp; policies
+          </Link>
           <Link href="/" className="glass-button">
             Back to marketplace
           </Link>
