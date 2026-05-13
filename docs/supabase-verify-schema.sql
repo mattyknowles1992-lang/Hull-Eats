@@ -84,3 +84,12 @@ WHERE table_schema = 'public'
   AND table_name IN ('menu_items', 'order_items')
   AND column_name = 'requires_id_verification'
 ORDER BY table_name;
+
+-- -----------------------------------------------------------------------------
+-- STEP 8 — stores.delivery_config (merchant login / pilot hub upsert)
+-- -----------------------------------------------------------------------------
+SELECT column_name, data_type, is_nullable
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name = 'stores'
+  AND column_name = 'delivery_config';

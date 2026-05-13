@@ -130,3 +130,10 @@ ALTER TABLE public.menu_items
 
 ALTER TABLE public.order_items
   ADD COLUMN IF NOT EXISTS requires_id_verification BOOLEAN NOT NULL DEFAULT false;
+
+-- ---------------------------------------------------------------------------
+-- 5) stores.delivery_config (migration 20260513190000_store_delivery_config)
+--    Required for merchant hub login: ensurePilotHub upserts this JSON field.
+-- ---------------------------------------------------------------------------
+ALTER TABLE public.stores
+  ADD COLUMN IF NOT EXISTS delivery_config JSONB;
