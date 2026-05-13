@@ -1,7 +1,7 @@
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 
 import type { CheckoutSession, CreateCheckoutSessionInput, OrderPaymentMethod, OrderSummary } from "@hull-eats/types";
-import { checkoutSessionSchema } from "@hull-eats/types";
+import { checkoutSessionSchema, computeDeliveryQuote, normaliseDeliveryPricing } from "@hull-eats/types";
 
 import { demoMenuByStore, demoStores } from "./demo-data";
 import { persistCheckoutOrder } from "./order-repository";
@@ -115,12 +115,21 @@ const buildCheckoutSession = (
 
   const subtotalAmount = Number(lineItems.reduce((sum, line) => sum + line.lineTotal, 0).toFixed(2));
   const minimumOrderAmount = Number(store.minimumOrderAmount ?? 0);
-  const deliveryFee = input.fulfillmentType === "delivery" ? Number(store.deliveryFee ?? 0) : 0;
+  const pricing = store.deliveryPricing ? normaliseDeliveryPricing(store.deliveryPricing) : null;
+  const deliveryQuote = computeDeliveryQuote({
+    fulfillmentType: input.fulfillmentType,
+    storeBasePostcode: store.postcode,
+    legacyDeliveryFee: store.deliveryFee,
+    pricing,
+    customerPostcode: input.postcode,
+  });
+  const deliveryFee = deliveryQuote.blocked ? 0 : deliveryQuote.fee;
   const totalAmount = Number((subtotalAmount + deliveryFee).toFixed(2));
   const addressPresent =
     input.fulfillmentType === "pickup" || Boolean(input.customerAddressId || (input.addressLine1 && input.city && input.postcode));
   const isMinimumOrderMet = subtotalAmount >= minimumOrderAmount;
-  const canPlaceOrder = addressPresent && isMinimumOrderMet && store.menuSetupComplete;
+  const deliveryBlocked = input.fulfillmentType === "delivery" && deliveryQuote.blocked;
+  const canPlaceOrder = addressPresent && isMinimumOrderMet && store.menuSetupComplete && !deliveryBlocked;
 
   const checkoutSession = checkoutSessionSchema.parse({
     id: sessionId,
@@ -143,6 +152,8 @@ const buildCheckoutSession = (
     itemCount: lineItems.reduce((count, line) => count + line.quantity, 0),
     subtotalAmount,
     deliveryFee,
+    deliveryFeeIsEstimate: deliveryQuote.needsPostcode && !deliveryQuote.blocked,
+    deliveryWarning: deliveryQuote.blocked ? deliveryQuote.reason : undefined,
     totalAmount,
     currency: "GBP",
     canPlaceOrder,

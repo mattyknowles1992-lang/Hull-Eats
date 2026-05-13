@@ -74,3 +74,13 @@ JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace
 WHERE n.nspname = 'public'
   AND t.typname IN ('store_promotion_kind', 'store_promotion_scope')
 GROUP BY t.typname;
+
+-- -----------------------------------------------------------------------------
+-- STEP 7 — ID verification columns (checkout + merchant hub need these)
+-- -----------------------------------------------------------------------------
+SELECT table_name, column_name, data_type, is_nullable
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name IN ('menu_items', 'order_items')
+  AND column_name = 'requires_id_verification'
+ORDER BY table_name;

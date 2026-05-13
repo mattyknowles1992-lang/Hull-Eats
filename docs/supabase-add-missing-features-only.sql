@@ -1,6 +1,7 @@
 -- Add schema that the Hull Eats API/Prisma expect for:
 --   • Merchant hub “Offers & deals” (store_promotions)
 --   • Merchant hub “Courier team” + courier app store filtering (store_courier_assignments)
+--   • Menu + order line “verify with ID” flags (requires_id_verification on menu_items, order_items)
 --
 -- Safe if you already ran manual bootstrap + order-flow patches: this only ADDS objects.
 -- Run in Supabase → SQL Editor as one script.
@@ -119,3 +120,13 @@ END $$;
 -- Optional: RLS off for API service role (matches many Hull Eats public tables used only from backend)
 -- alter table public.store_promotions enable row level security;
 -- alter table public.store_courier_assignments enable row level security;
+
+-- ---------------------------------------------------------------------------
+-- 4) Age-restricted / ID-at-door (migration 20260511220000_menu_order_item_verify_id)
+--    Required for checkout (order_items) and merchant login / menu (menu_items).
+-- ---------------------------------------------------------------------------
+ALTER TABLE public.menu_items
+  ADD COLUMN IF NOT EXISTS requires_id_verification BOOLEAN NOT NULL DEFAULT false;
+
+ALTER TABLE public.order_items
+  ADD COLUMN IF NOT EXISTS requires_id_verification BOOLEAN NOT NULL DEFAULT false;

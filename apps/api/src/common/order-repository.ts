@@ -544,6 +544,25 @@ export const persistCheckoutOrder = async (
   const store = await resolveCheckoutStore(session);
   const orderNumber = buildOrderNumber();
 
+  const menuRows = await prisma.menuItem.findMany({
+    where: { category: { storeId: store.id } },
+    select: { id: true, name: true },
+  });
+  const menuItemUuidByName = new Map(menuRows.map((row) => [row.name, row.id]));
+
+  const resolvePersistedMenuItemId = (line: CheckoutSession["lineItems"][number]): string | null => {
+    if (uuidPattern.test(line.menuItemId)) {
+      return line.menuItemId;
+    }
+    const matchByName = menuItemUuidByName.get(line.name);
+    return matchByName && uuidPattern.test(matchByName) ? matchByName : null;
+  };
+
+  const safeCustomerProfileId =
+    session.customerProfileId && uuidPattern.test(session.customerProfileId) ? session.customerProfileId : undefined;
+  const safeCustomerAddressId =
+    session.customerAddressId && uuidPattern.test(session.customerAddressId) ? session.customerAddressId : undefined;
+
   const order = await prisma.order.create({
     data: {
       orderNumber,
@@ -553,11 +572,11 @@ export const persistCheckoutOrder = async (
       status: "PENDING" as any,
       paymentStatus: toDbEnum(options.paymentStatus),
       paymentMethod: toDbEnum(options.paymentMethod),
-      customerProfileId: session.customerProfileId,
+      customerProfileId: safeCustomerProfileId,
       customerName: session.customerName,
       customerPhone: session.customerPhone,
       customerEmail: session.customerEmail,
-      customerAddressId: session.customerAddressId,
+      customerAddressId: safeCustomerAddressId,
       addressLine1: session.addressLine1,
       city: session.city,
       postcode: session.postcode,
@@ -579,7 +598,7 @@ export const persistCheckoutOrder = async (
       },
       items: {
         create: session.lineItems.map((line) => ({
-          menuItemId: line.menuItemId,
+          menuItemId: resolvePersistedMenuItemId(line),
           quantity: line.quantity,
           unitPrice: line.unitPrice,
           totalPrice: line.lineTotal,

@@ -630,9 +630,11 @@ textarea {
 
 .basket-topbar-button strong {
   display: inline-flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
   min-height: 28px;
-  padding: 0 10px;
+  padding: 6px 10px;
   border-radius: 999px;
   background: rgba(15, 17, 21, 0.08);
   font-size: 0.84rem;
@@ -649,7 +651,21 @@ textarea {
 }
 
 .basket-topbar-button.has-items strong {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
   background: rgba(15, 17, 21, 0.1);
+}
+
+.basket-delivery-hint {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.25;
+  opacity: 0.92;
+  max-width: 200px;
+  text-align: right;
 }
 
 .basket-topbar-button.just-updated {
@@ -3257,7 +3273,7 @@ button.filter-pill {
 }
 
 .store-card-overlay .status-chip.pending {
-  color: #0a1018;
+  color: #fff;
 }
 
 .live-menu-card .status-chip.pending {
@@ -3400,6 +3416,18 @@ button.filter-pill {
 
 .menu-category-filter-row::-webkit-scrollbar {
   display: none;
+}
+
+.delivery-postcode-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.delivery-postcode-row .form-input {
+  flex: 1 1 200px;
+  min-width: 0;
 }
 
 .menu-section-card,
@@ -3876,6 +3904,36 @@ button.filter-pill {
   margin: 6px 0 0;
   font-size: 0.82rem;
   color: var(--muted);
+  line-height: 1.35;
+}
+
+.basket-floating-totals {
+  display: grid;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.basket-floating-total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 0.88rem;
+}
+
+.basket-floating-total-grand {
+  padding-top: 8px;
+  margin-top: 4px;
+  border-top: 1px solid rgba(15, 17, 21, 0.1);
+  font-weight: 900;
+  font-size: 0.95rem;
+}
+
+.basket-floating-delivery-warn {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #b42318;
+  font-weight: 700;
   line-height: 1.35;
 }
 

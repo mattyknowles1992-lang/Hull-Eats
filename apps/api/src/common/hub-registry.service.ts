@@ -3,10 +3,11 @@ import { Prisma } from "@prisma/client";
 
 import { hashPassword, verifyPassword } from "@hull-eats/auth";
 import { prisma } from "@hull-eats/db";
-import { loadedMunchMenuSections, loadedMunchStore } from "@hull-eats/sdk";
+import { loadedMunchMenuItems, loadedMunchMenuSections, loadedMunchStore } from "@hull-eats/sdk";
 import {
   addHubCourierAssignmentInputSchema,
   createHubPromotionInputSchema,
+  normaliseDeliveryPricing,
   updateHubPromotionInputSchema,
 } from "@hull-eats/types";
 import type {
@@ -440,6 +441,7 @@ export class HubRegistryService {
           heroImageUrl: input.settings.heroImageUrl,
           etaMinutes: input.settings.etaMinutes,
           deliveryFee: input.settings.deliveryFee,
+          deliveryConfig: this.deliveryJsonFromHubSettings(input.settings),
           minimumOrderAmount: input.settings.minimumOrderAmount,
           isActive: true,
           storefrontStatus: input.settings.isOpen ? "LIVE" : "ONBOARDING",
@@ -1067,6 +1069,30 @@ export class HubRegistryService {
         isActive: loadedMunchStore.isOpen,
         autoAcceptOrders: false,
         autoAcceptMaxPrepMinutes: 60,
+        deliveryConfig: {
+          radiusMiles: 6,
+          postcodeDistricts: [
+            "HU1",
+            "HU2",
+            "HU3",
+            "HU4",
+            "HU5",
+            "HU6",
+            "HU7",
+            "HU8",
+            "HU9",
+            "HU10",
+            "HU11",
+            "HU12",
+            "HU13",
+            "HU14",
+            "HU15",
+            "HU16",
+          ],
+          mileFees: [2.5, 3.0, 3.5, 3.99, 4.49],
+          originLatitude: null,
+          originLongitude: null,
+        },
       },
       create: {
         merchantId: merchant.id,
@@ -1089,6 +1115,30 @@ export class HubRegistryService {
         isActive: loadedMunchStore.isOpen,
         autoAcceptOrders: false,
         autoAcceptMaxPrepMinutes: 60,
+        deliveryConfig: {
+          radiusMiles: 6,
+          postcodeDistricts: [
+            "HU1",
+            "HU2",
+            "HU3",
+            "HU4",
+            "HU5",
+            "HU6",
+            "HU7",
+            "HU8",
+            "HU9",
+            "HU10",
+            "HU11",
+            "HU12",
+            "HU13",
+            "HU14",
+            "HU15",
+            "HU16",
+          ],
+          mileFees: [2.5, 3.0, 3.5, 3.99, 4.49],
+          originLatitude: null,
+          originLongitude: null,
+        },
       },
     });
 
@@ -1124,6 +1174,16 @@ export class HubRegistryService {
           isActive: true,
         },
       });
+    }
+
+    const pilotMenuSeedTargetCount = loadedMunchMenuItems.length;
+    const existingPilotMenuItemCount = await prisma.menuItem.count({
+      where: { category: { storeId: store.id } },
+    });
+
+    if (existingPilotMenuItemCount >= pilotMenuSeedTargetCount) {
+      this.pilotEnsured = true;
+      return;
     }
 
     for (const [sectionIndex, section] of loadedMunchMenuSections.entries()) {
@@ -1308,6 +1368,37 @@ export class HubRegistryService {
       heroImageUrl: store.heroImageUrl ?? "",
       autoAcceptOrders: Boolean(store.autoAcceptOrders),
       autoAcceptMaxPrepMinutes: store.autoAcceptMaxPrepMinutes ?? 60,
+      ...this.mapDeliveryFromStore(store),
+    };
+  }
+
+  private deliveryJsonFromHubSettings(settings: HubSettings): Prisma.InputJsonValue {
+    return {
+      radiusMiles: settings.deliveryRadiusMiles,
+      postcodeDistricts: settings.deliveryPostcodeDistricts.map((code) => code.trim().toUpperCase()).filter(Boolean),
+      mileFees: [...settings.deliveryMileFees],
+      originLatitude: settings.deliveryOriginLatitude ?? null,
+      originLongitude: settings.deliveryOriginLongitude ?? null,
+    };
+  }
+
+  private mapDeliveryFromStore(store: { deliveryConfig?: unknown }): Pick<
+    HubSettings,
+    "deliveryRadiusMiles" | "deliveryPostcodeDistricts" | "deliveryMileFees" | "deliveryOriginLatitude" | "deliveryOriginLongitude"
+  > {
+    const cfg = normaliseDeliveryPricing(store.deliveryConfig ?? {});
+    return {
+      deliveryRadiusMiles: cfg.radiusMiles,
+      deliveryPostcodeDistricts: [...cfg.postcodeDistricts],
+      deliveryMileFees: [
+        cfg.mileFees[0] ?? 0,
+        cfg.mileFees[1] ?? 0,
+        cfg.mileFees[2] ?? 0,
+        cfg.mileFees[3] ?? 0,
+        cfg.mileFees[4] ?? 0,
+      ],
+      deliveryOriginLatitude: cfg.originLatitude ?? null,
+      deliveryOriginLongitude: cfg.originLongitude ?? null,
     };
   }
 

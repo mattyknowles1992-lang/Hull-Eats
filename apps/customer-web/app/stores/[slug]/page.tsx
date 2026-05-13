@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { deliveryFeeFromForStorefront } from "@hull-eats/types";
+
 import { AppSwitcher } from "../../app-switcher";
 import { featuredStores, storeMenus } from "../../../src/lib/demo";
 import { BasketButton } from "./basket-button";
@@ -29,7 +31,7 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
         </div>
 
         <div className="topbar-actions">
-          <BasketButton storeSlug={store.slug} />
+          <BasketButton store={store} />
           <button type="button" className="icon-button">
             Share
           </button>
@@ -48,7 +50,9 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
           <div className="hero-meta">
             <span className="meta-pill">{store.cuisineLabel}</span>
             <span className="meta-pill">{store.etaMinutes} min delivery</span>
-            <span className="meta-pill">Delivery £{store.deliveryFee?.toFixed(2)}</span>
+            <span className="meta-pill">
+              Delivery from £{deliveryFeeFromForStorefront({ legacyDeliveryFee: store.deliveryFee, pricing: store.deliveryPricing }).toFixed(2)}
+            </span>
           </div>
         </div>
 
@@ -69,6 +73,9 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
                 storeId={store.id}
                 storeSlug={store.slug}
                 storeName={store.name}
+                storePostcode={store.postcode}
+                storeDeliveryFee={store.deliveryFee}
+                storeDeliveryPricing={store.deliveryPricing}
                 categories={menu.categories}
               />
             ) : (

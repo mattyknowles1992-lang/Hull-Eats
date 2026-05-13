@@ -56,6 +56,14 @@ export const hubSettingsSchema = z.object({
   autoAcceptOrders: z.boolean().default(false),
   /** When auto-accepting, quoted prep minutes is min(store ETA, this value). */
   autoAcceptMaxPrepMinutes: z.number().int().min(5).max(180).default(60),
+  /** Max road distance (miles) from the store origin for delivery offers. */
+  deliveryRadiusMiles: z.number().int().min(1).max(40).default(5),
+  /** Allowed outward postcode districts (e.g. HU1, HU2). Empty = all districts allowed within radius. */
+  deliveryPostcodeDistricts: z.array(z.string().min(2).max(8)).default([]),
+  /** Five bands: under 1, 2, 3, 4, and 5 miles. Zeros mean “not set” for that band. */
+  deliveryMileFees: z.array(z.number().nonnegative()).length(5).default([0, 0, 0, 0, 0]),
+  deliveryOriginLatitude: z.number().min(-90).max(90).nullable().optional(),
+  deliveryOriginLongitude: z.number().min(-180).max(180).nullable().optional(),
 });
 
 export const hubMenuSectionSchema = z.object({

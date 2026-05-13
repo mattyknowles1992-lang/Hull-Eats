@@ -342,6 +342,7 @@ model Store {
   etaMinutes        Int?               @map("eta_minutes")
   autoAcceptOrders       Boolean       @default(false) @map("auto_accept_orders")
   autoAcceptMaxPrepMinutes Int         @default(60) @map("auto_accept_max_prep_minutes")
+  deliveryConfig    Json?              @map("delivery_config")
   logoAssetId       String?            @map("logo_asset_id")
   coverAssetId      String?            @map("cover_asset_id")
   isActive          Boolean            @default(true) @map("is_active")

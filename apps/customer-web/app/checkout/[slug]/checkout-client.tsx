@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import type { MenuItem, StoreSummary } from "@hull-eats/types";
+import { computeDeliveryQuote, normaliseDeliveryPricing } from "@hull-eats/types";
 
 import { cancelCustomerOrderWithinGrace, createCheckoutSession, placeCheckoutOrder } from "../../../src/lib/api";
 import {
@@ -16,6 +17,7 @@ import {
 } from "../../../src/lib/basket";
 import { playOrderSuccessDelight, saveActiveOrderSnapshot } from "../../../src/lib/customer-experience";
 import { getBrowserSupabaseClient } from "../../../src/lib/supabase-browser";
+import { getDeliveryPostcodeForStore, setDeliveryPostcodeForStore } from "../../../src/lib/delivery-postcode";
 
 type CheckoutClientProps = {
   store: StoreSummary;
@@ -175,8 +177,28 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
     })();
   }, []);
 
+  useEffect(() => {
+    const saved = getDeliveryPostcodeForStore(store.slug);
+    if (!saved) {
+      return;
+    }
+    setFormState((current) => (current.postcode.trim() ? current : { ...current, postcode: saved }));
+  }, [store.slug]);
+
   const basketCount = getBasketItemCount(basket);
   const localSubtotal = getBasketSubtotal(basket);
+
+  const deliveryPreview = useMemo(
+    () =>
+      computeDeliveryQuote({
+        fulfillmentType: "delivery",
+        storeBasePostcode: store.postcode,
+        legacyDeliveryFee: store.deliveryFee,
+        pricing: store.deliveryPricing ? normaliseDeliveryPricing(store.deliveryPricing) : null,
+        customerPostcode: formState.postcode.trim() || undefined,
+      }),
+    [store, formState.postcode],
+  );
 
   const enrichedLines = useMemo(
     () =>
@@ -248,12 +270,17 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
         return;
       }
 
+      setDeliveryPostcodeForStore(store.slug, formState.postcode.trim());
+
       const session = await createCurrentCheckoutSession();
       setCheckoutSession(session);
       setPlacedOrder(null);
 
       if (!session.canPlaceOrder) {
-        setErrorMessage("Make sure address details are filled and the basket meets any pricing rules before placing the order.");
+        setErrorMessage(
+          session.deliveryWarning ??
+            "Make sure address details are filled and the basket meets any pricing rules before placing the order.",
+        );
         return;
       }
 
@@ -651,16 +678,36 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
               <strong>{formatMoney(localSubtotal)}</strong>
             </div>
             <div className="glance-row">
-              <span className="muted-copy">Delivery fee</span>
-              <strong>{checkoutSession ? formatMoney(checkoutSession.deliveryFee) : "Review to calculate"}</strong>
+              <span className="muted-copy">
+                Delivery fee
+                {checkoutSession?.deliveryFeeIsEstimate || (!checkoutSession && deliveryPreview.needsPostcode) ? " (estimate)" : ""}
+              </span>
+              <strong>
+                {checkoutSession
+                  ? formatMoney(checkoutSession.deliveryFee)
+                  : deliveryPreview.blocked
+                    ? "—"
+                    : formatMoney(deliveryPreview.fee)}
+              </strong>
             </div>
+            {(checkoutSession?.deliveryWarning ?? (!checkoutSession && deliveryPreview.blocked ? deliveryPreview.reason : undefined)) ? (
+              <p className="checkout-note" style={{ marginTop: 10, color: "#b42318" }}>
+                {checkoutSession?.deliveryWarning ?? deliveryPreview.reason}
+              </p>
+            ) : null}
             <div className="glance-row">
               <span className="muted-copy">Minimum order</span>
               <strong>{formatMoney(checkoutSession?.minimumOrderAmount ?? store.minimumOrderAmount ?? 0)}</strong>
             </div>
             <div className="glance-row">
               <span className="muted-copy">Checkout total</span>
-              <strong>{checkoutSession ? formatMoney(checkoutSession.totalAmount) : "Review to calculate"}</strong>
+              <strong>
+                {checkoutSession
+                  ? formatMoney(checkoutSession.totalAmount)
+                  : deliveryPreview.blocked
+                    ? formatMoney(localSubtotal)
+                    : formatMoney(Number((localSubtotal + deliveryPreview.fee).toFixed(2)))}
+              </strong>
             </div>
           </div>
 

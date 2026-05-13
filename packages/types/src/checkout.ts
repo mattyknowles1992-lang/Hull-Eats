@@ -77,6 +77,10 @@ export const checkoutSessionSchema = z.object({
   itemCount: z.number().int().nonnegative(),
   subtotalAmount: z.number().nonnegative(),
   deliveryFee: z.number().nonnegative(),
+  /** True when delivery fee is a preview until the customer postcode is confirmed. */
+  deliveryFeeIsEstimate: z.boolean().optional(),
+  /** Set when delivery cannot be offered to the supplied address. */
+  deliveryWarning: z.string().optional(),
   totalAmount: z.number().nonnegative(),
   currency: z.string().length(3),
   canPlaceOrder: z.boolean(),

@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { storeDeliveryPricingSchema } from "./delivery-pricing";
+
 export const storeTypes = ["restaurant", "takeaway", "shop"] as const;
 export const stockStatuses = ["in_stock", "low_stock", "out_of_stock"] as const;
 export const storefrontStatuses = ["onboarding", "live", "paused"] as const;
@@ -92,6 +94,8 @@ export const storeSummarySchema = z.object({
   etaMinutes: z.number().int().positive().optional(),
   minimumOrderAmount: z.number().nonnegative().optional(),
   deliveryFee: z.number().nonnegative().optional(),
+  /** Hub-configured mile bands, radius, and postcode districts (optional on older records). */
+  deliveryPricing: storeDeliveryPricingSchema.optional(),
   menuSetupComplete: z.boolean().default(false),
   onboardingMessage: z.string().optional(),
 });

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-import type { MenuItem } from "@hull-eats/types";
+import type { MenuItem, StoreSummary } from "@hull-eats/types";
 
 import {
   addConfiguredItemToBasket,
@@ -22,6 +22,8 @@ import {
   type BasketLine,
   type StoreBasket,
 } from "../../../src/lib/basket";
+import { computeDeliveryQuote, normaliseDeliveryPricing } from "@hull-eats/types";
+import { getDeliveryPostcodeForStore, setDeliveryPostcodeForStore } from "../../../src/lib/delivery-postcode";
 
 type MenuCategory = {
   id: string;
@@ -34,6 +36,9 @@ type StoreMenuClientProps = {
   storeId: string;
   storeSlug: string;
   storeName: string;
+  storePostcode: string;
+  storeDeliveryFee?: number;
+  storeDeliveryPricing?: StoreSummary["deliveryPricing"];
   categories: MenuCategory[];
 };
 
@@ -127,7 +132,15 @@ function MenuCategoryChevron({ expanded }: { expanded: boolean }) {
   );
 }
 
-export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: StoreMenuClientProps) {
+export function StoreMenuClient({
+  storeId,
+  storeSlug,
+  storeName,
+  storePostcode,
+  storeDeliveryFee,
+  storeDeliveryPricing,
+  categories,
+}: StoreMenuClientProps) {
   const [basket, setBasket] = useState<StoreBasket | null>(null);
   const [activeItem, setActiveItem] = useState<MenuItem | null>(null);
   const [selection, setSelection] = useState<BasketCustomisationSelection | null>(null);
@@ -139,6 +152,17 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
   const [basketBarHeight, setBasketBarHeight] = useState(0);
   const [basketExpanded, setBasketExpanded] = useState(false);
   const basketPortalRef = useRef<HTMLDivElement | null>(null);
+  const [deliveryPostcodeInput, setDeliveryPostcodeInput] = useState("");
+
+  useEffect(() => {
+    setDeliveryPostcodeInput(getDeliveryPostcodeForStore(storeSlug));
+  }, [storeSlug]);
+
+  useEffect(() => {
+    const onPostcode = () => setDeliveryPostcodeInput(getDeliveryPostcodeForStore(storeSlug));
+    window.addEventListener("hull-eats-delivery-postcode-updated", onPostcode as EventListener);
+    return () => window.removeEventListener("hull-eats-delivery-postcode-updated", onPostcode as EventListener);
+  }, [storeSlug]);
 
   useEffect(() => {
     const sync = () => setBasket(loadBasket(storeSlug));
@@ -205,6 +229,18 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
   const itemCount = getBasketItemCount(basket);
   const subtotal = getBasketSubtotal(basket);
 
+  const deliveryQuote = useMemo(
+    () =>
+      computeDeliveryQuote({
+        fulfillmentType: "delivery",
+        storeBasePostcode: storePostcode,
+        legacyDeliveryFee: storeDeliveryFee,
+        pricing: storeDeliveryPricing ? normaliseDeliveryPricing(storeDeliveryPricing) : null,
+        customerPostcode: deliveryPostcodeInput.trim() || undefined,
+      }),
+    [storePostcode, storeDeliveryFee, storeDeliveryPricing, deliveryPostcodeInput],
+  );
+
   useLayoutEffect(() => {
     if (!isClient || itemCount === 0) {
       setBasketBarHeight(0);
@@ -226,7 +262,7 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
     observer.observe(node);
 
     return () => observer.disconnect();
-  }, [isClient, itemCount, subtotal, addedMessage, basketExpanded]);
+  }, [isClient, itemCount, subtotal, addedMessage, basketExpanded, deliveryPostcodeInput, deliveryQuote.fee, deliveryQuote.blocked]);
 
   const visibleCategories = useMemo(
     () => (activeCategoryId === "all" ? categories : categories.filter((category) => category.id === activeCategoryId)),
@@ -419,6 +455,30 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
           </ul>
         ) : null}
 
+        {itemCount > 0 ? (
+          <div className="basket-floating-totals" aria-label="Basket totals">
+            <div className="basket-floating-total-row">
+              <span>Subtotal</span>
+              <strong>{formatMoney(subtotal)}</strong>
+            </div>
+            <div className="basket-floating-total-row">
+              <span>Delivery</span>
+              <strong>
+                {deliveryQuote.blocked ? "—" : deliveryQuote.needsPostcode ? `from ${formatMoney(deliveryQuote.fee)}` : formatMoney(deliveryQuote.fee)}
+              </strong>
+            </div>
+            {deliveryQuote.blocked && deliveryQuote.reason ? (
+              <p className="basket-floating-delivery-warn">{deliveryQuote.reason}</p>
+            ) : null}
+            <div className="basket-floating-total-row basket-floating-total-grand">
+              <span>Total</span>
+              <strong>
+                {deliveryQuote.blocked ? formatMoney(subtotal) : formatMoney(Number((subtotal + deliveryQuote.fee).toFixed(2)))}
+              </strong>
+            </div>
+          </div>
+        ) : null}
+
         <div className="basket-floating-cta">
           <button
             type="button"
@@ -462,6 +522,30 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
           </div>
         </section>
       ) : null}
+
+      <section className="menu-category-filter-panel" aria-label="Delivery postcode for estimates">
+        <div className="menu-category-filter-header">
+          <div>
+            <p className="eyebrow">Delivery estimate</p>
+            <h3>Your postcode</h3>
+            <p className="muted-copy" style={{ marginTop: 6 }}>
+              Saves on this device and updates delivery in your basket. Use a full UK postcode (e.g. HU3 4AB).
+            </p>
+          </div>
+        </div>
+        <div className="delivery-postcode-row">
+          <input
+            className="form-input"
+            value={deliveryPostcodeInput}
+            onChange={(event) => setDeliveryPostcodeInput(event.target.value)}
+            placeholder="e.g. HU3 4AB"
+            autoComplete="postal-code"
+          />
+          <button type="button" className="glass-button" onClick={() => setDeliveryPostcodeForStore(storeSlug, deliveryPostcodeInput)}>
+            Save postcode
+          </button>
+        </div>
+      </section>
 
       <section className="menu-category-filter-panel" aria-label="Menu category filters">
         <div className="menu-category-filter-header">

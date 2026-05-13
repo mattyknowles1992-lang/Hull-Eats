@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { deliveryFeeFromForStorefront } from "@hull-eats/types";
+
 import { AppSwitcher } from "../../app-switcher";
 import { featuredStores, storeMenus } from "../../../src/lib/demo";
 import {
@@ -199,7 +201,9 @@ export default async function CategoryPage({ params }: { params: Promise<{ categ
                   <div className="store-tags">
                     <span className="store-tag">{store.etaMinutes} min</span>
                     <span className="store-tag">Min £{store.minimumOrderAmount?.toFixed(2)}</span>
-                    <span className="store-tag">Delivery £{store.deliveryFee?.toFixed(2)}</span>
+                    <span className="store-tag">
+                      Delivery from £{deliveryFeeFromForStorefront({ legacyDeliveryFee: store.deliveryFee, pricing: store.deliveryPricing }).toFixed(2)}
+                    </span>
                   </div>
                   <p className="store-copy">{store.onboardingMessage}</p>
                   <div className="store-card-footer">

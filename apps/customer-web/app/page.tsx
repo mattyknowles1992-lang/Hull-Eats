@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 
+import { deliveryFeeFromForStorefront } from "@hull-eats/types";
+
 import { HullMicrocopy } from "../src/components/hull-microcopy";
 import { SensoryDelightsToggle } from "../src/components/sensory-delights-toggle";
 import { YouAreHereWidget } from "../src/components/you-are-here-widget";
@@ -390,7 +392,9 @@ export default function CustomerHomePage() {
                   <div className="store-tags">
                     <span className="store-tag">{store.etaMinutes} min</span>
                     <span className="store-tag">Min £{store.minimumOrderAmount?.toFixed(2)}</span>
-                    <span className="store-tag">Delivery £{store.deliveryFee?.toFixed(2)}</span>
+                    <span className="store-tag">
+                      Delivery from £{deliveryFeeFromForStorefront({ legacyDeliveryFee: store.deliveryFee, pricing: store.deliveryPricing }).toFixed(2)}
+                    </span>
                     {storeDistances.has(store.slug) ? <span className="store-tag">{formatDistance(storeDistances.get(store.slug)!)} away</span> : null}
                   </div>
 
