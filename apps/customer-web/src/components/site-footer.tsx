@@ -82,10 +82,7 @@ export function SiteFooter() {
         </div>
 
         <div className="site-footer-bottom">
-          <p className="site-footer-copyright">
-            © {year} Hull Eats. Hull, United Kingdom. Hull Eats provides technology that connects independent businesses and
-            buyers; restaurants and shops remain responsible for their products, pricing, and fulfilment.
-          </p>
+          <p className="site-footer-copyright">© {year} Hull Eats</p>
           <div className="site-footer-bottom-links">
             <Link href="/legal/privacy">Privacy</Link>
             <span aria-hidden="true" className="site-footer-dot">
