@@ -1153,6 +1153,7 @@ export class HubRegistryService {
               name: item.name,
               description: item.description,
               price: item.price,
+              imageUrl: item.imageUrl ?? null,
               customisationConfig: this.buildCustomisationConfig(item),
               isActive: item.isActive,
               trackStock: item.trackStock,
@@ -1162,6 +1163,11 @@ export class HubRegistryService {
               maxPerOrder: item.maxPerOrder,
               sortOrder: itemIndex,
             },
+          });
+        } else if (!existingItem.imageUrl && item.imageUrl) {
+          await prisma.menuItem.update({
+            where: { id: existingItem.id },
+            data: { imageUrl: item.imageUrl },
           });
         }
       }

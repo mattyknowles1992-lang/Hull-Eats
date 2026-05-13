@@ -207,6 +207,21 @@ export function AccountClient() {
           </button>
         </form>
 
+        <p className="form-helper" style={{ marginTop: 16 }}>
+          Policies:{" "}
+          <Link href="/legal/terms-hull-eats" className="ghost-link">
+            Terms
+          </Link>
+          {" · "}
+          <Link href="/legal/privacy" className="ghost-link">
+            Privacy
+          </Link>
+          {" · "}
+          <Link href="/legal/close-account" className="ghost-link">
+            Close account
+          </Link>
+        </p>
+
         {sessionWithoutProfile ? (
           <div className="register-form-block" style={{ marginTop: 20 }}>
             <button type="button" className="secondary-button" style={{ width: "100%" }} onClick={() => void handleLogout()}>
@@ -304,6 +319,23 @@ export function AccountClient() {
             </p>
           </article>
         ))}
+      </div>
+
+      <div className="register-form-block">
+        <div className="register-form-heading">
+          <h3>Account &amp; data</h3>
+          <p>
+            Read how we handle personal data in our{" "}
+            <Link href="/legal/privacy" className="ghost-link">
+              privacy notice
+            </Link>
+            . To permanently close your customer account and request deletion, follow{" "}
+            <Link href="/legal/close-account" className="ghost-link">
+              Close your account
+            </Link>
+            .
+          </p>
+        </div>
       </div>
 
       {notice ? <p className="form-message form-message-error">{notice}</p> : null}

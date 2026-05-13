@@ -5,6 +5,7 @@ import type { PropsWithChildren } from "react";
 import "./globals.css";
 
 import { ActiveOrderStrip } from "../src/components/active-order-strip";
+import { SiteFooter } from "../src/components/site-footer";
 
 const headingFont = Fraunces({
   subsets: ["latin"],
@@ -31,6 +32,7 @@ export default function RootLayout({ children }: PropsWithChildren) {
         <div className="he-ambient-ground" aria-hidden="true" />
         <div id="site-main">
           {children}
+          <SiteFooter />
           <ActiveOrderStrip />
         </div>
       </body>

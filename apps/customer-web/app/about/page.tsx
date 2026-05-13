@@ -88,9 +88,9 @@ export default function AboutHullEatsPage() {
           <a href="#pricing" className="glass-button">
             Pricing
           </a>
-          <a href="#contact" className="primary-button">
+          <Link href="/contact" className="primary-button">
             Contact us
-          </a>
+          </Link>
         </nav>
       </header>
 
@@ -257,10 +257,13 @@ export default function AboutHullEatsPage() {
         </div>
 
         <div className="contact-actions">
-          <a className="primary-button" href="mailto:hello@hulleats.co.uk?subject=Hull%20Eats%20business%20enquiry">
-            Email Hull Eats
+          <Link className="primary-button" href="/contact">
+            Contact options
+          </Link>
+          <a className="secondary-button" href="mailto:hello@hulleats.co.uk?subject=Hull%20Eats%20business%20enquiry">
+            Email directly
           </a>
-          <Link href="/" className="secondary-button">
+          <Link href="/" className="glass-button">
             Back to marketplace
           </Link>
         </div>

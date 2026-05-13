@@ -252,6 +252,7 @@ const createMenuItem = (
   description: string,
   sortOrder: number,
   customisationTemplate: CustomisationTemplate = "none",
+  sectionImageUrl?: string,
 ): MenuItem => ({
   id: makeItemId(categoryId, name),
   categoryId,
@@ -265,6 +266,7 @@ const createMenuItem = (
   allowBackorder: false,
   maxPerOrder: null,
   sortOrder,
+  ...(sectionImageUrl ? { imageUrl: sectionImageUrl } : {}),
   ...buildCustomisationConfig(customisationTemplate, makeOptionId(`${categoryId}-${name}`)),
 });
 
@@ -274,14 +276,41 @@ const buildSection = (
   description: string,
   entries: Array<[name: string, price: number, description: string]>,
   customisationTemplate: CustomisationTemplate = "none",
+  sectionImageUrl?: string,
 ): DemoMenuSection => ({
   id,
   name,
   description,
   items: entries.map(([entryName, price, entryDescription], index) =>
-    createMenuItem(id, entryName, price, entryDescription, index, customisationTemplate),
+    createMenuItem(id, entryName, price, entryDescription, index, customisationTemplate, sectionImageUrl),
   ),
 });
+
+/** Default HTTPS preview image per menu category (matches storefront vibes); swap per item in merchant hub. */
+const lmUnsplash = {
+  burger: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=1200&q=82",
+  chicken: "https://images.unsplash.com/photo-1562967914-608f82629710?auto=format&fit=crop&w=1200&q=82",
+  fries: "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?auto=format&fit=crop&w=1200&q=82",
+  hotdog: "https://images.unsplash.com/photo-1619740455993-9e612b1af08a?auto=format&fit=crop&w=1200&q=82",
+  dessert: "https://images.unsplash.com/photo-1551024506-0bccd828d307?auto=format&fit=crop&w=1200&q=82",
+  drink: "https://images.unsplash.com/photo-1544145945-f90425340c7e?auto=format&fit=crop&w=1200&q=82",
+} as const;
+
+export const loadedMunchSectionImageUrls: Record<string, string> = {
+  "smash-burgers": lmUnsplash.burger,
+  "chicken-burgers": lmUnsplash.chicken,
+  "hot-dogs": lmUnsplash.hotdog,
+  "loaded-fries": lmUnsplash.fries,
+  "chicken-sides": lmUnsplash.chicken,
+  "sides": lmUnsplash.fries,
+  "kids-meals": lmUnsplash.burger,
+  "chocolate-fudge-cake": lmUnsplash.dessert,
+  "cookie-dough": lmUnsplash.dessert,
+  "brownie-dough": lmUnsplash.dessert,
+  "shakes": lmUnsplash.drink,
+  "refreshers": lmUnsplash.drink,
+  "soft-drinks": lmUnsplash.drink,
+};
 
 export const loadedMunchStore: StoreSummary = {
   id: "store_loaded_munch_hull",
@@ -352,6 +381,7 @@ export const loadedMunchMenuSections: DemoMenuSection[] = [
       ],
     ],
     "burger_meal",
+    loadedMunchSectionImageUrls["smash-burgers"],
   ),
   buildSection(
     "chicken-burgers",
@@ -400,6 +430,7 @@ export const loadedMunchMenuSections: DemoMenuSection[] = [
       ],
     ],
     "chicken_burger_meal",
+    loadedMunchSectionImageUrls["chicken-burgers"],
   ),
   buildSection(
     "hot-dogs",
@@ -438,6 +469,7 @@ export const loadedMunchMenuSections: DemoMenuSection[] = [
       ],
     ],
     "hotdog_meal",
+    loadedMunchSectionImageUrls["hot-dogs"],
   ),
   buildSection(
     "loaded-fries",
@@ -480,6 +512,8 @@ export const loadedMunchMenuSections: DemoMenuSection[] = [
         "Crispy fries loaded with nacho cheese, fresh salad, and your choice of sauce, topped with smoked streaky bacon.",
       ],
     ],
+    "none",
+    loadedMunchSectionImageUrls["loaded-fries"],
   ),
   buildSection(
     "chicken-sides",
@@ -497,6 +531,8 @@ export const loadedMunchMenuSections: DemoMenuSection[] = [
         "Crispy chicken strips coated in hot and spicy seasoning. Includes Buttermilk Ranch or Loaded Munch sauce pot.",
       ],
     ],
+    "none",
+    loadedMunchSectionImageUrls["chicken-sides"],
   ),
   buildSection(
     "sides",
@@ -509,6 +545,8 @@ export const loadedMunchMenuSections: DemoMenuSection[] = [
       ["Sauce Pots", 0.99, "2oz sauce pot."],
       ["Nacho Cheese Sauce Pot", 1.49, "2oz nacho cheese sauce pot."],
     ],
+    "none",
+    loadedMunchSectionImageUrls["sides"],
   ),
   buildSection(
     "kids-meals",
@@ -520,6 +558,8 @@ export const loadedMunchMenuSections: DemoMenuSection[] = [
       ["10 Popcorn Chicken, Chips & Milkshake", 6.99, "Choice of banana, strawberry, or chocolate milkshake."],
       ["5 Hash Browns, Chips & Milkshake", 6.99, "Choice of banana, strawberry, or chocolate milkshake."],
     ],
+    "none",
+    loadedMunchSectionImageUrls["kids-meals"],
   ),
   buildSection(
     "chocolate-fudge-cake",
@@ -534,6 +574,8 @@ export const loadedMunchMenuSections: DemoMenuSection[] = [
       ["Milky Way Chocolate Fudge Cake", 7.99, "Milky Way chocolate fudge cake with vanilla ice cream."],
       ["Milky Bar Chocolate Fudge Cake", 7.99, "Milky Bar chocolate fudge cake with vanilla ice cream."],
     ],
+    "none",
+    loadedMunchSectionImageUrls["chocolate-fudge-cake"],
   ),
   buildSection(
     "cookie-dough",
@@ -548,6 +590,8 @@ export const loadedMunchMenuSections: DemoMenuSection[] = [
       ["Milky Bar Cookie Dough", 7.99, "Served with vanilla ice cream."],
       ["Milky Way Cookie Dough", 7.99, "Served with vanilla ice cream."],
     ],
+    "none",
+    loadedMunchSectionImageUrls["cookie-dough"],
   ),
   buildSection(
     "brownie-dough",
@@ -562,6 +606,8 @@ export const loadedMunchMenuSections: DemoMenuSection[] = [
       ["Milky Bar Brownie Dough", 7.99, "Served with vanilla ice cream."],
       ["Milky Way Brownie Dough", 7.99, "Served with vanilla ice cream."],
     ],
+    "none",
+    loadedMunchSectionImageUrls["brownie-dough"],
   ),
   buildSection(
     "shakes",
@@ -577,6 +623,8 @@ export const loadedMunchMenuSections: DemoMenuSection[] = [
       ["Milky Bar Shake", 4.99, "455ml Milky Bar shake."],
       ["Milky Way Shake", 4.99, "455ml Milky Way shake."],
     ],
+    "none",
+    loadedMunchSectionImageUrls["shakes"],
   ),
   buildSection(
     "refreshers",
@@ -588,6 +636,8 @@ export const loadedMunchMenuSections: DemoMenuSection[] = [
       ["Mango & Passion Fruit Refresher", 3.99, "455ml mango and passion fruit refresher."],
       ["Pineapple & Guava Refresher", 3.99, "455ml pineapple and guava refresher."],
     ],
+    "none",
+    loadedMunchSectionImageUrls["refreshers"],
   ),
   buildSection(
     "soft-drinks",
@@ -598,6 +648,8 @@ export const loadedMunchMenuSections: DemoMenuSection[] = [
       ["Redbull", 2.19, "250ml Redbull."],
       ["Water", 0.99, "500ml water."],
     ],
+    "none",
+    loadedMunchSectionImageUrls["soft-drinks"],
   ),
 ];
 

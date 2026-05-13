@@ -549,13 +549,6 @@ export function StoreMenuClient({ storeId, storeSlug, storeName, categories }: S
                       <strong className="menu-item-price-pill">{formatMoney(item.price)}</strong>
                     </div>
 
-                    {item.components.length > 0 || item.optionGroups.length > 0 ? (
-                      <div className="menu-item-customise-summary">
-                        {item.components.length > 0 ? <span>{item.components.length} included ingredients</span> : null}
-                        {item.optionGroups.length > 0 ? <span>{item.optionGroups.length} customisation groups</span> : null}
-                      </div>
-                    ) : null}
-
                     <div className="menu-item-footer">
                       <button type="button" className={`glass-button add-item-button${addedItemId === item.id ? " is-added" : ""}`} onClick={() => openCustomise(item)}>
                         {item.components.length > 0 || item.optionGroups.length > 0 ? "Customise and add" : "Add"}

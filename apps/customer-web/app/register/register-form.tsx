@@ -1,6 +1,7 @@
 "use client";
 
 import type { FormEvent } from "react";
+import Link from "next/link";
 import { useState } from "react";
 
 import { CUSTOMER_SIGNUP_DELIVERY_PLAN } from "../../src/lib/customer-launch";
@@ -304,7 +305,17 @@ export function RegisterForm() {
           onChange={(event) => updateField("termsAccepted", event.target.checked)}
           required
         />
-        <span>I agree to Hull Eats storing my account and address details securely for ordering, support, and marketplace safety.</span>
+        <span>
+          I agree to the{" "}
+          <Link href="/legal/terms-hull-eats" className="ghost-link">
+            terms for ordering with Hull Eats
+          </Link>{" "}
+          and confirm I have read the{" "}
+          <Link href="/legal/privacy" className="ghost-link">
+            privacy notice
+          </Link>
+          . Hull Eats stores account and address details securely for ordering, support, and marketplace safety.
+        </span>
       </label>
 
       <p className="form-helper">

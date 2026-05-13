@@ -2,6 +2,8 @@ import { StatusBar } from "expo-status-bar";
 import {
   Image,
   ImageBackground,
+  Linking,
+  Pressable,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -49,6 +51,14 @@ const stores = [
 ];
 
 const lanes = ["Restaurants", "Takeaways", "Deli & Cafe", "Bakeries", "Shops"];
+
+/** Public web origin for legal pages (set EXPO_PUBLIC_SITE_URL in production). */
+const SITE_ORIGIN = (process.env.EXPO_PUBLIC_SITE_URL ?? "https://hulleats.co.uk").replace(/\/$/, "");
+
+function openSitePath(path: string) {
+  const url = `${SITE_ORIGIN}${path.startsWith("/") ? path : `/${path}`}`;
+  void Linking.openURL(url).catch(() => {});
+}
 
 export default function App() {
   return (
@@ -128,6 +138,36 @@ export default function App() {
           <TouchableOpacity style={styles.primaryButton}>
             <Text style={styles.primaryButtonText}>Join membership</Text>
           </TouchableOpacity>
+        </View>
+
+        <View style={styles.legalFooter}>
+          <Text style={styles.legalFooterTitle}>Legal & support</Text>
+          <Text style={styles.legalFooterCopy}>
+            Full policies for Hull Eats, Hull Marketplace, and Hull Services live on our website. Tap a link to open in
+            your browser.
+          </Text>
+          <View style={styles.legalLinkRow}>
+            <Pressable style={styles.legalLinkHit} onPress={() => openSitePath("/legal/privacy")}>
+              <Text style={styles.legalLinkText}>Privacy</Text>
+            </Pressable>
+            <Pressable style={styles.legalLinkHit} onPress={() => openSitePath("/legal/terms-hull-eats")}>
+              <Text style={styles.legalLinkText}>Terms</Text>
+            </Pressable>
+            <Pressable style={styles.legalLinkHit} onPress={() => openSitePath("/contact")}>
+              <Text style={styles.legalLinkText}>Contact</Text>
+            </Pressable>
+          </View>
+          <View style={styles.legalLinkRow}>
+            <Pressable style={styles.legalLinkHit} onPress={() => openSitePath("/legal/close-account")}>
+              <Text style={styles.legalLinkText}>Close account</Text>
+            </Pressable>
+            <Pressable style={styles.legalLinkHit} onPress={() => openSitePath("/partner")}>
+              <Text style={styles.legalLinkText}>Partner</Text>
+            </Pressable>
+            <Pressable style={styles.legalLinkHit} onPress={() => openSitePath("/about")}>
+              <Text style={styles.legalLinkText}>About</Text>
+            </Pressable>
+          </View>
         </View>
 
         <View style={styles.dock}>
@@ -478,5 +518,47 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontSize: 13,
     fontWeight: "900",
+  },
+  legalFooter: {
+    marginTop: 8,
+    paddingVertical: 18,
+    paddingHorizontal: 16,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: "rgba(188, 213, 255, 0.14)",
+    backgroundColor: "rgba(6, 14, 28, 0.88)",
+    gap: 10,
+  },
+  legalFooterTitle: {
+    color: "#8be8ff",
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 1.4,
+    textTransform: "uppercase",
+  },
+  legalFooterCopy: {
+    color: "#9fb2c9",
+    fontSize: 13,
+    lineHeight: 20,
+    marginBottom: 4,
+  },
+  legalLinkRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    justifyContent: "flex-start",
+  },
+  legalLinkHit: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.12)",
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
+  },
+  legalLinkText: {
+    color: "#e7eefb",
+    fontSize: 13,
+    fontWeight: "800",
   },
 });
