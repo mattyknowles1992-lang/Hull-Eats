@@ -2632,6 +2632,99 @@ export default function MerchantPortalPage() {
                   </select>
                 </label>
               </div>
+
+              <div style={{ marginTop: 24, paddingTop: 24, borderTop: "1px solid rgba(15, 17, 21, 0.1)" }}>
+                <p style={eyebrowDark}>Delivery pricing</p>
+                <h2 style={{ ...sectionTitle, marginTop: 6, marginBottom: 10 }}>Radius, postcode areas, and mile bands</h2>
+                <p style={{ ...panelCopyDark, marginBottom: 16, maxWidth: 720 }}>
+                  Checkout uses the customer&apos;s postcode: outward districts limit where you deliver; distance from your hub postcode (or optional coordinates below) picks the fee for under 1–5 miles. If every mile band is zero, customers pay the flat delivery fee above or a sensible default.
+                </p>
+                <div style={twoColumnGrid}>
+                  <label style={field}>
+                    <span style={darkFieldLabel}>Max delivery radius (miles)</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={40}
+                      style={lightInput}
+                      value={hubSettings.deliveryRadiusMiles}
+                      onChange={(event) =>
+                        handleHubFieldChange("deliveryRadiusMiles", Math.min(40, Math.max(1, Number(event.target.value) || 5)))
+                      }
+                    />
+                  </label>
+                  <label style={field}>
+                    <span style={darkFieldLabel}>Origin latitude (optional)</span>
+                    <input
+                      type="number"
+                      step="0.0001"
+                      style={lightInput}
+                      value={hubSettings.deliveryOriginLatitude ?? ""}
+                      placeholder="e.g. 53.7819"
+                      onChange={(event) => {
+                        const raw = event.target.value.trim();
+                        if (raw === "") {
+                          handleHubFieldChange("deliveryOriginLatitude", null);
+                          return;
+                        }
+                        const n = Number(raw);
+                        handleHubFieldChange("deliveryOriginLatitude", Number.isFinite(n) ? n : null);
+                      }}
+                    />
+                  </label>
+                  <label style={field}>
+                    <span style={darkFieldLabel}>Origin longitude (optional)</span>
+                    <input
+                      type="number"
+                      step="0.0001"
+                      style={lightInput}
+                      value={hubSettings.deliveryOriginLongitude ?? ""}
+                      placeholder="e.g. -0.4371"
+                      onChange={(event) => {
+                        const raw = event.target.value.trim();
+                        if (raw === "") {
+                          handleHubFieldChange("deliveryOriginLongitude", null);
+                          return;
+                        }
+                        const n = Number(raw);
+                        handleHubFieldChange("deliveryOriginLongitude", Number.isFinite(n) ? n : null);
+                      }}
+                    />
+                  </label>
+                </div>
+                <div style={{ ...field, marginTop: 16 }}>
+                  <span style={darkFieldLabel}>Hull outward districts you deliver to</span>
+                  <p style={subtleInfo}>Tick none to allow any outward code within the radius (still mileage-priced).</p>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+                    {listKnownHullOutwardCodes().map((code) => (
+                      <label key={code} style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700 }}>
+                        <input
+                          type="checkbox"
+                          checked={hubSettings.deliveryPostcodeDistricts.map((entry) => entry.toUpperCase()).includes(code)}
+                          onChange={() => toggleHullDeliveryDistrict(code)}
+                        />
+                        {code}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ display: "grid", gap: 12, marginTop: 18 }}>
+                  <span style={darkFieldLabel}>Mile band fees (£)</span>
+                  {["Under 1 mile", "Under 2 miles", "Under 3 miles", "Under 4 miles", "Under 5 miles"].map((label, index) => (
+                    <label key={label} style={field}>
+                      <span style={darkFieldLabel}>{label}</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min={0}
+                        style={lightInput}
+                        value={hubSettings.deliveryMileFees[index]}
+                        onChange={(event) => handleMileFeeBandChange(index, Number(event.target.value) || 0)}
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
             </section>
           ) : null}
 
