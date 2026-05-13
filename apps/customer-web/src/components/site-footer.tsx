@@ -7,7 +7,14 @@ export function SiteFooter() {
     <footer className="site-footer" aria-label="Site footer">
       <div className="site-footer-inner">
         <div className="site-footer-brand">
-          <div className="site-footer-logo-mark" aria-hidden="true" />
+          <img
+            src="/brand/hull-eats-logo.jpeg"
+            alt="Hull Eats"
+            width={48}
+            height={48}
+            className="site-footer-logo-mark"
+            decoding="async"
+          />
           <div>
             <p className="site-footer-brand-title">Hull Eats</p>
             <p className="site-footer-brand-copy">
