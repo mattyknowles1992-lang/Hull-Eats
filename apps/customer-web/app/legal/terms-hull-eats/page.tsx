@@ -13,7 +13,7 @@ export default function TermsHullEatsPage() {
   return (
     <LegalDocument
       title="Terms — Hull Eats ordering & account"
-      updated="11 May 2026"
+      updated="13 May 2026"
       summary="These terms govern customer accounts, browsing participating businesses on Hull Eats, checkout, payment authorisation, delivery or collection, and support. They do not replace your direct relationship with the restaurant or shop that prepares your food."
     >
       <h2>1. Who these terms cover</h2>
@@ -55,29 +55,58 @@ export default function TermsHullEatsPage() {
         charged incorrectly we will refund the difference.
       </p>
 
-      <h2>6. Cancellations and refunds</h2>
+      <h2 id="alcohol-and-age-restricted-items">6. Alcohol and age-restricted items</h2>
+      <p>
+        This section applies where your order includes <strong>alcohol</strong> or any other product for which UK law or
+        the store requires <strong>age verification</strong> before supply (including, for example, nicotine vapes or other
+        age-gated goods offered on a menu).
+      </p>
+      <h3>6.1 Proof of age at delivery or collection</h3>
+      <p>
+        <strong>Everyone</strong> receiving the order — regardless of how old they appear — must be able to produce
+        valid photo ID <strong>before</strong> age-restricted goods are handed over. Accepted documents are a current{" "}
+        <strong>UK driving licence</strong> or <strong>passport</strong> (or any additional document types the store
+        specifies at checkout or on the product page). The courier or store representative may refuse to release
+        age-restricted items if ID is not shown, is expired, or does not match the person taking delivery.
+      </p>
+      <h3>6.2 If you cannot provide valid ID</h3>
+      <p>
+        If valid ID cannot be produced at the door or collection point, the age-restricted goods will <strong>not</strong>{" "}
+        be supplied and will be <strong>returned</strong> in line with the store’s process. In that situation:{" "}
+        <strong>any delivery fee</strong> you paid for that order attempt <strong>is not refunded</strong> (the delivery
+        attempt has still been made); the <strong>purchase price of the age-restricted items</strong> themselves will be{" "}
+        <strong>refunded</strong> to your original payment method (or as store policy and consumer law require), subject
+        to normal payment-processor timings. Other items in the same order, if any, are fulfilled or refunded according to
+        the store’s policy and applicable law.
+      </p>
+      <p>
+        By placing an order that includes alcohol or other age-restricted products, you confirm that the person who will
+        receive the delivery or collection is prepared to show acceptable ID on request.
+      </p>
+
+      <h2>7. Cancellations and refunds</h2>
       <p>
         Because food is prepared quickly, cancellation windows may be short once preparation starts. If you cancel within
         any permitted window shown at checkout, your payment will be voided or refunded according to the payment
         provider’s timing. If the business cancels (for example stock unavailable), you should receive a full refund unless
         you agree otherwise. Persistent disputes should be raised via <Link href="/contact">Contact us</Link> with your order
-        number.
+        number. Refunds for failed age-restricted delivery are as set out in section 6.
       </p>
 
-      <h2>7. Membership or subscriptions</h2>
+      <h2>8. Membership or subscriptions</h2>
       <p>
         If Hull Eats launches subscription offerings (for example delivery memberships), those programmes will have their
         own renewal rules and cooling-off rights compliant with UK consumer rules. Until launched, nothing on this site
         binds you to a recurring fee unless you expressly subscribe when offered.
       </p>
 
-      <h2>8. Acceptable behaviour</h2>
+      <h2>9. Acceptable behaviour</h2>
       <p>
         You must follow our <Link href="/legal/acceptable-use">acceptable use policy</Link>. Abuse toward drivers, staff, or
         support agents may lead to account suspension or police referral where threats occur.
       </p>
 
-      <h2>9. Liability</h2>
+      <h2>10. Liability</h2>
       <p>
         Nothing in these terms excludes liability that cannot be excluded under English law, including death or personal
         injury caused by negligence or fraud. Otherwise Hull Eats is not liable for indirect loss (lost profits,
@@ -86,20 +115,20 @@ export default function TermsHullEatsPage() {
         except where higher sums are mandated by law.
       </p>
 
-      <h2>10. Changes</h2>
+      <h2>11. Changes</h2>
       <p>
         We may update these terms to reflect new laws or product changes. Material updates appear here with a fresh date.
         Continued ordering after changes constitutes acceptance unless mandatory cooling-off rights apply to a new paid
         feature.
       </p>
 
-      <h2>11. Governing law</h2>
+      <h2>12. Governing law</h2>
       <p>
         English law applies and courts in England and Wales have jurisdiction, without prejudice to mandatory consumer
         protections if you live elsewhere in the UK.
       </p>
 
-      <h2>12. Contact</h2>
+      <h2>13. Contact</h2>
       <p>
         Questions about these terms: <Link href="/contact">Contact us</Link> or email{" "}
         <a href="mailto:hello@hulleats.co.uk">hello@hulleats.co.uk</a>.

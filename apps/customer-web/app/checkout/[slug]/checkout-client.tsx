@@ -417,6 +417,19 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
           </label>
         </div>
 
+        <div className="checkout-note" style={{ marginTop: 16 }}>
+          <strong>Age-restricted items (alcohol, vapes, etc.)</strong>
+          <p>
+            If your order includes anything that needs ID, the person receiving it must show a valid UK driving licence or
+            passport at the door or collection point — everyone, every time. If ID cannot be shown, those items are
+            returned: you keep the delivery fee charge but get a refund for those items.{" "}
+            <Link href="/legal/terms-hull-eats#alcohol-and-age-restricted-items" className="ghost-link">
+              Full wording in our terms
+            </Link>
+            .
+          </p>
+        </div>
+
         {errorMessage ? <p className="form-message form-message-error">{errorMessage}</p> : null}
 
         <section className="checkout-summary" style={{ marginTop: 18 }}>

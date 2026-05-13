@@ -20,7 +20,11 @@ export default function AcceptableUsePage() {
       <ul>
         <li>Sell or solicit illegal goods or services.</li>
         <li>Harass, threaten, discriminate against, or stalk anyone.</li>
-        <li>Circumvent age restrictions on alcohol, nicotine, or adult-only categories.</li>
+        <li>
+          Circumvent age restrictions on alcohol, nicotine, or adult-only categories — including arranging delivery to
+          someone who will not complete mandatory ID checks at the door when required by our{" "}
+          <Link href="/legal/terms-hull-eats#alcohol-and-age-restricted-items">ordering terms</Link>.
+        </li>
         <li>Distribute malware, scrape our systems beyond permitted indexing, or attack infrastructure.</li>
         <li>Create fake reviews or manipulate ratings.</li>
       </ul>
