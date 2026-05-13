@@ -88,6 +88,9 @@ export function TrackingClient({ orderId }: TrackingClientProps) {
   const isDelivered = order ? order.status === "delivered" || delivery?.status === "delivered" : false;
   const lineItems = order?.items ?? [];
   const linesSubtotal = lineItems.reduce((sum, line) => sum + line.totalPrice, 0);
+  const needsIdVerification = Boolean(
+    delivery?.requiresIdVerification || lineItems.some((line) => line.requiresIdVerification),
+  );
 
   return (
     <main className="tracking-shell">
@@ -105,6 +108,19 @@ export function TrackingClient({ orderId }: TrackingClientProps) {
           Back to marketplace
         </Link>
       </section>
+
+      {needsIdVerification ? (
+        <section className="checkout-note tracking-id-banner" style={{ margin: "0 24px 16px" }}>
+          <strong>Verify with ID</strong>
+          <p>
+            This order includes items that must be verified with a valid UK driving licence or passport when your courier arrives.
+            Have ID ready for the person collecting.{" "}
+            <Link href="/legal/terms-hull-eats#alcohol-and-age-restricted-items" className="ghost-link">
+              Terms
+            </Link>
+          </p>
+        </section>
+      ) : null}
 
       {errorMessage ? <p className="form-message form-message-error">{errorMessage}</p> : null}
 

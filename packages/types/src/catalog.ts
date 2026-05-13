@@ -37,6 +37,8 @@ export const menuItemSchema = z.object({
   stockStatus: stockStatusSchema.default("in_stock"),
   allowBackorder: z.boolean().default(false),
   maxPerOrder: z.number().int().positive().nullable().default(null),
+  /** When true, checkout shows ID policy and couriers/customers are told the order needs in-person ID verification. */
+  requiresIdVerification: z.boolean().default(false),
   sortOrder: z.number().int().default(0),
   components: z
     .array(

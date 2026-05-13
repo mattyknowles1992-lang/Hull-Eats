@@ -28,6 +28,8 @@ export type BasketLine = {
   name: string;
   quantity: number;
   unitPrice: number;
+  /** Copied from menu item when added; used for checkout copy without re-fetching menu. */
+  requiresIdVerification?: boolean;
   notes?: string;
   selectedOptionQuantities: Record<string, number>;
   removedComponentIds: string[];
@@ -309,6 +311,7 @@ export const loadBasket = (storeSlug: string): StoreBasket | null => {
       ...parsed,
       items: (parsed.items ?? []).map((line) => ({
         ...line,
+        requiresIdVerification: line.requiresIdVerification ?? false,
         selectedOptionQuantities: line.selectedOptionQuantities ?? {},
         removedComponentIds: line.removedComponentIds ?? [],
         selectedOptions: line.selectedOptions ?? [],
@@ -363,6 +366,7 @@ export const addConfiguredItemToBasket = (
       name: item.name,
       quantity: 1,
       unitPrice: Number((item.price + details.customisationTotal).toFixed(2)),
+      requiresIdVerification: item.requiresIdVerification ?? false,
       selectedOptionQuantities: normaliseOptionQuantities(selection.selectedOptionQuantities),
       removedComponentIds: sortValues(selection.removedComponentIds),
       selectedOptions: details.selectedOptions,

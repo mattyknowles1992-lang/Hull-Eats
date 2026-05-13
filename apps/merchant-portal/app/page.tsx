@@ -89,6 +89,7 @@ type CreateItemFormState = {
   description: string;
   price: string;
   imageUrl: string;
+  requiresIdVerification: boolean;
 };
 
 type CreateUserFormState = {
@@ -139,6 +140,7 @@ const initialCreateItemState: CreateItemFormState = {
   description: "",
   price: "",
   imageUrl: "",
+  requiresIdVerification: false,
 };
 
 const emptyHubSettings: HubSettings = {
@@ -153,6 +155,8 @@ const emptyHubSettings: HubSettings = {
   isOpen: false,
   logoImageUrl: "",
   heroImageUrl: "",
+  autoAcceptOrders: false,
+  autoAcceptMaxPrepMinutes: 60,
 };
 
 const moneyInput = (value: number) => value.toFixed(2);
@@ -539,6 +543,7 @@ async function createMenuItem(
     description: string;
     price: number;
     imageUrl?: string;
+    requiresIdVerification?: boolean;
     components: MenuItem["components"];
     optionGroups: MenuItem["optionGroups"];
   },
@@ -678,6 +683,40 @@ async function printMerchantOrderReceipt(token: string, orderId: string): Promis
   }
 
   return (await response.json()) as MerchantOrderPrintResponse;
+}
+
+async function acceptMerchantOrder(token: string, orderId: string, prepTimeMinutes: number): Promise<OrderSummary> {
+  const response = await fetch(`${apiBaseUrl}/v1/merchant/orders/${encodeURIComponent(orderId)}/accept`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ prepTimeMinutes }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Accept order failed with status ${response.status}`);
+  }
+
+  return (await response.json()) as OrderSummary;
+}
+
+async function rejectMerchantOrder(token: string, orderId: string, reason: string): Promise<OrderSummary> {
+  const response = await fetch(`${apiBaseUrl}/v1/merchant/orders/${encodeURIComponent(orderId)}/reject`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ reason }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Reject order failed with status ${response.status}`);
+  }
+
+  return (await response.json()) as OrderSummary;
 }
 
 const escapeHtml = (value: string) =>
@@ -1007,6 +1046,7 @@ export default function MerchantPortalPage() {
   const [menuSections, setMenuSections] = useState<HubMenuSection[]>([]);
   const [pendingImports, setPendingImports] = useState<MerchantWorkspace["pendingImports"]>([]);
   const [merchantOrders, setMerchantOrders] = useState<OrderSummary[]>([]);
+  const [ordersClockTick, setOrdersClockTick] = useState(0);
   const [newUser, setNewUser] = useState<CreateUserFormState>(initialCreateUserState);
   const [passwordForm, setPasswordForm] = useState<PasswordFormState>(initialPasswordFormState);
   const [newCategory, setNewCategory] = useState<CreateCategoryFormState>(initialCreateCategoryState);
@@ -1049,6 +1089,15 @@ export default function MerchantPortalPage() {
       customisableItems,
     };
   }, [menuSections]);
+
+  useEffect(() => {
+    if (activeHubSection !== "orders") {
+      return;
+    }
+
+    const id = window.setInterval(() => setOrdersClockTick((tick) => tick + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [activeHubSection]);
 
   const selectedCategory = useMemo(
     () => menuSections.find((section) => section.id === selectedCategoryId) ?? menuSections[0] ?? null,
@@ -1145,6 +1194,41 @@ export default function MerchantPortalPage() {
       }
     } catch (error) {
       setOrderNotice(error instanceof Error ? error.message : "Order fetch failed.");
+    }
+  };
+
+  const handleAcceptMerchantOrder = async (order: OrderSummary) => {
+    if (!merchantToken) {
+      return;
+    }
+
+    try {
+      await acceptMerchantOrder(merchantToken, order.id, hubSettings.etaMinutes);
+      await loadMerchantOrders(merchantToken, { silent: true });
+      setOrderNotice(`Accepted ${order.orderNumber}. Kitchen receipt queued if a printer is configured.`);
+    } catch (error) {
+      setOrderNotice(error instanceof Error ? error.message : "Accept failed.");
+    }
+  };
+
+  const handleRejectMerchantOrder = async (order: OrderSummary) => {
+    if (!merchantToken) {
+      return;
+    }
+
+    const reason = window.prompt("Reason for rejecting this order?", "Unable to fulfil right now");
+    if (reason === null) {
+      return;
+    }
+
+    const trimmed = reason.trim() || "Unable to fulfil right now";
+
+    try {
+      await rejectMerchantOrder(merchantToken, order.id, trimmed);
+      await loadMerchantOrders(merchantToken, { silent: true });
+      setOrderNotice(`Rejected ${order.orderNumber}.`);
+    } catch (error) {
+      setOrderNotice(error instanceof Error ? error.message : "Reject failed.");
     }
   };
 
@@ -1539,6 +1623,7 @@ export default function MerchantPortalPage() {
         description: newItem.description.trim(),
         price: effectivePrice,
         imageUrl: newItem.imageUrl.trim() || undefined,
+        requiresIdVerification: newItem.requiresIdVerification,
         components: [],
         optionGroups: [],
       });
@@ -1877,23 +1962,56 @@ export default function MerchantPortalPage() {
               </button>
             </div>
             <div style={orderListGrid}>
-              {merchantOrders.map((order) => (
+              {merchantOrders.map((order) => {
+                void ordersClockTick;
+                const isPending = order.status === "pending";
+                const hubSecondsLeft =
+                  isPending && order.merchantResponseDeadlineAt
+                    ? Math.max(0, Math.ceil((new Date(order.merchantResponseDeadlineAt).getTime() - Date.now()) / 1000))
+                    : null;
+
+                return (
                 <article key={order.id} style={orderListCard}>
                   <div>
                     <strong style={orderNumberStyle}>{order.orderNumber}</strong>
                     <p style={panelCopyDark}>
                       {order.source.replaceAll("_", " ")} / {order.fulfillmentType} / {order.paymentStatus} / {order.paymentMethod.replaceAll("_", " ")}
                     </p>
+                    {isPending && hubSecondsLeft !== null ? (
+                      <p style={{ ...panelCopyDark, marginTop: 8, fontWeight: 800, color: hubSecondsLeft <= 15 ? "#b42318" : "#101216" }}>
+                        Awaiting your response — auto-cancel in {hubSecondsLeft}s
+                      </p>
+                    ) : null}
+                    {isPending && hubSecondsLeft === null ? (
+                      <p style={{ ...panelCopyDark, marginTop: 8, fontWeight: 800 }}>
+                        Awaiting your response — accept or reject to continue.
+                      </p>
+                    ) : null}
                   </div>
                   <div style={itemBadgeRow}>
                     <span style={darkBadge}>{order.status}</span>
+                    {isPending ? (
+                      <>
+                        <button
+                          type="button"
+                          style={{ ...primaryButton, minHeight: 40, padding: "0 14px", borderRadius: 14, fontSize: 14 }}
+                          onClick={() => void handleAcceptMerchantOrder(order)}
+                        >
+                          Accept ({hubSettings.etaMinutes} min)
+                        </button>
+                        <button type="button" style={secondaryButtonSmall} onClick={() => void handleRejectMerchantOrder(order)}>
+                          Reject
+                        </button>
+                      </>
+                    ) : null}
                     <button type="button" style={secondaryButtonSmall} onClick={() => void handlePrintOrderReceipt(order)}>
                       Print receipt
                     </button>
                     <span style={orangeBadge}>£{order.totalAmount.toFixed(2)}</span>
                   </div>
                 </article>
-              ))}
+              );
+              })}
               {merchantOrders.length === 0 ? <div style={emptyStateCard}>No orders loaded yet. Refresh after placing a kiosk test order.</div> : null}
             </div>
           </section>
@@ -2328,6 +2446,19 @@ export default function MerchantPortalPage() {
                         />
                         <span>Track stock</span>
                       </label>
+                      <label style={toggleLabel}>
+                        <input
+                          type="checkbox"
+                          checked={selectedItem.requiresIdVerification ?? false}
+                          onChange={(event) =>
+                            updateItem(selectedCategory.id, selectedItem.id, (current) => ({
+                              ...current,
+                              requiresIdVerification: event.target.checked,
+                            }))
+                          }
+                        />
+                        <span>Verify with ID</span>
+                      </label>
                     </div>
 
                     <details style={advancedDrawer}>
@@ -2437,6 +2568,30 @@ export default function MerchantPortalPage() {
                   <span style={darkFieldLabel}>Minimum order</span>
                   <input type="number" step="0.01" style={lightInput} value={hubSettings.minimumOrderAmount} onChange={(event) => handleHubFieldChange("minimumOrderAmount", Number(event.target.value) || 0)} />
                 </label>
+                <label style={{ display: "flex", gridColumn: "1 / -1", gap: 12, alignItems: "center" }}>
+                  <input
+                    type="checkbox"
+                    checked={hubSettings.autoAcceptOrders}
+                    onChange={(event) => handleHubFieldChange("autoAcceptOrders", event.target.checked)}
+                    style={{ width: 18, height: 18 }}
+                  />
+                  <span style={darkFieldLabel}>Auto-accept new orders</span>
+                </label>
+                {hubSettings.autoAcceptOrders ? (
+                  <label style={field}>
+                    <span style={darkFieldLabel}>Max prep when auto-accepting (minutes)</span>
+                    <input
+                      type="number"
+                      min={5}
+                      max={180}
+                      style={lightInput}
+                      value={hubSettings.autoAcceptMaxPrepMinutes}
+                      onChange={(event) =>
+                        handleHubFieldChange("autoAcceptMaxPrepMinutes", Math.min(180, Math.max(5, Number(event.target.value) || 60)))
+                      }
+                    />
+                  </label>
+                ) : null}
                 <label style={field}>
                   <span style={darkFieldLabel}>Open now</span>
                   <select style={lightInput} value={hubSettings.isOpen ? "open" : "closed"} onChange={(event) => handleHubFieldChange("isOpen", event.target.value === "open")}>
@@ -2649,6 +2804,14 @@ export default function MerchantPortalPage() {
                     placeholder="https://..."
                   />
                 </label>
+                <label style={toggleLabel}>
+                  <input
+                    type="checkbox"
+                    checked={newItem.requiresIdVerification}
+                    onChange={(event) => setNewItem((current) => ({ ...current, requiresIdVerification: event.target.checked }))}
+                  />
+                  <span>Verify with ID at delivery (age-restricted)</span>
+                </label>
                 <button type="button" style={primaryButton} onClick={handleCreateItem}>
                   Add item
                 </button>
@@ -2773,6 +2936,30 @@ export default function MerchantPortalPage() {
                     onChange={(event) => handleHubFieldChange("minimumOrderAmount", Number(event.target.value) || 0)}
                   />
                 </label>
+                <label style={{ display: "flex", gridColumn: "1 / -1", gap: 12, alignItems: "center" }}>
+                  <input
+                    type="checkbox"
+                    checked={hubSettings.autoAcceptOrders}
+                    onChange={(event) => handleHubFieldChange("autoAcceptOrders", event.target.checked)}
+                    style={{ width: 18, height: 18 }}
+                  />
+                  <span style={darkFieldLabel}>Auto-accept new orders (uses delivery ETA, capped below)</span>
+                </label>
+                {hubSettings.autoAcceptOrders ? (
+                  <label style={field}>
+                    <span style={darkFieldLabel}>Max prep when auto-accepting (minutes)</span>
+                    <input
+                      type="number"
+                      min={5}
+                      max={180}
+                      style={lightInput}
+                      value={hubSettings.autoAcceptMaxPrepMinutes}
+                      onChange={(event) =>
+                        handleHubFieldChange("autoAcceptMaxPrepMinutes", Math.min(180, Math.max(5, Number(event.target.value) || 60)))
+                      }
+                    />
+                  </label>
+                ) : null}
                 <label style={field}>
                   <span style={darkFieldLabel}>Open now</span>
                   <select
@@ -2890,6 +3077,14 @@ export default function MerchantPortalPage() {
                       onChange={(event) => setNewItem((current) => ({ ...current, imageUrl: event.target.value }))}
                       placeholder="https://..."
                     />
+                  </label>
+                  <label style={toggleLabel}>
+                    <input
+                      type="checkbox"
+                      checked={newItem.requiresIdVerification}
+                      onChange={(event) => setNewItem((current) => ({ ...current, requiresIdVerification: event.target.checked }))}
+                    />
+                    <span>Verify with ID at delivery (age-restricted)</span>
                   </label>
                   <button type="button" style={primaryButton} onClick={handleCreateItem}>
                     Create item shell

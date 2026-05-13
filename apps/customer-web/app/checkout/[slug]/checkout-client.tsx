@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import type { MenuItem, StoreSummary } from "@hull-eats/types";
 
-import { createCheckoutSession, placeCheckoutOrder } from "../../../src/lib/api";
+import { cancelCustomerOrderWithinGrace, createCheckoutSession, placeCheckoutOrder } from "../../../src/lib/api";
 import {
   clearBasket,
   getBasketItemCount,
@@ -84,6 +84,9 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
   const [paymentMode, setPaymentMode] = useState<CheckoutPaymentMode>("cash_on_delivery");
   const [customerProfileId, setCustomerProfileId] = useState("");
   const [showClearBasketConfirm, setShowClearBasketConfirm] = useState(false);
+  const [customerCancelTick, setCustomerCancelTick] = useState(0);
+  const [isCancellingOrder, setIsCancellingOrder] = useState(false);
+  const [cancelOrderError, setCancelOrderError] = useState<string | null>(null);
 
   useEffect(() => {
     const sync = () => setBasket(loadBasket(store.slug));
@@ -95,6 +98,20 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
       window.removeEventListener("hull-eats-basket-updated", sync as EventListener);
     };
   }, [store.slug]);
+
+  useEffect(() => {
+    if (!placedOrder?.order.customerCancelUntil || placedOrder.order.status === "cancelled") {
+      return;
+    }
+
+    const deadlineMs = new Date(placedOrder.order.customerCancelUntil).getTime();
+    if (Number.isNaN(deadlineMs) || Date.now() >= deadlineMs) {
+      return;
+    }
+
+    const id = window.setInterval(() => setCustomerCancelTick((tick) => tick + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [placedOrder]);
 
   useEffect(() => {
     void (async () => {
@@ -174,6 +191,18 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
     [basket?.items, menuItems],
   );
 
+  const needsIdVerification = useMemo(
+    () =>
+      (basket?.items ?? []).some((line) => {
+        if (line.requiresIdVerification) {
+          return true;
+        }
+        const menuItem = menuItems.find((item) => item.id === line.menuItemId);
+        return menuItem?.requiresIdVerification ?? false;
+      }),
+    [basket?.items, menuItems],
+  );
+
   const updateField = <K extends keyof CheckoutFormState>(field: K, value: CheckoutFormState[K]) => {
     setFormState((current) => ({
       ...current,
@@ -235,11 +264,12 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
 
       const result = await placeCheckoutOrder(session.id, paymentMode);
       setPlacedOrder(result);
+      setCancelOrderError(null);
       saveActiveOrderSnapshot({
         orderNumber: result.order.orderNumber,
         storeName: store.name,
         storeSlug: store.slug,
-        placedAt: new Date().toISOString(),
+        placedAt: result.order.placedAt,
         etaMinutesHint: store.etaMinutes ?? null,
       });
       playOrderSuccessDelight();
@@ -276,6 +306,50 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
 
   const orderLines = checkoutSession?.lineItems ?? enrichedLines;
 
+  const customerCancelSecondsLeft = (() => {
+    void customerCancelTick;
+    if (!placedOrder?.order.customerCancelUntil || placedOrder.order.status === "cancelled") {
+      return null;
+    }
+
+    const deadlineMs = new Date(placedOrder.order.customerCancelUntil).getTime();
+    if (Number.isNaN(deadlineMs)) {
+      return null;
+    }
+
+    return Math.max(0, Math.ceil((deadlineMs - Date.now()) / 1000));
+  })();
+
+  const handleCancelOrderWithinGrace = async () => {
+    if (!placedOrder) {
+      return;
+    }
+
+    const profileId = customerProfileId.trim();
+    const phone = formState.customerPhone.trim();
+
+    if (!profileId && !phone) {
+      setCancelOrderError("Sign in or keep your phone number on the form so we can verify this cancellation.");
+      return;
+    }
+
+    setIsCancellingOrder(true);
+    setCancelOrderError(null);
+
+    try {
+      const updated = await cancelCustomerOrderWithinGrace({
+        orderId: placedOrder.order.id,
+        customerProfileId: profileId || undefined,
+        customerPhone: phone || undefined,
+      });
+      setPlacedOrder((current) => (current ? { ...current, order: updated } : null));
+    } catch (error) {
+      setCancelOrderError(error instanceof Error ? error.message : "Unable to cancel this order.");
+    } finally {
+      setIsCancellingOrder(false);
+    }
+  };
+
   if (placedOrder && checkoutSession) {
     return (
       <section className="checkout-grid">
@@ -283,7 +357,7 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
           <p className="eyebrow">Order created</p>
           <h1 className="checkout-title">{placedOrder.order.orderNumber}</h1>
           <p className="checkout-copy">
-            Your Loaded Munch order is now in the system. Payment method:{" "}
+            Your {store.name} order is now in the system. Payment method:{" "}
             {placedOrder.order.paymentMethod === "cash_on_delivery" ? "cash on delivery" : "card payment"}.
           </p>
 
@@ -334,7 +408,36 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
             </div>
           </div>
 
+          {placedOrder.order.status === "cancelled" ? (
+            <p className="checkout-note" style={{ marginTop: 16 }}>
+              This order was cancelled. If you paid by card and a capture was made, a refund will be processed according to your bank.
+            </p>
+          ) : null}
+
+          {customerCancelSecondsLeft !== null && customerCancelSecondsLeft > 0 ? (
+            <div className="checkout-note" style={{ marginTop: 16 }}>
+              <strong>Changed your mind?</strong> You can cancel for {customerCancelSecondsLeft} more second{customerCancelSecondsLeft === 1 ? "" : "s"}. The
+              store is notified immediately.
+            </div>
+          ) : null}
+
+          {cancelOrderError ? (
+            <p className="checkout-note" style={{ marginTop: 12, color: "#b42318" }}>
+              {cancelOrderError}
+            </p>
+          ) : null}
+
           <div className="button-row" style={{ marginTop: 18 }}>
+            {customerCancelSecondsLeft !== null && customerCancelSecondsLeft > 0 && placedOrder.order.status !== "cancelled" ? (
+              <button
+                type="button"
+                className="glass-button"
+                disabled={isCancellingOrder}
+                onClick={() => void handleCancelOrderWithinGrace()}
+              >
+                {isCancellingOrder ? "Cancelling…" : "Cancel order"}
+              </button>
+            ) : null}
             <Link href={`/stores/${store.slug}`} className="primary-button">
               Back to storefront
             </Link>
@@ -356,7 +459,7 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
         <div className="section-heading">
           <div>
             <p className="eyebrow">Checkout</p>
-            <h1 className="checkout-title">Loaded Munch order</h1>
+            <h1 className="checkout-title">{store.name} order</h1>
             <p className="checkout-copy">Review your address, basket, and customisations before placing the order.</p>
           </div>
         </div>
@@ -417,18 +520,20 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
           </label>
         </div>
 
+        {needsIdVerification ? (
         <div className="checkout-note" style={{ marginTop: 16 }}>
-          <strong>Age-restricted items (alcohol, vapes, etc.)</strong>
+          <strong>Verify with ID</strong>
           <p>
-            If your order includes anything that needs ID, the person receiving it must show a valid UK driving licence or
-            passport at the door or collection point — everyone, every time. If ID cannot be shown, those items are
-            returned: you keep the delivery fee charge but get a refund for those items.{" "}
+            This basket includes at least one item the store sells as age-restricted. The person receiving the order must show a
+            valid UK driving licence or passport at the door or collection point. If ID cannot be shown, those items cannot be
+            handed over — see our terms for refunds.{" "}
             <Link href="/legal/terms-hull-eats#alcohol-and-age-restricted-items" className="ghost-link">
               Full wording in our terms
             </Link>
             .
           </p>
         </div>
+        ) : null}
 
         {errorMessage ? <p className="form-message form-message-error">{errorMessage}</p> : null}
 
@@ -537,7 +642,7 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
               ))}
             </div>
           ) : (
-            <p className="checkout-copy">Your basket is empty. Add a few Loaded Munch items before checking out.</p>
+            <p className="checkout-copy">Your basket is empty. Add a few items from {store.name} before checking out.</p>
           )}
 
           <div className="checkout-summary">

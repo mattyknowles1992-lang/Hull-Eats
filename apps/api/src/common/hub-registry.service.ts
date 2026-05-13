@@ -443,6 +443,8 @@ export class HubRegistryService {
           minimumOrderAmount: input.settings.minimumOrderAmount,
           isActive: true,
           storefrontStatus: input.settings.isOpen ? "LIVE" : "ONBOARDING",
+          autoAcceptOrders: input.settings.autoAcceptOrders,
+          autoAcceptMaxPrepMinutes: input.settings.autoAcceptMaxPrepMinutes,
         },
       });
 
@@ -482,6 +484,7 @@ export class HubRegistryService {
               stockStatus: this.mapStockStatusToDb(item.stockStatus),
               allowBackorder: item.allowBackorder,
               maxPerOrder: item.maxPerOrder,
+              requiresIdVerification: item.requiresIdVerification ?? false,
               sortOrder: itemIndex,
             },
             create: {
@@ -498,6 +501,7 @@ export class HubRegistryService {
               stockStatus: this.mapStockStatusToDb(item.stockStatus),
               allowBackorder: item.allowBackorder,
               maxPerOrder: item.maxPerOrder,
+              requiresIdVerification: item.requiresIdVerification ?? false,
               sortOrder: itemIndex,
             },
           });
@@ -686,6 +690,7 @@ export class HubRegistryService {
         stockStatus: "IN_STOCK",
         allowBackorder: false,
         maxPerOrder: null,
+        requiresIdVerification: input.requiresIdVerification ?? false,
         sortOrder: section.menuItems.length,
       },
     });
@@ -1060,6 +1065,8 @@ export class HubRegistryService {
         minimumOrderAmount: loadedMunchStore.minimumOrderAmount ?? 0,
         etaMinutes: loadedMunchStore.etaMinutes ?? 25,
         isActive: loadedMunchStore.isOpen,
+        autoAcceptOrders: false,
+        autoAcceptMaxPrepMinutes: 60,
       },
       create: {
         merchantId: merchant.id,
@@ -1080,6 +1087,8 @@ export class HubRegistryService {
         minimumOrderAmount: loadedMunchStore.minimumOrderAmount ?? 0,
         etaMinutes: loadedMunchStore.etaMinutes ?? 25,
         isActive: loadedMunchStore.isOpen,
+        autoAcceptOrders: false,
+        autoAcceptMaxPrepMinutes: 60,
       },
     });
 
@@ -1161,6 +1170,7 @@ export class HubRegistryService {
               stockStatus: this.mapStockStatusToDb(item.stockStatus),
               allowBackorder: item.allowBackorder,
               maxPerOrder: item.maxPerOrder,
+              requiresIdVerification: item.requiresIdVerification ?? false,
               sortOrder: itemIndex,
             },
           });
@@ -1296,6 +1306,8 @@ export class HubRegistryService {
       isOpen: store.storefrontStatus === "LIVE",
       logoImageUrl: store.logoAssetId ?? "",
       heroImageUrl: store.heroImageUrl ?? "",
+      autoAcceptOrders: Boolean(store.autoAcceptOrders),
+      autoAcceptMaxPrepMinutes: store.autoAcceptMaxPrepMinutes ?? 60,
     };
   }
 
@@ -1506,6 +1518,7 @@ export class HubRegistryService {
       allowBackorder: item.allowBackorder,
       maxPerOrder: item.maxPerOrder,
       sortOrder: item.sortOrder,
+      requiresIdVerification: Boolean(item.requiresIdVerification),
       components: Array.isArray(customisationConfig.components) ? customisationConfig.components : [],
       optionGroups: Array.isArray(customisationConfig.optionGroups) ? customisationConfig.optionGroups : [],
     };

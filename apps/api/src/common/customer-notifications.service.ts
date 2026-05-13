@@ -115,6 +115,14 @@ export class CustomerNotificationsService {
     });
   }
 
+  async notifyOrderRequiresIdVerification(order: OrderNotificationSnapshot) {
+    return this.notifyOrderEvent(order, {
+      event: "order.requires_id_verification",
+      title: "Have ID ready for this order",
+      body: `Order ${order.orderNumber} includes items that must be verified with a valid UK driving licence or passport at the door or collection point.`,
+    });
+  }
+
   private async notifyOrderEvent(
     order: OrderNotificationSnapshot,
     notification: { event: string; title: string; body: string },
@@ -196,6 +204,12 @@ export class CustomerNotificationsService {
       status,
       tokenCount: tokens.length,
     };
+  }
+
+  /** Hub/kitchen lifecycle (logged for now; wire hub push or email when tokens exist). */
+  async notifyHubOrderLifecycle(hubId: string, orderNumber: string, event: string, context: string) {
+    console.log(`[hub-order ${hubId}] ${event} ${orderNumber}: ${context}`);
+    return { hubId, orderNumber, event, logged: true as const };
   }
 
   private async sendExpoPush(tokens: string[], message: { title: string; body: string; data: Record<string, string> }) {

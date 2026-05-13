@@ -13,6 +13,7 @@ import { prisma } from "@hull-eats/db";
 
 import { customerNotifications } from "./customer-notifications.service";
 import { demoOrders, demoStores } from "./demo-data";
+import { buildOrderSummaryForClient } from "./order-repository";
 
 type DeliverySeed = {
   pickupAddress: string;
@@ -69,35 +70,6 @@ const isInsideHullServiceBounds = (input: CourierLocationInput) =>
   input.longitude >= hullServiceBounds.minLongitude &&
   input.longitude <= hullServiceBounds.maxLongitude;
 
-const toOrderSummary = (order: {
-  id: string;
-  orderNumber: string;
-  storeId: string;
-  status: string;
-  paymentStatus: string;
-  paymentMethod?: string;
-  fulfillmentType: string;
-  source: string;
-  totalAmount: unknown;
-  currency: string;
-  placedAt: Date;
-  prepTimeMinutes: number | null;
-}): OrderSummary =>
-  orderSummarySchema.parse({
-    id: order.id,
-    orderNumber: order.orderNumber,
-    storeId: order.storeId,
-    status: toApiEnum(order.status),
-    paymentStatus: toApiEnum(order.paymentStatus),
-    paymentMethod: toApiEnum(order.paymentMethod ?? "DOJO_CARD"),
-    fulfillmentType: toApiEnum(order.fulfillmentType),
-    source: toApiEnum(order.source),
-    totalAmount: Number(order.totalAmount),
-    currency: order.currency,
-    placedAt: order.placedAt.toISOString(),
-    prepTimeMinutes: order.prepTimeMinutes,
-  });
-
 const extractOrderReference = (rawValue: string): string => {
   const value = rawValue.trim();
   const orderNumberMatch = value.match(/HE-[0-9-]{4,}/i);
@@ -152,6 +124,7 @@ const buildPersistedDelivery = (order: any): CourierDelivery => {
     customerPhone: order.customerPhone,
     confirmationCode: trackingState.confirmationCode ?? buildConfirmationCode(order.orderNumber),
     navigationUrl: buildNavigationUrl(dropoffAddress),
+    requiresIdVerification: Array.isArray(order.items) && order.items.some((row: { requiresIdVerification?: boolean }) => row.requiresIdVerification),
     courierName: delivery?.courierProfile?.user?.fullName,
     courierRating: delivery?.courierProfile?.account ? Number(delivery.courierProfile.account.rating) : undefined,
     startedAt: delivery?.acceptedAt?.toISOString(),
@@ -185,7 +158,18 @@ const findPersistedOrder = async (orderReference: string) =>
     },
   });
 
-const mapPersistedOrderLineItems = (rows: Array<{ id: string; menuItemId: string | null; nameSnapshot: string; quantity: number; unitPrice: unknown; totalPrice: unknown; notes: string | null }>): TrackedOrderLineItem[] =>
+const mapPersistedOrderLineItems = (
+  rows: Array<{
+    id: string;
+    menuItemId: string | null;
+    nameSnapshot: string;
+    quantity: number;
+    unitPrice: unknown;
+    totalPrice: unknown;
+    notes: string | null;
+    requiresIdVerification?: boolean;
+  }>,
+): TrackedOrderLineItem[] =>
   rows.map((row) => ({
     id: row.id,
     menuItemId: row.menuItemId,
@@ -193,28 +177,29 @@ const mapPersistedOrderLineItems = (rows: Array<{ id: string; menuItemId: string
     quantity: row.quantity,
     unitPrice: Number(row.unitPrice),
     totalPrice: Number(row.totalPrice),
+    requiresIdVerification: Boolean(row.requiresIdVerification),
     notes: row.notes,
   }));
 
 const demoTrackedLineItems = (orderNumber: string): TrackedOrderLineItem[] => {
   const seeded: Record<string, TrackedOrderLineItem[]> = {
     "HE-0998": [
-      { name: "Double smash stack", quantity: 1, unitPrice: 11.99, totalPrice: 11.99 },
-      { name: "Loaded fries tray", quantity: 1, unitPrice: 7.99, totalPrice: 7.99 },
-      { name: "House lemonade", quantity: 2, unitPrice: 3.99, totalPrice: 7.98 },
+      { name: "Double smash stack", quantity: 1, unitPrice: 11.99, totalPrice: 11.99, requiresIdVerification: false },
+      { name: "Loaded fries tray", quantity: 1, unitPrice: 7.99, totalPrice: 7.99, requiresIdVerification: false },
+      { name: "House lemonade", quantity: 2, unitPrice: 3.99, totalPrice: 7.98, requiresIdVerification: false },
     ],
     "HE-1001": [
-      { name: "Classic cheeseburger", quantity: 2, unitPrice: 6.49, totalPrice: 12.98 },
-      { name: "Vanilla thick shake", quantity: 1, unitPrice: 4.49, totalPrice: 4.49 },
+      { name: "Classic cheeseburger", quantity: 2, unitPrice: 6.49, totalPrice: 12.98, requiresIdVerification: false },
+      { name: "Vanilla thick shake", quantity: 1, unitPrice: 4.49, totalPrice: 4.49, requiresIdVerification: false },
     ],
     "HE-1002": [
-      { name: "Wings bucket (8)", quantity: 1, unitPrice: 9.99, totalPrice: 9.99 },
-      { name: "Garlic mayo dip", quantity: 2, unitPrice: 0.99, totalPrice: 1.98 },
-      { name: "Choc fudge brownie", quantity: 1, unitPrice: 4.49, totalPrice: 4.49 },
+      { name: "Wings bucket (8)", quantity: 1, unitPrice: 9.99, totalPrice: 9.99, requiresIdVerification: false },
+      { name: "Garlic mayo dip", quantity: 2, unitPrice: 0.99, totalPrice: 1.98, requiresIdVerification: false },
+      { name: "Choc fudge brownie", quantity: 1, unitPrice: 4.49, totalPrice: 4.49, requiresIdVerification: false },
     ],
   };
 
-  return seeded[orderNumber] ?? [{ name: "Sample menu items", quantity: 1, unitPrice: 12.5, totalPrice: 12.5 }];
+  return seeded[orderNumber] ?? [{ name: "Sample menu items", quantity: 1, unitPrice: 12.5, totalPrice: 12.5, requiresIdVerification: false }];
 };
 
 const ensurePersistedDelivery = async (order: any, status: DeliveryStatus, courierProfileId?: string) => {
@@ -286,6 +271,7 @@ const buildDemoDelivery = (order: OrderSummary, status: DeliveryStatus = "assign
     customerPhone: seed.customerPhone,
     confirmationCode: seed.confirmationCode,
     navigationUrl: buildNavigationUrl(seed.dropoffAddress),
+    requiresIdVerification: false,
   };
 };
 
@@ -335,6 +321,7 @@ export const listCourierJobs = async (courierProfileId: string) => {
     },
     include: {
       store: true,
+      items: true,
       delivery: {
         include: {
           courierProfile: {
@@ -383,6 +370,7 @@ export const startDeliveryFromScan = async (input: { scanCode?: string; orderNum
     },
     include: {
       store: true,
+      items: true,
       delivery: {
         include: {
           courierProfile: {
@@ -414,6 +402,7 @@ export const updateCourierLocation = async (deliveryId: string, input: CourierLo
       order: {
         include: {
           store: true,
+          items: true,
           delivery: {
             include: {
               courierProfile: {
@@ -482,6 +471,7 @@ export const completeDeliveryWithCode = async (deliveryId: string, confirmationC
       order: {
         include: {
           store: true,
+          items: true,
           delivery: {
             include: {
               courierProfile: {
@@ -551,6 +541,7 @@ export const completeDeliveryWithCode = async (deliveryId: string, confirmationC
     },
     include: {
       store: true,
+      items: true,
       delivery: {
         include: {
           courierProfile: {
@@ -577,16 +568,23 @@ export const findTrackedOrder = async (orderId: string) => {
 
   if (persistedOrder) {
     return trackedOrderSchema.parse({
-      ...toOrderSummary(persistedOrder),
+      ...buildOrderSummaryForClient(persistedOrder),
       delivery: buildPersistedDelivery(persistedOrder),
       items: mapPersistedOrderLineItems(persistedOrder.items ?? []),
     });
   }
 
   const demoOrder = findDemoOrder(orderReference) ?? demoOrders[0]!;
+  const placedMs = Date.parse(demoOrder.placedAt);
+  const demoSummary = orderSummarySchema.parse({
+    ...demoOrder,
+    customerCancelUntil: new Date(placedMs + 60_000).toISOString(),
+    merchantResponseDeadlineAt:
+      demoOrder.status === "pending" ? new Date(placedMs + 120_000).toISOString() : undefined,
+  });
 
   return trackedOrderSchema.parse({
-    ...demoOrder,
+    ...demoSummary,
     delivery: demoDeliveryStore.get(deliveryIdForOrder(demoOrder.orderNumber)) ?? buildDemoDelivery(demoOrder, demoOrder.status === "delivered" ? "delivered" : "assigned"),
     items: demoTrackedLineItems(demoOrder.orderNumber),
   });

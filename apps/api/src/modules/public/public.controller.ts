@@ -1,11 +1,12 @@
 import { Body, Controller, Get, Param, Post } from "@nestjs/common";
 
-import { createOrderInputSchema, orderSummarySchema } from "@hull-eats/types";
+import { createOrderInputSchema, customerCancelOrderInputSchema, orderSummarySchema } from "@hull-eats/types";
 
 import { createStoredCheckoutSession } from "../../common/checkout-engine";
 import { CustomerNotificationsService } from "../../common/customer-notifications.service";
 import { findTrackedOrder } from "../../common/courier-delivery-store";
 import { demoMenuByStore, demoMenuSectionsByStore, demoStores } from "../../common/demo-data";
+import { customerCancelOrderWithinGrace } from "../../common/order-repository";
 
 @Controller("public")
 export class PublicController {
@@ -133,6 +134,12 @@ export class PublicController {
       placedAt: new Date().toISOString(),
       prepTimeMinutes: null,
     });
+  }
+
+  @Post("orders/cancel")
+  cancelOrderWithinGrace(@Body() body: unknown) {
+    const input = customerCancelOrderInputSchema.parse(body);
+    return customerCancelOrderWithinGrace(input);
   }
 
   @Get("orders/:orderId/track")

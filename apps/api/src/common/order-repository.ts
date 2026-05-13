@@ -1,4 +1,4 @@
-import { NotFoundException } from "@nestjs/common";
+import { BadRequestException, NotFoundException } from "@nestjs/common";
 
 import type {
   CheckoutSession,
@@ -15,12 +15,18 @@ import {
 } from "@hull-eats/types";
 import { prisma } from "@hull-eats/db";
 
+import { customerNotifications } from "./customer-notifications.service";
 import { demoStores } from "./demo-data";
 
 const toDbEnum = (value: string) => value.toUpperCase() as any;
 
 const toApiEnum = <T extends string>(value: string) => value.toLowerCase() as T;
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const MERCHANT_PENDING_TIMEOUT_MS = 120_000;
+const CUSTOMER_CANCEL_GRACE_MS = 60_000;
+
+const normalisePhone = (value: string) => value.replace(/\s+/g, "").trim();
 
 const orderLookupWhere = (orderIdOrNumber: string) => ({
   OR: [
@@ -57,6 +63,35 @@ const toOrderSummary = (order: {
     placedAt: order.placedAt.toISOString(),
     prepTimeMinutes: order.prepTimeMinutes,
   });
+
+export const buildOrderSummaryForClient = (order: {
+  id: string;
+  orderNumber: string;
+  storeId: string;
+  status: string;
+  paymentStatus: string;
+  paymentMethod: string;
+  fulfillmentType: string;
+  source: string;
+  totalAmount: unknown;
+  currency: string;
+  placedAt: Date;
+  prepTimeMinutes: number | null;
+  store?: { autoAcceptOrders?: boolean | null } | null;
+}): OrderSummary => {
+  const base = toOrderSummary(order);
+  const autoAccept = Boolean(order.store?.autoAcceptOrders);
+  const placedMs = Date.parse(base.placedAt);
+  const customerCancelUntil = new Date(placedMs + CUSTOMER_CANCEL_GRACE_MS).toISOString();
+  const merchantResponseDeadlineAt =
+    !autoAccept && base.status === "pending" ? new Date(placedMs + MERCHANT_PENDING_TIMEOUT_MS).toISOString() : undefined;
+
+  return orderSummarySchema.parse({
+    ...base,
+    customerCancelUntil,
+    merchantResponseDeadlineAt,
+  });
+};
 
 const buildOrderNumber = () => `HE-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 90) + 10}`;
 
@@ -323,6 +358,149 @@ const buildCheckoutPrintPayload = (
     })),
   });
 
+const voidQueuedPrintJobsForOrder = async (orderId: string) => {
+  await prisma.printJob.updateMany({
+    where: { orderId, status: "QUEUED" as any },
+    data: { status: "FAILED" as any },
+  });
+};
+
+const markOrderPaymentRefundedIfCaptured = async (orderId: string) => {
+  const row = await prisma.order.findUnique({ where: { id: orderId }, select: { paymentStatus: true } });
+  const ps = String(row?.paymentStatus ?? "").toUpperCase();
+  if (ps !== "PAID" && ps !== "AUTHORIZED") {
+    return;
+  }
+
+  await prisma.order.update({
+    where: { id: orderId },
+    data: { paymentStatus: "REFUNDED" as any },
+  });
+
+  await prisma.payment.updateMany({
+    where: { orderId },
+    data: { status: "REFUNDED" as any },
+  });
+};
+
+const cancelOrderInSystem = async (input: {
+  orderId: string;
+  historyNote: string;
+  actorLabel: string;
+  hubId: string;
+  orderNumber: string;
+}) => {
+  const existing = await prisma.order.findUnique({ where: { id: input.orderId } });
+  if (!existing || existing.status === ("CANCELLED" as any) || existing.status === ("DELIVERED" as any)) {
+    return;
+  }
+
+  await prisma.order.update({
+    where: { id: input.orderId },
+    data: {
+      status: "CANCELLED" as any,
+      statusHistory: {
+        create: {
+          status: "CANCELLED" as any,
+          note: `${input.historyNote} (${input.actorLabel})`,
+        },
+      },
+    },
+  });
+
+  await voidQueuedPrintJobsForOrder(input.orderId);
+  await markOrderPaymentRefundedIfCaptured(input.orderId);
+
+  void customerNotifications.notifyHubOrderLifecycle(input.hubId, input.orderNumber, "order.cancelled", input.historyNote).catch((error) => {
+    console.error(`Hub lifecycle notify failed for ${input.orderNumber}`, error);
+  });
+};
+
+export const expireStalePendingMerchantOrders = async (): Promise<number> => {
+  const deadline = new Date(Date.now() - MERCHANT_PENDING_TIMEOUT_MS);
+  const stale = await prisma.order.findMany({
+    where: {
+      status: "PENDING" as any,
+      placedAt: { lt: deadline },
+    },
+    include: {
+      store: { select: { merchantId: true } },
+    },
+  });
+
+  for (const row of stale) {
+    await cancelOrderInSystem({
+      orderId: row.id,
+      historyNote: "Auto-cancelled: hub did not accept within 120 seconds.",
+      actorLabel: "system_timeout",
+      hubId: row.store.merchantId,
+      orderNumber: row.orderNumber,
+    });
+  }
+
+  return stale.length;
+};
+
+export const customerCancelOrderWithinGrace = async (input: {
+  orderId?: string;
+  orderNumber?: string;
+  customerProfileId?: string;
+  customerPhone?: string;
+}): Promise<OrderSummary> => {
+  const ref = input.orderId ?? input.orderNumber;
+  if (!ref) {
+    throw new BadRequestException("orderId or orderNumber is required.");
+  }
+  if (!input.customerProfileId?.trim() && !input.customerPhone?.trim()) {
+    throw new BadRequestException("customerProfileId or customerPhone is required.");
+  }
+
+  const existing = await prisma.order.findFirst({
+    where: orderLookupWhere(ref),
+    include: { store: { select: { merchantId: true, autoAcceptOrders: true } } },
+  });
+
+  if (!existing) {
+    throw new NotFoundException("Order was not found.");
+  }
+
+  const profileOk =
+    Boolean(input.customerProfileId?.trim()) &&
+    Boolean(existing.customerProfileId) &&
+    input.customerProfileId!.trim() === existing.customerProfileId;
+
+  const phoneOk =
+    Boolean(input.customerPhone?.trim()) && normalisePhone(input.customerPhone!) === normalisePhone(existing.customerPhone);
+
+  if (!profileOk && !phoneOk) {
+    throw new BadRequestException("Details did not match this order.");
+  }
+
+  if (Date.now() - existing.placedAt.getTime() > CUSTOMER_CANCEL_GRACE_MS) {
+    throw new BadRequestException("The customer cancellation window has ended.");
+  }
+
+  const status = String(existing.status).toLowerCase();
+  if (["cancelled", "rejected", "delivered", "picked_up"].includes(status)) {
+    throw new BadRequestException("This order can no longer be cancelled from here.");
+  }
+
+  await cancelOrderInSystem({
+    orderId: existing.id,
+    historyNote: "Cancelled by customer within the grace period.",
+    actorLabel: "customer",
+    hubId: existing.store.merchantId,
+    orderNumber: existing.orderNumber,
+  });
+
+  const next = await prisma.order.findUnique({
+    where: { id: existing.id },
+    include: { store: { select: { autoAcceptOrders: true } } },
+  });
+
+  return buildOrderSummaryForClient(next!);
+};
+
 const createPrintJobIfConfigured = async (
   session: CheckoutSession,
   order: { id: string; orderNumber: string; storeId: string; placedAt: Date },
@@ -401,10 +579,12 @@ export const persistCheckoutOrder = async (
       },
       items: {
         create: session.lineItems.map((line) => ({
+          menuItemId: line.menuItemId,
           quantity: line.quantity,
           unitPrice: line.unitPrice,
           totalPrice: line.lineTotal,
           nameSnapshot: line.name,
+          requiresIdVerification: line.requiresIdVerification,
           notes: [
             line.notes,
             line.removedComponents.length
@@ -421,9 +601,41 @@ export const persistCheckoutOrder = async (
     },
   });
 
-  await createPrintJobIfConfigured(session, order, store.name);
+  const needsIdVerification = session.lineItems.some((line) => line.requiresIdVerification);
+  if (needsIdVerification) {
+    void customerNotifications
+      .notifyOrderRequiresIdVerification({
+        id: order.id,
+        orderNumber: order.orderNumber,
+        customerEmail: order.customerEmail,
+        customerPhone: order.customerPhone,
+      })
+      .catch((error) => {
+        console.error(`Failed to send ID verification reminder for ${order.orderNumber}`, error);
+      });
+  }
 
-  return toOrderSummary(order);
+  void customerNotifications
+    .notifyHubOrderLifecycle(store.merchantId, order.orderNumber, "order.placed_pending", "New order is waiting for hub acceptance or auto-accept.")
+    .catch((error) => {
+      console.error(`Failed to notify hub for new order ${order.orderNumber}`, error);
+    });
+
+  if (store.autoAcceptOrders) {
+    const prep = Math.min(store.etaMinutes ?? 25, store.autoAcceptMaxPrepMinutes ?? 60);
+    await updateMerchantOrder(store.merchantId, order.id, {
+      status: "ACCEPTED",
+      note: `Auto-accepted (hub setting). Quoted ${prep} minutes prep.`,
+      prepTimeMinutes: prep,
+    });
+  }
+
+  const latest = await prisma.order.findUnique({
+    where: { id: order.id },
+    include: { store: { select: { autoAcceptOrders: true } } },
+  });
+
+  return buildOrderSummaryForClient(latest!);
 };
 
 export const listMerchantOrders = async (hubId: string): Promise<OrderSummary[]> => {
@@ -433,11 +645,18 @@ export const listMerchantOrders = async (hubId: string): Promise<OrderSummary[]>
         merchantId: hubId,
       },
     },
+    include: {
+      store: {
+        select: {
+          autoAcceptOrders: true,
+        },
+      },
+    },
     orderBy: { placedAt: "desc" },
     take: 100,
   });
 
-  return orders.map(toOrderSummary);
+  return orders.map((row) => buildOrderSummaryForClient(row));
 };
 
 async function merchantCashUpPeriodBounds(
@@ -643,9 +862,16 @@ export const findMerchantOrder = async (hubId: string, orderId: string): Promise
         merchantId: hubId,
       },
     },
+    include: {
+      store: {
+        select: {
+          autoAcceptOrders: true,
+        },
+      },
+    },
   });
 
-  return order ? toOrderSummary(order) : null;
+  return order ? buildOrderSummaryForClient(order) : null;
 };
 
 export const listMerchantDriverTracking = async (hubId: string) => {
@@ -798,6 +1024,14 @@ export const updateMerchantOrder = async (
     throw new NotFoundException(`Order ${orderId} was not found for this hub.`);
   }
 
+  if (input.status === "ACCEPTED" && String(existingOrder.status).toUpperCase() !== "PENDING") {
+    throw new BadRequestException("Only pending orders can be accepted.");
+  }
+
+  if (input.status === "REJECTED" && String(existingOrder.status).toUpperCase() !== "PENDING") {
+    throw new BadRequestException("Only pending orders can be rejected.");
+  }
+
   const order = await prisma.order.update({
     where: { id: existingOrder.id },
     data: {
@@ -814,7 +1048,26 @@ export const updateMerchantOrder = async (
     },
   });
 
-  return toOrderSummary(order);
+  if (input.status === "ACCEPTED") {
+    void queueMerchantOrderReceiptPrint(hubId, order.id).catch((error) => {
+      console.error(`Kitchen print queue failed for ${order.orderNumber}`, error);
+    });
+  }
+
+  if (input.status === "REJECTED") {
+    await voidQueuedPrintJobsForOrder(order.id);
+    await markOrderPaymentRefundedIfCaptured(order.id);
+    void customerNotifications.notifyHubOrderLifecycle(hubId, order.orderNumber, "order.rejected", input.note).catch((error) => {
+      console.error(`Hub reject notify failed for ${order.orderNumber}`, error);
+    });
+  }
+
+  const latest = await prisma.order.findUnique({
+    where: { id: order.id },
+    include: { store: { select: { autoAcceptOrders: true } } },
+  });
+
+  return buildOrderSummaryForClient(latest!);
 };
 
 export const buildMerchantOrderReceipt = async (hubId: string, orderId: string) => {

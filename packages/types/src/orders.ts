@@ -108,6 +108,20 @@ export const merchantRejectOrderSchema = z.object({
   reason: z.string().min(1).max(280),
 });
 
+export const customerCancelOrderInputSchema = z
+  .object({
+    orderId: z.string().min(1).optional(),
+    orderNumber: z.string().min(1).optional(),
+    customerProfileId: z.string().min(1).optional(),
+    customerPhone: z.string().min(1).optional(),
+  })
+  .refine((body) => Boolean(body.orderId?.trim()) || Boolean(body.orderNumber?.trim()), {
+    message: "orderId or orderNumber is required.",
+  })
+  .refine((body) => Boolean(body.customerProfileId?.trim()) || Boolean(body.customerPhone?.trim()), {
+    message: "customerProfileId or customerPhone is required.",
+  });
+
 export const manualDriverAssignmentSchema = z.object({
   courierProfileId: z.string().min(1),
 });
@@ -125,6 +139,10 @@ export const orderSummarySchema = z.object({
   currency: z.string().length(3),
   placedAt: z.string().datetime(),
   prepTimeMinutes: z.number().int().nullable(),
+  /** ISO time until the customer may self-cancel from the storefront (60s after place). */
+  customerCancelUntil: z.string().datetime().optional(),
+  /** When status is pending and manual acceptance is on, hub must accept by this ISO time or the order auto-cancels (120s). */
+  merchantResponseDeadlineAt: z.string().datetime().optional(),
 });
 
 /** Line items included on the public track-order payload for customer receipts. */
@@ -135,6 +153,7 @@ export const trackedOrderLineItemSchema = z.object({
   quantity: z.number().int().positive(),
   unitPrice: z.number().nonnegative(),
   totalPrice: z.number().nonnegative(),
+  requiresIdVerification: z.boolean().default(false),
   notes: z.string().max(500).nullable().optional(),
 });
 
@@ -158,6 +177,8 @@ export const courierDeliverySchema = z.object({
   customerPhone: z.string().min(1),
   confirmationCode: z.string().min(4).max(8),
   navigationUrl: z.string().url(),
+  /** True when any line on the order was sold as “verify with ID” at the door. */
+  requiresIdVerification: z.boolean().default(false),
   courierName: z.string().min(1).optional(),
   courierRating: z.number().optional(),
   startedAt: z.string().datetime().optional(),
@@ -196,6 +217,7 @@ export type OrderLineSelectedOption = z.infer<typeof orderLineSelectedOptionSche
 export type OrderLineComponentSnapshot = z.infer<typeof orderLineComponentSnapshotSchema>;
 export type MerchantAcceptOrderInput = z.infer<typeof merchantAcceptOrderSchema>;
 export type MerchantRejectOrderInput = z.infer<typeof merchantRejectOrderSchema>;
+export type CustomerCancelOrderInput = z.infer<typeof customerCancelOrderInputSchema>;
 export type ManualDriverAssignmentInput = z.infer<typeof manualDriverAssignmentSchema>;
 export type OrderSummary = z.infer<typeof orderSummarySchema>;
 export type CourierLocation = z.infer<typeof courierLocationSchema>;

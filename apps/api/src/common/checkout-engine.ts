@@ -105,6 +105,7 @@ const buildCheckoutSession = (
       unitPrice,
       customisationTotal,
       lineTotal: Number((unitPrice * line.quantity).toFixed(2)),
+      requiresIdVerification: Boolean(menuItem.requiresIdVerification),
       notes: line.notes,
       components,
       removedComponents,

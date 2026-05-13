@@ -16,6 +16,7 @@ import { InternalAuthService } from "./common/internal-auth.service";
 import { CourierRegistryService } from "./common/courier-registry.service";
 import { CustomerNotificationsService } from "./common/customer-notifications.service";
 import { CustomerRegistryService } from "./common/customer-registry.service";
+import { OrderLifecycleService } from "./common/order-lifecycle.service";
 
 @Module({
   controllers: [
@@ -30,6 +31,14 @@ import { CustomerRegistryService } from "./common/customer-registry.service";
     PaymentsController,
     RealtimeController,
   ],
-  providers: [OrderUpdatesGateway, HubRegistryService, InternalAuthService, CourierRegistryService, CustomerNotificationsService, CustomerRegistryService],
+  providers: [
+    OrderUpdatesGateway,
+    HubRegistryService,
+    InternalAuthService,
+    CourierRegistryService,
+    CustomerNotificationsService,
+    CustomerRegistryService,
+    OrderLifecycleService,
+  ],
 })
 export class AppModule {}

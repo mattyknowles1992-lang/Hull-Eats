@@ -52,6 +52,10 @@ export const hubSettingsSchema = z.object({
   isOpen: z.boolean(),
   logoImageUrl: z.string().default(""),
   heroImageUrl: z.string().default(""),
+  /** When true, new web orders are accepted immediately using quoted prep (capped below). Kitchen print queues on accept. */
+  autoAcceptOrders: z.boolean().default(false),
+  /** When auto-accepting, quoted prep minutes is min(store ETA, this value). */
+  autoAcceptMaxPrepMinutes: z.number().int().min(5).max(180).default(60),
 });
 
 export const hubMenuSectionSchema = z.object({
@@ -126,6 +130,7 @@ export const createHubMenuItemInputSchema = z.object({
   description: z.string().default(""),
   price: z.number().nonnegative(),
   imageUrl: menuItemSchema.shape.imageUrl,
+  requiresIdVerification: menuItemSchema.shape.requiresIdVerification.optional().default(false),
   components: menuItemSchema.shape.components.default([]),
   optionGroups: menuItemSchema.shape.optionGroups.default([]),
 });

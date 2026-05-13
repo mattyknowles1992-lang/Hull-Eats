@@ -626,6 +626,7 @@ export default function App() {
                 <View>
                   <Text style={styles.jobTitle}>{job.orderNumber}</Text>
                   <Text style={styles.jobMeta}>{job.dropoffAddress}</Text>
+                  {job.requiresIdVerification ? <Text style={styles.idVerifyJobHint}>ID check required</Text> : null}
                 </View>
                 <Text style={styles.jobStatus}>{job.status.replaceAll("_", " ")}</Text>
               </Pressable>
@@ -647,6 +648,15 @@ export default function App() {
               </View>
               <Text style={styles.statusPill}>{delivery.status.replaceAll("_", " ")}</Text>
             </View>
+
+            {delivery.requiresIdVerification ? (
+              <View style={styles.idVerifyBanner}>
+                <Text style={styles.idVerifyBannerText}>
+                  This order includes items marked “verify with ID”. Check a valid UK driving licence or passport before you hand
+                  anything over.
+                </Text>
+              </View>
+            ) : null}
 
             <View style={styles.stepRow}>
               {["Scan", "Navigate", "Live", "PIN"].map((step, index) => (
@@ -835,6 +845,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     lineHeight: 20,
+  },
+  idVerifyBanner: {
+    backgroundColor: "#fff7ed",
+    borderColor: "rgba(234, 88, 12, 0.35)",
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 4,
+  },
+  idVerifyBannerText: {
+    color: "#9a3412",
+    fontSize: 13,
+    fontWeight: "700",
+    lineHeight: 18,
+  },
+  idVerifyJobHint: {
+    color: "#c2410c",
+    fontSize: 12,
+    fontWeight: "800",
+    marginTop: 4,
   },
   tabBar: {
     backgroundColor: "#ffffff",

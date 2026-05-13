@@ -253,6 +253,7 @@ const createMenuItem = (
   sortOrder: number,
   customisationTemplate: CustomisationTemplate = "none",
   sectionImageUrl?: string,
+  requiresIdVerification = false,
 ): MenuItem => ({
   id: makeItemId(categoryId, name),
   categoryId,
@@ -265,6 +266,7 @@ const createMenuItem = (
   stockStatus: "in_stock",
   allowBackorder: false,
   maxPerOrder: null,
+  requiresIdVerification,
   sortOrder,
   ...(sectionImageUrl ? { imageUrl: sectionImageUrl } : {}),
   ...buildCustomisationConfig(customisationTemplate, makeOptionId(`${categoryId}-${name}`)),
@@ -274,15 +276,15 @@ const buildSection = (
   id: string,
   name: string,
   description: string,
-  entries: Array<[name: string, price: number, description: string]>,
+  entries: Array<[name: string, price: number, description: string, verifyWithId?: boolean]>,
   customisationTemplate: CustomisationTemplate = "none",
   sectionImageUrl?: string,
 ): DemoMenuSection => ({
   id,
   name,
   description,
-  items: entries.map(([entryName, price, entryDescription], index) =>
-    createMenuItem(id, entryName, price, entryDescription, index, customisationTemplate, sectionImageUrl),
+  items: entries.map(([entryName, price, entryDescription, verifyWithId], index) =>
+    createMenuItem(id, entryName, price, entryDescription, index, customisationTemplate, sectionImageUrl, Boolean(verifyWithId)),
   ),
 });
 
@@ -645,7 +647,7 @@ export const loadedMunchMenuSections: DemoMenuSection[] = [
     "Soft drink options and bottled extras.",
     [
       ["Drinks", 1.5, "Choice of 330ml drink."],
-      ["Redbull", 2.19, "250ml Redbull."],
+      ["Redbull", 2.19, "250ml Redbull.", true],
       ["Water", 0.99, "500ml water."],
     ],
     "none",

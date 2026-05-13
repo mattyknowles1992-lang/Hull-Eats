@@ -49,6 +49,7 @@ export const checkoutSessionLineSchema = z.object({
   unitPrice: z.number().nonnegative(),
   customisationTotal: z.number(),
   lineTotal: z.number().nonnegative(),
+  requiresIdVerification: z.boolean().default(false),
   notes: z.string().max(280).optional(),
   components: z.array(orderLineComponentSnapshotSchema).default([]),
   removedComponents: z.array(orderLineRemovedComponentSchema).default([]),
