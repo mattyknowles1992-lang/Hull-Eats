@@ -151,8 +151,10 @@ textarea {
 
 .shell {
   width: min(100%, 1220px);
-  margin: 0 auto;
+  margin-left: auto;
+  margin-right: auto;
   padding: 20px 16px 116px;
+  box-sizing: border-box;
 }
 
 .marketing-page {
@@ -2736,6 +2738,8 @@ button.filter-pill {
 .detail-grid > .content-stack,
 .detail-grid > .sidebar-stack {
   min-width: 0;
+  width: 100%;
+  max-width: 100%;
 }
 
 .section-heading {
@@ -3327,6 +3331,36 @@ button.filter-pill {
   min-width: 0;
 }
 
+/* Store menu column: category hero + item grid match the main column width (same as store hero),
+   not narrowed by the default feature-panel horizontal padding. */
+.feature-panel.feature-panel-menu {
+  padding-left: 0;
+  padding-right: 0;
+  padding-top: 20px;
+  padding-bottom: 20px;
+}
+
+.feature-panel.feature-panel-menu > .section-heading {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+.feature-panel.feature-panel-menu > .menu-section-stack > .menu-category-filter-panel {
+  margin-left: 16px;
+  margin-right: 16px;
+  width: auto;
+  max-width: calc(100% - 32px);
+  box-sizing: border-box;
+}
+
+.feature-panel.feature-panel-menu > .empty-catalog-card {
+  margin-left: 16px;
+  margin-right: 16px;
+  width: auto;
+  max-width: calc(100% - 32px);
+  box-sizing: border-box;
+}
+
 .menu-category-filter-panel {
   display: grid;
   gap: 14px;
@@ -3386,12 +3420,17 @@ button.filter-pill {
   width: 100%;
   max-width: 100%;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
 }
 
 .menu-category-visual {
   min-height: 188px;
   width: 100%;
   min-width: 0;
+  flex: 0 0 auto;
+  align-self: stretch;
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
@@ -3512,6 +3551,8 @@ button.filter-pill {
   width: 100%;
   max-width: 100%;
   min-width: 0;
+  flex: 0 0 auto;
+  align-self: stretch;
   box-sizing: border-box;
   border-top: 2px solid #23cdff;
   background: linear-gradient(180deg, rgba(35, 205, 255, 0.18), rgba(35, 205, 255, 0.06));
@@ -4683,6 +4724,18 @@ button.filter-pill {
 @media (min-width: 768px) {
   .shell {
     padding: 28px 24px 122px;
+  }
+
+  .feature-panel.feature-panel-menu > .section-heading {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+
+  .feature-panel.feature-panel-menu > .menu-section-stack > .menu-category-filter-panel,
+  .feature-panel.feature-panel-menu > .empty-catalog-card {
+    margin-left: 24px;
+    margin-right: 24px;
+    max-width: calc(100% - 48px);
   }
 
   .search-row {
