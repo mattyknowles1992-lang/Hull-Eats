@@ -195,9 +195,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ categ
                 </div>
                 <div className="store-card-body">
                   <h3>{store.name}</h3>
-                  <p className="store-meta">
-                    {store.cuisineLabel} / {store.city}
-                  </p>
+                  <p className="store-meta">{store.cuisineLabel}</p>
                   <div className="store-tags">
                     <span className="store-tag">{store.etaMinutes} min</span>
                     <span className="store-tag">Min £{store.minimumOrderAmount?.toFixed(2)}</span>

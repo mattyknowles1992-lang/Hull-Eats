@@ -383,9 +383,7 @@ export default function CustomerHomePage() {
                   <div className="store-card-top">
                     <div>
                       <h3>{store.name}</h3>
-                      <p className="store-meta">
-                        {store.cuisineLabel} / {store.city}
-                      </p>
+                      <p className="store-meta">{store.cuisineLabel}</p>
                     </div>
                   </div>
 
