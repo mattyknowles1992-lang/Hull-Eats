@@ -3413,6 +3413,35 @@ button.filter-pill {
   box-sizing: border-box;
 }
 
+@media (max-width: 767px) {
+  /* Single horizontal inset on mobile avoids grid looking shifted when nested margins + max-width interact with narrow viewports. */
+  .feature-panel.feature-panel-menu {
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+
+  .feature-panel.feature-panel-menu > .section-heading {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .feature-panel.feature-panel-menu > .menu-section-stack > .menu-category-filter-panel,
+  .feature-panel.feature-panel-menu > .menu-section-stack > .menu-section-card,
+  .feature-panel.feature-panel-menu > .empty-catalog-card {
+    margin-left: 0;
+    margin-right: 0;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .menu-item-card-visual .menu-item-content-panel {
+    width: auto;
+    max-width: none;
+    margin-left: 12px;
+    margin-right: 12px;
+  }
+}
+
 .menu-category-filter-panel {
   display: grid;
   gap: 14px;
