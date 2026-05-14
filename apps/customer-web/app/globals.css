@@ -3397,6 +3397,14 @@ button.filter-pill {
   box-sizing: border-box;
 }
 
+.feature-panel.feature-panel-menu > .menu-section-stack > .menu-section-card {
+  margin-left: 16px;
+  margin-right: 16px;
+  width: auto;
+  max-width: calc(100% - 32px);
+  box-sizing: border-box;
+}
+
 .feature-panel.feature-panel-menu > .empty-catalog-card {
   margin-left: 16px;
   margin-right: 16px;
@@ -3624,8 +3632,12 @@ button.filter-pill {
   display: grid;
   gap: 12px;
   width: 100%;
+  max-width: 100%;
   min-width: 0;
+  margin-inline: auto;
+  box-sizing: border-box;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  justify-items: stretch;
 }
 
 .menu-item-card {
@@ -3677,14 +3689,13 @@ button.filter-pill {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.78),
     0 18px 32px rgba(15, 17, 21, 0.14);
+  box-sizing: border-box;
 }
 
 .menu-item-card-visual .menu-item-content-panel {
-  width: calc(100% - 24px);
+  width: 100%;
   max-width: calc(100% - 24px);
-  margin: -28px 12px 12px;
-  margin-left: auto;
-  margin-right: auto;
+  margin: -28px auto 12px;
   box-sizing: border-box;
 }
 
@@ -3710,6 +3721,11 @@ button.filter-pill {
   width: 100%;
   margin-left: 0;
   margin-right: 0;
+  text-align: center;
+}
+
+.menu-item-card-visual .menu-item-heading-block h4 {
+  text-align: center;
 }
 
 .menu-item-summary-line {
@@ -4818,6 +4834,7 @@ button.filter-pill {
   }
 
   .feature-panel.feature-panel-menu > .menu-section-stack > .menu-category-filter-panel,
+  .feature-panel.feature-panel-menu > .menu-section-stack > .menu-section-card,
   .feature-panel.feature-panel-menu > .empty-catalog-card {
     margin-left: 24px;
     margin-right: 24px;
@@ -4878,6 +4895,14 @@ button.filter-pill {
   .menu-item-top {
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: start;
+  }
+
+  .menu-item-card-visual .menu-item-top {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 10px;
   }
 
   .quick-pick-grid {
