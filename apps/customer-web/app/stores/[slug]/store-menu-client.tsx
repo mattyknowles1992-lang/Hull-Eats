@@ -23,7 +23,9 @@ import {
   type StoreBasket,
 } from "../../../src/lib/basket";
 import { computeDeliveryQuote, normaliseDeliveryPricing } from "@hull-eats/types";
+import { fetchCustomerDefaultDeliveryPostcode } from "../../../src/lib/customer-default-delivery-postcode";
 import { getDeliveryPostcodeForStore, setDeliveryPostcodeForStore } from "../../../src/lib/delivery-postcode";
+import { getBrowserSupabaseClient } from "../../../src/lib/supabase-browser";
 
 type MenuCategory = {
   id: string;
@@ -153,15 +155,65 @@ export function StoreMenuClient({
   const [basketExpanded, setBasketExpanded] = useState(false);
   const basketPortalRef = useRef<HTMLDivElement | null>(null);
   const [deliveryPostcodeInput, setDeliveryPostcodeInput] = useState("");
+  const [deliveryPostcodeBootstrapDone, setDeliveryPostcodeBootstrapDone] = useState(false);
+  const [showPostcodeEditor, setShowPostcodeEditor] = useState(false);
 
   useEffect(() => {
-    setDeliveryPostcodeInput(getDeliveryPostcodeForStore(storeSlug));
+    let cancelled = false;
+
+    void (async () => {
+      const local = getDeliveryPostcodeForStore(storeSlug);
+      if (local) {
+        if (!cancelled) {
+          setDeliveryPostcodeInput(local);
+          setDeliveryPostcodeBootstrapDone(true);
+        }
+        return;
+      }
+
+      const fromAccount = await fetchCustomerDefaultDeliveryPostcode();
+      if (cancelled) {
+        return;
+      }
+
+      if (fromAccount) {
+        setDeliveryPostcodeForStore(storeSlug, fromAccount);
+        setDeliveryPostcodeInput(fromAccount);
+      }
+      setDeliveryPostcodeBootstrapDone(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [storeSlug]);
 
   useEffect(() => {
     const onPostcode = () => setDeliveryPostcodeInput(getDeliveryPostcodeForStore(storeSlug));
     window.addEventListener("hull-eats-delivery-postcode-updated", onPostcode as EventListener);
     return () => window.removeEventListener("hull-eats-delivery-postcode-updated", onPostcode as EventListener);
+  }, [storeSlug]);
+
+  useEffect(() => {
+    const supabase = getBrowserSupabaseClient();
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event !== "SIGNED_IN" && event !== "TOKEN_REFRESHED") {
+        return;
+      }
+      void (async () => {
+        const local = getDeliveryPostcodeForStore(storeSlug);
+        if (local) {
+          return;
+        }
+        const fromAccount = await fetchCustomerDefaultDeliveryPostcode();
+        if (fromAccount) {
+          setDeliveryPostcodeForStore(storeSlug, fromAccount);
+        }
+      })();
+    });
+    return () => subscription.unsubscribe();
   }, [storeSlug]);
 
   useEffect(() => {
@@ -523,29 +575,78 @@ export function StoreMenuClient({
         </section>
       ) : null}
 
-      <section className="menu-category-filter-panel" aria-label="Delivery postcode for estimates">
-        <div className="menu-category-filter-header">
-          <div>
-            <p className="eyebrow">Delivery estimate</p>
-            <h3>Your postcode</h3>
-            <p className="muted-copy" style={{ marginTop: 6 }}>
-              Saves on this device and updates delivery in your basket. Use a full UK postcode (e.g. HU3 4AB).
-            </p>
-          </div>
-        </div>
-        <div className="delivery-postcode-row">
-          <input
-            className="form-input"
-            value={deliveryPostcodeInput}
-            onChange={(event) => setDeliveryPostcodeInput(event.target.value)}
-            placeholder="e.g. HU3 4AB"
-            autoComplete="postal-code"
-          />
-          <button type="button" className="glass-button" onClick={() => setDeliveryPostcodeForStore(storeSlug, deliveryPostcodeInput)}>
-            Save postcode
-          </button>
-        </div>
-      </section>
+      {!deliveryPostcodeBootstrapDone ? (
+        <section className="menu-category-filter-panel" aria-live="polite">
+          <p className="muted-copy" style={{ margin: 0 }}>
+            Checking saved delivery details…
+          </p>
+        </section>
+      ) : deliveryPostcodeInput.trim() && !showPostcodeEditor ? (
+          <section className="menu-category-filter-panel menu-delivery-known" aria-label="Delivery estimate">
+            <div className="menu-category-filter-header">
+              <div>
+                <p className="eyebrow">Delivery estimate</p>
+                <h3>
+                  {deliveryQuote.blocked
+                    ? `No delivery quote for ${deliveryPostcodeInput.trim().toUpperCase()}`
+                    : `${formatMoney(deliveryQuote.fee)} delivery to ${deliveryPostcodeInput.trim().toUpperCase()}`}
+                </h3>
+                <p className="muted-copy" style={{ marginTop: 6 }}>
+                  {deliveryQuote.blocked
+                    ? "Try another postcode, or check the store delivers to your area."
+                    : "Your saved postcode is used for basket totals. You can change it anytime."}
+                </p>
+              </div>
+              <button type="button" className="glass-button" onClick={() => setShowPostcodeEditor(true)}>
+                Change
+              </button>
+            </div>
+          </section>
+        ) : (
+          <section className="menu-category-filter-panel" aria-label="Delivery postcode for estimates">
+            <div className="menu-category-filter-header">
+              <div>
+                <p className="eyebrow">Delivery estimate</p>
+                <h3>Your postcode</h3>
+                <p className="muted-copy" style={{ marginTop: 6 }}>
+                  Enter a full UK postcode (e.g. HU3 4AB) to see delivery in your basket. We also save it on this device
+                  when you are not signed in.
+                </p>
+              </div>
+              {showPostcodeEditor && getDeliveryPostcodeForStore(storeSlug) ? (
+                <button
+                  type="button"
+                  className="glass-button"
+                  onClick={() => {
+                    setDeliveryPostcodeInput(getDeliveryPostcodeForStore(storeSlug));
+                    setShowPostcodeEditor(false);
+                  }}
+                >
+                  Cancel
+                </button>
+              ) : null}
+            </div>
+            <div className="delivery-postcode-row">
+              <input
+                className="form-input"
+                value={deliveryPostcodeInput}
+                onChange={(event) => setDeliveryPostcodeInput(event.target.value)}
+                placeholder="e.g. HU3 4AB"
+                autoComplete="postal-code"
+              />
+              <button
+                type="button"
+                className="glass-button"
+                onClick={() => {
+                  setDeliveryPostcodeForStore(storeSlug, deliveryPostcodeInput);
+                  setShowPostcodeEditor(false);
+                }}
+              >
+                Save postcode
+              </button>
+            </div>
+          </section>
+        )}
 
       <section className="menu-category-filter-panel" aria-label="Menu category filters">
         <div className="menu-category-filter-header">

@@ -171,6 +171,11 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
           notes: current.notes || address?.delivery_notes || "",
         }));
         setCustomerProfileId(profile.id);
+
+        const syncedPostcode = (address?.postcode ?? "").trim();
+        if (syncedPostcode) {
+          setDeliveryPostcodeForStore(store.slug, syncedPostcode);
+        }
       } catch {
         // Checkout still works for guest customers when Supabase is not configured locally.
       }
