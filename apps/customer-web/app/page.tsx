@@ -398,7 +398,7 @@ export default function CustomerHomePage() {
                     {storeDistances.has(store.slug) ? <span className="store-tag">{formatDistance(storeDistances.get(store.slug)!)} away</span> : null}
                   </div>
 
-                  <p className="store-copy">{store.onboardingMessage}</p>
+                  {store.onboardingMessage?.trim() ? <p className="store-copy">{store.onboardingMessage}</p> : null}
 
                   <div className="store-card-footer">
                     <span className="card-cta">{store.menuSetupComplete ? "Start order" : "Preview menu"}</span>

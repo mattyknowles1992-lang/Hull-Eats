@@ -205,7 +205,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ categ
                       Delivery from £{deliveryFeeFromForStorefront({ legacyDeliveryFee: store.deliveryFee, pricing: store.deliveryPricing }).toFixed(2)}
                     </span>
                   </div>
-                  <p className="store-copy">{store.onboardingMessage}</p>
+                  {store.onboardingMessage?.trim() ? <p className="store-copy">{store.onboardingMessage}</p> : null}
                   <div className="store-card-footer">
                     <span className="card-cta">View menu</span>
                     <span className="ghost-link">Clear checkout</span>

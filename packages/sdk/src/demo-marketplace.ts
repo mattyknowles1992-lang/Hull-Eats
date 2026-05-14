@@ -324,7 +324,7 @@ export const loadedMunchStore: StoreSummary = {
   city: "Hull",
   postcode: "HU5 5LT",
   isOpen: true,
-  cuisineLabel: "Loaded burgers, dogs, fries and desserts",
+  cuisineLabel: "Smash Burgers, Chicken & Desserts",
   etaMinutes: 25,
   deliveryFee: 3.49,
   deliveryPricing: {
@@ -336,8 +336,7 @@ export const loadedMunchStore: StoreSummary = {
   },
   minimumOrderAmount: 0,
   menuSetupComplete: true,
-  onboardingMessage:
-    "Launch partner takeaway with a live seeded menu. Ongoing edits, prices, images, and availability still belong only in the merchant hub.",
+  onboardingMessage: "",
   heroImageUrl: "/stores/loaded-munch/hero.jpg",
   logoImageUrl: "/stores/loaded-munch/hero.jpg",
 };

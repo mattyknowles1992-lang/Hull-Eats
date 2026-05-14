@@ -23,8 +23,8 @@ export default function HullMarketplacePage() {
         <AppSwitcher />
 
         <div className="topbar-actions">
-          <Link href="/marketplace/resolution" className="glass-button">
-            Resolution centre
+          <Link href="/marketplace/messages" className="glass-button">
+            Messages
           </Link>
           <Link href="/" className="primary-button service-back-button">
             Back to Hull Eats Marketplace
@@ -58,10 +58,12 @@ export default function HullMarketplacePage() {
             </button>
           </div>
         </div>
+      </section>
 
-        <aside className="marketplace-member-card">
+      <section className="marketplace-listing-access-strip marketplace-scene" aria-labelledby="listing-access-title">
+        <aside className="marketplace-member-card marketplace-member-card--strip">
           <p className="eyebrow">Listing access</p>
-          <h2>{marketplaceListingGateHeadline()}</h2>
+          <h2 id="listing-access-title">{marketplaceListingGateHeadline()}</h2>
           <p>{marketplaceListingGateBody()}</p>
           <Link href="/marketplace/sell" className="primary-button">
             Start selling

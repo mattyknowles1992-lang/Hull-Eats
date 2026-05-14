@@ -1745,11 +1745,11 @@ textarea {
 
 .marketplace-resale-hero {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 380px);
+  grid-template-columns: minmax(0, 1fr);
   gap: clamp(18px, 4vw, 34px);
   align-items: end;
   overflow: hidden;
-  min-height: 520px;
+  min-height: 420px;
   padding: clamp(18px, 4vw, 42px);
   border-radius: 34px;
   border: 1px solid rgba(255, 255, 255, 0.25);
@@ -1760,6 +1760,30 @@ textarea {
   background-position: center;
   background-size: cover;
   box-shadow: 0 24px 70px rgba(20, 12, 8, 0.25);
+}
+
+.marketplace-listing-access-strip {
+  margin-top: clamp(14px, 3vw, 22px);
+  padding: 0;
+}
+
+.marketplace-member-card--strip {
+  max-width: 960px;
+  margin: 0 auto;
+  width: 100%;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(12, 18, 28, 0.92);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+}
+
+.hull-marketplace-page .marketplace-listing-access-strip .marketplace-member-card--strip {
+  color: #f7fbff;
+}
+
+.hull-marketplace-page .marketplace-listing-access-strip .marketplace-member-card--strip h2,
+.hull-marketplace-page .marketplace-listing-access-strip .marketplace-member-card--strip p {
+  color: rgba(247, 251, 255, 0.9);
 }
 
 .marketplace-resale-copy {
