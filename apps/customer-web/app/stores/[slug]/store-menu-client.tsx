@@ -22,7 +22,7 @@ import {
   type BasketLine,
   type StoreBasket,
 } from "../../../src/lib/basket";
-import { computeDeliveryQuote, normaliseDeliveryPricing } from "@hull-eats/types";
+import { computeDeliveryQuote, DELIVERY_NOT_AVAILABLE_TO_POSTCODE_MESSAGE, normaliseDeliveryPricing } from "@hull-eats/types";
 import { fetchCustomerDefaultDeliveryPostcode } from "../../../src/lib/customer-default-delivery-postcode";
 import { getDeliveryPostcodeForStore, setDeliveryPostcodeForStore } from "../../../src/lib/delivery-postcode";
 import { getBrowserSupabaseClient } from "../../../src/lib/supabase-browser";
@@ -588,12 +588,12 @@ export function StoreMenuClient({
                 <p className="eyebrow">Delivery estimate</p>
                 <h3>
                   {deliveryQuote.blocked
-                    ? `No delivery quote for ${deliveryPostcodeInput.trim().toUpperCase()}`
+                    ? deliveryQuote.reason ?? DELIVERY_NOT_AVAILABLE_TO_POSTCODE_MESSAGE
                     : `${formatMoney(deliveryQuote.fee)} delivery to ${deliveryPostcodeInput.trim().toUpperCase()}`}
                 </h3>
                 <p className="muted-copy" style={{ marginTop: 6 }}>
                   {deliveryQuote.blocked
-                    ? "Try another postcode, or check the store delivers to your area."
+                    ? "Try another postcode below, or choose a store that delivers to you."
                     : "Your saved postcode is used for basket totals. You can change it anytime."}
                 </p>
               </div>

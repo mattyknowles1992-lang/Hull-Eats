@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { StoreSummary } from "@hull-eats/types";
-import { computeDeliveryQuote, normaliseDeliveryPricing } from "@hull-eats/types";
+import { computeDeliveryQuote, DELIVERY_NOT_AVAILABLE_TO_POSTCODE_MESSAGE, normaliseDeliveryPricing } from "@hull-eats/types";
 
 import { getBasketItemCount, getBasketSubtotal, loadBasket, type StoreBasket } from "../../../src/lib/basket";
 import { getDeliveryPostcodeForStore } from "../../../src/lib/delivery-postcode";
@@ -76,7 +76,7 @@ export function BasketButton({ store }: BasketButtonProps) {
     }
 
     if (deliveryQuote.blocked) {
-      return <span className="basket-delivery-hint">Delivery unavailable for saved postcode</span>;
+      return <span className="basket-delivery-hint">{deliveryQuote.reason ?? DELIVERY_NOT_AVAILABLE_TO_POSTCODE_MESSAGE}</span>;
     }
 
     const fee = deliveryQuote.fee;
