@@ -4,15 +4,23 @@ import type { CSSProperties } from "react";
 import type { HubSettings } from "@hull-eats/types";
 import {
   HULL_AREA_OUTWARD_CENTROIDS,
+  HULL_SECTOR_DIGITS,
   createDefaultHullPostcodeZones,
+  formatHullSectorLabel,
+  getHullSectorCentroid,
+  getHullZoneEnabledSectors,
+  hullZoneHasCoverage,
+  isHullZoneSectorEnabled,
+  listHullSectorDigits,
   listKnownHullOutwardCodes,
   mergeHullPostcodeZones,
   milesToMeters,
   resolveBusinessOrigin,
   type DeliveryMode,
   type HullPostcodeZone,
+  type HullSectorDigit,
 } from "@hull-eats/types";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import "leaflet/dist/leaflet.css";
 
@@ -23,10 +31,73 @@ const HULL_MAP_BOUNDS = {
   west: -0.48,
 } as const;
 
+const HULL_EATS_MAP_STROKE = "#079bc8";
+const HULL_EATS_MAP_FILL = "#23cdff";
+const SECTOR_MAP_RADIUS_MILES = 0.55;
+
 const leafletIconAssets = {
   iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png",
   iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png",
   shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png",
+};
+
+const outwardListStyle: CSSProperties = {
+  display: "grid",
+  gap: 8,
+};
+
+const outwardRowStyle: CSSProperties = {
+  borderRadius: 14,
+  border: "1px solid rgba(15, 17, 21, 0.1)",
+  background: "rgba(255, 255, 255, 0.98)",
+  overflow: "hidden",
+};
+
+const outwardHeaderButtonStyle: CSSProperties = {
+  width: "100%",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 12,
+  padding: "12px 14px",
+  border: "none",
+  background: "transparent",
+  cursor: "pointer",
+  fontWeight: 900,
+  fontSize: "0.95rem",
+  color: "#111318",
+  textAlign: "left",
+};
+
+const outwardHeaderActiveStyle: CSSProperties = {
+  background: "linear-gradient(180deg, rgba(35, 205, 255, 0.14), rgba(7, 155, 200, 0.06))",
+};
+
+const sectorPanelStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fill, minmax(108px, 1fr))",
+  gap: 8,
+  padding: "0 14px 14px",
+};
+
+const sectorCheckboxLabelStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  padding: "8px 10px",
+  borderRadius: 10,
+  border: "1px solid rgba(15, 17, 21, 0.12)",
+  background: "rgba(248, 250, 252, 0.98)",
+  fontWeight: 700,
+  fontSize: "0.82rem",
+  color: "#4a5560",
+  cursor: "pointer",
+};
+
+const sectorCheckboxLabelOnStyle: CSSProperties = {
+  borderColor: "rgba(7, 155, 200, 0.65)",
+  background: "linear-gradient(180deg, rgba(35, 205, 255, 0.22), rgba(7, 155, 200, 0.1))",
+  color: "#0a4d66",
 };
 
 type HubDeliveryConfigProps = {
@@ -54,8 +125,8 @@ export function HubDeliveryConfig({ settings, onChange, styles }: HubDeliveryCon
   const mapRef = useRef<import("leaflet").Map | null>(null);
   const layerGroupRef = useRef<import("leaflet").LayerGroup | null>(null);
   const zonesRef = useRef<HullPostcodeZone[]>([]);
-  const onChangeRef = useRef(onChange);
   const [mapReady, setMapReady] = useState(false);
+  const [expandedOutward, setExpandedOutward] = useState<string | null>(null);
   const [activeZoneCode, setActiveZoneCode] = useState<string | null>(null);
 
   const zones = useMemo(
@@ -67,7 +138,6 @@ export function HubDeliveryConfig({ settings, onChange, styles }: HubDeliveryCon
   );
 
   zonesRef.current = zones;
-  onChangeRef.current = onChange;
 
   const businessOrigin = useMemo(
     () =>
@@ -87,21 +157,54 @@ export function HubDeliveryConfig({ settings, onChange, styles }: HubDeliveryCon
     onChange({ deliveryPostcodeZones: nextZones });
   };
 
-  const toggleZone = (code: string) => {
+  const panToOutward = useCallback((code: string) => {
     const upper = code.toUpperCase();
+    const map = mapRef.current;
+    const center = HULL_AREA_OUTWARD_CENTROIDS[upper];
     setActiveZoneCode(upper);
+    setExpandedOutward(upper);
+    if (!map || !center) {
+      return;
+    }
+
+    map.flyTo([center.lat, center.lng], 13, { duration: 0.45 });
+  }, []);
+
+  const toggleSector = useCallback((outwardCode: string, sector: HullSectorDigit) => {
+    const upper = outwardCode.toUpperCase();
+    setActiveZoneCode(upper);
+    setExpandedOutward(upper);
+
     const current = zonesRef.current;
     patchZones(
-      current.map((zone) => (zone.code === upper ? { ...zone, enabled: !zone.enabled } : zone)),
+      current.map((zone) => {
+        if (zone.code !== upper) {
+          return zone;
+        }
+
+        const selected = new Set(getHullZoneEnabledSectors(zone));
+        if (selected.has(sector)) {
+          selected.delete(sector);
+        } else {
+          selected.add(sector);
+        }
+
+        const enabledSectors = HULL_SECTOR_DIGITS.filter((digit) => selected.has(digit));
+        return {
+          ...zone,
+          enabledSectors,
+          enabled: enabledSectors.length > 0,
+        };
+      }),
     );
-  };
+  }, []);
 
   const setZoneRadius = (code: string, radiusMiles: number) => {
     const upper = code.toUpperCase();
     const clamped = Math.min(40, Math.max(0.1, radiusMiles));
     const current = zonesRef.current;
     patchZones(
-      current.map((zone) => (zone.code === upper ? { ...zone, radiusMiles: clamped, enabled: true } : zone)),
+      current.map((zone) => (zone.code === upper ? { ...zone, radiusMiles: clamped } : zone)),
     );
     setActiveZoneCode(upper);
   };
@@ -190,54 +293,68 @@ export function HubDeliveryConfig({ settings, onChange, styles }: HubDeliveryCon
       }
 
       if (settings.deliveryMode === "postcode_zones") {
-        const enabledZones = zones.filter((zone) => zone.enabled);
-        const focusCode = activeZoneCode ?? enabledZones[0]?.code ?? null;
+        const focusCode = activeZoneCode ?? expandedOutward ?? null;
+        const sectorBounds: import("leaflet").LatLngBounds[] = [];
 
         for (const zone of zones) {
-          const center = HULL_AREA_OUTWARD_CENTROIDS[zone.code];
-          if (!center) {
-            continue;
+          const enabledSectors = getHullZoneEnabledSectors(zone);
+          const isFocusOutward = zone.code === focusCode;
+
+          for (const digit of listHullSectorDigits()) {
+            const sectorCenter = getHullSectorCentroid(zone.code, digit);
+            if (!sectorCenter) {
+              continue;
+            }
+
+            const isOn = enabledSectors.includes(digit);
+
+            if (isOn) {
+              const coverage = L.circle([sectorCenter.lat, sectorCenter.lng], {
+                radius: milesToMeters(SECTOR_MAP_RADIUS_MILES),
+                color: HULL_EATS_MAP_STROKE,
+                fillColor: HULL_EATS_MAP_FILL,
+                fillOpacity: isFocusOutward ? 0.32 : 0.22,
+                weight: isFocusOutward ? 3 : 2,
+              })
+                .bindTooltip(formatHullSectorLabel(zone.code, digit), { direction: "top" })
+                .on("click", () => toggleSector(zone.code, digit))
+                .addTo(layers);
+
+              if (isFocusOutward) {
+                sectorBounds.push(coverage.getBounds());
+              }
+            }
+
+            L.circleMarker([sectorCenter.lat, sectorCenter.lng], {
+              radius: isOn ? 8 : 6,
+              color: isOn ? HULL_EATS_MAP_STROKE : "#9aa3ad",
+              fillColor: isOn ? HULL_EATS_MAP_FILL : "#e8edf2",
+              fillOpacity: 1,
+              weight: 2,
+            })
+              .bindTooltip(formatHullSectorLabel(zone.code, digit), { direction: "top" })
+              .on("click", () => toggleSector(zone.code, digit))
+              .addTo(layers);
           }
-
-          const isActive = zone.code === focusCode;
-          const isEnabled = zone.enabled;
-
-          if (isEnabled) {
-            L.circle([center.lat, center.lng], {
-              radius: milesToMeters(zone.radiusMiles),
-              color: isActive ? "#079bc8" : "#4a8fb8",
-              fillColor: isActive ? "#079bc8" : "#7eb8d4",
-              fillOpacity: isActive ? 0.22 : 0.12,
-              weight: isActive ? 3 : 2,
-            }).addTo(layers);
-          }
-
-          L.circleMarker([center.lat, center.lng], {
-            radius: isEnabled ? 10 : 7,
-            color: isEnabled ? "#079bc8" : "#9aa3ad",
-            fillColor: isEnabled ? "#23cdff" : "#e8edf2",
-            fillOpacity: 1,
-            weight: 2,
-          })
-            .bindTooltip(`${zone.code}${isEnabled ? ` · ${zone.radiusMiles} mi` : ""}`, { direction: "top" })
-            .on("click", () => toggleZone(zone.code))
-            .addTo(layers);
         }
 
         if (businessOrigin) {
           L.marker([businessOrigin.lat, businessOrigin.lng], { title: settings.name || "Your business" }).addTo(layers);
         }
 
+        if (sectorBounds.length > 0) {
+          const combined = sectorBounds[0]!;
+          for (let index = 1; index < sectorBounds.length; index += 1) {
+            combined.extend(sectorBounds[index]!);
+          }
+          map.fitBounds(combined, { padding: [36, 36], maxZoom: 14 });
+          return;
+        }
+
         if (focusCode && HULL_AREA_OUTWARD_CENTROIDS[focusCode]) {
           const focus = HULL_AREA_OUTWARD_CENTROIDS[focusCode];
-          const focusZone = zones.find((zone) => zone.code === focusCode);
-          if (focusZone?.enabled) {
-            map.fitBounds(
-              L.circle([focus.lat, focus.lng], { radius: milesToMeters(focusZone.radiusMiles) }).getBounds(),
-              { padding: [32, 32], maxZoom: 13 },
-            );
-            return;
-          }
+          map.flyTo([focus.lat, focus.lng], 13, { duration: 0.35 });
+          return;
         }
 
         map.fitBounds(
@@ -260,8 +377,10 @@ export function HubDeliveryConfig({ settings, onChange, styles }: HubDeliveryCon
     businessOrigin,
     zones,
     activeZoneCode,
+    expandedOutward,
     settings.deliveryOriginLatitude,
     settings.deliveryOriginLongitude,
+    toggleSector,
   ]);
 
   const activeZone = zones.find((zone) => zone.code === activeZoneCode) ?? null;
@@ -272,9 +391,8 @@ export function HubDeliveryConfig({ settings, onChange, styles }: HubDeliveryCon
         <p style={styles.eyebrow}>Delivery area</p>
         <h2 style={{ ...styles.sectionTitle, marginTop: 6, marginBottom: 8 }}>Map your delivery coverage</h2>
         <p style={{ ...styles.panelCopy, margin: 0, maxWidth: 720 }}>
-          Choose one method: a single radius from your business, or separate Hull postcode areas (HU1–HU16) each with
-          its own radius from that area&apos;s centre. Mile band fees below still set what customers pay by distance from
-          your shop.
+          Choose one method: a single radius from your business, or Hull postcode areas (HU1–HU16) with sector-level
+          tick boxes (e.g. HU7 1, HU7 2). Mile band fees below still set what customers pay by distance from your shop.
         </p>
       </div>
 
@@ -326,35 +444,66 @@ export function HubDeliveryConfig({ settings, onChange, styles }: HubDeliveryCon
       ) : (
         <div style={{ display: "grid", gap: 14 }}>
           <p style={styles.subtleInfo}>
-            Tap a postcode on the map or in the list to turn it on (blue). Set how many miles from that area&apos;s
-            centre you deliver.
+            Open a postcode (e.g. HU7) to pan the map, then tick the sectors you deliver to (HU7 1, HU7 2, …). Each tick
+            turns that sector Hull Eats blue on the map; untick to remove it.
           </p>
-          <div style={styles.zoneList}>
+          <div style={outwardListStyle}>
             {listKnownHullOutwardCodes().map((code) => {
               const zone = zones.find((entry) => entry.code === code)!;
+              const expanded = expandedOutward === code;
+              const selectedCount = getHullZoneEnabledSectors(zone).length;
               const isActive = activeZoneCode === code;
+
               return (
-                <button
-                  key={code}
-                  type="button"
-                  style={zone.enabled ? (isActive ? styles.zoneChipActive : styles.zoneChip) : styles.zoneChip}
-                  onClick={() => {
-                    setActiveZoneCode(code);
-                    if (!zone.enabled) {
-                      patchZones(zones.map((entry) => (entry.code === code ? { ...entry, enabled: true } : entry)));
-                    }
-                  }}
-                >
-                  {code}
-                </button>
+                <div key={code} style={outwardRowStyle}>
+                  <button
+                    type="button"
+                    style={{
+                      ...outwardHeaderButtonStyle,
+                      ...(expanded || isActive ? outwardHeaderActiveStyle : {}),
+                    }}
+                    aria-expanded={expanded}
+                    onClick={() => {
+                      if (expanded) {
+                        setExpandedOutward(null);
+                      } else {
+                        panToOutward(code);
+                      }
+                    }}
+                  >
+                    <span>{code}</span>
+                    <span style={{ fontSize: "0.78rem", fontWeight: 800, color: "#5d6775" }}>
+                      {selectedCount > 0 ? `${selectedCount} sector${selectedCount === 1 ? "" : "s"} on` : "None selected"}
+                      {expanded ? " ▲" : " ▼"}
+                    </span>
+                  </button>
+                  {expanded ? (
+                    <div style={sectorPanelStyle}>
+                      {listHullSectorDigits().map((digit) => {
+                        const checked = isHullZoneSectorEnabled(zone, digit);
+                        return (
+                          <label
+                            key={`${code}-${digit}`}
+                            style={checked ? sectorCheckboxLabelOnStyle : sectorCheckboxLabelStyle}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleSector(code, digit)}
+                            />
+                            {formatHullSectorLabel(code, digit)}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                </div>
               );
             })}
           </div>
-          {activeZone ? (
+          {activeZone && hullZoneHasCoverage(activeZone) ? (
             <label style={styles.field}>
-              <span style={styles.darkFieldLabel}>
-                Radius for {activeZone.code} (miles){activeZone.enabled ? "" : " — enable this area first"}
-              </span>
+              <span style={styles.darkFieldLabel}>Default radius for {activeZone.code} (miles, optional reference)</span>
               <input
                 type="number"
                 min={0.1}
@@ -362,12 +511,11 @@ export function HubDeliveryConfig({ settings, onChange, styles }: HubDeliveryCon
                 step={0.1}
                 style={styles.lightInput}
                 value={activeZone.radiusMiles}
-                disabled={!activeZone.enabled}
                 onChange={(event) => setZoneRadius(activeZone.code, Number(event.target.value) || 1.5)}
               />
             </label>
           ) : (
-            <p style={styles.subtleInfo}>Select a postcode area to set its radius.</p>
+            <p style={styles.subtleInfo}>Open a postcode and tick at least one sector to enable delivery there.</p>
           )}
         </div>
       )}

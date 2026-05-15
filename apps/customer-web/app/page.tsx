@@ -214,6 +214,8 @@ export default function CustomerHomePage() {
     return "";
   })();
 
+  const portraitHeroCycleSeconds = marketplaceCategories.length * 5;
+
   return (
     <main className="shell customer-marketplace">
       <header className="topbar customer-home-topbar">
@@ -272,8 +274,17 @@ export default function CustomerHomePage() {
           <span className="hero-slide hero-slide-three" />
         </div>
         <div className="hero-slideshow hero-slideshow-portrait" aria-hidden="true">
-          <span className="hero-slide hero-slide-portrait-one" />
-          <span className="hero-slide hero-slide-portrait-two" />
+          {marketplaceCategories.map((category, index) => (
+              <span
+                key={category.slug}
+                className="hero-slide hero-slide-portrait-cycle"
+                style={{
+                  backgroundImage: `url(${category.imageUrl})`,
+                  animationDuration: `${portraitHeroCycleSeconds}s`,
+                  animationDelay: `${(index * portraitHeroCycleSeconds) / marketplaceCategories.length}s`,
+                }}
+              />
+            ))}
         </div>
         <div className="marketplace-hero-copy">
           <p className="hero-badge">Hull's Delivery Hub</p>

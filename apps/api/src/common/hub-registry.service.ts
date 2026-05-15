@@ -9,6 +9,7 @@ import {
   createHubPromotionInputSchema,
   decodeHubMenuCategoryDescription,
   encodeHubMenuCategoryDescription,
+  hullZoneHasCoverage,
   normaliseDeliveryPricing,
   updateHubPromotionInputSchema,
 } from "@hull-eats/types";
@@ -1376,7 +1377,7 @@ export class HubRegistryService {
 
   private deliveryJsonFromHubSettings(settings: HubSettings): Prisma.InputJsonValue {
     const enabledDistricts = settings.deliveryPostcodeZones
-      .filter((zone) => zone.enabled)
+      .filter((zone) => hullZoneHasCoverage(zone))
       .map((zone) => zone.code.trim().toUpperCase());
 
     return {

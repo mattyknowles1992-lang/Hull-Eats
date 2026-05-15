@@ -1425,16 +1425,6 @@ textarea {
   animation-delay: 12s;
 }
 
-.hero-slide-portrait-one {
-  background-image: url("/brand/hero/portrait/portrait1.png");
-}
-
-.hero-slide-portrait-two {
-  background-image: url("/brand/hero/portrait/portrait2.png");
-  animation-delay: 6s;
-}
-
-@keyframes hero-image-cycle {
   0%,
   5% {
     opacity: 0;
@@ -5285,10 +5275,6 @@ button.filter-pill {
 
   .hero-slideshow-portrait {
     display: block;
-  }
-
-  .hero-slideshow-portrait .hero-slide {
-    animation-duration: 12s;
   }
 
   .marketplace-hero-copy {

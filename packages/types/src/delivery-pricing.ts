@@ -9,13 +9,25 @@ export const DELIVERY_NOT_AVAILABLE_TO_POSTCODE_MESSAGE = "Delivery is not avail
 export const deliveryModeSchema = z.enum(["business_radius", "postcode_zones"]);
 export type DeliveryMode = z.infer<typeof deliveryModeSchema>;
 
+/** UK postcode sector digits (e.g. HU7 3xx → sector "3"). */
+export const HULL_SECTOR_DIGITS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"] as const;
+export type HullSectorDigit = (typeof HULL_SECTOR_DIGITS)[number];
+
 export const hullPostcodeZoneSchema = z.object({
   code: z.string().min(2).max(8),
   radiusMiles: z.number().min(0.1).max(40),
+  /** Legacy whole-area flag; kept in sync with enabledSectors on read/write. */
   enabled: z.boolean(),
+  /** Sector digits enabled for this outward (HU7 1, HU7 2, …). Empty + enabled=true means all sectors. */
+  enabledSectors: z.array(z.string().regex(/^[1-9]$/)).default([]),
 });
 
 export type HullPostcodeZone = z.infer<typeof hullPostcodeZoneSchema>;
+
+export const listHullSectorDigits = (): readonly HullSectorDigit[] => HULL_SECTOR_DIGITS;
+
+export const formatHullSectorLabel = (outwardCode: string, sectorDigit: string) =>
+  `${outwardCode.trim().toUpperCase()} ${sectorDigit}`;
 
 /**
  * Optional mile-band fees: index 0 = under 1 mile, 1 = under 2 miles, … 4 = under 5 miles.
@@ -48,7 +60,28 @@ export const createDefaultHullPostcodeZones = (): HullPostcodeZone[] =>
     code,
     radiusMiles: 1.5,
     enabled: false,
+    enabledSectors: [],
   }));
+
+const normalizeSectorDigits = (sectors: string[] | undefined): HullSectorDigit[] => {
+  const allowed = new Set<string>(HULL_SECTOR_DIGITS);
+  return [...new Set((sectors ?? []).map((digit) => digit.trim()).filter((digit) => allowed.has(digit)))]
+    .sort() as HullSectorDigit[];
+};
+
+/** Enabled sector digits for a zone (migrates legacy enabled=true to all sectors). */
+export const getHullZoneEnabledSectors = (zone: HullPostcodeZone): HullSectorDigit[] => {
+  const normalized = normalizeSectorDigits(zone.enabledSectors);
+  if (normalized.length > 0) {
+    return normalized;
+  }
+  return zone.enabled ? [...HULL_SECTOR_DIGITS] : [];
+};
+
+export const isHullZoneSectorEnabled = (zone: HullPostcodeZone, sectorDigit: string): boolean =>
+  getHullZoneEnabledSectors(zone).includes(sectorDigit as HullSectorDigit);
+
+export const hullZoneHasCoverage = (zone: HullPostcodeZone): boolean => getHullZoneEnabledSectors(zone).length > 0;
 
 export const mergeHullPostcodeZones = (saved: HullPostcodeZone[] | undefined): HullPostcodeZone[] => {
   const byCode = new Map((saved ?? []).map((zone) => [zone.code.trim().toUpperCase(), zone]));
@@ -56,13 +89,20 @@ export const mergeHullPostcodeZones = (saved: HullPostcodeZone[] | undefined): H
   return listKnownHullOutwardCodes().map((code) => {
     const existing = byCode.get(code);
     if (!existing) {
-      return { code, radiusMiles: 1.5, enabled: false };
+      return { code, radiusMiles: 1.5, enabled: false, enabledSectors: [] };
     }
+
+    const enabledSectors = getHullZoneEnabledSectors({
+      ...existing,
+      code,
+      radiusMiles: existing.radiusMiles,
+    });
 
     return {
       code,
       radiusMiles: Math.min(40, Math.max(0.1, existing.radiusMiles)),
-      enabled: existing.enabled,
+      enabledSectors,
+      enabled: enabledSectors.length > 0,
     };
   });
 };
@@ -104,6 +144,7 @@ export const normaliseDeliveryPricing = (raw: unknown): StoreDeliveryPricing => 
         code,
         radiusMiles: base.radiusMiles,
         enabled: legacySet.has(code),
+        enabledSectors: [],
       })),
     );
   }
@@ -163,6 +204,52 @@ export const parseUkOutwardCode = (postcode: string | undefined | null): string 
 
   const partial = compact.match(/^([A-Z]{1,2}\d)/);
   return partial?.[1] ?? null;
+};
+
+/** Outward + sector digit from a full UK postcode (e.g. HU7 3AB → HU7 / 3). */
+export const parseUkPostcodeSector = (
+  postcode: string | undefined | null,
+): { outward: string; sector: HullSectorDigit } | null => {
+  if (!postcode?.trim()) {
+    return null;
+  }
+
+  const compact = postcode.trim().toUpperCase().replace(/\s+/g, "");
+  const match = compact.match(/^([A-Z]{1,2}\d[A-Z\d]?)(\d)[A-Z]{2}$/);
+  if (!match?.[1] || !match[2]) {
+    return null;
+  }
+
+  const sector = match[2] as HullSectorDigit;
+  if (!HULL_SECTOR_DIGITS.includes(sector)) {
+    return null;
+  }
+
+  return { outward: match[1], sector };
+};
+
+/** Approximate map position for a postcode sector within an outward district. */
+export const getHullSectorCentroid = (outwardCode: string, sectorDigit: string): { lat: number; lng: number } | null => {
+  const outward = outwardCode.trim().toUpperCase();
+  const base = HULL_AREA_OUTWARD_CENTROIDS[outward];
+  if (!base) {
+    return null;
+  }
+
+  const digit = Number(sectorDigit);
+  if (!Number.isFinite(digit) || digit < 1 || digit > 9) {
+    return null;
+  }
+
+  const angle = ((digit - 1) / HULL_SECTOR_DIGITS.length) * 2 * Math.PI - Math.PI / 2;
+  const mileOffset = 0.42;
+  const latDegreesPerMile = 1 / 69;
+  const lngDegreesPerMile = 1 / (69 * Math.cos((base.lat * Math.PI) / 180));
+
+  return {
+    lat: base.lat + Math.sin(angle) * mileOffset * latDegreesPerMile,
+    lng: base.lng + Math.cos(angle) * mileOffset * lngDegreesPerMile,
+  };
 };
 
 const toRad = (deg: number) => (deg * Math.PI) / 180;
@@ -249,7 +336,7 @@ export const computeDeliveryQuote = (args: {
   const coverageConfigured = Boolean(
     pricing &&
       (pricing.mode === "business_radius" ||
-        (pricing.mode === "postcode_zones" && pricing.postcodeZones.some((zone) => zone.enabled))),
+        (pricing.mode === "postcode_zones" && pricing.postcodeZones.some((zone) => hullZoneHasCoverage(zone)))),
   );
   const enforceCoverage = tiersConfigured || coverageConfigured;
 
@@ -304,8 +391,8 @@ export const computeDeliveryQuote = (args: {
   }
 
   if (cfg.mode === "postcode_zones") {
-    const zone = cfg.postcodeZones.find((entry) => entry.code === customerOutward && entry.enabled);
-    if (!zone) {
+    const zone = cfg.postcodeZones.find((entry) => entry.code === customerOutward);
+    if (!zone || !hullZoneHasCoverage(zone)) {
       return {
         fee: 0,
         needsPostcode: false,
@@ -315,26 +402,17 @@ export const computeDeliveryQuote = (args: {
       };
     }
 
-    const zoneCenter = HULL_AREA_OUTWARD_CENTROIDS[zone.code];
-    if (!zoneCenter) {
-      return {
-        fee: 0,
-        needsPostcode: false,
-        isDefaultPricing: false,
-        blocked: true,
-        reason: DELIVERY_NOT_AVAILABLE_TO_POSTCODE_MESSAGE,
-      };
-    }
-
-    const milesFromZoneCenter = haversineMiles(zoneCenter, destPoint);
-    if (milesFromZoneCenter > zone.radiusMiles + 0.001) {
-      return {
-        fee: 0,
-        needsPostcode: false,
-        isDefaultPricing: false,
-        blocked: true,
-        reason: DELIVERY_NOT_AVAILABLE_TO_POSTCODE_MESSAGE,
-      };
+    const customerSector = parseUkPostcodeSector(args.customerPostcode ?? "");
+    if (customerSector && customerSector.outward === customerOutward) {
+      if (!isHullZoneSectorEnabled(zone, customerSector.sector)) {
+        return {
+          fee: 0,
+          needsPostcode: false,
+          isDefaultPricing: false,
+          blocked: true,
+          reason: DELIVERY_NOT_AVAILABLE_TO_POSTCODE_MESSAGE,
+        };
+      }
     }
   } else {
     const milesFromShop = haversineMiles(originPoint, destPoint);
