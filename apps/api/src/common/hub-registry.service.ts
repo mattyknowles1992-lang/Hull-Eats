@@ -7,6 +7,8 @@ import { loadedMunchMenuItems, loadedMunchMenuSections, loadedMunchStore } from 
 import {
   addHubCourierAssignmentInputSchema,
   createHubPromotionInputSchema,
+  decodeHubMenuCategoryDescription,
+  encodeHubMenuCategoryDescription,
   normaliseDeliveryPricing,
   updateHubPromotionInputSchema,
 } from "@hull-eats/types";
@@ -455,7 +457,7 @@ export class HubRegistryService {
           where: { id: section.id },
           update: {
             name: section.name,
-            description: section.description,
+            description: encodeHubMenuCategoryDescription(section.presetKey, section.description ?? ""),
             defaultPrice: section.defaultPrice,
             sortOrder: sectionIndex,
             isActive: true,
@@ -464,7 +466,7 @@ export class HubRegistryService {
             id: section.id,
             storeId: store.id,
             name: section.name,
-            description: section.description,
+            description: encodeHubMenuCategoryDescription(section.presetKey, section.description ?? ""),
             defaultPrice: section.defaultPrice,
             sortOrder: sectionIndex,
             isActive: true,
@@ -623,7 +625,7 @@ export class HubRegistryService {
       data: {
         storeId: store.id,
         name: input.name,
-        description: input.description,
+        description: encodeHubMenuCategoryDescription(input.presetKey, input.description ?? ""),
         defaultPrice: input.defaultPrice,
         sortOrder: currentCount,
         isActive: true,
@@ -1415,10 +1417,12 @@ export class HubRegistryService {
   }
 
   private mapMenuSection(section: any, items: any[]): HubMenuSection {
+    const decoded = decodeHubMenuCategoryDescription(section.description);
     return {
       id: section.id,
       name: section.name,
-      description: section.description ?? "",
+      description: decoded.description,
+      presetKey: decoded.presetKey ?? undefined,
       defaultPrice: section.defaultPrice === null || section.defaultPrice === undefined ? null : Number(section.defaultPrice),
       items: items.map((item) => this.mapMenuItem(item)),
     };

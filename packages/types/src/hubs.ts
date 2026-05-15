@@ -70,6 +70,8 @@ export const hubMenuSectionSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   description: z.string().optional(),
+  /** When set, used for hub UI (e.g. pizza size builder). Stored in DB via description prefix — see hub-menu-presets. */
+  presetKey: z.string().max(64).nullable().optional(),
   defaultPrice: z.number().nonnegative().nullable().default(null),
   items: z.array(menuItemSchema).default([]),
 });
@@ -131,6 +133,7 @@ export const createHubMenuSectionInputSchema = z.object({
   name: z.string().min(1),
   description: z.string().default(""),
   defaultPrice: z.number().nonnegative().nullable().default(null),
+  presetKey: z.string().max(64).nullable().optional(),
 });
 
 export const createHubMenuItemInputSchema = z.object({

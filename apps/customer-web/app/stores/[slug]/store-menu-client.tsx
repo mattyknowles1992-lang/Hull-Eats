@@ -293,8 +293,10 @@ export function StoreMenuClient({
     [storePostcode, storeDeliveryFee, storeDeliveryPricing, deliveryPostcodeInput],
   );
 
+  const showFloatingBasket = itemCount > 0 && !activeItem;
+
   useLayoutEffect(() => {
-    if (!isClient || itemCount === 0) {
+    if (!isClient || !showFloatingBasket) {
       setBasketBarHeight(0);
       return;
     }
@@ -314,7 +316,16 @@ export function StoreMenuClient({
     observer.observe(node);
 
     return () => observer.disconnect();
-  }, [isClient, itemCount, subtotal, addedMessage, basketExpanded, deliveryPostcodeInput, deliveryQuote.fee, deliveryQuote.blocked]);
+  }, [
+    isClient,
+    showFloatingBasket,
+    subtotal,
+    addedMessage,
+    basketExpanded,
+    deliveryPostcodeInput,
+    deliveryQuote.fee,
+    deliveryQuote.blocked,
+  ]);
 
   const visibleCategories = useMemo(
     () => (activeCategoryId === "all" ? categories : categories.filter((category) => category.id === activeCategoryId)),
@@ -471,6 +482,13 @@ export function StoreMenuClient({
   };
 
   const floatingBasketClassName = `basket-banner basket-floating${addedMessage ? " is-pulsing" : ""}${basketExpanded ? " is-expanded" : ""}`;
+  const deliveryFeeLabel = deliveryQuote.blocked
+    ? "—"
+    : deliveryQuote.needsPostcode
+      ? `from ${formatMoney(deliveryQuote.fee)}`
+      : formatMoney(deliveryQuote.fee);
+  const orderTotal = deliveryQuote.blocked ? subtotal : Number((subtotal + deliveryQuote.fee).toFixed(2));
+  const showDeliveryWarning = Boolean(deliveryQuote.blocked && deliveryQuote.reason);
 
   const renderFloatingBasket = () => (
     <section className={floatingBasketClassName} aria-label="Your basket">
@@ -481,7 +499,7 @@ export function StoreMenuClient({
             <h3>
               {itemCount} item{itemCount === 1 ? "" : "s"} / {formatMoney(subtotal)}
             </h3>
-            {addedMessage ? <p className="basket-added-message">{addedMessage}</p> : null}
+            {basketExpanded && addedMessage ? <p className="basket-added-message">{addedMessage}</p> : null}
           </div>
           <button type="button" className="basket-floating-clear" onClick={handleClearBasket}>
             Clear basket
@@ -507,28 +525,22 @@ export function StoreMenuClient({
           </ul>
         ) : null}
 
-        {itemCount > 0 ? (
+        {basketExpanded && itemCount > 0 ? (
           <div className="basket-floating-totals" aria-label="Basket totals">
             <div className="basket-floating-total-row">
-              <span>Subtotal</span>
-              <strong>{formatMoney(subtotal)}</strong>
-            </div>
-            <div className="basket-floating-total-row">
               <span>Delivery</span>
-              <strong>
-                {deliveryQuote.blocked ? "—" : deliveryQuote.needsPostcode ? `from ${formatMoney(deliveryQuote.fee)}` : formatMoney(deliveryQuote.fee)}
-              </strong>
+              <strong>{deliveryFeeLabel}</strong>
             </div>
-            {deliveryQuote.blocked && deliveryQuote.reason ? (
-              <p className="basket-floating-delivery-warn">{deliveryQuote.reason}</p>
-            ) : null}
+            {showDeliveryWarning ? <p className="basket-floating-delivery-warn">{deliveryQuote.reason}</p> : null}
             <div className="basket-floating-total-row basket-floating-total-grand">
               <span>Total</span>
-              <strong>
-                {deliveryQuote.blocked ? formatMoney(subtotal) : formatMoney(Number((subtotal + deliveryQuote.fee).toFixed(2)))}
-              </strong>
+              <strong>{formatMoney(orderTotal)}</strong>
             </div>
           </div>
+        ) : null}
+
+        {!basketExpanded && showDeliveryWarning ? (
+          <p className="basket-floating-delivery-warn basket-floating-delivery-warn--compact">{deliveryQuote.reason}</p>
         ) : null}
 
         <div className="basket-floating-cta">
@@ -538,7 +550,7 @@ export function StoreMenuClient({
             onClick={() => setBasketExpanded((current) => !current)}
             aria-expanded={basketExpanded}
           >
-            {basketExpanded ? "Show less" : "View basket"}
+            {basketExpanded ? "Show less" : "Show more"}
           </button>
           <Link href={`/checkout/${storeSlug}`} className="primary-button gold-button basket-floating-checkout">
             Go to checkout
@@ -548,32 +560,19 @@ export function StoreMenuClient({
     </section>
   );
 
+  const floatingBasketPortal =
+    isClient && showFloatingBasket
+      ? createPortal(
+          <div className="basket-floating-viewport" ref={basketPortalRef}>
+            {renderFloatingBasket()}
+          </div>,
+          document.body,
+        )
+      : null;
+
   return (
     <div className="menu-section-stack">
-      {itemCount > 0 ? (
-        <>
-          {isClient ? (
-            <>
-              <div className="basket-viewport-spacer" style={{ height: basketBarHeight }} aria-hidden />
-              {createPortal(
-                <div className="basket-floating-viewport" ref={basketPortalRef}>
-                  {renderFloatingBasket()}
-                </div>,
-                document.body,
-              )}
-            </>
-          ) : (
-            renderFloatingBasket()
-          )}
-        </>
-      ) : addedMessage ? (
-        <section className="basket-banner basket-floating is-pulsing">
-          <div>
-            <p className="eyebrow">Added to basket</p>
-            <h3>{addedMessage}</h3>
-          </div>
-        </section>
-      ) : null}
+      {floatingBasketPortal}
 
       {!deliveryPostcodeBootstrapDone ? (
         <section className="menu-category-filter-panel" aria-live="polite">
@@ -749,6 +748,21 @@ export function StoreMenuClient({
         </section>
         );
       })}
+
+      {showFloatingBasket && isClient ? (
+        <div className="basket-viewport-spacer" style={{ height: basketBarHeight }} aria-hidden />
+      ) : null}
+
+      {!isClient && showFloatingBasket ? renderFloatingBasket() : null}
+
+      {!isClient && addedMessage && !activeItem ? (
+        <section className="basket-banner basket-floating is-pulsing">
+          <div>
+            <p className="eyebrow">Added to basket</p>
+            <h3>{addedMessage}</h3>
+          </div>
+        </section>
+      ) : null}
 
       {isClient && activeItem && selection
         ? createPortal(

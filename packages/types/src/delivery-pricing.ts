@@ -50,14 +50,29 @@ export const HULL_AREA_OUTWARD_CENTROIDS: Record<string, { lat: number; lng: num
   HU16: { lat: 53.7851, lng: -0.3019 },
 };
 
+/**
+ * UK outward code (e.g. HU5 from "HU5 5LT"). Inward is always the last 3 characters (digit + 2 letters).
+ * The naive prefix regex wrongly treats "HU5 5LT" as HU55 because the sector digit is consumed as part of outward.
+ */
 export const parseUkOutwardCode = (postcode: string | undefined | null): string | null => {
   if (!postcode?.trim()) {
     return null;
   }
 
   const compact = postcode.trim().toUpperCase().replace(/\s+/g, "");
-  const match = compact.match(/^([A-Z]{1,2}\d[A-Z0-9]?)/);
-  return match?.[1] ?? null;
+
+  const fullPostcode = compact.match(/^([A-Z]{1,2}\d[A-Z\d]?)(\d[A-Z]{2})$/);
+  if (fullPostcode?.[1]) {
+    return fullPostcode[1];
+  }
+
+  const outwardOnly = compact.match(/^([A-Z]{1,2}\d[A-Z\d]?)$/);
+  if (outwardOnly?.[1]) {
+    return outwardOnly[1];
+  }
+
+  const partial = compact.match(/^([A-Z]{1,2}\d)/);
+  return partial?.[1] ?? null;
 };
 
 const toRad = (deg: number) => (deg * Math.PI) / 180;
@@ -141,7 +156,15 @@ export const computeDeliveryQuote = (args: {
   const pricing = args.pricing ? normaliseDeliveryPricing(args.pricing) : null;
   const legacy = args.legacyDeliveryFee ?? 0;
   const tiersConfigured = Boolean(pricing && hasAnyMileFee(pricing.mileFees));
-  const districts = pricing?.postcodeDistricts?.map((code) => code.trim().toUpperCase()).filter(Boolean) ?? [];
+  const districtsRaw = pricing?.postcodeDistricts?.map((code) => code.trim().toUpperCase()).filter(Boolean) ?? [];
+  const knownHull = Object.keys(HULL_AREA_OUTWARD_CENTROIDS);
+  /** All Hull districts ticked = same as none ticked (deliver anywhere within radius we can estimate). */
+  const districts =
+    districtsRaw.length > 0 &&
+    districtsRaw.length >= knownHull.length &&
+    knownHull.every((code) => districtsRaw.includes(code))
+      ? []
+      : districtsRaw;
 
   const customerOutward = parseUkOutwardCode(args.customerPostcode ?? "");
   if (!customerOutward) {
@@ -166,7 +189,7 @@ export const computeDeliveryQuote = (args: {
       needsPostcode: false,
       isDefaultPricing: false,
       blocked: true,
-      reason: DELIVERY_NOT_AVAILABLE_TO_POSTCODE_MESSAGE,
+      reason: `We do not deliver to the ${customerOutward} area. Try a Hull (HU) postcode or ask the business to add your area in their hub settings.`,
     };
   }
 
@@ -203,7 +226,10 @@ export const computeDeliveryQuote = (args: {
       needsPostcode: false,
       isDefaultPricing: false,
       blocked: true,
-      reason: DELIVERY_NOT_AVAILABLE_TO_POSTCODE_MESSAGE,
+      reason:
+        customerOutward && knownHull.includes(customerOutward)
+          ? DELIVERY_NOT_AVAILABLE_TO_POSTCODE_MESSAGE
+          : `We only estimate delivery for Hull (HU1–HU16) postcodes right now. Check the postcode or choose collection.`,
     };
   }
 
@@ -214,7 +240,7 @@ export const computeDeliveryQuote = (args: {
       needsPostcode: false,
       isDefaultPricing: false,
       blocked: true,
-      reason: DELIVERY_NOT_AVAILABLE_TO_POSTCODE_MESSAGE,
+      reason: `This address is about ${miles.toFixed(1)} miles away; delivery is limited to ${cfg.radiusMiles} miles from the shop. Increase max radius in hub settings or choose collection.`,
     };
   }
 

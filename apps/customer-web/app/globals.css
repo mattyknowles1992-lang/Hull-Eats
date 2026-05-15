@@ -39,6 +39,8 @@ html {
   color: var(--ink);
   overflow-x: clip;
   max-width: 100%;
+  /* Keeps layout centred when a vertical scrollbar appears (avoids content drifting left on narrow viewports). */
+  scrollbar-gutter: stable;
 }
 
 body {
@@ -3414,10 +3416,17 @@ button.filter-pill {
 }
 
 @media (max-width: 767px) {
-  /* Single horizontal inset on mobile avoids grid looking shifted when nested margins + max-width interact with narrow viewports. */
+  /*
+   * Menu panel: no extra horizontal padding here — .shell already provides the page gutter.
+   * That keeps the category grid the same width as the hero and avoids a “shifted left” look on phones.
+   */
   .feature-panel.feature-panel-menu {
-    padding-left: max(16px, env(safe-area-inset-left, 0px));
-    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-left: 0;
+    padding-right: 0;
+    width: 100%;
+    max-width: 100%;
+    margin-inline: 0;
+    box-sizing: border-box;
   }
 
   .feature-panel.feature-panel-menu > .section-heading {
@@ -3435,10 +3444,13 @@ button.filter-pill {
   }
 
   .menu-item-card-visual .menu-item-content-panel {
-    width: auto;
-    max-width: none;
-    margin-left: 12px;
-    margin-right: 12px;
+    width: min(100%, calc(100% - 24px));
+    max-width: calc(100% - 24px);
+    margin-top: -28px;
+    margin-bottom: 12px;
+    margin-left: auto;
+    margin-right: auto;
+    box-sizing: border-box;
   }
 }
 
@@ -3850,24 +3862,27 @@ button.filter-pill {
 
 .basket-floating {
   position: sticky;
-  top: 12px;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  top: auto;
   z-index: 30;
   border-color: rgba(7, 155, 200, 0.38);
   box-shadow:
-    0 20px 38px rgba(15, 17, 21, 0.14),
+    0 -12px 32px rgba(15, 17, 21, 0.12),
     0 10px 24px rgba(7, 155, 200, 0.16);
   backdrop-filter: blur(18px);
 }
 
-/* Portaled basket: body overflow-x breaks sticky; fixed bar stays visible while scrolling. */
+/* Portaled basket: fixed to bottom so menu scrolls above it. */
 .basket-floating-viewport {
   position: fixed;
-  top: max(12px, env(safe-area-inset-top));
+  bottom: max(12px, env(safe-area-inset-bottom));
+  top: auto;
   left: 0;
   right: 0;
   z-index: 80;
   display: flex;
   justify-content: center;
+  align-items: flex-end;
   padding: 0 16px;
   pointer-events: none;
 }
@@ -4006,9 +4021,39 @@ button.filter-pill {
   line-height: 1.35;
 }
 
+.basket-floating-delivery-warn--compact {
+  padding: 0 2px;
+}
+
+.basket-floating:not(.is-expanded) .basket-floating-inner {
+  gap: 10px;
+}
+
+.basket-floating.is-expanded {
+  max-height: min(72vh, 640px);
+}
+
+.basket-floating.is-expanded .basket-floating-inner {
+  max-height: min(72vh, 640px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.basket-floating.is-expanded .basket-floating-lines {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 .basket-floating-cta {
   display: grid;
   gap: 10px;
+}
+
+@media (min-width: 520px) {
+  .basket-floating:not(.is-expanded) .basket-floating-cta {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 .basket-floating-toggle {
@@ -4117,7 +4162,7 @@ button.filter-pill {
 .customise-modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 70;
+  z-index: 100;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -4960,6 +5005,13 @@ button.filter-pill {
 }
 
 @media (max-width: 767px) {
+  .shell {
+    padding-top: 20px;
+    padding-bottom: 116px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
+    padding-right: max(16px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
+  }
+
   .topbar,
   .marketing-nav {
     flex-direction: column;
@@ -5090,6 +5142,10 @@ button.filter-pill {
     flex-direction: column;
     align-items: stretch;
     justify-content: flex-end;
+  }
+
+  .menu-category-visual .menu-category-toggle.menu-category-count {
+    align-self: center;
   }
 
   .menu-category-count {

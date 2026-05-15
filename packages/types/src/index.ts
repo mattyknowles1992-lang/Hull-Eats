@@ -4,6 +4,7 @@ export * from "./delivery-pricing";
 export * from "./customers";
 export * from "./events";
 export * from "./hubs";
+export * from "./hub-menu-presets";
 export * from "./merchant-drivers";
 export * from "./marketplace-resale";
 export * from "./orders";

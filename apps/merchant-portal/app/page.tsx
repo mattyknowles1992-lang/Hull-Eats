@@ -1,12 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { HubMenuSection, HubSettings, HubUser, MerchantWorkspace, MenuItem, OrderSummary } from "@hull-eats/types";
-import { listKnownHullOutwardCodes } from "@hull-eats/types";
+import { HUB_MENU_CATEGORY_CUSTOM_ID, hubMenuCategorySelectOptions, isHubMenuSectionPizza, listKnownHullOutwardCodes } from "@hull-eats/types";
 
 import { HubDriversWorkbench } from "./hub-drivers-workbench";
 import { HubOffersWorkbench } from "./hub-offers-workbench";
+import { PizzaSizeDraftPanel, buildPizzaSizeOptionGroupFromRows, createInitialPizzaSizeRows } from "./pizza-size-draft";
+import type { PizzaSizeRow } from "./pizza-size-draft";
+
+const HUB_CATEGORY_PRESET_OPTIONS = hubMenuCategorySelectOptions();
 
 type HubRole = "owner" | "manager" | "staff";
 type StockStatus = "in_stock" | "low_stock" | "out_of_stock";
@@ -39,6 +43,7 @@ type MerchantLoginResponse = {
 };
 
 type CreateCategoryFormState = {
+  presetId: string;
   name: string;
   description: string;
   defaultPrice: string;
@@ -130,6 +135,7 @@ const initialPasswordFormState: PasswordFormState = {
 };
 
 const initialCreateCategoryState: CreateCategoryFormState = {
+  presetId: HUB_MENU_CATEGORY_CUSTOM_ID,
   name: "",
   description: "",
   defaultPrice: "",
@@ -167,6 +173,24 @@ const emptyHubSettings: HubSettings = {
 
 const moneyInput = (value: number) => value.toFixed(2);
 const formatMoney = (value: number) => `£${value.toFixed(2)}`;
+
+type HubWorkspaceSnapshot = {
+  settings: HubSettings;
+  menuSections: HubMenuSection[];
+};
+
+const cloneHubSettings = (settings: HubSettings): HubSettings => ({
+  ...settings,
+  deliveryPostcodeDistricts: [...settings.deliveryPostcodeDistricts],
+  deliveryMileFees: [...settings.deliveryMileFees] as HubSettings["deliveryMileFees"],
+});
+
+const cloneMenuSections = (sections: HubMenuSection[]): HubMenuSection[] =>
+  JSON.parse(JSON.stringify(sections)) as HubMenuSection[];
+
+const hubWorkspaceSnapshotsEqual = (left: HubWorkspaceSnapshot, right: HubWorkspaceSnapshot) =>
+  JSON.stringify(left.settings) === JSON.stringify(right.settings) &&
+  JSON.stringify(left.menuSections) === JSON.stringify(right.menuSections);
 
 const hullTrackingBounds = {
   minLatitude: 53.70,
@@ -505,6 +529,7 @@ async function deleteBusinessUser(token: string, hubId: string, userId: string) 
 }
 
 async function createMenuCategory(token: string, hubId: string, input: CreateCategoryFormState): Promise<HubMenuSection> {
+  const presetKey = input.presetId && input.presetId !== HUB_MENU_CATEGORY_CUSTOM_ID ? input.presetId : undefined;
   const response = await fetch(`${apiBaseUrl}/v1/merchant/hubs/${hubId}/menu-sections`, {
     method: "POST",
     headers: {
@@ -515,6 +540,7 @@ async function createMenuCategory(token: string, hubId: string, input: CreateCat
       name: input.name,
       description: input.description,
       defaultPrice: input.defaultPrice.trim() ? Number(input.defaultPrice) : null,
+      presetKey,
     }),
   });
 
@@ -1057,11 +1083,13 @@ export default function MerchantPortalPage() {
   const [passwordForm, setPasswordForm] = useState<PasswordFormState>(initialPasswordFormState);
   const [newCategory, setNewCategory] = useState<CreateCategoryFormState>(initialCreateCategoryState);
   const [newItem, setNewItem] = useState<CreateItemFormState>(initialCreateItemState);
+  const [pizzaSizeRows, setPizzaSizeRows] = useState<PizzaSizeRow[]>(() => createInitialPizzaSizeRows());
   const [selectedImportCandidateIds, setSelectedImportCandidateIds] = useState<string[]>([]);
   const [selectedImportImageName, setSelectedImportImageName] = useState("");
   const [pastedMenuText, setPastedMenuText] = useState("");
   const [loginError, setLoginError] = useState("");
   const [saveNotice, setSaveNotice] = useState("");
+  const [savedHubSnapshot, setSavedHubSnapshot] = useState<HubWorkspaceSnapshot | null>(null);
   const [userNotice, setUserNotice] = useState("");
   const [menuNotice, setMenuNotice] = useState("");
   const [passwordNotice, setPasswordNotice] = useState("");
@@ -1115,6 +1143,16 @@ export default function MerchantPortalPage() {
     [selectedCategory, selectedItemId],
   );
 
+  const newItemTargetSection = useMemo(
+    () => menuSections.find((section) => section.id === newItem.sectionId) ?? null,
+    [menuSections, newItem.sectionId],
+  );
+  const newItemSectionIsPizza = isHubMenuSectionPizza(newItemTargetSection);
+
+  useEffect(() => {
+    setPizzaSizeRows(createInitialPizzaSizeRows());
+  }, [newItem.sectionId]);
+
   const openHubSection = (section: HubSection) => {
     setActiveHubSection(section);
 
@@ -1166,6 +1204,48 @@ export default function MerchantPortalPage() {
     }
   }, [menuSections, selectedCategoryId, selectedItemId]);
 
+  const commitSavedHubSnapshot = useCallback((settings: HubSettings, sections: HubMenuSection[]) => {
+    setSavedHubSnapshot({
+      settings: cloneHubSettings(settings),
+      menuSections: cloneMenuSections(sections),
+    });
+  }, []);
+
+  const syncSavedMenuSnapshot = useCallback((sections: HubMenuSection[]) => {
+    setSavedHubSnapshot((current) =>
+      current
+        ? {
+            ...current,
+            menuSections: cloneMenuSections(sections),
+          }
+        : null,
+    );
+  }, []);
+
+  const hasUnsavedHubChanges = useMemo(() => {
+    if (!savedHubSnapshot || !merchantToken) {
+      return false;
+    }
+
+    return !hubWorkspaceSnapshotsEqual(
+      { settings: hubSettings, menuSections },
+      savedHubSnapshot,
+    );
+  }, [hubSettings, menuSections, merchantToken, savedHubSnapshot]);
+
+  useEffect(() => {
+    if (!hasUnsavedHubChanges) {
+      return;
+    }
+
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+    };
+
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [hasUnsavedHubChanges]);
+
   const updateMenuSections = (updater: (current: HubMenuSection[]) => HubMenuSection[]) => {
     setMenuSections((current) => updater(current));
     setSaveNotice("");
@@ -1185,6 +1265,7 @@ export default function MerchantPortalPage() {
       ...current,
       sectionId: workspace.menuSections[0]?.id ?? "",
     }));
+    commitSavedHubSnapshot(workspace.settings, workspace.menuSections);
   };
 
   const loadMerchantOrders = async (token = merchantToken, options: { silent?: boolean } = {}) => {
@@ -1419,6 +1500,7 @@ export default function MerchantPortalPage() {
     setSelectedCategoryId("");
     setSelectedItemId("");
     setPasswordForm(initialPasswordFormState);
+    setSavedHubSnapshot(null);
     setSaveNotice("");
     setUserNotice("");
     setMenuNotice("");
@@ -1528,6 +1610,7 @@ export default function MerchantPortalPage() {
       setMenuSections(workspace.menuSections);
       setHubUsers(workspace.users);
       setPendingImports(workspace.pendingImports ?? []);
+      commitSavedHubSnapshot(workspace.settings, workspace.menuSections);
       setSaveNotice(`Saved ${workspace.hub.businessName} hub changes.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Hub save failed.";
@@ -1589,6 +1672,16 @@ export default function MerchantPortalPage() {
     }
   };
 
+  const handleNewCategoryPresetChange = (presetId: string) => {
+    const opt = HUB_CATEGORY_PRESET_OPTIONS.find((o) => o.id === presetId);
+    setNewCategory((cur) => ({
+      ...cur,
+      presetId,
+      name: presetId === HUB_MENU_CATEGORY_CUSTOM_ID ? cur.name : opt?.defaultName ?? "",
+      description: presetId === HUB_MENU_CATEGORY_CUSTOM_ID ? cur.description : opt?.defaultDescription ?? "",
+    }));
+  };
+
   const handleCreateCategory = async () => {
     if (!merchantToken || !activeHubId) {
       return;
@@ -1601,12 +1694,15 @@ export default function MerchantPortalPage() {
 
     try {
       const createdCategory = await createMenuCategory(merchantToken, activeHubId, {
+        presetId: newCategory.presetId,
         name: newCategory.name.trim(),
         description: newCategory.description.trim(),
         defaultPrice: newCategory.defaultPrice.trim(),
       });
 
-      setMenuSections((current) => [...current, createdCategory]);
+      const nextMenuSections = [...menuSections, createdCategory];
+      setMenuSections(nextMenuSections);
+      syncSavedMenuSnapshot(nextMenuSections);
       setSelectedCategoryId(createdCategory.id);
       setSelectedItemId("");
       setNewCategory(initialCreateCategoryState);
@@ -1628,7 +1724,9 @@ export default function MerchantPortalPage() {
 
     try {
       await deleteMenuCategory(merchantToken, activeHubId, sectionId);
-      setMenuSections((current) => current.filter((section) => section.id !== sectionId));
+      const nextMenuSections = menuSections.filter((section) => section.id !== sectionId);
+      setMenuSections(nextMenuSections);
+      syncSavedMenuSnapshot(nextMenuSections);
       setMenuNotice(`${sectionName} removed.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Menu category delete failed.";
@@ -1642,22 +1740,43 @@ export default function MerchantPortalPage() {
     }
 
     const targetSection = menuSections.find((section) => section.id === newItem.sectionId);
-    const effectivePrice = newItem.price.trim() ? Number(newItem.price) : targetSection?.defaultPrice;
+    const isPizza = isHubMenuSectionPizza(targetSection);
 
-    if (!newItem.sectionId || !newItem.name.trim() || effectivePrice === null || effectivePrice === undefined || Number.isNaN(effectivePrice)) {
-      setMenuNotice("Choose a category, item name, and item price or category default price before creating the item.");
+    if (!newItem.sectionId || !newItem.name.trim()) {
+      setMenuNotice("Choose a category and item name before creating the item.");
       return;
+    }
+
+    let price: number;
+    let optionGroups: MenuItem["optionGroups"];
+
+    if (isPizza) {
+      const built = buildPizzaSizeOptionGroupFromRows(pizzaSizeRows);
+      if ("error" in built) {
+        setMenuNotice(built.error);
+        return;
+      }
+      price = built.basePrice;
+      optionGroups = built.optionGroups;
+    } else {
+      const effectivePrice = newItem.price.trim() ? Number(newItem.price) : targetSection?.defaultPrice;
+      if (effectivePrice === null || effectivePrice === undefined || Number.isNaN(effectivePrice)) {
+        setMenuNotice("Enter an item price or set a category default price before creating the item.");
+        return;
+      }
+      price = effectivePrice;
+      optionGroups = [];
     }
 
     try {
       const createdItem = await createMenuItem(merchantToken, activeHubId, newItem.sectionId, {
         name: newItem.name.trim(),
         description: newItem.description.trim(),
-        price: effectivePrice,
+        price,
         imageUrl: newItem.imageUrl.trim() || undefined,
         requiresIdVerification: newItem.requiresIdVerification,
         components: [],
-        optionGroups: [],
+        optionGroups,
       });
 
       setMenuSections((current) =>
@@ -1671,6 +1790,7 @@ export default function MerchantPortalPage() {
         ...initialCreateItemState,
         sectionId: current.sectionId,
       }));
+      setPizzaSizeRows(createInitialPizzaSizeRows());
       setMenuNotice(`Created ${createdItem.name}. Build its ingredients and options below.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Menu item create failed.";
@@ -1725,12 +1845,12 @@ export default function MerchantPortalPage() {
 
     try {
       await deleteMenuItem(merchantToken, activeHubId, itemId);
-      setMenuSections((current) =>
-        current.map((section) => ({
-          ...section,
-          items: section.items.filter((item) => item.id !== itemId),
-        })),
-      );
+      const nextMenuSections = menuSections.map((section) => ({
+        ...section,
+        items: section.items.filter((item) => item.id !== itemId),
+      }));
+      setMenuSections(nextMenuSections);
+      syncSavedMenuSnapshot(nextMenuSections);
       setMenuNotice(`${itemName} removed.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Menu item delete failed.";
@@ -1782,6 +1902,7 @@ export default function MerchantPortalPage() {
     try {
       const workspace = await applyMenuImport(merchantToken, activeHubId, importId, selectedImportCandidateIds);
       setMenuSections(workspace.menuSections);
+      syncSavedMenuSnapshot(workspace.menuSections);
       setPendingImports(workspace.pendingImports ?? []);
       setSelectedImportCandidateIds([]);
       setMenuNotice("Accepted import candidates were added into the live menu builder.");
@@ -1828,6 +1949,10 @@ export default function MerchantPortalPage() {
       </main>
     );
   }
+
+  const saveHubButtonStyle = hasUnsavedHubChanges
+    ? { ...primaryButton, ...saveHubButtonDirtyStyle }
+    : primaryButton;
 
   return (
     <main style={hubAppShell}>
@@ -1921,8 +2046,8 @@ export default function MerchantPortalPage() {
           <div style={{ display: "grid", gap: 12, justifyItems: "start" }}>
             {activeUser ? <span style={activeUserChip}>{activeUser.fullName} / {activeUser.role}</span> : null}
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <button type="button" style={primaryButton} onClick={handleSaveHub}>
-                Save hub changes
+              <button type="button" style={saveHubButtonStyle} onClick={handleSaveHub}>
+                {hasUnsavedHubChanges ? "Save hub changes *" : "Save hub changes"}
               </button>
               {activeHubSlug ? (
                 <>
@@ -1940,6 +2065,21 @@ export default function MerchantPortalPage() {
             </div>
           </div>
         </header>
+
+        {hasUnsavedHubChanges ? (
+          <div style={unsavedHubBanner} role="status" aria-live="polite">
+            <div style={unsavedHubBannerCopy}>
+              <strong>Unsaved changes</strong>
+              <p style={unsavedHubBannerCopyParagraph}>
+                Delivery, business, and menu edits are not live for customers until you save. Use{" "}
+                <strong>Save hub changes</strong> (or <strong>Publish changes</strong> on the menu screen).
+              </p>
+            </div>
+            <button type="button" style={saveHubButtonStyle} onClick={handleSaveHub}>
+              Save now
+            </button>
+          </div>
+        ) : null}
 
         {saveNotice ? <p style={successMessageStyle}>{saveNotice}</p> : null}
         {menuNotice ? <p style={successMessageStyle}>{menuNotice}</p> : null}
@@ -2157,8 +2297,8 @@ export default function MerchantPortalPage() {
                   <button type="button" style={secondaryButton} onClick={() => setActiveHubPanel("import")}>
                     Paste menu
                   </button>
-                  <button type="button" style={primaryButton} onClick={handleSaveHub}>
-                    Publish changes
+                  <button type="button" style={saveHubButtonStyle} onClick={handleSaveHub}>
+                    {hasUnsavedHubChanges ? "Publish changes *" : "Publish changes"}
                   </button>
                 </div>
               </div>
@@ -2190,24 +2330,37 @@ export default function MerchantPortalPage() {
                   </div>
                 </div>
 
-                <div style={compactCreateBox}>
-                  <input
-                    style={compactInput}
-                    value={newCategory.name}
-                    onChange={(event) => setNewCategory((current) => ({ ...current, name: event.target.value }))}
-                    placeholder="Create category or path, e.g. Drinks / Fizzy"
-                  />
-                  <input
-                    type="number"
-                    step="0.01"
-                    style={{ ...compactInput, maxWidth: 140 }}
-                    value={newCategory.defaultPrice}
-                    onChange={(event) => setNewCategory((current) => ({ ...current, defaultPrice: event.target.value }))}
-                    placeholder="Default £"
-                  />
-                  <button type="button" style={primaryButton} onClick={handleCreateCategory}>
-                    Add category
-                  </button>
+                <div style={{ display: "grid", gap: 8, width: "100%" }}>
+                  <select
+                    style={{ ...lightInput, width: "100%" }}
+                    value={newCategory.presetId}
+                    onChange={(event) => handleNewCategoryPresetChange(event.target.value)}
+                  >
+                    {HUB_CATEGORY_PRESET_OPTIONS.map((opt) => (
+                      <option key={opt.id} value={opt.id}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                  <div style={compactCreateBox}>
+                    <input
+                      style={compactInput}
+                      value={newCategory.name}
+                      onChange={(event) => setNewCategory((current) => ({ ...current, name: event.target.value }))}
+                      placeholder="Create category or path, e.g. Drinks / Fizzy"
+                    />
+                    <input
+                      type="number"
+                      step="0.01"
+                      style={{ ...compactInput, maxWidth: 140 }}
+                      value={newCategory.defaultPrice}
+                      onChange={(event) => setNewCategory((current) => ({ ...current, defaultPrice: event.target.value }))}
+                      placeholder="Default £"
+                    />
+                    <button type="button" style={primaryButton} onClick={handleCreateCategory}>
+                      Add category
+                    </button>
+                  </div>
                 </div>
 
                 <div style={categoryAccordionList}>
@@ -2273,24 +2426,31 @@ export default function MerchantPortalPage() {
                           </button>
                         </div>
 
-                        <div style={compactCreateBox}>
-                          <input
-                            style={compactInput}
-                            value={newItem.sectionId === section.id ? newItem.name : ""}
-                            onChange={(event) => setNewItem((current) => ({ ...current, name: event.target.value, sectionId: section.id }))}
-                            placeholder="New item name"
-                          />
-                          <input
-                            type="number"
-                            step="0.01"
-                            style={{ ...compactInput, maxWidth: 120 }}
-                            value={newItem.sectionId === section.id ? newItem.price : ""}
-                            onChange={(event) => setNewItem((current) => ({ ...current, price: event.target.value, sectionId: section.id }))}
-                            placeholder={section.defaultPrice ? `Uses £${section.defaultPrice.toFixed(2)}` : "Price"}
-                          />
-                          <button type="button" style={primaryButton} onClick={handleCreateItem}>
-                            Add item
-                          </button>
+                        <div style={{ display: "grid", gap: 8, width: "100%" }}>
+                          <div style={compactCreateBox}>
+                            <input
+                              style={compactInput}
+                              value={newItem.sectionId === section.id ? newItem.name : ""}
+                              onChange={(event) => setNewItem((current) => ({ ...current, name: event.target.value, sectionId: section.id }))}
+                              placeholder="New item name"
+                            />
+                            {!(isHubMenuSectionPizza(section) && newItem.sectionId === section.id) ? (
+                              <input
+                                type="number"
+                                step="0.01"
+                                style={{ ...compactInput, maxWidth: 120 }}
+                                value={newItem.sectionId === section.id ? newItem.price : ""}
+                                onChange={(event) => setNewItem((current) => ({ ...current, price: event.target.value, sectionId: section.id }))}
+                                placeholder={section.defaultPrice ? `Uses £${section.defaultPrice.toFixed(2)}` : "Price"}
+                              />
+                            ) : null}
+                            <button type="button" style={primaryButton} onClick={handleCreateItem}>
+                              Add item
+                            </button>
+                          </div>
+                          {isHubMenuSectionPizza(section) && newItem.sectionId === section.id ? (
+                            <PizzaSizeDraftPanel rows={pizzaSizeRows} onChange={setPizzaSizeRows} />
+                          ) : null}
                         </div>
 
                         <div style={compactList}>
@@ -2803,8 +2963,8 @@ export default function MerchantPortalPage() {
                 <button type="button" onClick={handlePreviewPastedMenu} style={primaryButton}>
                   Preview pasted menu
                 </button>
-                <button type="button" style={secondaryButton} onClick={handleSaveHub}>
-                  Save menu changes
+                <button type="button" style={saveHubButtonStyle} onClick={handleSaveHub}>
+                  {hasUnsavedHubChanges ? "Save menu changes *" : "Save menu changes"}
                 </button>
                 <div style={emptyStateCard}>
                   Tip: paste the menu in sections with category names on their own line. You can untick anything before
@@ -2866,82 +3026,109 @@ export default function MerchantPortalPage() {
               <p style={panelCopyDark}>For small edits, create a category or item without touching the advanced builder.</p>
             </div>
 
-            <div style={quickAddGrid}>
-              <div style={quickAddCard}>
-                <h3 style={quickAddTitle}>Category</h3>
-                <label style={field}>
-                  <span style={darkFieldLabel}>Name</span>
-                  <input
-                    style={lightInput}
-                    value={newCategory.name}
-                    onChange={(event) => setNewCategory((current) => ({ ...current, name: event.target.value }))}
-                    placeholder="Loaded Fries"
-                  />
-                </label>
-                <button type="button" style={primaryButton} onClick={handleCreateCategory}>
-                  Add category
-                </button>
-              </div>
+              <div style={quickAddGrid}>
+                <div style={quickAddCard}>
+                  <h3 style={quickAddTitle}>Category</h3>
+                  <label style={field}>
+                    <span style={darkFieldLabel}>Category type</span>
+                    <select
+                      style={lightInput}
+                      value={newCategory.presetId}
+                      onChange={(event) => handleNewCategoryPresetChange(event.target.value)}
+                    >
+                      {HUB_CATEGORY_PRESET_OPTIONS.map((opt) => (
+                        <option key={opt.id} value={opt.id}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label style={field}>
+                    <span style={darkFieldLabel}>Name</span>
+                    <input
+                      style={lightInput}
+                      value={newCategory.name}
+                      onChange={(event) => setNewCategory((current) => ({ ...current, name: event.target.value }))}
+                      placeholder="Loaded Fries"
+                    />
+                  </label>
+                  <label style={field}>
+                    <span style={darkFieldLabel}>Note (optional)</span>
+                    <input
+                      style={lightInput}
+                      value={newCategory.description}
+                      onChange={(event) => setNewCategory((current) => ({ ...current, description: event.target.value }))}
+                      placeholder="Shown to staff in the hub"
+                    />
+                  </label>
+                  <button type="button" style={primaryButton} onClick={handleCreateCategory}>
+                    Add category
+                  </button>
+                </div>
 
-              <div style={quickAddCard}>
-                <h3 style={quickAddTitle}>Menu item</h3>
-                <label style={field}>
-                  <span style={darkFieldLabel}>Category</span>
-                  <select
-                    style={lightInput}
-                    value={newItem.sectionId}
-                    onChange={(event) => setNewItem((current) => ({ ...current, sectionId: event.target.value }))}
-                  >
-                    <option value="">Choose category</option>
-                    {menuSections.map((section) => (
-                      <option key={section.id} value={section.id}>
-                        {section.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label style={field}>
-                  <span style={darkFieldLabel}>Item name</span>
-                  <input
-                    style={lightInput}
-                    value={newItem.name}
-                    onChange={(event) => setNewItem((current) => ({ ...current, name: event.target.value }))}
-                    placeholder="Classic Smash Burger"
-                  />
-                </label>
-                <label style={field}>
-                  <span style={darkFieldLabel}>Price</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    style={lightInput}
-                    value={newItem.price}
-                    onChange={(event) => setNewItem((current) => ({ ...current, price: event.target.value }))}
-                    placeholder="7.99"
-                  />
-                </label>
-                <label style={field}>
-                  <span style={darkFieldLabel}>Product image URL</span>
-                  <input
-                    style={lightInput}
-                    value={newItem.imageUrl}
-                    onChange={(event) => setNewItem((current) => ({ ...current, imageUrl: event.target.value }))}
-                    placeholder="https://..."
-                  />
-                </label>
-                <label style={toggleLabel}>
-                  <input
-                    type="checkbox"
-                    checked={newItem.requiresIdVerification}
-                    onChange={(event) => setNewItem((current) => ({ ...current, requiresIdVerification: event.target.checked }))}
-                  />
-                  <span>Verify with ID at delivery (age-restricted)</span>
-                </label>
-                <button type="button" style={primaryButton} onClick={handleCreateItem}>
-                  Add item
-                </button>
+                <div style={quickAddCard}>
+                  <h3 style={quickAddTitle}>Menu item</h3>
+                  <label style={field}>
+                    <span style={darkFieldLabel}>Category</span>
+                    <select
+                      style={lightInput}
+                      value={newItem.sectionId}
+                      onChange={(event) => setNewItem((current) => ({ ...current, sectionId: event.target.value }))}
+                    >
+                      <option value="">Choose category</option>
+                      {menuSections.map((section) => (
+                        <option key={section.id} value={section.id}>
+                          {section.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label style={field}>
+                    <span style={darkFieldLabel}>Item name</span>
+                    <input
+                      style={lightInput}
+                      value={newItem.name}
+                      onChange={(event) => setNewItem((current) => ({ ...current, name: event.target.value }))}
+                      placeholder="Classic Smash Burger"
+                    />
+                  </label>
+                  {newItemSectionIsPizza ? (
+                    <PizzaSizeDraftPanel rows={pizzaSizeRows} onChange={setPizzaSizeRows} />
+                  ) : (
+                    <label style={field}>
+                      <span style={darkFieldLabel}>Price</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        style={lightInput}
+                        value={newItem.price}
+                        onChange={(event) => setNewItem((current) => ({ ...current, price: event.target.value }))}
+                        placeholder="7.99"
+                      />
+                    </label>
+                  )}
+                  <label style={field}>
+                    <span style={darkFieldLabel}>Product image URL</span>
+                    <input
+                      style={lightInput}
+                      value={newItem.imageUrl}
+                      onChange={(event) => setNewItem((current) => ({ ...current, imageUrl: event.target.value }))}
+                      placeholder="https://..."
+                    />
+                  </label>
+                  <label style={toggleLabel}>
+                    <input
+                      type="checkbox"
+                      checked={newItem.requiresIdVerification}
+                      onChange={(event) => setNewItem((current) => ({ ...current, requiresIdVerification: event.target.checked }))}
+                    />
+                    <span>Verify with ID at delivery (age-restricted)</span>
+                  </label>
+                  <button type="button" style={primaryButton} onClick={handleCreateItem}>
+                    Add item
+                  </button>
+                </div>
               </div>
-            </div>
           </article>
 
           <article style={fastStartCard}>
@@ -3221,6 +3408,20 @@ export default function MerchantPortalPage() {
                 <div style={quickAddCard}>
                   <h3 style={quickAddTitle}>New category</h3>
                   <label style={field}>
+                    <span style={darkFieldLabel}>Category type</span>
+                    <select
+                      style={lightInput}
+                      value={newCategory.presetId}
+                      onChange={(event) => handleNewCategoryPresetChange(event.target.value)}
+                    >
+                      {HUB_CATEGORY_PRESET_OPTIONS.map((opt) => (
+                        <option key={opt.id} value={opt.id}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label style={field}>
                     <span style={darkFieldLabel}>Category name</span>
                     <input
                       style={lightInput}
@@ -3269,17 +3470,21 @@ export default function MerchantPortalPage() {
                       placeholder="The Piggy Cow"
                     />
                   </label>
-                  <label style={field}>
-                    <span style={darkFieldLabel}>Price</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      style={lightInput}
-                      value={newItem.price}
-                      onChange={(event) => setNewItem((current) => ({ ...current, price: event.target.value }))}
-                      placeholder="14.99"
-                    />
-                  </label>
+                  {newItemSectionIsPizza ? (
+                    <PizzaSizeDraftPanel rows={pizzaSizeRows} onChange={setPizzaSizeRows} />
+                  ) : (
+                    <label style={field}>
+                      <span style={darkFieldLabel}>Price</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        style={lightInput}
+                        value={newItem.price}
+                        onChange={(event) => setNewItem((current) => ({ ...current, price: event.target.value }))}
+                        placeholder="14.99"
+                      />
+                    </label>
+                  )}
                   <label style={field}>
                     <span style={darkFieldLabel}>Description</span>
                     <textarea
@@ -4096,6 +4301,39 @@ const successMessageStyle: React.CSSProperties = {
   color: "#0f5e3d",
   background: "rgba(23, 156, 107, 0.12)",
   border: "1px solid rgba(23, 156, 107, 0.18)",
+};
+
+const unsavedHubBanner: React.CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 14,
+  padding: "14px 16px",
+  borderRadius: 16,
+  border: "1px solid rgba(181, 88, 0, 0.45)",
+  background: "linear-gradient(180deg, rgba(255, 244, 233, 1), rgba(255, 235, 210, 0.98))",
+  boxShadow: "0 12px 28px rgba(181, 88, 0, 0.14)",
+};
+
+const unsavedHubBannerCopy: React.CSSProperties = {
+  display: "grid",
+  gap: 6,
+  minWidth: 0,
+  flex: "1 1 220px",
+};
+
+const unsavedHubBannerCopyParagraph: React.CSSProperties = {
+  margin: 0,
+  color: "#5b3d12",
+  lineHeight: 1.5,
+  fontSize: "0.9rem",
+};
+
+const saveHubButtonDirtyStyle: React.CSSProperties = {
+  boxShadow:
+    "0 0 0 3px rgba(255, 106, 0, 0.35), 0 14px 24px rgba(255, 106, 0, 0.22)",
+  animation: "hub-save-pulse 1.6s ease-in-out infinite",
 };
 
 const topHeader: React.CSSProperties = {
