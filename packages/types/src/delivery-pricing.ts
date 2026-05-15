@@ -246,7 +246,12 @@ export const computeDeliveryQuote = (args: {
   const pricing = args.pricing ? normaliseDeliveryPricing(args.pricing) : null;
   const legacy = args.legacyDeliveryFee ?? 0;
   const tiersConfigured = Boolean(pricing && hasAnyMileFee(pricing.mileFees));
-  const knownHull = listKnownHullOutwardCodes();
+  const coverageConfigured = Boolean(
+    pricing &&
+      (pricing.mode === "business_radius" ||
+        (pricing.mode === "postcode_zones" && pricing.postcodeZones.some((zone) => zone.enabled))),
+  );
+  const enforceCoverage = tiersConfigured || coverageConfigured;
 
   const customerOutward = parseUkOutwardCode(args.customerPostcode ?? "");
   if (!customerOutward) {
@@ -265,7 +270,7 @@ export const computeDeliveryQuote = (args: {
     };
   }
 
-  if (!tiersConfigured) {
+  if (!enforceCoverage) {
     const fee = legacy > 0 ? Number(legacy.toFixed(2)) : PLATFORM_DEFAULT_DELIVERY_GBP;
     return { fee, needsPostcode: false, isDefaultPricing: true, blocked: false };
   }
@@ -345,6 +350,15 @@ export const computeDeliveryQuote = (args: {
   }
 
   const milesForFee = haversineMiles(originPoint, destPoint);
-  const fee = Number(pickMileBandFee(milesForFee, cfg.mileFees).toFixed(2));
-  return { fee, needsPostcode: false, isDefaultPricing: false, blocked: false };
+  const fee = tiersConfigured
+    ? Number(pickMileBandFee(milesForFee, cfg.mileFees).toFixed(2))
+    : legacy > 0
+      ? Number(legacy.toFixed(2))
+      : PLATFORM_DEFAULT_DELIVERY_GBP;
+  return {
+    fee,
+    needsPostcode: false,
+    isDefaultPricing: !tiersConfigured,
+    blocked: false,
+  };
 };

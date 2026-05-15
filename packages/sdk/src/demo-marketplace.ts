@@ -329,7 +329,7 @@ export const loadedMunchStore: StoreSummary = {
   deliveryFee: 3.49,
   deliveryPricing: {
     mode: "business_radius",
-    radiusMiles: 6,
+    radiusMiles: 9,
     postcodeZones: [],
     postcodeDistricts: ["HU1", "HU2", "HU3", "HU4", "HU5", "HU6", "HU7", "HU8", "HU9", "HU10", "HU11", "HU12", "HU13", "HU14", "HU15", "HU16"],
     mileFees: [2.5, 3.0, 3.5, 3.99, 4.49],

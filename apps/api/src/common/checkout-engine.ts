@@ -3,7 +3,7 @@ import { BadRequestException, NotFoundException } from "@nestjs/common";
 import type { CheckoutSession, CreateCheckoutSessionInput, OrderPaymentMethod, OrderSummary } from "@hull-eats/types";
 import { checkoutSessionSchema, computeDeliveryQuote, normaliseDeliveryPricing } from "@hull-eats/types";
 
-import { demoMenuByStore, demoStores } from "./demo-data";
+import { resolveMarketplaceMenuItems, resolveMarketplaceStore } from "./marketplace-catalog";
 import { persistCheckoutOrder } from "./order-repository";
 
 type SessionRecord = {
@@ -13,18 +13,12 @@ type SessionRecord = {
 
 const sessionStore = new Map<string, SessionRecord>();
 
-const resolveStore = (storeId: string) =>
-  demoStores.find((entry) => entry.id === storeId || entry.slug === storeId) ??
-  (() => {
-    throw new NotFoundException(`Store ${storeId} was not found.`);
-  })();
-
-const buildCheckoutSession = (
+const buildCheckoutSession = async (
   sessionId: string,
   input: CreateCheckoutSessionInput,
-): SessionRecord => {
-  const store = resolveStore(input.storeId);
-  const menuItems = demoMenuByStore[store.slug] ?? [];
+): Promise<SessionRecord> => {
+  const store = await resolveMarketplaceStore(input.storeId);
+  const menuItems = await resolveMarketplaceMenuItems(input.storeId);
   const menuItemLookup = new Map(menuItems.map((item) => [item.id, item]));
 
   const lineItems = input.items.map((line) => {
@@ -169,23 +163,23 @@ const buildCheckoutSession = (
   };
 };
 
-export const createStoredCheckoutSession = (input: CreateCheckoutSessionInput): CheckoutSession => {
+export const createStoredCheckoutSession = async (input: CreateCheckoutSessionInput): Promise<CheckoutSession> => {
   const sessionId = `checkout_${Date.now()}`;
-  const record = buildCheckoutSession(sessionId, input);
+  const record = await buildCheckoutSession(sessionId, input);
 
   sessionStore.set(sessionId, record);
 
   return record.checkoutSession;
 };
 
-export const refreshStoredCheckoutSession = (checkoutSessionId: string): CheckoutSession => {
+export const refreshStoredCheckoutSession = async (checkoutSessionId: string): Promise<CheckoutSession> => {
   const current = sessionStore.get(checkoutSessionId);
 
   if (!current) {
     throw new NotFoundException(`Checkout session ${checkoutSessionId} was not found.`);
   }
 
-  const refreshed = buildCheckoutSession(checkoutSessionId, current.input);
+  const refreshed = await buildCheckoutSession(checkoutSessionId, current.input);
   sessionStore.set(checkoutSessionId, refreshed);
 
   return refreshed.checkoutSession;

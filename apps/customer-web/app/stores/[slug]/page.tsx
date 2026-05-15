@@ -4,6 +4,7 @@ import { deliveryFeeFromForStorefront } from "@hull-eats/types";
 
 import { AppSwitcher } from "../../app-switcher";
 import { featuredStores, storeMenus } from "../../../src/lib/demo";
+import { fetchMarketplaceMenu, fetchMarketplaceStore } from "../../../src/lib/marketplace";
 import { BasketButton } from "./basket-button";
 import { StoreMenuClient } from "./store-menu-client";
 
@@ -12,9 +13,20 @@ const fallbackMenu = storeMenus["loaded-munch-hull"]!;
 
 export default async function StorePage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = await params;
-  const store = featuredStores.find((entry) => entry.slug === resolvedParams.slug) ?? fallbackStore;
-  const menu = storeMenus[store.slug] ?? fallbackMenu;
-  const hasLiveMenu = menu.items.length > 0;
+  const demoStore = featuredStores.find((entry) => entry.slug === resolvedParams.slug) ?? fallbackStore;
+  const liveStore = await fetchMarketplaceStore(resolvedParams.slug);
+  const store = liveStore ?? demoStore;
+
+  const liveMenu = await fetchMarketplaceMenu(resolvedParams.slug);
+  const demoMenu = storeMenus[store.slug] ?? fallbackMenu;
+  const menu = liveMenu
+    ? {
+        headline: liveMenu.onboardingMessage || demoMenu.headline,
+        categories: liveMenu.categories,
+        items: liveMenu.categories.flatMap((category) => category.items),
+      }
+    : demoMenu;
+  const hasLiveMenu = menu.categories.length > 0 && menu.items.length > 0;
 
   return (
     <main className="shell">

@@ -5,7 +5,7 @@ import { createOrderInputSchema, customerCancelOrderInputSchema, orderSummarySch
 import { createStoredCheckoutSession } from "../../common/checkout-engine";
 import { CustomerNotificationsService } from "../../common/customer-notifications.service";
 import { findTrackedOrder } from "../../common/courier-delivery-store";
-import { demoMenuByStore, demoMenuSectionsByStore, demoStores } from "../../common/demo-data";
+import { listLiveMarketplaceStores, resolveMarketplaceMenu, resolveMarketplaceStore } from "../../common/marketplace-catalog";
 import { customerCancelOrderWithinGrace } from "../../common/order-repository";
 
 @Controller("public")
@@ -13,49 +13,30 @@ export class PublicController {
   constructor(private readonly customerNotifications: CustomerNotificationsService) {}
 
   @Get("stores")
-  listStores() {
-    return demoStores;
+  async listStores() {
+    return listLiveMarketplaceStores();
   }
 
   @Get("stores/:storeId")
-  getStore(@Param("storeId") storeId: string) {
-    return demoStores.find((store) => store.id === storeId || store.slug === storeId) ?? demoStores[0];
+  async getStore(@Param("storeId") storeId: string) {
+    return resolveMarketplaceStore(storeId);
   }
 
   @Get("stores/:storeId/menu")
-  getStoreMenu(@Param("storeId") storeId: string) {
-    const store = demoStores.find((entry) => entry.id === storeId || entry.slug === storeId) ?? demoStores[0]!;
-    const key = store.slug;
-    const items = demoMenuByStore[key] ?? [];
-    const sections = demoMenuSectionsByStore[key] ?? [];
-
+  async getStoreMenu(@Param("storeId") storeId: string) {
+    const menu = await resolveMarketplaceMenu(storeId);
     return {
-      storeId: key,
-      menuSetupComplete: store.menuSetupComplete,
-      onboardingMessage: store.onboardingMessage,
-      categories:
-        sections.length > 0
-          ? sections.map((section: (typeof sections)[number]) => ({
-              id: section.id,
-              name: section.name,
-              description: section.description,
-              items: section.items,
-            }))
-          : items.length > 0
-            ? [
-                {
-                  id: "cat-primary",
-                  name: "Available now",
-                  items,
-                },
-              ]
-            : [],
+      storeId: menu.storeId,
+      menuSetupComplete: menu.menuSetupComplete,
+      onboardingMessage: menu.onboardingMessage,
+      categories: menu.categories,
     };
   }
 
   @Get("stores/:storeId/categories")
-  getStoreCategories(@Param("storeId") storeId: string) {
-    return this.getStoreMenu(storeId).categories.map((category: (ReturnType<PublicController["getStoreMenu"]>["categories"])[number]) => ({
+  async getStoreCategories(@Param("storeId") storeId: string) {
+    const menu = await resolveMarketplaceMenu(storeId);
+    return menu.categories.map((category) => ({
       id: category.id,
       name: category.name,
       itemCount: category.items.length,
@@ -63,16 +44,15 @@ export class PublicController {
   }
 
   @Get("stores/:storeId/items")
-  getStoreItems(@Param("storeId") storeId: string) {
-    const key = demoStores.find((store) => store.id === storeId || store.slug === storeId)?.slug ?? "harbour-kitchen-hull";
-
-    return demoMenuByStore[key] ?? [];
+  async getStoreItems(@Param("storeId") storeId: string) {
+    const menu = await resolveMarketplaceMenu(storeId);
+    return menu.categories.flatMap((category) => category.items);
   }
 
   @Post("orders/quote")
-  quoteOrder(@Body() body: unknown) {
+  async quoteOrder(@Body() body: unknown) {
     const input = createOrderInputSchema.parse(body);
-    const session = createStoredCheckoutSession({
+    const session = await createStoredCheckoutSession({
       storeId: input.storeId,
       source: input.source,
       fulfillmentType: input.fulfillmentType,
@@ -102,9 +82,9 @@ export class PublicController {
   }
 
   @Post("orders")
-  createOrder(@Body() body: unknown) {
+  async createOrder(@Body() body: unknown) {
     const input = createOrderInputSchema.parse(body);
-    const session = createStoredCheckoutSession({
+    const session = await createStoredCheckoutSession({
       storeId: input.storeId,
       source: input.source,
       fulfillmentType: input.fulfillmentType,

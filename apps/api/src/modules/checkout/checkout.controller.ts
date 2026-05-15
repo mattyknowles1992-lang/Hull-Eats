@@ -12,13 +12,13 @@ import {
 @Controller("checkout")
 export class CheckoutController {
   @Post("sessions")
-  createCheckoutSession(@Body() body: unknown) {
+  async createCheckoutSession(@Body() body: unknown) {
     const input = createCheckoutSessionInputSchema.parse(body);
     return createStoredCheckoutSession(input);
   }
 
   @Post("sessions/:checkoutSessionId/refresh")
-  refreshCheckoutSession(@Param("checkoutSessionId") checkoutSessionId: string) {
+  async refreshCheckoutSession(@Param("checkoutSessionId") checkoutSessionId: string) {
     return refreshStoredCheckoutSession(checkoutSessionId);
   }
 
