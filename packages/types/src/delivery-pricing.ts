@@ -6,13 +6,28 @@ export const PLATFORM_DEFAULT_DELIVERY_GBP = 3;
 /** Customer-facing copy when delivery cannot be priced for the postcode (no hub/merchant jargon). */
 export const DELIVERY_NOT_AVAILABLE_TO_POSTCODE_MESSAGE = "Delivery is not available for your postcode.";
 
+export const deliveryModeSchema = z.enum(["business_radius", "postcode_zones"]);
+export type DeliveryMode = z.infer<typeof deliveryModeSchema>;
+
+export const hullPostcodeZoneSchema = z.object({
+  code: z.string().min(2).max(8),
+  radiusMiles: z.number().min(0.1).max(40),
+  enabled: z.boolean(),
+});
+
+export type HullPostcodeZone = z.infer<typeof hullPostcodeZoneSchema>;
+
 /**
  * Optional mile-band fees: index 0 = under 1 mile, 1 = under 2 miles, … 4 = under 5 miles.
  * Stored on the store and edited in the merchant hub.
  */
 export const storeDeliveryPricingSchema = z.object({
+  mode: deliveryModeSchema.default("business_radius"),
+  /** Business-radius mode: max miles from the shop origin. */
   radiusMiles: z.number().min(1).max(40).default(5),
-  /** Outward codes only, e.g. HU1, HU2, B1. Empty = no postcode restriction (radius + miles still apply). */
+  /** Postcode-zone mode: per outward district (HU1, HU2, …) with its own radius from centroid. */
+  postcodeZones: z.array(hullPostcodeZoneSchema).default([]),
+  /** Legacy outward list; migrated into postcodeZones on read. */
   postcodeDistricts: z.array(z.string().min(2).max(8)).default([]),
   mileFees: z.array(z.number().nonnegative()).length(5).default([0, 0, 0, 0, 0]),
   /** Optional override for distance origin; otherwise the hub base postcode outward centroid is used. */
@@ -22,12 +37,87 @@ export const storeDeliveryPricingSchema = z.object({
 
 export type StoreDeliveryPricing = z.infer<typeof storeDeliveryPricingSchema>;
 
+export const milesToMeters = (miles: number) => miles * 1609.344;
+
+/** Outward codes with centroid data (Hull); used for hub district toggles and distance estimates. */
+export const listKnownHullOutwardCodes = (): readonly string[] =>
+  Object.keys(HULL_AREA_OUTWARD_CENTROIDS).sort((left, right) => left.localeCompare(right));
+
+export const createDefaultHullPostcodeZones = (): HullPostcodeZone[] =>
+  listKnownHullOutwardCodes().map((code) => ({
+    code,
+    radiusMiles: 1.5,
+    enabled: false,
+  }));
+
+export const mergeHullPostcodeZones = (saved: HullPostcodeZone[] | undefined): HullPostcodeZone[] => {
+  const byCode = new Map((saved ?? []).map((zone) => [zone.code.trim().toUpperCase(), zone]));
+
+  return listKnownHullOutwardCodes().map((code) => {
+    const existing = byCode.get(code);
+    if (!existing) {
+      return { code, radiusMiles: 1.5, enabled: false };
+    }
+
+    return {
+      code,
+      radiusMiles: Math.min(40, Math.max(0.1, existing.radiusMiles)),
+      enabled: existing.enabled,
+    };
+  });
+};
+
+export const resolveBusinessOrigin = (args: {
+  storePostcode: string;
+  originLatitude?: number | null;
+  originLongitude?: number | null;
+}): { lat: number; lng: number } | null => {
+  if (args.originLatitude != null && args.originLongitude != null) {
+    return { lat: args.originLatitude, lng: args.originLongitude };
+  }
+
+  const outward = parseUkOutwardCode(args.storePostcode);
+  if (outward && HULL_AREA_OUTWARD_CENTROIDS[outward]) {
+    return HULL_AREA_OUTWARD_CENTROIDS[outward];
+  }
+
+  return { lat: 53.767, lng: -0.367 };
+};
+
 export const normaliseDeliveryPricing = (raw: unknown): StoreDeliveryPricing => {
   const parsed = storeDeliveryPricingSchema.safeParse(raw);
-  if (!parsed.success) {
-    return storeDeliveryPricingSchema.parse({});
+  const base = parsed.success ? parsed.data : storeDeliveryPricingSchema.parse({});
+
+  const legacyDistricts = base.postcodeDistricts.map((code) => code.trim().toUpperCase()).filter(Boolean);
+  const knownHull = listKnownHullOutwardCodes();
+  const legacyIsFullHull =
+    legacyDistricts.length >= knownHull.length && knownHull.every((code) => legacyDistricts.includes(code));
+
+  let mode: DeliveryMode = base.mode;
+  let postcodeZones = mergeHullPostcodeZones(base.postcodeZones);
+
+  if (base.postcodeZones.length === 0 && legacyDistricts.length > 0 && !legacyIsFullHull) {
+    mode = "postcode_zones";
+    const legacySet = new Set(legacyDistricts);
+    postcodeZones = mergeHullPostcodeZones(
+      knownHull.map((code) => ({
+        code,
+        radiusMiles: base.radiusMiles,
+        enabled: legacySet.has(code),
+      })),
+    );
   }
-  return parsed.data;
+
+  if (base.postcodeZones.length > 0) {
+    postcodeZones = mergeHullPostcodeZones(base.postcodeZones);
+  }
+
+  return {
+    ...base,
+    mode,
+    postcodeZones,
+    radiusMiles: base.radiusMiles,
+  };
 };
 
 /** Approximate centroid per outward district for distance estimates (Hull focus). */
@@ -156,15 +246,7 @@ export const computeDeliveryQuote = (args: {
   const pricing = args.pricing ? normaliseDeliveryPricing(args.pricing) : null;
   const legacy = args.legacyDeliveryFee ?? 0;
   const tiersConfigured = Boolean(pricing && hasAnyMileFee(pricing.mileFees));
-  const districtsRaw = pricing?.postcodeDistricts?.map((code) => code.trim().toUpperCase()).filter(Boolean) ?? [];
-  const knownHull = Object.keys(HULL_AREA_OUTWARD_CENTROIDS);
-  /** All Hull districts ticked = same as none ticked (deliver anywhere within radius we can estimate). */
-  const districts =
-    districtsRaw.length > 0 &&
-    districtsRaw.length >= knownHull.length &&
-    knownHull.every((code) => districtsRaw.includes(code))
-      ? []
-      : districtsRaw;
+  const knownHull = listKnownHullOutwardCodes();
 
   const customerOutward = parseUkOutwardCode(args.customerPostcode ?? "");
   if (!customerOutward) {
@@ -183,31 +265,17 @@ export const computeDeliveryQuote = (args: {
     };
   }
 
-  if (districts.length > 0 && !districts.includes(customerOutward)) {
-    return {
-      fee: 0,
-      needsPostcode: false,
-      isDefaultPricing: false,
-      blocked: true,
-      reason: DELIVERY_NOT_AVAILABLE_TO_POSTCODE_MESSAGE,
-    };
-  }
-
   if (!tiersConfigured) {
     const fee = legacy > 0 ? Number(legacy.toFixed(2)) : PLATFORM_DEFAULT_DELIVERY_GBP;
     return { fee, needsPostcode: false, isDefaultPricing: true, blocked: false };
   }
 
   const cfg = pricing!;
-  const originLat = cfg.originLatitude ?? null;
-  const originLng = cfg.originLongitude ?? null;
-  const storeOutward = parseUkOutwardCode(args.storeBasePostcode);
-  const originPoint =
-    originLat != null && originLng != null
-      ? { lat: originLat, lng: originLng }
-      : storeOutward
-        ? HULL_AREA_OUTWARD_CENTROIDS[storeOutward] ?? null
-        : null;
+  const originPoint = resolveBusinessOrigin({
+    storePostcode: args.storeBasePostcode,
+    originLatitude: cfg.originLatitude,
+    originLongitude: cfg.originLongitude,
+  });
   const destPoint = HULL_AREA_OUTWARD_CENTROIDS[customerOutward] ?? null;
 
   if (!originPoint) {
@@ -226,28 +294,57 @@ export const computeDeliveryQuote = (args: {
       needsPostcode: false,
       isDefaultPricing: false,
       blocked: true,
-      reason:
-        customerOutward && knownHull.includes(customerOutward)
-          ? DELIVERY_NOT_AVAILABLE_TO_POSTCODE_MESSAGE
-          : `We only estimate delivery for Hull (HU1–HU16) postcodes right now. Check the postcode or choose collection.`,
-    };
-  }
-
-  const miles = haversineMiles(originPoint, destPoint);
-  if (miles > cfg.radiusMiles + 0.001) {
-    return {
-      fee: 0,
-      needsPostcode: false,
-      isDefaultPricing: false,
-      blocked: true,
       reason: DELIVERY_NOT_AVAILABLE_TO_POSTCODE_MESSAGE,
     };
   }
 
-  const fee = Number(pickMileBandFee(miles, cfg.mileFees).toFixed(2));
+  if (cfg.mode === "postcode_zones") {
+    const zone = cfg.postcodeZones.find((entry) => entry.code === customerOutward && entry.enabled);
+    if (!zone) {
+      return {
+        fee: 0,
+        needsPostcode: false,
+        isDefaultPricing: false,
+        blocked: true,
+        reason: DELIVERY_NOT_AVAILABLE_TO_POSTCODE_MESSAGE,
+      };
+    }
+
+    const zoneCenter = HULL_AREA_OUTWARD_CENTROIDS[zone.code];
+    if (!zoneCenter) {
+      return {
+        fee: 0,
+        needsPostcode: false,
+        isDefaultPricing: false,
+        blocked: true,
+        reason: DELIVERY_NOT_AVAILABLE_TO_POSTCODE_MESSAGE,
+      };
+    }
+
+    const milesFromZoneCenter = haversineMiles(zoneCenter, destPoint);
+    if (milesFromZoneCenter > zone.radiusMiles + 0.001) {
+      return {
+        fee: 0,
+        needsPostcode: false,
+        isDefaultPricing: false,
+        blocked: true,
+        reason: DELIVERY_NOT_AVAILABLE_TO_POSTCODE_MESSAGE,
+      };
+    }
+  } else {
+    const milesFromShop = haversineMiles(originPoint, destPoint);
+    if (milesFromShop > cfg.radiusMiles + 0.001) {
+      return {
+        fee: 0,
+        needsPostcode: false,
+        isDefaultPricing: false,
+        blocked: true,
+        reason: DELIVERY_NOT_AVAILABLE_TO_POSTCODE_MESSAGE,
+      };
+    }
+  }
+
+  const milesForFee = haversineMiles(originPoint, destPoint);
+  const fee = Number(pickMileBandFee(milesForFee, cfg.mileFees).toFixed(2));
   return { fee, needsPostcode: false, isDefaultPricing: false, blocked: false };
 };
-
-/** Outward codes with centroid data (Hull); used for hub district toggles and distance estimates. */
-export const listKnownHullOutwardCodes = (): readonly string[] =>
-  Object.keys(HULL_AREA_OUTWARD_CENTROIDS).sort((left, right) => left.localeCompare(right));

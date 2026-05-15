@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Fraunces, Manrope } from "next/font/google";
 import type { PropsWithChildren } from "react";
 
@@ -20,6 +20,12 @@ const bodyFont = Manrope({
 export const metadata: Metadata = {
   title: "Hull Eats",
   description: "Mobile-first ordering platform for restaurants, takeaways, and shops in Hull.",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: PropsWithChildren) {

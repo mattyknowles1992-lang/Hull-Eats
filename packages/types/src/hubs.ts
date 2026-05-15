@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { deliveryModeSchema, hullPostcodeZoneSchema } from "./delivery-pricing";
+
 import { menuItemSchema, storeTypeSchema, storefrontStatusSchema } from "./catalog";
 import { membershipRoleSchema } from "./rbac";
 
@@ -56,10 +58,12 @@ export const hubSettingsSchema = z.object({
   autoAcceptOrders: z.boolean().default(false),
   /** When auto-accepting, quoted prep minutes is min(store ETA, this value). */
   autoAcceptMaxPrepMinutes: z.number().int().min(5).max(180).default(60),
-  /** Max road distance (miles) from the store origin for delivery offers. */
-  deliveryRadiusMiles: z.number().int().min(1).max(40).default(5),
-  /** Allowed outward postcode districts (e.g. HU1, HU2). Empty = all districts allowed within radius. */
-  deliveryPostcodeDistricts: z.array(z.string().min(2).max(8)).default([]),
+  /** How delivery area is defined: circle from shop, or per Hull outward district. */
+  deliveryMode: deliveryModeSchema.default("business_radius"),
+  /** Max road distance (miles) from the store origin (business-radius mode). */
+  deliveryRadiusMiles: z.number().min(0.1).max(40).default(5),
+  /** Hull outward districts with per-zone radius (postcode-zone mode). */
+  deliveryPostcodeZones: z.array(hullPostcodeZoneSchema).default([]),
   /** Five bands: under 1, 2, 3, 4, and 5 miles. Zeros mean “not set” for that band. */
   deliveryMileFees: z.array(z.number().nonnegative()).length(5).default([0, 0, 0, 0, 0]),
   deliveryOriginLatitude: z.number().min(-90).max(90).nullable().optional(),

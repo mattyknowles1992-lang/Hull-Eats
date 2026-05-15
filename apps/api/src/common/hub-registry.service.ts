@@ -1375,9 +1375,15 @@ export class HubRegistryService {
   }
 
   private deliveryJsonFromHubSettings(settings: HubSettings): Prisma.InputJsonValue {
+    const enabledDistricts = settings.deliveryPostcodeZones
+      .filter((zone) => zone.enabled)
+      .map((zone) => zone.code.trim().toUpperCase());
+
     return {
+      mode: settings.deliveryMode,
       radiusMiles: settings.deliveryRadiusMiles,
-      postcodeDistricts: settings.deliveryPostcodeDistricts.map((code) => code.trim().toUpperCase()).filter(Boolean),
+      postcodeZones: settings.deliveryPostcodeZones,
+      postcodeDistricts: enabledDistricts,
       mileFees: [...settings.deliveryMileFees],
       originLatitude: settings.deliveryOriginLatitude ?? null,
       originLongitude: settings.deliveryOriginLongitude ?? null,
@@ -1386,12 +1392,18 @@ export class HubRegistryService {
 
   private mapDeliveryFromStore(store: { deliveryConfig?: unknown }): Pick<
     HubSettings,
-    "deliveryRadiusMiles" | "deliveryPostcodeDistricts" | "deliveryMileFees" | "deliveryOriginLatitude" | "deliveryOriginLongitude"
+    | "deliveryMode"
+    | "deliveryRadiusMiles"
+    | "deliveryPostcodeZones"
+    | "deliveryMileFees"
+    | "deliveryOriginLatitude"
+    | "deliveryOriginLongitude"
   > {
     const cfg = normaliseDeliveryPricing(store.deliveryConfig ?? {});
     return {
+      deliveryMode: cfg.mode,
       deliveryRadiusMiles: cfg.radiusMiles,
-      deliveryPostcodeDistricts: [...cfg.postcodeDistricts],
+      deliveryPostcodeZones: cfg.postcodeZones.map((zone) => ({ ...zone })),
       deliveryMileFees: [
         cfg.mileFees[0] ?? 0,
         cfg.mileFees[1] ?? 0,

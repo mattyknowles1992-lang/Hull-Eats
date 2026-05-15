@@ -13,11 +13,13 @@
     "@hull-eats/sdk": "workspace:*",
     "@hull-eats/types": "workspace:*",
     "@hull-eats/ui": "workspace:*",
+    "leaflet": "^1.9.4",
     "next": "^15.3.2",
     "react": "19.1.0",
     "react-dom": "19.1.0"
   },
   "devDependencies": {
+    "@types/leaflet": "^1.9.21",
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2"
   }

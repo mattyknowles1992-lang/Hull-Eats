@@ -493,13 +493,25 @@ export function StoreMenuClient({
   const renderFloatingBasket = () => (
     <section className={floatingBasketClassName} aria-label="Your basket">
       <div className="basket-floating-inner">
-        <div className="basket-floating-top">
+        {showDeliveryWarning ? (
+          <p className="basket-floating-delivery-warn basket-floating-delivery-warn--banner">{deliveryQuote.reason}</p>
+        ) : null}
+
+        <div className="basket-floating-compact-row">
           <div className="basket-floating-summary">
-            <p className="eyebrow">Basket ready</p>
-            <h3>
-              {itemCount} item{itemCount === 1 ? "" : "s"} / {formatMoney(subtotal)}
-            </h3>
-            {basketExpanded && addedMessage ? <p className="basket-added-message">{addedMessage}</p> : null}
+            {basketExpanded ? (
+              <>
+                <p className="eyebrow">Basket ready</p>
+                <h3>
+                  {itemCount} item{itemCount === 1 ? "" : "s"} / {formatMoney(subtotal)}
+                </h3>
+                {addedMessage ? <p className="basket-added-message">{addedMessage}</p> : null}
+              </>
+            ) : (
+              <p className="basket-floating-summary-line">
+                {itemCount} item{itemCount === 1 ? "" : "s"} / {formatMoney(subtotal)}
+              </p>
+            )}
           </div>
           <button type="button" className="basket-floating-clear" onClick={handleClearBasket}>
             Clear basket
@@ -531,16 +543,11 @@ export function StoreMenuClient({
               <span>Delivery</span>
               <strong>{deliveryFeeLabel}</strong>
             </div>
-            {showDeliveryWarning ? <p className="basket-floating-delivery-warn">{deliveryQuote.reason}</p> : null}
             <div className="basket-floating-total-row basket-floating-total-grand">
               <span>Total</span>
               <strong>{formatMoney(orderTotal)}</strong>
             </div>
           </div>
-        ) : null}
-
-        {!basketExpanded && showDeliveryWarning ? (
-          <p className="basket-floating-delivery-warn basket-floating-delivery-warn--compact">{deliveryQuote.reason}</p>
         ) : null}
 
         <div className="basket-floating-cta">
