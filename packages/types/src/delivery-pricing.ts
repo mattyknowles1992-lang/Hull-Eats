@@ -3,8 +3,8 @@ import { z } from "zod";
 /** Default delivery when hub has not set mile fees / zones (Hull Eats platform default). */
 export const PLATFORM_DEFAULT_DELIVERY_GBP = 3;
 
-/** Shown when delivery cannot be priced for the customer postcode (area, radius, hub config, or unknown district). */
-export const DELIVERY_NOT_AVAILABLE_TO_POSTCODE_MESSAGE = "Delivery is not available to your postcode.";
+/** Customer-facing copy when delivery cannot be priced for the postcode (no hub/merchant jargon). */
+export const DELIVERY_NOT_AVAILABLE_TO_POSTCODE_MESSAGE = "Delivery is not available for your postcode.";
 
 /**
  * Optional mile-band fees: index 0 = under 1 mile, 1 = under 2 miles, … 4 = under 5 miles.
@@ -189,7 +189,7 @@ export const computeDeliveryQuote = (args: {
       needsPostcode: false,
       isDefaultPricing: false,
       blocked: true,
-      reason: `We do not deliver to the ${customerOutward} area. Try a Hull (HU) postcode or ask the business to add your area in their hub settings.`,
+      reason: DELIVERY_NOT_AVAILABLE_TO_POSTCODE_MESSAGE,
     };
   }
 
@@ -240,7 +240,7 @@ export const computeDeliveryQuote = (args: {
       needsPostcode: false,
       isDefaultPricing: false,
       blocked: true,
-      reason: `This address is about ${miles.toFixed(1)} miles away; delivery is limited to ${cfg.radiusMiles} miles from the shop. Increase max radius in hub settings or choose collection.`,
+      reason: DELIVERY_NOT_AVAILABLE_TO_POSTCODE_MESSAGE,
     };
   }
 
