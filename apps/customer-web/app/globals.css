@@ -1425,6 +1425,7 @@ textarea {
   animation-delay: 12s;
 }
 
+@keyframes hero-image-cycle {
   0%,
   5% {
     opacity: 0;
