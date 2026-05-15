@@ -40,11 +40,16 @@ type PrimaryVisualArgs = {
   heroFirstFallback1200: string;
   heroSecond: string;
   heroThird: string;
+  /**
+   * Extra strings checked against `public/brand/category_images/<stem>.png` when the slug/label
+   * does not normalize to the filename (e.g. main category `takeaways` → stem `takeaway.png`).
+   */
+  brandMatchHints?: readonly string[];
 };
 
-/** Local brand PNG replaces category chip + first hero slide only when slug/label matches a file stem; hero slides 2–3 stay Unsplash. */
+/** Local brand PNG replaces category chip, portrait carousel tile, and first hero slide when any candidate matches a file stem; hero slides 2–3 stay Unsplash. */
 function primaryCategoryVisuals(args: PrimaryVisualArgs): Pick<MarketplaceCategory, "imageUrl" | "heroImages"> {
-  const candidates = [args.slug, args.label, args.shortLabel];
+  const candidates = [args.slug, args.label, args.shortLabel, ...(args.brandMatchHints ?? [])];
   return {
     imageUrl: resolveBrandCategoryImage(candidates, args.chipFallback800),
     heroImages: [
@@ -66,6 +71,7 @@ export const marketplaceCategories: MarketplaceCategory[] = [
       slug: "takeaways",
       label: "Takeaways",
       shortLabel: "Takeaways",
+      brandMatchHints: ["takeaway"],
       chipFallback800: "https://images.unsplash.com/photo-1571091718767-18b5b1457add?auto=format&fit=crop&w=800&q=80",
       heroFirstFallback1200: "https://images.unsplash.com/photo-1571091718767-18b5b1457add?auto=format&fit=crop&w=1200&q=80",
       heroSecond: "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?auto=format&fit=crop&w=1200&q=80",
@@ -331,6 +337,7 @@ export const marketplaceCategories: MarketplaceCategory[] = [
       slug: "electronics",
       label: "Electronics",
       shortLabel: "Electronics",
+      brandMatchHints: ["eletronics"],
       chipFallback800: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=800&q=80",
       heroFirstFallback1200: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1200&q=80",
       heroSecond: "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1200&q=80",

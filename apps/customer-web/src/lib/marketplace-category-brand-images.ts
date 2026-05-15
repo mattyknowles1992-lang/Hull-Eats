@@ -1,6 +1,8 @@
 /**
  * Optional artwork in `public/brand/category_images/<stem>.png`.
- * Used only when a category or subcategory slug/label normalizes to the same stem as the filename (no guessing).
+ * Matched when a slug/label (or `brandMatchHints` from main categories) normalizes to the same stem as the filename — no cross-category guessing.
+ *
+ * Main categories wired to assets: `vapes`, `desserts`; `takeaways` hints `takeaway`; `electronics` hints `eletronics` (filename spelling).
  */
 
 const basePath = "/brand/category_images";
