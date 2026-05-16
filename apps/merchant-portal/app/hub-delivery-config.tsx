@@ -32,6 +32,14 @@ const HULL_MAP_BOUNDS = {
   west: -0.48,
 } as const;
 
+/** Tighter than map bounds so Voronoi cells clip sooner over the Humber (less tint bleeding into open water). */
+const HULL_SECTOR_VORONOI_EXTENT = {
+  west: HULL_MAP_BOUNDS.west,
+  south: HULL_MAP_BOUNDS.south,
+  east: -0.24,
+  north: HULL_MAP_BOUNDS.north - 0.012,
+} as const;
+
 const HULL_EATS_MAP_STROKE = "#079bc8";
 const HULL_EATS_MAP_FILL = "#23cdff";
 
@@ -58,8 +66,8 @@ const HULL_SECTOR_VORONOI_RINGS = hullSectorVoronoi<HullSectorSite>()
   .x((d) => d.lng)
   .y((d) => d.lat)
   .extent([
-    [HULL_MAP_BOUNDS.west, HULL_MAP_BOUNDS.south],
-    [HULL_MAP_BOUNDS.east, HULL_MAP_BOUNDS.north],
+    [HULL_SECTOR_VORONOI_EXTENT.west, HULL_SECTOR_VORONOI_EXTENT.south],
+    [HULL_SECTOR_VORONOI_EXTENT.east, HULL_SECTOR_VORONOI_EXTENT.north],
   ])
   .polygons(HULL_SECTOR_SITES);
 
@@ -237,6 +245,34 @@ export function HubDeliveryConfig({ settings, onChange, styles }: HubDeliveryCon
     setActiveZoneCode(upper);
   };
 
+  const hasAnySectorSelected = useMemo(
+    () => zones.some((zone) => getHullZoneEnabledSectors(zone).length > 0),
+    [zones],
+  );
+
+  const deselectAllSectors = useCallback(() => {
+    const current = zonesRef.current;
+    const anySelected = current.some((zone) => getHullZoneEnabledSectors(zone).length > 0);
+    if (!anySelected) {
+      return;
+    }
+    const ok = window.confirm(
+      "Remove every selected postcode sector? Your Hull delivery map will show no coverage until you tick sectors again.",
+    );
+    if (!ok) {
+      return;
+    }
+    onChange({
+      deliveryPostcodeZones: current.map((zone) => ({
+        ...zone,
+        enabled: false,
+        enabledSectors: [],
+      })),
+    });
+    setExpandedOutward(null);
+    setActiveZoneCode(null);
+  }, [onChange]);
+
   useEffect(() => {
     let disposed = false;
     let map: import("leaflet").Map | null = null;
@@ -342,7 +378,9 @@ export function HubDeliveryConfig({ settings, onChange, styles }: HubDeliveryCon
 
           const cell = L.polygon(latLngs, {
             color: isOn ? HULL_EATS_MAP_STROKE : "#b8c2cc",
-            weight: isFocusOutward && isOn ? 3 : isOn ? 2 : 1,
+            weight: isFocusOutward && isOn ? 2.5 : isOn ? 1.75 : 0.85,
+            lineJoin: "round",
+            lineCap: "round",
             fillColor: isOn ? HULL_EATS_MAP_FILL : "#f1f4f7",
             fillOpacity: isOn ? (isFocusOutward ? 0.36 : 0.26) : 0.14,
           })
@@ -426,6 +464,8 @@ export function HubDeliveryConfig({ settings, onChange, styles }: HubDeliveryCon
           style={settings.deliveryMode === "postcode_zones" ? styles.modeButtonActive : styles.modeButton}
           onClick={() => {
             setMode("postcode_zones");
+            setExpandedOutward(null);
+            setActiveZoneCode(null);
             if (settings.deliveryPostcodeZones.length === 0) {
               onChange({ deliveryPostcodeZones: createDefaultHullPostcodeZones() });
             }
@@ -453,18 +493,28 @@ export function HubDeliveryConfig({ settings, onChange, styles }: HubDeliveryCon
               })
             }
           />
-          <p style={styles.subtleInfo}>
-            Orange circle on the map shows where you deliver. Pin uses your hub postcode
-            {settings.deliveryOriginLatitude != null ? " or the coordinates you set below" : ""}.
-          </p>
+          <p style={styles.subtleInfo}>Orange circle on the map shows where you deliver. The pin uses your hub postcode.</p>
         </label>
       ) : (
         <div style={{ display: "grid", gap: 14 }}>
           <p style={styles.subtleInfo}>
-            Open a postcode (e.g. HU7) to pan the map, then tick the sectors you deliver to (HU7 1, HU7 2, …). Each tick
-            fills that sector on the map (tinted over streets and land); untick to remove it. Regions are a
-            tessellation from sector anchors, not official postcode outline data.
+            The map starts with no sectors selected. Open a postcode (e.g. HU7) to pan the map, then tick the sectors you
+            deliver to (HU7 1, HU7 2, …). Each tick fills that sector on the map (tinted over streets and land); untick to
+            remove it. Regions are a tessellation from sector anchors, not official postcode outline data.
           </p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+            <button
+              type="button"
+              style={hasAnySectorSelected ? styles.modeButton : { ...styles.modeButton, opacity: 0.45, cursor: "not-allowed" }}
+              disabled={!hasAnySectorSelected}
+              onClick={deselectAllSectors}
+            >
+              Deselect all sectors
+            </button>
+            {!hasAnySectorSelected ? (
+              <span style={{ ...styles.subtleInfo, margin: 0 }}>No sectors selected yet.</span>
+            ) : null}
+          </div>
           <div style={outwardListStyle}>
             {listKnownHullOutwardCodes().map((code) => {
               const zone = zones.find((entry) => entry.code === code)!;
@@ -537,44 +587,6 @@ export function HubDeliveryConfig({ settings, onChange, styles }: HubDeliveryCon
           )}
         </div>
       )}
-
-      <div style={{ display: "grid", gap: 12 }}>
-        <span style={styles.darkFieldLabel}>Shop map pin (optional override)</span>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
-          <label style={styles.field}>
-            <span style={styles.darkFieldLabel}>Latitude</span>
-            <input
-              type="number"
-              step="0.0001"
-              style={styles.lightInput}
-              value={settings.deliveryOriginLatitude ?? ""}
-              placeholder="Auto from postcode"
-              onChange={(event) => {
-                const raw = event.target.value.trim();
-                onChange({
-                  deliveryOriginLatitude: raw === "" ? null : Number.isFinite(Number(raw)) ? Number(raw) : null,
-                });
-              }}
-            />
-          </label>
-          <label style={styles.field}>
-            <span style={styles.darkFieldLabel}>Longitude</span>
-            <input
-              type="number"
-              step="0.0001"
-              style={styles.lightInput}
-              value={settings.deliveryOriginLongitude ?? ""}
-              placeholder="Auto from postcode"
-              onChange={(event) => {
-                const raw = event.target.value.trim();
-                onChange({
-                  deliveryOriginLongitude: raw === "" ? null : Number.isFinite(Number(raw)) ? Number(raw) : null,
-                });
-              }}
-            />
-          </label>
-        </div>
-      </div>
     </div>
   );
 }
