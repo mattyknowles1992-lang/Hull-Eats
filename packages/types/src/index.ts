@@ -1,6 +1,7 @@
 export * from "./catalog";
 export * from "./checkout";
 export * from "./delivery-pricing";
+export * from "./hull-postcode-boundaries";
 export * from "./customers";
 export * from "./events";
 export * from "./hubs";

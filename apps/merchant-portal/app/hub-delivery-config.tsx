@@ -7,7 +7,6 @@ import {
   HULL_SECTOR_DIGITS,
   createDefaultHullPostcodeZones,
   formatHullSectorLabel,
-  getHullSectorCentroid,
   getHullZoneEnabledSectors,
   hullZoneHasCoverage,
   isHullZoneSectorEnabled,
@@ -18,9 +17,10 @@ import {
   resolveBusinessOrigin,
   type DeliveryMode,
   type HullPostcodeZone,
+  type HullSectorBoundaryCollection,
+  type HullSectorBoundaryProperties,
   type HullSectorDigit,
 } from "@hull-eats/types";
-import { voronoi as hullSectorVoronoi } from "d3-voronoi";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import "leaflet/dist/leaflet.css";
@@ -32,82 +32,9 @@ const HULL_MAP_BOUNDS = {
   west: -0.48,
 } as const;
 
-/** Tighter than map bounds so Voronoi cells clip sooner over the Humber (less tint bleeding into open water). */
-const HULL_SECTOR_VORONOI_EXTENT = {
-  west: HULL_MAP_BOUNDS.west,
-  south: 53.696,
-  east: -0.27,
-  north: HULL_MAP_BOUNDS.north - 0.012,
-} as const;
-
 const HULL_EATS_MAP_STROKE = "#079bc8";
 const HULL_EATS_MAP_FILL = "#23cdff";
-
-/** Fixed sector seed points for Voronoi cells (same centroids as map pins). Not official postcode boundaries. */
-type HullSectorSite = { outward: string; sector: HullSectorDigit; lng: number; lat: number };
-
-function hullOutwardSectorSites(outward: string): HullSectorSite[] {
-  return listHullSectorDigits()
-    .map((sector) => {
-      const c = getHullSectorCentroid(outward, sector);
-      return c ? { outward, sector, lng: c.lng, lat: c.lat } : null;
-    })
-    .filter((entry): entry is HullSectorSite => Boolean(entry));
-}
-
-/** Local clip per outward so sector polygons do not compete across the estuary (global Voronoi was flooding water). */
-function hullOutwardVoronoiExtent(outward: string): [[number, number], [number, number]] {
-  const pts = listHullSectorDigits()
-    .map((digit) => getHullSectorCentroid(outward, digit))
-    .filter((p): p is { lat: number; lng: number } => Boolean(p));
-  if (pts.length === 0) {
-    const c = HULL_AREA_OUTWARD_CENTROIDS[outward];
-    if (!c) {
-      return [
-        [HULL_SECTOR_VORONOI_EXTENT.west, HULL_SECTOR_VORONOI_EXTENT.south],
-        [HULL_SECTOR_VORONOI_EXTENT.east, HULL_SECTOR_VORONOI_EXTENT.north],
-      ];
-    }
-    const pad = 0.038;
-    return [
-      [c.lng - pad, c.lat - pad],
-      [c.lng + pad, c.lat + pad],
-    ];
-  }
-
-  let minLng = pts[0]!.lng;
-  let maxLng = pts[0]!.lng;
-  let minLat = pts[0]!.lat;
-  let maxLat = pts[0]!.lat;
-  for (const p of pts) {
-    minLng = Math.min(minLng, p.lng);
-    maxLng = Math.max(maxLng, p.lng);
-    minLat = Math.min(minLat, p.lat);
-    maxLat = Math.max(maxLat, p.lat);
-  }
-
-  const spanLng = maxLng - minLng;
-  const spanLat = maxLat - minLat;
-  const padLng = Math.max(0.016, spanLng * 0.42 + 0.008);
-  const padLat = Math.max(0.012, spanLat * 0.42 + 0.006);
-
-  const x0 = Math.max(HULL_SECTOR_VORONOI_EXTENT.west, minLng - padLng);
-  const y0 = Math.max(HULL_SECTOR_VORONOI_EXTENT.south, minLat - padLat);
-  const x1 = Math.min(HULL_SECTOR_VORONOI_EXTENT.east, maxLng + padLng);
-  const y1 = Math.min(HULL_SECTOR_VORONOI_EXTENT.north, maxLat + padLat);
-
-  if (x1 <= x0 || y1 <= y0) {
-    return [
-      [HULL_SECTOR_VORONOI_EXTENT.west, HULL_SECTOR_VORONOI_EXTENT.south],
-      [HULL_SECTOR_VORONOI_EXTENT.east, HULL_SECTOR_VORONOI_EXTENT.north],
-    ];
-  }
-
-  return [
-    [x0, y0],
-    [x1, y1],
-  ];
-}
+const HULL_SECTOR_BOUNDARIES_URL = "/geo/hull-postcode-sectors.geojson";
 
 const leafletIconAssets = {
   iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png",
@@ -152,6 +79,26 @@ const sectorPanelStyle: CSSProperties = {
   gridTemplateColumns: "repeat(auto-fill, minmax(108px, 1fr))",
   gap: 8,
   padding: "0 14px 14px",
+};
+
+const sectorToolbarStyle: CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 8,
+  padding: "0 14px 10px",
+};
+
+const sectorToolbarButtonStyle: CSSProperties = {
+  padding: "6px 12px",
+  borderRadius: 10,
+  border: "1px solid rgba(7, 155, 200, 0.45)",
+  background: "linear-gradient(180deg, rgba(35, 205, 255, 0.18), rgba(7, 155, 200, 0.08))",
+  fontWeight: 800,
+  fontSize: "0.78rem",
+  color: "#0a4d66",
+  cursor: "pointer",
 };
 
 const sectorCheckboxLabelStyle: CSSProperties = {
@@ -216,6 +163,8 @@ export function HubDeliveryConfig({
   const [expandedOutward, setExpandedOutward] = useState<string | null>(null);
   const [activeZoneCode, setActiveZoneCode] = useState<string | null>(null);
   const [pinGeocodeNote, setPinGeocodeNote] = useState<string | null>(null);
+  const [sectorBoundaries, setSectorBoundaries] = useState<HullSectorBoundaryCollection | null>(null);
+  const [boundariesError, setBoundariesError] = useState<string | null>(null);
 
   const zones = useMemo(
     () =>
@@ -290,6 +239,36 @@ export function HubDeliveryConfig({
     };
   }, [settings.postcode, apiBaseUrl, hubId, merchantToken]);
 
+  useEffect(() => {
+    let cancelled = false;
+    void fetch(HULL_SECTOR_BOUNDARIES_URL)
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`Boundary data missing (${response.status})`);
+        }
+        return response.json() as Promise<HullSectorBoundaryCollection>;
+      })
+      .then((collection) => {
+        if (!cancelled) {
+          setSectorBoundaries(collection);
+          setBoundariesError(null);
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setSectorBoundaries(null);
+          setBoundariesError(
+            error instanceof Error
+              ? error.message
+              : "Could not load Hull postcode boundary data.",
+          );
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const setMode = (deliveryMode: DeliveryMode) => {
     onChange({ deliveryMode });
   };
@@ -309,6 +288,27 @@ export function HubDeliveryConfig({
     }
 
     map.flyTo([center.lat, center.lng], 13, { duration: 0.45 });
+  }, []);
+
+  const setOutwardSectorsAll = useCallback((outwardCode: string, selectAll: boolean) => {
+    const upper = outwardCode.toUpperCase();
+    setActiveZoneCode(upper);
+    setExpandedOutward(upper);
+
+    const current = zonesRef.current;
+    patchZones(
+      current.map((zone) => {
+        if (zone.code !== upper) {
+          return zone;
+        }
+        const enabledSectors = selectAll ? [...HULL_SECTOR_DIGITS] : [];
+        return {
+          ...zone,
+          enabledSectors,
+          enabled: enabledSectors.length > 0,
+        };
+      }),
+    );
   }, []);
 
   const toggleSector = useCallback((outwardCode: string, sector: HullSectorDigit) => {
@@ -463,52 +463,59 @@ export function HubDeliveryConfig({
 
       if (settings.deliveryMode === "postcode_zones") {
         const focusCode = activeZoneCode ?? expandedOutward ?? null;
-        const sectorBounds: import("leaflet").LatLngBounds[] = [];
+        const fitBounds: import("leaflet").LatLngBounds[] = [];
 
-        for (const outward of listKnownHullOutwardCodes()) {
-          const sites = hullOutwardSectorSites(outward);
-          if (sites.length < 2) {
-            continue;
-          }
+        if (sectorBoundaries?.features?.length) {
+          const geoLayer = L.geoJSON(sectorBoundaries, {
+            style: (feature) => {
+              const outward = feature?.properties?.outward ?? "";
+              const sector = feature?.properties?.sector ?? "";
+              const zone = zones.find((entry) => entry.code === outward);
+              const isOn = zone ? isHullZoneSectorEnabled(zone, sector) : false;
+              const isEditingOutward = expandedOutward === outward;
+              const showOutline = isEditingOutward && !isOn;
 
-          const extent = hullOutwardVoronoiExtent(outward);
-          const rings = hullSectorVoronoi<HullSectorSite>()
-            .x((d) => d.lng)
-            .y((d) => d.lat)
-            .extent(extent)
-            .polygons(sites);
+              if (!isOn && !showOutline) {
+                return { opacity: 0, fillOpacity: 0, weight: 0 };
+              }
 
-          for (const ring of rings) {
-            if (!ring || ring.length < 3) {
-              continue;
+              return {
+                color: isOn ? HULL_EATS_MAP_STROKE : "#9aa3ad",
+                weight: isOn ? (focusCode === outward ? 2.5 : 2) : 1,
+                lineJoin: "round",
+                lineCap: "round",
+                fillColor: isOn ? HULL_EATS_MAP_FILL : "transparent",
+                fillOpacity: isOn ? (focusCode === outward ? 0.38 : 0.3) : 0,
+                dashArray: showOutline ? "4 4" : undefined,
+              };
+            },
+            onEachFeature: (feature, layer) => {
+              const outward = feature.properties?.outward ?? "";
+              const sector = feature.properties?.sector ?? "";
+              const label = feature.properties?.label ?? formatHullSectorLabel(outward, sector);
+              layer.bindTooltip(label, { direction: "top", sticky: true });
+              layer.on("click", () => toggleSector(outward, sector as HullSectorDigit));
+            },
+          }).addTo(layers);
+
+          const boundsAccumulator = L.latLngBounds([]);
+          geoLayer.eachLayer((layer) => {
+            const props = (
+              layer as import("leaflet").Layer & { feature?: { properties?: HullSectorBoundaryProperties } }
+            ).feature?.properties;
+            if (!props) {
+              return;
             }
-
-            const site = ring.data as HullSectorSite;
-            const zone = zones.find((entry) => entry.code === site.outward);
-            if (!zone) {
-              continue;
+            const zone = zones.find((entry) => entry.code === props.outward);
+            if (!zone || !isHullZoneSectorEnabled(zone, props.sector)) {
+              return;
             }
-
-            const isOn = isHullZoneSectorEnabled(zone, site.sector);
-            const isFocusOutward = zone.code === focusCode;
-
-            const latLngs = ring.map((coord) => L.latLng(coord[1], coord[0]));
-
-            const cell = L.polygon(latLngs, {
-              color: isOn ? HULL_EATS_MAP_STROKE : "#b8c2cc",
-              weight: isFocusOutward && isOn ? 2.5 : isOn ? 1.75 : 0.85,
-              lineJoin: "round",
-              lineCap: "round",
-              fillColor: isOn ? HULL_EATS_MAP_FILL : "#f1f4f7",
-              fillOpacity: isOn ? (isFocusOutward ? 0.36 : 0.26) : 0.14,
-            })
-              .bindTooltip(formatHullSectorLabel(site.outward, site.sector), { direction: "top", sticky: true })
-              .on("click", () => toggleSector(site.outward, site.sector))
-              .addTo(layers);
-
-            if (isOn && isFocusOutward) {
-              sectorBounds.push(cell.getBounds());
+            if ("getBounds" in layer && typeof layer.getBounds === "function") {
+              boundsAccumulator.extend(layer.getBounds());
             }
+          });
+          if (boundsAccumulator.isValid()) {
+            fitBounds.push(boundsAccumulator);
           }
         }
 
@@ -516,12 +523,8 @@ export function HubDeliveryConfig({
           L.marker([businessOrigin.lat, businessOrigin.lng], { title: settings.name || "Your business" }).addTo(layers);
         }
 
-        if (sectorBounds.length > 0) {
-          const combined = sectorBounds[0]!;
-          for (let index = 1; index < sectorBounds.length; index += 1) {
-            combined.extend(sectorBounds[index]!);
-          }
-          map.fitBounds(combined, { padding: [36, 36], maxZoom: 14 });
+        if (fitBounds.length > 0) {
+          map.fitBounds(fitBounds[0]!, { padding: [36, 36], maxZoom: 14 });
           return;
         }
 
@@ -554,6 +557,7 @@ export function HubDeliveryConfig({
     expandedOutward,
     settings.deliveryOriginLatitude,
     settings.deliveryOriginLongitude,
+    sectorBoundaries,
     toggleSector,
   ]);
 
@@ -634,11 +638,17 @@ export function HubDeliveryConfig({
       ) : (
         <div style={{ display: "grid", gap: 14 }}>
           <p style={styles.subtleInfo}>
-            The map starts with no sectors selected and stays visible while you scroll on mobile. Postcode sectors use
-            real coordinates from postcodes.io (sample addresses per HU sector). Shading is an approximate tile per
-            district, not official boundary data — but it aligns much closer to land than before. Set a full hub postcode
-            in Business profile (e.g. HU3 1AB) so the shop pin is exact; save hub settings to store coordinates.
+            The map uses official open UK postcode sector boundaries (ONS / Royal Mail, via postcodes-mapit). Tick a sector
+            to deliver there — the blue shape is that postcode area on the ground, not a radius. Set a full hub postcode
+            in Business profile (e.g. HU3 1AB) for an exact shop pin; save hub settings to store coordinates.
           </p>
+          {boundariesError ? (
+            <p style={{ ...styles.subtleInfo, color: "#9b1c1c", margin: 0 }}>
+              Map boundaries could not be loaded: {boundariesError}. Run{" "}
+              <code style={{ fontSize: "0.85em" }}>pnpm geo:build-hull-sectors</code> after downloading the boundary archive
+              (see scripts/build-hull-sector-boundaries.mjs).
+            </p>
+          ) : null}
           <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
             <button
               type="button"
@@ -683,7 +693,26 @@ export function HubDeliveryConfig({
                     </span>
                   </button>
                   {expanded ? (
-                    <div style={sectorPanelStyle}>
+                    <>
+                      <div style={sectorToolbarStyle}>
+                        <span style={{ fontSize: "0.78rem", fontWeight: 800, color: "#5d6775" }}>
+                          Sectors for {code}
+                        </span>
+                        <button
+                          type="button"
+                          style={sectorToolbarButtonStyle}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            const allOn = selectedCount === HULL_SECTOR_DIGITS.length;
+                            setOutwardSectorsAll(code, !allOn);
+                          }}
+                        >
+                          {selectedCount === HULL_SECTOR_DIGITS.length
+                            ? `Deselect all ${code}`
+                            : `Select all ${code}`}
+                        </button>
+                      </div>
+                      <div style={sectorPanelStyle}>
                       {listHullSectorDigits().map((digit) => {
                         const checked = isHullZoneSectorEnabled(zone, digit);
                         return (
@@ -700,7 +729,8 @@ export function HubDeliveryConfig({
                           </label>
                         );
                       })}
-                    </div>
+                      </div>
+                    </>
                   ) : null}
                 </div>
               );

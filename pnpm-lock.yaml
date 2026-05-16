@@ -238,9 +238,6 @@ importers:
       '@hull-eats/ui':
         specifier: workspace:*
         version: link:../../packages/ui
-      d3-voronoi:
-        specifier: ^1.1.4
-        version: 1.1.4
       leaflet:
         specifier: ^1.9.4
         version: 1.9.4
@@ -254,9 +251,6 @@ importers:
         specifier: 19.1.0
         version: 19.1.0(react@19.1.0)
     devDependencies:
-      '@types/d3-voronoi':
-        specifier: ^1.1.12
-        version: 1.1.12
       '@types/leaflet':
         specifier: ^1.9.21
         version: 1.9.21
@@ -1825,9 +1819,6 @@ packages:
   '@types/cors@2.8.19':
     resolution: {integrity: sha512-mFNylyeyqN93lfe/9CSxOGREz8cpzAhH+E93xJ4xWQf62V8sQ/24reV2nyzUWM6H6Xji+GGHpkbLe7pVoUEskg==}
 
-  '@types/d3-voronoi@1.1.12':
-    resolution: {integrity: sha512-DauBl25PKZZ0WVJr42a6CNvI6efsdzofl9sajqZr2Gf5Gu733WkDdUGiPkUHXiUvYGzNNlFQde2wdZdfQPG+yw==}
-
   '@types/express-serve-static-core@4.19.8':
     resolution: {integrity: sha512-02S5fmqeoKzVZCHPZid4b8JH2eM5HzQLZWN2FohQEy/0eXTq8VXZfSN6Pcr3F6N9R/vNrj7cpgbhjie6m/1tCA==}
 
@@ -2359,9 +2350,6 @@ packages:
 
   csstype@3.2.3:
     resolution: {integrity: sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==}
-
-  d3-voronoi@1.1.4:
-    resolution: {integrity: sha512-dArJ32hchFsrQ8uMiTBLq256MpnZjeuBtdHpaDlYuQyjU0CVzCJl/BVW+SkszaAeH95D/8gxqAhgx0ouAWAfRg==}
 
   debug@2.6.9:
     resolution: {integrity: sha512-bC7ElrdJaJnPbAP+1EotYvqZsb3ecl5wi6Bfi6BJTUcNowp6cvspg0jXznRTKDjm/E7AdgFBVeAPVMNcKGsHMA==}
@@ -6547,8 +6535,6 @@ snapshots:
     dependencies:
       '@types/node': 22.19.17
 
-  '@types/d3-voronoi@1.1.12': {}
-
   '@types/express-serve-static-core@4.19.8':
     dependencies:
       '@types/node': 22.19.17
@@ -7187,8 +7173,6 @@ snapshots:
   crypto-random-string@2.0.0: {}
 
   csstype@3.2.3: {}
-
-  d3-voronoi@1.1.4: {}
 
   debug@2.6.9:
     dependencies:

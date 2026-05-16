@@ -16,4 +16,8 @@ apps/*/.next
 apps/*/dist
 packages/*/dist
 packages/db/generated
+.cache/
+gb-postcodes-v5/
+tmp-*.geojson
+tmp-*.json
 
