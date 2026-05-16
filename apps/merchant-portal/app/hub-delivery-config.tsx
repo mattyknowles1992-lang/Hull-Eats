@@ -35,8 +35,8 @@ const HULL_MAP_BOUNDS = {
 /** Tighter than map bounds so Voronoi cells clip sooner over the Humber (less tint bleeding into open water). */
 const HULL_SECTOR_VORONOI_EXTENT = {
   west: HULL_MAP_BOUNDS.west,
-  south: HULL_MAP_BOUNDS.south,
-  east: -0.24,
+  south: 53.696,
+  east: -0.27,
   north: HULL_MAP_BOUNDS.north - 0.012,
 } as const;
 
@@ -46,30 +46,68 @@ const HULL_EATS_MAP_FILL = "#23cdff";
 /** Fixed sector seed points for Voronoi cells (same centroids as map pins). Not official postcode boundaries. */
 type HullSectorSite = { outward: string; sector: HullSectorDigit; lng: number; lat: number };
 
-function buildHullSectorSites(): HullSectorSite[] {
-  const sites: HullSectorSite[] = [];
-  for (const outward of listKnownHullOutwardCodes()) {
-    for (const sector of listHullSectorDigits()) {
+function hullOutwardSectorSites(outward: string): HullSectorSite[] {
+  return listHullSectorDigits()
+    .map((sector) => {
       const c = getHullSectorCentroid(outward, sector);
-      if (c) {
-        sites.push({ outward, sector, lng: c.lng, lat: c.lat });
-      }
-    }
-  }
-  return sites;
+      return c ? { outward, sector, lng: c.lng, lat: c.lat } : null;
+    })
+    .filter((entry): entry is HullSectorSite => Boolean(entry));
 }
 
-/** One contiguous polygon per sector seed; clipped to Hull map bounds. Fills follow map land (OSM) beneath a translucent tint — not Ordnance Survey postcode polygons. */
-const HULL_SECTOR_SITES = buildHullSectorSites();
+/** Local clip per outward so sector polygons do not compete across the estuary (global Voronoi was flooding water). */
+function hullOutwardVoronoiExtent(outward: string): [[number, number], [number, number]] {
+  const pts = listHullSectorDigits()
+    .map((digit) => getHullSectorCentroid(outward, digit))
+    .filter((p): p is { lat: number; lng: number } => Boolean(p));
+  if (pts.length === 0) {
+    const c = HULL_AREA_OUTWARD_CENTROIDS[outward];
+    if (!c) {
+      return [
+        [HULL_SECTOR_VORONOI_EXTENT.west, HULL_SECTOR_VORONOI_EXTENT.south],
+        [HULL_SECTOR_VORONOI_EXTENT.east, HULL_SECTOR_VORONOI_EXTENT.north],
+      ];
+    }
+    const pad = 0.038;
+    return [
+      [c.lng - pad, c.lat - pad],
+      [c.lng + pad, c.lat + pad],
+    ];
+  }
 
-const HULL_SECTOR_VORONOI_RINGS = hullSectorVoronoi<HullSectorSite>()
-  .x((d) => d.lng)
-  .y((d) => d.lat)
-  .extent([
-    [HULL_SECTOR_VORONOI_EXTENT.west, HULL_SECTOR_VORONOI_EXTENT.south],
-    [HULL_SECTOR_VORONOI_EXTENT.east, HULL_SECTOR_VORONOI_EXTENT.north],
-  ])
-  .polygons(HULL_SECTOR_SITES);
+  let minLng = pts[0]!.lng;
+  let maxLng = pts[0]!.lng;
+  let minLat = pts[0]!.lat;
+  let maxLat = pts[0]!.lat;
+  for (const p of pts) {
+    minLng = Math.min(minLng, p.lng);
+    maxLng = Math.max(maxLng, p.lng);
+    minLat = Math.min(minLat, p.lat);
+    maxLat = Math.max(maxLat, p.lat);
+  }
+
+  const spanLng = maxLng - minLng;
+  const spanLat = maxLat - minLat;
+  const padLng = Math.max(0.016, spanLng * 0.42 + 0.008);
+  const padLat = Math.max(0.012, spanLat * 0.42 + 0.006);
+
+  const x0 = Math.max(HULL_SECTOR_VORONOI_EXTENT.west, minLng - padLng);
+  const y0 = Math.max(HULL_SECTOR_VORONOI_EXTENT.south, minLat - padLat);
+  const x1 = Math.min(HULL_SECTOR_VORONOI_EXTENT.east, maxLng + padLng);
+  const y1 = Math.min(HULL_SECTOR_VORONOI_EXTENT.north, maxLat + padLat);
+
+  if (x1 <= x0 || y1 <= y0) {
+    return [
+      [HULL_SECTOR_VORONOI_EXTENT.west, HULL_SECTOR_VORONOI_EXTENT.south],
+      [HULL_SECTOR_VORONOI_EXTENT.east, HULL_SECTOR_VORONOI_EXTENT.north],
+    ];
+  }
+
+  return [
+    [x0, y0],
+    [x1, y1],
+  ];
+}
 
 const leafletIconAssets = {
   iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png",
@@ -360,36 +398,50 @@ export function HubDeliveryConfig({ settings, onChange, styles }: HubDeliveryCon
         const focusCode = activeZoneCode ?? expandedOutward ?? null;
         const sectorBounds: import("leaflet").LatLngBounds[] = [];
 
-        for (const ring of HULL_SECTOR_VORONOI_RINGS) {
-          if (!ring || ring.length < 3) {
+        for (const outward of listKnownHullOutwardCodes()) {
+          const sites = hullOutwardSectorSites(outward);
+          if (sites.length < 2) {
             continue;
           }
 
-          const site = ring.data as HullSectorSite;
-          const zone = zones.find((entry) => entry.code === site.outward);
-          if (!zone) {
-            continue;
-          }
+          const extent = hullOutwardVoronoiExtent(outward);
+          const rings = hullSectorVoronoi<HullSectorSite>()
+            .x((d) => d.lng)
+            .y((d) => d.lat)
+            .extent(extent)
+            .polygons(sites);
 
-          const isOn = isHullZoneSectorEnabled(zone, site.sector);
-          const isFocusOutward = zone.code === focusCode;
+          for (const ring of rings) {
+            if (!ring || ring.length < 3) {
+              continue;
+            }
 
-          const latLngs = ring.map((coord) => L.latLng(coord[1], coord[0]));
+            const site = ring.data as HullSectorSite;
+            const zone = zones.find((entry) => entry.code === site.outward);
+            if (!zone) {
+              continue;
+            }
 
-          const cell = L.polygon(latLngs, {
-            color: isOn ? HULL_EATS_MAP_STROKE : "#b8c2cc",
-            weight: isFocusOutward && isOn ? 2.5 : isOn ? 1.75 : 0.85,
-            lineJoin: "round",
-            lineCap: "round",
-            fillColor: isOn ? HULL_EATS_MAP_FILL : "#f1f4f7",
-            fillOpacity: isOn ? (isFocusOutward ? 0.36 : 0.26) : 0.14,
-          })
-            .bindTooltip(formatHullSectorLabel(site.outward, site.sector), { direction: "top", sticky: true })
-            .on("click", () => toggleSector(site.outward, site.sector))
-            .addTo(layers);
+            const isOn = isHullZoneSectorEnabled(zone, site.sector);
+            const isFocusOutward = zone.code === focusCode;
 
-          if (isOn && isFocusOutward) {
-            sectorBounds.push(cell.getBounds());
+            const latLngs = ring.map((coord) => L.latLng(coord[1], coord[0]));
+
+            const cell = L.polygon(latLngs, {
+              color: isOn ? HULL_EATS_MAP_STROKE : "#b8c2cc",
+              weight: isFocusOutward && isOn ? 2.5 : isOn ? 1.75 : 0.85,
+              lineJoin: "round",
+              lineCap: "round",
+              fillColor: isOn ? HULL_EATS_MAP_FILL : "#f1f4f7",
+              fillOpacity: isOn ? (isFocusOutward ? 0.36 : 0.26) : 0.14,
+            })
+              .bindTooltip(formatHullSectorLabel(site.outward, site.sector), { direction: "top", sticky: true })
+              .on("click", () => toggleSector(site.outward, site.sector))
+              .addTo(layers);
+
+            if (isOn && isFocusOutward) {
+              sectorBounds.push(cell.getBounds());
+            }
           }
         }
 
@@ -475,7 +527,20 @@ export function HubDeliveryConfig({ settings, onChange, styles }: HubDeliveryCon
         </button>
       </div>
 
-      <div ref={mapHostRef} style={styles.mapFrame} aria-label="Hull delivery area map" />
+      <div
+        style={{
+          position: "sticky",
+          top: 0,
+          zIndex: 8,
+          marginBottom: 16,
+          paddingBottom: 10,
+          marginLeft: -2,
+          marginRight: -2,
+          background: "linear-gradient(180deg, rgba(255, 254, 252, 0.98) 0%, rgba(255, 254, 252, 0.97) 78%, rgba(255, 254, 252, 0) 100%)",
+        }}
+      >
+        <div ref={mapHostRef} style={styles.mapFrame} aria-label="Hull delivery area map" />
+      </div>
 
       {settings.deliveryMode === "business_radius" ? (
         <label style={styles.field}>
@@ -498,9 +563,11 @@ export function HubDeliveryConfig({ settings, onChange, styles }: HubDeliveryCon
       ) : (
         <div style={{ display: "grid", gap: 14 }}>
           <p style={styles.subtleInfo}>
-            The map starts with no sectors selected. Open a postcode (e.g. HU7) to pan the map, then tick the sectors you
-            deliver to (HU7 1, HU7 2, …). Each tick fills that sector on the map (tinted over streets and land); untick to
-            remove it. Regions are a tessellation from sector anchors, not official postcode outline data.
+            The map starts with no sectors selected. The map stays pinned while you scroll the postcode list on small
+            screens. Open a district (HU1, HU2, … in numeric order), tick sectors (e.g. HU7 1, HU7 2), and each tick fills
+            that sector on the map. Shading is computed separately per district from sector anchors (not official
+            postcode outlines), which keeps tint off open water far better than one giant overlay. Use a full hub
+            postcode (e.g. HU3 1AB) in Business profile for the most accurate shop pin.
           </p>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
             <button

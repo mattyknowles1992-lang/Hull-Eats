@@ -51,9 +51,33 @@ export type StoreDeliveryPricing = z.infer<typeof storeDeliveryPricingSchema>;
 
 export const milesToMeters = (miles: number) => miles * 1609.344;
 
+/**
+ * Natural sort for UK-style outward codes so HU2 sits before HU10 (lexicographic order would not).
+ * Handles optional trailing letter (e.g. W1A) after the numeric block.
+ */
+export const compareOutwardCodesNatural = (left: string, right: string): number => {
+  const a = left.trim().toUpperCase();
+  const b = right.trim().toUpperCase();
+  const ma = a.match(/^([A-Z]{1,2})(\d+)([A-Z])?$/);
+  const mb = b.match(/^([A-Z]{1,2})(\d+)([A-Z])?$/);
+  if (ma && mb) {
+    const lettersCmp = ma[1]!.localeCompare(mb[1]!);
+    if (lettersCmp !== 0) {
+      return lettersCmp;
+    }
+    const na = Number(ma[2]);
+    const nb = Number(mb[2]);
+    if (na !== nb) {
+      return na - nb;
+    }
+    return (ma[3] ?? "").localeCompare(mb[3] ?? "");
+  }
+  return a.localeCompare(b);
+};
+
 /** Outward codes with centroid data (Hull); used for hub district toggles and distance estimates. */
 export const listKnownHullOutwardCodes = (): readonly string[] =>
-  Object.keys(HULL_AREA_OUTWARD_CENTROIDS).sort((left, right) => left.localeCompare(right));
+  Object.keys(HULL_AREA_OUTWARD_CENTROIDS).sort(compareOutwardCodesNatural);
 
 export const createDefaultHullPostcodeZones = (): HullPostcodeZone[] =>
   listKnownHullOutwardCodes().map((code) => ({
@@ -116,6 +140,14 @@ export const resolveBusinessOrigin = (args: {
     return { lat: args.originLatitude, lng: args.originLongitude };
   }
 
+  const sector = parseUkPostcodeSector(args.storePostcode);
+  if (sector) {
+    const sectorPoint = getHullSectorCentroid(sector.outward, sector.sector);
+    if (sectorPoint) {
+      return sectorPoint;
+    }
+  }
+
   const outward = parseUkOutwardCode(args.storePostcode);
   if (outward && HULL_AREA_OUTWARD_CENTROIDS[outward]) {
     return HULL_AREA_OUTWARD_CENTROIDS[outward];
@@ -169,7 +201,8 @@ export const HULL_AREA_OUTWARD_CENTROIDS: Record<string, { lat: number; lng: num
   HU4: { lat: 53.7712, lng: -0.3578 },
   HU5: { lat: 53.7819, lng: -0.4371 },
   HU6: { lat: 53.7581, lng: -0.3194 },
-  HU7: { lat: 53.8718, lng: -0.4244 },
+  /** Cottingham / north Hull cluster — previous centroid sat too far north toward Beverley. */
+  HU7: { lat: 53.782, lng: -0.398 },
   HU8: { lat: 53.7524, lng: -0.2778 },
   HU9: { lat: 53.7312, lng: -0.3712 },
   HU10: { lat: 53.7531, lng: -0.3988 },
@@ -242,7 +275,8 @@ export const getHullSectorCentroid = (outwardCode: string, sectorDigit: string):
   }
 
   const angle = ((digit - 1) / HULL_SECTOR_DIGITS.length) * 2 * Math.PI - Math.PI / 2;
-  const mileOffset = 0.42;
+  /** Keep sector seeds near the outward hub so map tiles stay local (Voronoi is computed per district). */
+  const mileOffset = 0.26;
   const latDegreesPerMile = 1 / 69;
   const lngDegreesPerMile = 1 / (69 * Math.cos((base.lat * Math.PI) / 180));
 
