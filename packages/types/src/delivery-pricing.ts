@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { HULL_SECTOR_GEOCODES } from "./hull-sector-geocodes.generated";
+import { listHullSectorsForOutward } from "./hull-postcode-boundaries";
 
 /** Default delivery when hub has not set mile fees / zones (Hull Eats platform default). */
 export const PLATFORM_DEFAULT_DELIVERY_GBP = 3;
@@ -11,8 +12,28 @@ export const DELIVERY_NOT_AVAILABLE_TO_POSTCODE_MESSAGE = "Delivery is not avail
 export const deliveryModeSchema = z.enum(["business_radius", "postcode_zones"]);
 export type DeliveryMode = z.infer<typeof deliveryModeSchema>;
 
-/** UK postcode sector digits (e.g. HU7 3xx → sector "3"). */
-export const HULL_SECTOR_DIGITS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"] as const;
+/** What customers can choose at checkout for this hub. */
+export const hubOrderFulfillmentSchema = z.enum([
+  "delivery_only",
+  "collection_only",
+  "delivery_and_collection",
+]);
+export type HubOrderFulfillment = z.infer<typeof hubOrderFulfillmentSchema>;
+
+export const hubOrderFulfillmentOptions: ReadonlyArray<{ value: HubOrderFulfillment; label: string }> = [
+  { value: "delivery_only", label: "Delivery only" },
+  { value: "collection_only", label: "Collection only" },
+  { value: "delivery_and_collection", label: "Delivery and collection" },
+];
+
+export const hubAllowsDelivery = (policy: HubOrderFulfillment | undefined | null): boolean =>
+  (policy ?? "delivery_and_collection") !== "collection_only";
+
+export const hubAllowsCollection = (policy: HubOrderFulfillment | undefined | null): boolean =>
+  (policy ?? "delivery_and_collection") !== "delivery_only";
+
+/** UK postcode sector digits (e.g. HU7 3xx → sector "3"; HU7 0xx → sector "0"). */
+export const HULL_SECTOR_DIGITS = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"] as const;
 export type HullSectorDigit = (typeof HULL_SECTOR_DIGITS)[number];
 
 export const hullPostcodeZoneSchema = z.object({
@@ -47,6 +68,7 @@ export const storeDeliveryPricingSchema = z.object({
   /** Optional override for distance origin; otherwise the hub base postcode outward centroid is used. */
   originLatitude: z.number().min(-90).max(90).nullable().optional(),
   originLongitude: z.number().min(-180).max(180).nullable().optional(),
+  orderFulfillment: hubOrderFulfillmentSchema.default("delivery_and_collection"),
 });
 
 export type StoreDeliveryPricing = z.infer<typeof storeDeliveryPricingSchema>;
@@ -89,19 +111,32 @@ export const createDefaultHullPostcodeZones = (): HullPostcodeZone[] =>
     enabledSectors: [],
   }));
 
-const normalizeSectorDigits = (sectors: string[] | undefined): HullSectorDigit[] => {
+const normalizeSectorDigits = (sectors: string[] | undefined, outwardCode?: string): HullSectorDigit[] => {
   const allowed = new Set<string>(HULL_SECTOR_DIGITS);
-  return [...new Set((sectors ?? []).map((digit) => digit.trim()).filter((digit) => allowed.has(digit)))]
-    .sort() as HullSectorDigit[];
+  const available =
+    outwardCode != null && outwardCode.trim()
+      ? new Set<string>(listHullSectorsForOutward(outwardCode))
+      : null;
+  return [
+    ...new Set(
+      (sectors ?? [])
+        .map((digit) => digit.trim())
+        .filter((digit) => allowed.has(digit) && (!available?.size || available.has(digit))),
+    ),
+  ].sort((left, right) => Number(left) - Number(right)) as HullSectorDigit[];
 };
 
-/** Enabled sector digits for a zone (migrates legacy enabled=true to all sectors). */
+/** Enabled sector digits for a zone (migrates legacy enabled=true to all sectors with boundaries). */
 export const getHullZoneEnabledSectors = (zone: HullPostcodeZone): HullSectorDigit[] => {
-  const normalized = normalizeSectorDigits(zone.enabledSectors);
+  const available = listHullSectorsForOutward(zone.code);
+  const normalized = normalizeSectorDigits(zone.enabledSectors, zone.code);
   if (normalized.length > 0) {
     return normalized;
   }
-  return zone.enabled ? [...HULL_SECTOR_DIGITS] : [];
+  if (!zone.enabled) {
+    return [];
+  }
+  return available.length > 0 ? [...available] : [];
 };
 
 export const isHullZoneSectorEnabled = (zone: HullPostcodeZone, sectorDigit: string): boolean =>
@@ -205,7 +240,7 @@ const syntheticSectorOffsetFromOutward = (
   sectorDigit: string,
 ): { lat: number; lng: number } => {
   const digit = Number(sectorDigit);
-  const angle = ((digit - 1) / HULL_SECTOR_DIGITS.length) * 2 * Math.PI - Math.PI / 2;
+  const angle = (digit / 9) * 2 * Math.PI - Math.PI / 2;
   const mileOffset = 0.18;
   const latDegreesPerMile = 1 / 69;
   const lngDegreesPerMile = 1 / (69 * Math.cos((base.lat * Math.PI) / 180));
@@ -269,7 +304,7 @@ export const parseUkPostcodeSector = (
 export const getHullSectorCentroid = (outwardCode: string, sectorDigit: string): { lat: number; lng: number } | null => {
   const outward = outwardCode.trim().toUpperCase();
   const digit = sectorDigit.trim();
-  if (!/^[1-9]$/.test(digit)) {
+  if (!/^[0-9]$/.test(digit)) {
     return null;
   }
 

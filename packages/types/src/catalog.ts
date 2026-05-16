@@ -85,6 +85,8 @@ export const storeSummarySchema = z.object({
   name: z.string().min(1),
   type: storeTypeSchema,
   storefrontStatus: storefrontStatusSchema.default("live"),
+  addressLine1: z.string().min(1).optional(),
+  addressLine2: z.string().optional(),
   city: z.string().min(1),
   postcode: z.string().min(1),
   isOpen: z.boolean(),

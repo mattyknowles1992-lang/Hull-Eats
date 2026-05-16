@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { deliveryModeSchema, hullPostcodeZoneSchema } from "./delivery-pricing";
+import { deliveryModeSchema, hubOrderFulfillmentSchema, hullPostcodeZoneSchema } from "./delivery-pricing";
 
 import { menuItemSchema, storeTypeSchema, storefrontStatusSchema } from "./catalog";
 import { membershipRoleSchema } from "./rbac";
@@ -68,6 +68,8 @@ export const hubSettingsSchema = z.object({
   deliveryMileFees: z.array(z.number().nonnegative()).length(5).default([0, 0, 0, 0, 0]),
   deliveryOriginLatitude: z.number().min(-90).max(90).nullable().optional(),
   deliveryOriginLongitude: z.number().min(-180).max(180).nullable().optional(),
+  /** Whether customers can order for delivery, collection, or both. */
+  orderFulfillment: hubOrderFulfillmentSchema.default("delivery_and_collection"),
 });
 
 export const hubMenuSectionSchema = z.object({

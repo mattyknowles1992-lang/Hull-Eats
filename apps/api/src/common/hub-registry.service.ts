@@ -1067,7 +1067,7 @@ export class HubRegistryService {
         type: this.mapStoreTypeToDb(loadedMunchStore.type),
         storefrontStatus: "LIVE",
         menuSetupComplete: true,
-        addressLine1: loadedMunchStore.name,
+        addressLine1: loadedMunchStore.addressLine1 ?? loadedMunchStore.name,
         city: loadedMunchStore.city,
         postcode: loadedMunchStore.postcode,
         timezone: "Europe/London",
@@ -1081,7 +1081,7 @@ export class HubRegistryService {
         isActive: loadedMunchStore.isOpen,
         autoAcceptOrders: false,
         autoAcceptMaxPrepMinutes: 60,
-        deliveryConfig: {
+        deliveryConfig: loadedMunchStore.deliveryPricing ?? {
           radiusMiles: 6,
           postcodeDistricts: [
             "HU1",
@@ -1113,7 +1113,7 @@ export class HubRegistryService {
         type: this.mapStoreTypeToDb(loadedMunchStore.type),
         storefrontStatus: "LIVE",
         menuSetupComplete: true,
-        addressLine1: loadedMunchStore.name,
+        addressLine1: loadedMunchStore.addressLine1 ?? loadedMunchStore.name,
         city: loadedMunchStore.city,
         postcode: loadedMunchStore.postcode,
         timezone: "Europe/London",
@@ -1127,7 +1127,7 @@ export class HubRegistryService {
         isActive: loadedMunchStore.isOpen,
         autoAcceptOrders: false,
         autoAcceptMaxPrepMinutes: 60,
-        deliveryConfig: {
+        deliveryConfig: loadedMunchStore.deliveryPricing ?? {
           radiusMiles: 6,
           postcodeDistricts: [
             "HU1",
@@ -1397,6 +1397,7 @@ export class HubRegistryService {
       mileFees: [...settings.deliveryMileFees],
       originLatitude: settings.deliveryOriginLatitude ?? null,
       originLongitude: settings.deliveryOriginLongitude ?? null,
+      orderFulfillment: settings.orderFulfillment,
     };
   }
 
@@ -1408,6 +1409,7 @@ export class HubRegistryService {
     | "deliveryMileFees"
     | "deliveryOriginLatitude"
     | "deliveryOriginLongitude"
+    | "orderFulfillment"
   > {
     const cfg = normaliseDeliveryPricing(store.deliveryConfig ?? {});
     return {
@@ -1423,6 +1425,7 @@ export class HubRegistryService {
       ],
       deliveryOriginLatitude: cfg.originLatitude ?? null,
       deliveryOriginLongitude: cfg.originLongitude ?? null,
+      orderFulfillment: cfg.orderFulfillment,
     };
   }
 

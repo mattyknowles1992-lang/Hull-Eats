@@ -30,21 +30,21 @@ type PersistedTrackingState = {
 
 const deliverySeeds: Record<string, DeliverySeed> = {
   "HE-0998": {
-    pickupAddress: "Loaded Munch, 88 Beverley Road, Hull",
+    pickupAddress: "Loaded Munch, Unit 1, 200 Clough Road, Hull, HU5 1SN",
     dropoffAddress: "44 Princes Avenue, Hull HU5 3QA",
     customerName: "Amelia Turner",
     customerPhone: "07700 900998",
     confirmationCode: "4821",
   },
   "HE-1001": {
-    pickupAddress: "Loaded Munch, 88 Beverley Road, Hull",
+    pickupAddress: "Loaded Munch, Unit 1, 200 Clough Road, Hull, HU5 1SN",
     dropoffAddress: "12 Humber Street, Hull HU1 1TG",
     customerName: "Noah Patel",
     customerPhone: "07700 901001",
     confirmationCode: "7354",
   },
   "HE-1002": {
-    pickupAddress: "Loaded Munch, 88 Beverley Road, Hull",
+    pickupAddress: "Loaded Munch, Unit 1, 200 Clough Road, Hull, HU5 1SN",
     dropoffAddress: "99 Spring Bank, Hull HU3 1BH",
     customerName: "Kai Low",
     customerPhone: "07700 901002",

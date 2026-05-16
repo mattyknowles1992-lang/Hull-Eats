@@ -30,6 +30,7 @@ type HubSection =
   | "menu"
   | "offers"
   | "businessProfile"
+  | "deliveryRanges"
   | "users"
   | "settings"
   | "help";
@@ -176,6 +177,7 @@ const emptyHubSettings: HubSettings = {
   deliveryMileFees: [0, 0, 0, 0, 0],
   deliveryOriginLatitude: null,
   deliveryOriginLongitude: null,
+  orderFulfillment: "delivery_and_collection",
 };
 
 const moneyInput = (value: number) => value.toFixed(2);
@@ -1105,7 +1107,9 @@ export default function MerchantPortalPage() {
   const [offersNotice, setOffersNotice] = useState("");
   const [driverTracking, setDriverTracking] = useState<MerchantDriverTracking | null>(null);
   const [activeHubSection, setActiveHubSection] = useState<HubSection>("home");
-  const [activeHubPanel, setActiveHubPanel] = useState<"menu" | "import" | "settings" | "account">("menu");
+  const [activeHubPanel, setActiveHubPanel] = useState<
+    "menu" | "import" | "businessProfile" | "deliveryRanges" | "settings" | "account"
+  >("menu");
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
   const [selectedItemId, setSelectedItemId] = useState("");
   const [showLoginPassword, setShowLoginPassword] = useState(false);
@@ -1178,7 +1182,17 @@ export default function MerchantPortalPage() {
       return;
     }
 
-    if (section === "businessProfile" || section === "settings") {
+    if (section === "businessProfile") {
+      setActiveHubPanel("businessProfile");
+      return;
+    }
+
+    if (section === "deliveryRanges") {
+      setActiveHubPanel("deliveryRanges");
+      return;
+    }
+
+    if (section === "settings") {
       setActiveHubPanel("settings");
       return;
     }
@@ -1976,37 +1990,37 @@ export default function MerchantPortalPage() {
           <div style={sidebarGroup}>
             <span style={sidebarGroupTitle}>Home</span>
             <button type="button" style={activeHubSection === "home" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("home")}>
-              <span>01</span> Dashboard
+              Dashboard
             </button>
           </div>
 
           <div style={sidebarGroup}>
             <span style={sidebarGroupTitle}>Orders</span>
             <button type="button" style={activeHubSection === "orders" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("orders")}>
-              <span>02</span> Live orders
+              Live orders
             </button>
             <button type="button" style={activeHubSection === "drivers" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("drivers")}>
-              <span>03</span> Drivers & cash-up
+              Drivers & cash-up
             </button>
             <button type="button" style={activeHubSection === "orderHistory" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("orderHistory")}>
-              <span>04</span> Order history
+              Order history
             </button>
           </div>
 
           <div style={sidebarGroup}>
             <span style={sidebarGroupTitle}>Performance</span>
             <button type="button" style={activeHubSection === "earnings" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("earnings")}>
-              <span>05</span> Earnings
+              Earnings
             </button>
             <button type="button" style={activeHubSection === "reports" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("reports")}>
-              <span>06</span> Reports
+              Reports
             </button>
           </div>
 
           <div style={sidebarGroup}>
             <span style={sidebarGroupTitle}>Menu management</span>
             <button type="button" style={activeHubSection === "menu" && activeHubPanel === "menu" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("menu")}>
-              <span>07</span> Menu builder
+              Menu builder
             </button>
             <button
               type="button"
@@ -2016,28 +2030,31 @@ export default function MerchantPortalPage() {
                 setActiveHubPanel("import");
               }}
             >
-              <span>08</span> Paste menu
+              Paste menu
             </button>
             <button type="button" style={activeHubSection === "offers" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("offers")}>
-              <span>09</span> Offers &amp; deals
+              Offers &amp; deals
             </button>
           </div>
 
           <div style={sidebarGroup}>
             <span style={sidebarGroupTitle}>Business</span>
             <button type="button" style={activeHubSection === "businessProfile" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("businessProfile")}>
-              <span>10</span> Business profile
+              Business profile
             </button>
-            <button type="button" style={activeHubSection === "users" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("users")}>
-              <span>11</span> Users
+            <button type="button" style={activeHubSection === "deliveryRanges" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("deliveryRanges")}>
+              Delivery ranges
             </button>
             <button type="button" style={activeHubSection === "settings" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("settings")}>
-              <span>12</span> Settings
+              Settings
+            </button>
+            <button type="button" style={activeHubSection === "users" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("users")}>
+              Users
             </button>
           </div>
 
           <button type="button" style={activeHubSection === "help" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("help")}>
-            <span>?</span> Help and support
+            Help and support
           </button>
         </nav>
       </aside>
@@ -2266,7 +2283,11 @@ export default function MerchantPortalPage() {
           </section>
         ) : null}
 
-        {activeHubSection === "menu" || activeHubSection === "businessProfile" || activeHubSection === "settings" || activeHubSection === "users" ? (
+        {activeHubSection === "menu" ||
+        activeHubSection === "businessProfile" ||
+        activeHubSection === "deliveryRanges" ||
+        activeHubSection === "settings" ||
+        activeHubSection === "users" ? (
         <section style={workbenchShell}>
           <div style={workbenchNav}>
             {activeHubSection === "menu" ? (
@@ -2280,9 +2301,21 @@ export default function MerchantPortalPage() {
               </>
             ) : null}
 
-            {activeHubSection === "businessProfile" || activeHubSection === "settings" ? (
-              <button type="button" style={workbenchTabActive} onClick={() => setActiveHubPanel("settings")}>
-                Business settings
+            {activeHubSection === "businessProfile" ? (
+              <button type="button" style={activeHubPanel === "businessProfile" ? workbenchTabActive : workbenchTab} onClick={() => setActiveHubPanel("businessProfile")}>
+                Business profile
+              </button>
+            ) : null}
+
+            {activeHubSection === "deliveryRanges" ? (
+              <button type="button" style={activeHubPanel === "deliveryRanges" ? workbenchTabActive : workbenchTab} onClick={() => setActiveHubPanel("deliveryRanges")}>
+                Delivery ranges
+              </button>
+            ) : null}
+
+            {activeHubSection === "settings" ? (
+              <button type="button" style={activeHubPanel === "settings" ? workbenchTabActive : workbenchTab} onClick={() => setActiveHubPanel("settings")}>
+                Settings
               </button>
             ) : null}
 
@@ -2744,7 +2777,7 @@ export default function MerchantPortalPage() {
             </section>
           ) : null}
 
-          {activeHubPanel === "settings" ? (
+          {activeHubPanel === "businessProfile" ? (
             <section style={compactEditorCard}>
               <div style={twoColumnGrid}>
                 <label style={field}>
@@ -2756,11 +2789,82 @@ export default function MerchantPortalPage() {
                   <input style={lightInput} value={hubSettings.cuisineLabel} onChange={(event) => handleHubFieldChange("cuisineLabel", event.target.value)} />
                 </label>
                 <label style={field}>
-                  <span style={darkFieldLabel}>ETA minutes</span>
+                  <span style={darkFieldLabel}>City</span>
+                  <input style={lightInput} value={hubSettings.city} onChange={(event) => handleHubFieldChange("city", event.target.value)} />
+                </label>
+                <label style={{ ...field, gridColumn: "1 / -1" }}>
+                  <span style={darkFieldLabel}>Marketplace description</span>
+                  <textarea
+                    style={{ ...lightInput, minHeight: 110, paddingTop: 14, paddingBottom: 14, resize: "vertical" }}
+                    value={hubSettings.onboardingMessage}
+                    onChange={(event) => handleHubFieldChange("onboardingMessage", event.target.value)}
+                  />
+                </label>
+                <label style={{ ...field, gridColumn: "1 / -1" }}>
+                  <span style={darkFieldLabel}>Hero image URL</span>
+                  <input
+                    style={lightInput}
+                    value={hubSettings.heroImageUrl}
+                    onChange={(event) => handleHubFieldChange("heroImageUrl", event.target.value)}
+                  />
+                </label>
+              </div>
+            </section>
+          ) : null}
+
+          {activeHubPanel === "deliveryRanges" ? (
+            <section style={compactEditorCard}>
+              <div style={twoColumnGrid}>
+                <label style={field}>
+                  <span style={darkFieldLabel}>Shop postcode</span>
+                  <input
+                    style={lightInput}
+                    value={hubSettings.postcode}
+                    onChange={(event) => handleHubFieldChange("postcode", event.target.value)}
+                    placeholder="e.g. HU5 1SN"
+                  />
+                  <p style={subtleInfo}>Used for your shop pin on the map and distance-based delivery fees.</p>
+                </label>
+              </div>
+              <div style={{ marginTop: 24, paddingTop: 24, borderTop: "1px solid rgba(15, 17, 21, 0.1)" }}>
+                <HubDeliveryConfig
+                  settings={hubSettings}
+                  onChange={patchHubDeliverySettings}
+                  apiBaseUrl={apiBaseUrl}
+                  hubId={activeHubId}
+                  merchantToken={merchantToken}
+                  styles={hubDeliveryConfigStyles}
+                />
+                <div style={{ display: "grid", gap: 12, marginTop: 18 }}>
+                  <span style={darkFieldLabel}>Mile band fees (£)</span>
+                  <p style={subtleInfo}>Distance from your shop to the customer postcode picks the band.</p>
+                  {["Under 1 mile", "Under 2 miles", "Under 3 miles", "Under 4 miles", "Under 5 miles"].map((label, index) => (
+                    <label key={label} style={field}>
+                      <span style={darkFieldLabel}>{label}</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min={0}
+                        style={lightInput}
+                        value={hubSettings.deliveryMileFees[index]}
+                        onChange={(event) => handleMileFeeBandChange(index, Number(event.target.value) || 0)}
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </section>
+          ) : null}
+
+          {activeHubPanel === "settings" ? (
+            <section style={compactEditorCard}>
+              <div style={twoColumnGrid}>
+                <label style={field}>
+                  <span style={darkFieldLabel}>Delivery ETA (minutes)</span>
                   <input type="number" min={1} style={lightInput} value={hubSettings.etaMinutes} onChange={(event) => handleHubFieldChange("etaMinutes", Math.max(1, Number(event.target.value) || 1))} />
                 </label>
                 <label style={field}>
-                  <span style={darkFieldLabel}>Delivery fee</span>
+                  <span style={darkFieldLabel}>Flat delivery fallback (£)</span>
                   <input type="number" step="0.01" style={lightInput} value={hubSettings.deliveryFee} onChange={(event) => handleHubFieldChange("deliveryFee", Number(event.target.value) || 0)} />
                 </label>
                 <label style={field}>
@@ -2798,33 +2902,6 @@ export default function MerchantPortalPage() {
                     <option value="closed">Closed</option>
                   </select>
                 </label>
-              </div>
-
-              <div style={{ marginTop: 24, paddingTop: 24, borderTop: "1px solid rgba(15, 17, 21, 0.1)" }}>
-                <HubDeliveryConfig
-                  settings={hubSettings}
-                  onChange={patchHubDeliverySettings}
-                  apiBaseUrl={apiBaseUrl}
-                  hubId={activeHubId}
-                  merchantToken={merchantToken}
-                  styles={hubDeliveryConfigStyles}
-                />
-                <div style={{ display: "grid", gap: 12, marginTop: 18 }}>
-                  <span style={darkFieldLabel}>Mile band fees (£)</span>
-                  {["Under 1 mile", "Under 2 miles", "Under 3 miles", "Under 4 miles", "Under 5 miles"].map((label, index) => (
-                    <label key={label} style={field}>
-                      <span style={darkFieldLabel}>{label}</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min={0}
-                        style={lightInput}
-                        value={hubSettings.deliveryMileFees[index]}
-                        onChange={(event) => handleMileFeeBandChange(index, Number(event.target.value) || 0)}
-                      />
-                    </label>
-                  ))}
-                </div>
               </div>
             </section>
           ) : null}

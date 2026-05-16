@@ -3,12 +3,21 @@ import Link from "next/link";
 import { AppSwitcher } from "../../app-switcher";
 import { featuredStores, storeMenus } from "../../../src/lib/demo";
 import { fetchMarketplaceMenu, fetchMarketplaceStore } from "../../../src/lib/marketplace";
+import { parseFulfillmentPreference } from "../../../src/lib/fulfillment-preference";
 import { CheckoutClient } from "./checkout-client";
 
 const fallbackStore = featuredStores[0]!;
 
-export default async function CheckoutPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function CheckoutPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ fulfillment?: string }>;
+}) {
   const resolvedParams = await params;
+  const resolvedSearchParams = await searchParams;
+  const initialFulfillment = parseFulfillmentPreference(resolvedSearchParams.fulfillment);
   const demoStore = featuredStores.find((entry) => entry.slug === resolvedParams.slug) ?? fallbackStore;
   const liveStore = await fetchMarketplaceStore(resolvedParams.slug);
   const store = liveStore ?? demoStore;
@@ -38,7 +47,7 @@ export default async function CheckoutPage({ params }: { params: Promise<{ slug:
         </div>
       </header>
 
-      <CheckoutClient store={store} menuItems={menuItems} />
+      <CheckoutClient store={store} menuItems={menuItems} initialFulfillment={initialFulfillment} />
     </main>
   );
 }

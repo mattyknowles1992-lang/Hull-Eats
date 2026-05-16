@@ -4,17 +4,17 @@ import type { CSSProperties } from "react";
 import type { HubSettings } from "@hull-eats/types";
 import {
   HULL_AREA_OUTWARD_CENTROIDS,
-  HULL_SECTOR_DIGITS,
   createDefaultHullPostcodeZones,
   formatHullSectorLabel,
   getHullZoneEnabledSectors,
-  hullZoneHasCoverage,
   isHullZoneSectorEnabled,
-  listHullSectorDigits,
+  listHullSectorsForOutward,
+  hubOrderFulfillmentOptions,
   listKnownHullOutwardCodes,
   mergeHullPostcodeZones,
   milesToMeters,
   resolveBusinessOrigin,
+  type HubOrderFulfillment,
   type DeliveryMode,
   type HullPostcodeZone,
   type HullSectorBoundaryCollection,
@@ -301,7 +301,7 @@ export function HubDeliveryConfig({
         if (zone.code !== upper) {
           return zone;
         }
-        const enabledSectors = selectAll ? [...HULL_SECTOR_DIGITS] : [];
+        const enabledSectors = selectAll ? [...listHullSectorsForOutward(upper)] : [];
         return {
           ...zone,
           enabledSectors,
@@ -330,7 +330,7 @@ export function HubDeliveryConfig({
           selected.add(sector);
         }
 
-        const enabledSectors = HULL_SECTOR_DIGITS.filter((digit) => selected.has(digit));
+        const enabledSectors = listHullSectorsForOutward(upper).filter((digit) => selected.has(digit));
         return {
           ...zone,
           enabledSectors,
@@ -339,16 +339,6 @@ export function HubDeliveryConfig({
       }),
     );
   }, []);
-
-  const setZoneRadius = (code: string, radiusMiles: number) => {
-    const upper = code.toUpperCase();
-    const clamped = Math.min(40, Math.max(0.1, radiusMiles));
-    const current = zonesRef.current;
-    patchZones(
-      current.map((zone) => (zone.code === upper ? { ...zone, radiusMiles: clamped } : zone)),
-    );
-    setActiveZoneCode(upper);
-  };
 
   const hasAnySectorSelected = useMemo(
     () => zones.some((zone) => getHullZoneEnabledSectors(zone).length > 0),
@@ -561,10 +551,26 @@ export function HubDeliveryConfig({
     toggleSector,
   ]);
 
-  const activeZone = zones.find((zone) => zone.code === activeZoneCode) ?? null;
-
   return (
     <div style={{ display: "grid", gap: 18 }}>
+      <label style={styles.field}>
+        <span style={styles.darkFieldLabel}>Customer order options</span>
+        <select
+          style={styles.lightInput}
+          value={settings.orderFulfillment}
+          onChange={(event) => onChange({ orderFulfillment: event.target.value as HubOrderFulfillment })}
+        >
+          {hubOrderFulfillmentOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <p style={{ ...styles.subtleInfo, margin: "8px 0 0" }}>
+          Controls whether buyers see delivery, collection, or both on your storefront.
+        </p>
+      </label>
+
       <div>
         <p style={styles.eyebrow}>Delivery area</p>
         <h2 style={{ ...styles.sectionTitle, marginTop: 6, marginBottom: 8 }}>Map your delivery coverage</h2>
@@ -666,6 +672,7 @@ export function HubDeliveryConfig({
             {listKnownHullOutwardCodes().map((code) => {
               const zone = zones.find((entry) => entry.code === code)!;
               const expanded = expandedOutward === code;
+              const availableSectors = listHullSectorsForOutward(code);
               const selectedCount = getHullZoneEnabledSectors(zone).length;
               const isActive = activeZoneCode === code;
 
@@ -703,17 +710,22 @@ export function HubDeliveryConfig({
                           style={sectorToolbarButtonStyle}
                           onClick={(event) => {
                             event.stopPropagation();
-                            const allOn = selectedCount === HULL_SECTOR_DIGITS.length;
+                            const allOn = availableSectors.length > 0 && selectedCount === availableSectors.length;
                             setOutwardSectorsAll(code, !allOn);
                           }}
                         >
-                          {selectedCount === HULL_SECTOR_DIGITS.length
+                          {availableSectors.length > 0 && selectedCount === availableSectors.length
                             ? `Deselect all ${code}`
                             : `Select all ${code}`}
                         </button>
                       </div>
                       <div style={sectorPanelStyle}>
-                      {listHullSectorDigits().map((digit) => {
+                      {availableSectors.length === 0 ? (
+                        <p style={{ ...styles.subtleInfo, margin: 0, gridColumn: "1 / -1" }}>
+                          No sector boundaries in map data for {code}.
+                        </p>
+                      ) : null}
+                      {availableSectors.map((digit) => {
                         const checked = isHullZoneSectorEnabled(zone, digit);
                         return (
                           <label
@@ -736,22 +748,6 @@ export function HubDeliveryConfig({
               );
             })}
           </div>
-          {activeZone && hullZoneHasCoverage(activeZone) ? (
-            <label style={styles.field}>
-              <span style={styles.darkFieldLabel}>Default radius for {activeZone.code} (miles, optional reference)</span>
-              <input
-                type="number"
-                min={0.1}
-                max={40}
-                step={0.1}
-                style={styles.lightInput}
-                value={activeZone.radiusMiles}
-                onChange={(event) => setZoneRadius(activeZone.code, Number(event.target.value) || 1.5)}
-              />
-            </label>
-          ) : (
-            <p style={styles.subtleInfo}>Open a postcode and tick at least one sector to enable delivery there.</p>
-          )}
         </div>
       )}
     </div>

@@ -1,4 +1,5 @@
 import type { HullSectorDigit } from "./delivery-pricing";
+import { HULL_SECTOR_BOUNDARY_INDEX } from "./hull-sector-boundaries-index.generated";
 
 export type HullSectorBoundaryProperties = {
   outward: string;
@@ -28,3 +29,10 @@ export type HullSectorBoundaryCollection = {
 
 export const hullSectorBoundaryKey = (outward: string, sector: string) =>
   `${outward.trim().toUpperCase()}|${sector.trim()}`;
+
+/** Sector digits that have a real boundary polygon in the bundled Hull GeoJSON. */
+export const listHullSectorsForOutward = (outwardCode: string): readonly HullSectorDigit[] => {
+  const outward = outwardCode.trim().toUpperCase();
+  const sectors = HULL_SECTOR_BOUNDARY_INDEX[outward] ?? [];
+  return [...sectors].sort((left, right) => Number(left) - Number(right));
+};

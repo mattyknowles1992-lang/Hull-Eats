@@ -5,6 +5,7 @@ import { deliveryFeeFromForStorefront } from "@hull-eats/types";
 import { AppSwitcher } from "../../app-switcher";
 import { featuredStores, storeMenus } from "../../../src/lib/demo";
 import { fetchMarketplaceMenu, fetchMarketplaceStore } from "../../../src/lib/marketplace";
+import { formatStoreAddress } from "../../../src/lib/store-address";
 import { BasketButton } from "./basket-button";
 import { StoreMenuClient } from "./store-menu-client";
 
@@ -27,6 +28,7 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
       }
     : demoMenu;
   const hasLiveMenu = menu.categories.length > 0 && menu.items.length > 0;
+  const storeAddress = formatStoreAddress(store);
 
   return (
     <main className="shell">
@@ -86,6 +88,7 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
                 storeSlug={store.slug}
                 storeName={store.name}
                 storePostcode={store.postcode}
+                storeAddress={storeAddress}
                 storeDeliveryFee={store.deliveryFee}
                 storeDeliveryPricing={store.deliveryPricing}
                 categories={menu.categories}
@@ -119,12 +122,8 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
               <strong>{store.type}</strong>
             </div>
             <div className="glance-row">
-              <span className="muted-copy">Area</span>
-              <strong>{store.city}</strong>
-            </div>
-            <div className="glance-row">
-              <span className="muted-copy">Postcode</span>
-              <strong>{store.postcode}</strong>
+              <span className="muted-copy">Address</span>
+              <strong>{storeAddress || store.postcode}</strong>
             </div>
             <div className="glance-row">
               <span className="muted-copy">Minimum order</span>

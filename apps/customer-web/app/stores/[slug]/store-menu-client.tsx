@@ -22,9 +22,20 @@ import {
   type BasketLine,
   type StoreBasket,
 } from "../../../src/lib/basket";
-import { computeDeliveryQuote, DELIVERY_NOT_AVAILABLE_TO_POSTCODE_MESSAGE, normaliseDeliveryPricing } from "@hull-eats/types";
+import {
+  computeDeliveryQuote,
+  DELIVERY_NOT_AVAILABLE_TO_POSTCODE_MESSAGE,
+  hubAllowsCollection,
+  hubAllowsDelivery,
+  normaliseDeliveryPricing,
+} from "@hull-eats/types";
 import { fetchCustomerDefaultDeliveryPostcode } from "../../../src/lib/customer-default-delivery-postcode";
 import { getDeliveryPostcodeForStore, setDeliveryPostcodeForStore } from "../../../src/lib/delivery-postcode";
+import {
+  getFulfillmentForStore,
+  setFulfillmentForStore,
+  type FulfillmentPreference,
+} from "../../../src/lib/fulfillment-preference";
 import { getBrowserSupabaseClient } from "../../../src/lib/supabase-browser";
 
 type MenuCategory = {
@@ -39,6 +50,7 @@ type StoreMenuClientProps = {
   storeSlug: string;
   storeName: string;
   storePostcode: string;
+  storeAddress?: string;
   storeDeliveryFee?: number;
   storeDeliveryPricing?: StoreSummary["deliveryPricing"];
   categories: MenuCategory[];
@@ -139,6 +151,7 @@ export function StoreMenuClient({
   storeSlug,
   storeName,
   storePostcode,
+  storeAddress,
   storeDeliveryFee,
   storeDeliveryPricing,
   categories,
@@ -157,6 +170,51 @@ export function StoreMenuClient({
   const [deliveryPostcodeInput, setDeliveryPostcodeInput] = useState("");
   const [deliveryPostcodeBootstrapDone, setDeliveryPostcodeBootstrapDone] = useState(false);
   const [showPostcodeEditor, setShowPostcodeEditor] = useState(false);
+  const deliveryPricing = useMemo(
+    () => (storeDeliveryPricing ? normaliseDeliveryPricing(storeDeliveryPricing) : null),
+    [storeDeliveryPricing],
+  );
+  const canChooseDelivery = hubAllowsDelivery(deliveryPricing?.orderFulfillment);
+  const canChooseCollection = hubAllowsCollection(deliveryPricing?.orderFulfillment);
+
+  const [fulfillmentType, setFulfillmentType] = useState<FulfillmentPreference>("delivery");
+
+  useEffect(() => {
+    const saved = getFulfillmentForStore(storeSlug);
+    if (canChooseDelivery && !canChooseCollection) {
+      setFulfillmentType("delivery");
+      setFulfillmentForStore(storeSlug, "delivery");
+      return;
+    }
+    if (!canChooseDelivery && canChooseCollection) {
+      setFulfillmentType("pickup");
+      setFulfillmentForStore(storeSlug, "pickup");
+      return;
+    }
+    setFulfillmentType(saved);
+  }, [storeSlug, canChooseDelivery, canChooseCollection]);
+
+  useEffect(() => {
+    const onFulfillment = (event: Event) => {
+      const detail = (event as CustomEvent<{ storeSlug?: string; value?: FulfillmentPreference }>).detail;
+      if (!detail?.storeSlug || detail.storeSlug === storeSlug) {
+        setFulfillmentType(getFulfillmentForStore(storeSlug));
+      }
+    };
+    window.addEventListener("hull-eats-fulfillment-updated", onFulfillment as EventListener);
+    return () => window.removeEventListener("hull-eats-fulfillment-updated", onFulfillment as EventListener);
+  }, [storeSlug]);
+
+  const setFulfillment = (next: FulfillmentPreference) => {
+    if (next === "delivery" && !canChooseDelivery) {
+      return;
+    }
+    if (next === "pickup" && !canChooseCollection) {
+      return;
+    }
+    setFulfillmentType(next);
+    setFulfillmentForStore(storeSlug, next);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -284,13 +342,13 @@ export function StoreMenuClient({
   const deliveryQuote = useMemo(
     () =>
       computeDeliveryQuote({
-        fulfillmentType: "delivery",
+        fulfillmentType,
         storeBasePostcode: storePostcode,
         legacyDeliveryFee: storeDeliveryFee,
-        pricing: storeDeliveryPricing ? normaliseDeliveryPricing(storeDeliveryPricing) : null,
+        pricing: deliveryPricing,
         customerPostcode: deliveryPostcodeInput.trim() || undefined,
       }),
-    [storePostcode, storeDeliveryFee, storeDeliveryPricing, deliveryPostcodeInput],
+    [fulfillmentType, storePostcode, storeDeliveryFee, deliveryPricing, deliveryPostcodeInput],
   );
 
   const showFloatingBasket = itemCount > 0 && !activeItem;
@@ -487,8 +545,13 @@ export function StoreMenuClient({
     : deliveryQuote.needsPostcode
       ? `from ${formatMoney(deliveryQuote.fee)}`
       : formatMoney(deliveryQuote.fee);
-  const orderTotal = deliveryQuote.blocked ? subtotal : Number((subtotal + deliveryQuote.fee).toFixed(2));
-  const showDeliveryWarning = Boolean(deliveryQuote.blocked && deliveryQuote.reason);
+  const orderTotal =
+    fulfillmentType === "pickup" || deliveryQuote.blocked
+      ? subtotal
+      : Number((subtotal + deliveryQuote.fee).toFixed(2));
+  const showDeliveryWarning = fulfillmentType === "delivery" && Boolean(deliveryQuote.blocked && deliveryQuote.reason);
+  const checkoutHref =
+    fulfillmentType === "pickup" ? `/checkout/${storeSlug}?fulfillment=pickup` : `/checkout/${storeSlug}`;
 
   const renderFloatingBasket = () => (
     <section className={floatingBasketClassName} aria-label="Your basket">
@@ -539,10 +602,17 @@ export function StoreMenuClient({
 
         {basketExpanded && itemCount > 0 ? (
           <div className="basket-floating-totals" aria-label="Basket totals">
+            {fulfillmentType === "delivery" ? (
             <div className="basket-floating-total-row">
               <span>Delivery</span>
               <strong>{deliveryFeeLabel}</strong>
             </div>
+            ) : (
+              <div className="basket-floating-total-row">
+                <span>Collection</span>
+                <strong>No delivery fee</strong>
+              </div>
+            )}
             <div className="basket-floating-total-row basket-floating-total-grand">
               <span>Total</span>
               <strong>{formatMoney(orderTotal)}</strong>
@@ -559,7 +629,7 @@ export function StoreMenuClient({
           >
             {basketExpanded ? "Show less" : "Show more"}
           </button>
-          <Link href={`/checkout/${storeSlug}`} className="primary-button gold-button basket-floating-checkout">
+          <Link href={checkoutHref} className="primary-button gold-button basket-floating-checkout">
             Go to checkout
           </Link>
         </div>
@@ -581,13 +651,53 @@ export function StoreMenuClient({
     <div className="menu-section-stack">
       {floatingBasketPortal}
 
-      {!deliveryPostcodeBootstrapDone ? (
+      {canChooseDelivery || canChooseCollection ? (
+        <section className="menu-category-filter-panel" aria-label="Order type">
+          <div className="menu-category-filter-header">
+            <div>
+              <p className="eyebrow">How would you like your order?</p>
+              <h3>
+                {canChooseDelivery && canChooseCollection
+                  ? "Delivery or collection"
+                  : canChooseDelivery
+                    ? "Delivery"
+                    : "Collection"}
+              </h3>
+            </div>
+          </div>
+          {canChooseDelivery && canChooseCollection ? (
+            <div className="menu-category-filter-row fulfillment-toggle-row">
+              <button
+                type="button"
+                className={`filter-pill${fulfillmentType === "delivery" ? " is-active" : ""}`}
+                onClick={() => setFulfillment("delivery")}
+              >
+                Delivery
+              </button>
+              <button
+                type="button"
+                className={`filter-pill${fulfillmentType === "pickup" ? " is-active" : ""}`}
+                onClick={() => setFulfillment("pickup")}
+              >
+                Collection
+              </button>
+            </div>
+          ) : null}
+          {fulfillmentType === "pickup" && storeAddress ? (
+            <p className="muted-copy" style={{ margin: "10px 0 0" }}>
+              Collect from <strong>{storeAddress}</strong>
+            </p>
+          ) : null}
+        </section>
+      ) : null}
+
+      {fulfillmentType === "delivery" && !deliveryPostcodeBootstrapDone ? (
         <section className="menu-category-filter-panel" aria-live="polite">
           <p className="muted-copy" style={{ margin: 0 }}>
             Checking saved delivery details…
           </p>
         </section>
-      ) : deliveryPostcodeInput.trim() && !showPostcodeEditor ? (
+      ) : fulfillmentType === "delivery" && deliveryPostcodeInput.trim() && !showPostcodeEditor ? (
           <section className="menu-category-filter-panel menu-delivery-known" aria-label="Delivery estimate">
             <div className="menu-category-filter-header">
               <div>
@@ -608,7 +718,7 @@ export function StoreMenuClient({
               </button>
             </div>
           </section>
-        ) : (
+        ) : fulfillmentType === "delivery" ? (
           <section className="menu-category-filter-panel" aria-label="Delivery postcode for estimates">
             <div className="menu-category-filter-header">
               <div>
@@ -652,7 +762,7 @@ export function StoreMenuClient({
               </button>
             </div>
           </section>
-        )}
+        ) : null}
 
       <section className="menu-category-filter-panel" aria-label="Menu category filters">
         <div className="menu-category-filter-header">

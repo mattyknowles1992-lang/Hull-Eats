@@ -75,6 +75,7 @@ const mapStoreRow = (store: {
   name: string;
   type: string;
   storefrontStatus: string;
+  addressLine1: string;
   city: string;
   postcode: string;
   cuisineLabel: string | null;
@@ -93,6 +94,7 @@ const mapStoreRow = (store: {
   name: store.name,
   type: mapStoreType(store.type),
   storefrontStatus: mapStorefrontStatus(store.storefrontStatus),
+  addressLine1: store.addressLine1,
   city: store.city,
   postcode: store.postcode,
   isOpen: store.isActive && store.storefrontStatus === "LIVE",

@@ -4,7 +4,12 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import type { MenuItem, StoreSummary } from "@hull-eats/types";
-import { computeDeliveryQuote, normaliseDeliveryPricing } from "@hull-eats/types";
+import {
+  computeDeliveryQuote,
+  hubAllowsCollection,
+  hubAllowsDelivery,
+  normaliseDeliveryPricing,
+} from "@hull-eats/types";
 
 import { cancelCustomerOrderWithinGrace, createCheckoutSession, placeCheckoutOrder } from "../../../src/lib/api";
 import {
@@ -18,10 +23,17 @@ import {
 import { playOrderSuccessDelight, saveActiveOrderSnapshot } from "../../../src/lib/customer-experience";
 import { getBrowserSupabaseClient } from "../../../src/lib/supabase-browser";
 import { getDeliveryPostcodeForStore, setDeliveryPostcodeForStore } from "../../../src/lib/delivery-postcode";
+import {
+  getFulfillmentForStore,
+  setFulfillmentForStore,
+  type FulfillmentPreference,
+} from "../../../src/lib/fulfillment-preference";
+import { formatStoreAddress } from "../../../src/lib/store-address";
 
 type CheckoutClientProps = {
   store: StoreSummary;
   menuItems: MenuItem[];
+  initialFulfillment?: FulfillmentPreference;
 };
 
 type CheckoutFormState = {
@@ -52,13 +64,17 @@ const getLineComponents = <T extends { components?: unknown }>(line: T) => (Arra
 const getLineSelectedOptions = <T extends { selectedOptions?: unknown }>(line: T) =>
   Array.isArray(line.selectedOptions) ? line.selectedOptions : [];
 
-function validateCheckoutForm(formState: CheckoutFormState) {
+function validateCheckoutForm(formState: CheckoutFormState, fulfillmentType: FulfillmentPreference) {
   if (!formState.customerName.trim()) {
     return "Enter your full name before placing the order.";
   }
 
   if (!formState.customerPhone.trim()) {
     return "Enter a phone number before placing the order.";
+  }
+
+  if (fulfillmentType === "pickup") {
+    return null;
   }
 
   if (!formState.addressLine1.trim()) {
@@ -76,7 +92,7 @@ function validateCheckoutForm(formState: CheckoutFormState) {
   return null;
 }
 
-export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
+export function CheckoutClient({ store, menuItems, initialFulfillment = "delivery" }: CheckoutClientProps) {
   const [basket, setBasket] = useState<StoreBasket | null>(null);
   const [formState, setFormState] = useState<CheckoutFormState>(initialFormState);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
@@ -89,6 +105,41 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
   const [customerCancelTick, setCustomerCancelTick] = useState(0);
   const [isCancellingOrder, setIsCancellingOrder] = useState(false);
   const [cancelOrderError, setCancelOrderError] = useState<string | null>(null);
+  const deliveryPricing = useMemo(
+    () => (store.deliveryPricing ? normaliseDeliveryPricing(store.deliveryPricing) : null),
+    [store.deliveryPricing],
+  );
+  const canChooseDelivery = hubAllowsDelivery(deliveryPricing?.orderFulfillment);
+  const canChooseCollection = hubAllowsCollection(deliveryPricing?.orderFulfillment);
+
+  const [fulfillmentType, setFulfillmentType] = useState<FulfillmentPreference>(initialFulfillment);
+  const storeAddress = formatStoreAddress(store);
+
+  useEffect(() => {
+    if (canChooseDelivery && !canChooseCollection) {
+      setFulfillmentType("delivery");
+      setFulfillmentForStore(store.slug, "delivery");
+      return;
+    }
+    if (!canChooseDelivery && canChooseCollection) {
+      setFulfillmentType("pickup");
+      setFulfillmentForStore(store.slug, "pickup");
+      return;
+    }
+    setFulfillmentType(initialFulfillment);
+    setFulfillmentForStore(store.slug, initialFulfillment);
+  }, [initialFulfillment, store.slug, canChooseDelivery, canChooseCollection]);
+
+  const setFulfillment = (next: FulfillmentPreference) => {
+    if (next === "delivery" && !canChooseDelivery) {
+      return;
+    }
+    if (next === "pickup" && !canChooseCollection) {
+      return;
+    }
+    setFulfillmentType(next);
+    setFulfillmentForStore(store.slug, next);
+  };
 
   useEffect(() => {
     const sync = () => setBasket(loadBasket(store.slug));
@@ -196,13 +247,13 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
   const deliveryPreview = useMemo(
     () =>
       computeDeliveryQuote({
-        fulfillmentType: "delivery",
+        fulfillmentType,
         storeBasePostcode: store.postcode,
         legacyDeliveryFee: store.deliveryFee,
-        pricing: store.deliveryPricing ? normaliseDeliveryPricing(store.deliveryPricing) : null,
+        pricing: deliveryPricing,
         customerPostcode: formState.postcode.trim() || undefined,
       }),
-    [store, formState.postcode],
+    [fulfillmentType, store, deliveryPricing, formState.postcode],
   );
 
   const enrichedLines = useMemo(
@@ -245,14 +296,14 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
     return createCheckoutSession({
       storeId: store.id,
       source: "web",
-      fulfillmentType: "delivery",
+      fulfillmentType,
       customerName: formState.customerName.trim(),
       customerPhone: formState.customerPhone.trim(),
       customerEmail: formState.customerEmail.trim() || undefined,
       customerProfileId: customerProfileId || undefined,
-      addressLine1: formState.addressLine1.trim(),
-      city: formState.city.trim(),
-      postcode: formState.postcode.trim(),
+      addressLine1: fulfillmentType === "delivery" ? formState.addressLine1.trim() : undefined,
+      city: fulfillmentType === "delivery" ? formState.city.trim() : undefined,
+      postcode: fulfillmentType === "delivery" ? formState.postcode.trim() : undefined,
       notes: formState.notes.trim() || undefined,
       items: basket.items.map((item) => ({
         menuItemId: item.menuItemId,
@@ -268,7 +319,7 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
     setErrorMessage(null);
 
     try {
-      const formError = validateCheckoutForm(formState);
+      const formError = validateCheckoutForm(formState, fulfillmentType);
 
       if (formError) {
         setErrorMessage(formError);
@@ -492,9 +543,51 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
           <div>
             <p className="eyebrow">Checkout</p>
             <h1 className="checkout-title">{store.name} order</h1>
-            <p className="checkout-copy">Review your address, basket, and customisations before placing the order.</p>
+            <p className="checkout-copy">
+              Choose delivery or collection, then review your details and basket before placing the order.
+            </p>
           </div>
         </div>
+
+        {canChooseDelivery || canChooseCollection ? (
+          <section className="menu-category-filter-panel" aria-label="Order type" style={{ marginBottom: 18 }}>
+            <div className="menu-category-filter-header">
+              <div>
+                <p className="eyebrow">Order type</p>
+                <h2 style={{ margin: "6px 0 0", fontSize: "1.15rem" }}>
+                  {canChooseDelivery && canChooseCollection
+                    ? "Delivery or collection"
+                    : canChooseDelivery
+                      ? "Delivery"
+                      : "Collection"}
+                </h2>
+              </div>
+            </div>
+            {canChooseDelivery && canChooseCollection ? (
+              <div className="menu-category-filter-row fulfillment-toggle-row">
+                <button
+                  type="button"
+                  className={`filter-pill${fulfillmentType === "delivery" ? " is-active" : ""}`}
+                  onClick={() => setFulfillment("delivery")}
+                >
+                  Delivery
+                </button>
+                <button
+                  type="button"
+                  className={`filter-pill${fulfillmentType === "pickup" ? " is-active" : ""}`}
+                  onClick={() => setFulfillment("pickup")}
+                >
+                  Collection
+                </button>
+              </div>
+            ) : null}
+            {fulfillmentType === "pickup" && storeAddress ? (
+              <p className="checkout-copy" style={{ margin: "12px 0 0" }}>
+                Collect from <strong>{storeAddress}</strong>
+              </p>
+            ) : null}
+          </section>
+        ) : null}
 
         <div className="form-grid">
           <label className="form-field">
@@ -522,30 +615,40 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
               onChange={(event) => updateField("customerEmail", event.target.value)}
             />
           </label>
-          <label className="form-field">
-            <span>Address line 1</span>
-            <input
-              className="form-input"
-              value={formState.addressLine1}
-              required
-              autoComplete="address-line1"
-              onChange={(event) => updateField("addressLine1", event.target.value)}
-            />
-          </label>
-          <label className="form-field">
-            <span>City</span>
-            <input className="form-input" value={formState.city} required autoComplete="address-level2" onChange={(event) => updateField("city", event.target.value)} />
-          </label>
-          <label className="form-field">
-            <span>Postcode</span>
-            <input
-              className="form-input"
-              value={formState.postcode}
-              required
-              autoComplete="postal-code"
-              onChange={(event) => updateField("postcode", event.target.value)}
-            />
-          </label>
+          {fulfillmentType === "delivery" ? (
+            <>
+              <label className="form-field">
+                <span>Address line 1</span>
+                <input
+                  className="form-input"
+                  value={formState.addressLine1}
+                  required
+                  autoComplete="address-line1"
+                  onChange={(event) => updateField("addressLine1", event.target.value)}
+                />
+              </label>
+              <label className="form-field">
+                <span>City</span>
+                <input
+                  className="form-input"
+                  value={formState.city}
+                  required
+                  autoComplete="address-level2"
+                  onChange={(event) => updateField("city", event.target.value)}
+                />
+              </label>
+              <label className="form-field">
+                <span>Postcode</span>
+                <input
+                  className="form-input"
+                  value={formState.postcode}
+                  required
+                  autoComplete="postal-code"
+                  onChange={(event) => updateField("postcode", event.target.value)}
+                />
+              </label>
+            </>
+          ) : null}
           <label className="form-field form-field-full">
             <span>Order notes</span>
             <textarea className="form-input form-textarea" value={formState.notes} onChange={(event) => updateField("notes", event.target.value)} />
@@ -583,7 +686,7 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
               className={paymentMode === "cash_on_delivery" ? "primary-button gold-button" : "glass-button"}
               onClick={() => setPaymentMode("cash_on_delivery")}
             >
-              Pay cash on delivery
+              {fulfillmentType === "pickup" ? "Pay cash on collection" : "Pay cash on delivery"}
             </button>
             <button
               type="button"
@@ -682,24 +785,36 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
               <span className="muted-copy">Local subtotal</span>
               <strong>{formatMoney(localSubtotal)}</strong>
             </div>
-            <div className="glance-row">
-              <span className="muted-copy">
-                Delivery fee
-                {checkoutSession?.deliveryFeeIsEstimate || (!checkoutSession && deliveryPreview.needsPostcode) ? " (estimate)" : ""}
-              </span>
-              <strong>
-                {checkoutSession
-                  ? formatMoney(checkoutSession.deliveryFee)
-                  : deliveryPreview.blocked
-                    ? "—"
-                    : formatMoney(deliveryPreview.fee)}
-              </strong>
-            </div>
-            {(checkoutSession?.deliveryWarning ?? (!checkoutSession && deliveryPreview.blocked ? deliveryPreview.reason : undefined)) ? (
-              <p className="checkout-note" style={{ marginTop: 10, color: "#b42318" }}>
-                {checkoutSession?.deliveryWarning ?? deliveryPreview.reason}
-              </p>
-            ) : null}
+            {fulfillmentType === "delivery" ? (
+              <>
+                <div className="glance-row">
+                  <span className="muted-copy">
+                    Delivery fee
+                    {checkoutSession?.deliveryFeeIsEstimate || (!checkoutSession && deliveryPreview.needsPostcode)
+                      ? " (estimate)"
+                      : ""}
+                  </span>
+                  <strong>
+                    {checkoutSession
+                      ? formatMoney(checkoutSession.deliveryFee)
+                      : deliveryPreview.blocked
+                        ? "—"
+                        : formatMoney(deliveryPreview.fee)}
+                  </strong>
+                </div>
+                {(checkoutSession?.deliveryWarning ??
+                (!checkoutSession && deliveryPreview.blocked ? deliveryPreview.reason : undefined)) ? (
+                  <p className="checkout-note" style={{ marginTop: 10, color: "#b42318" }}>
+                    {checkoutSession?.deliveryWarning ?? deliveryPreview.reason}
+                  </p>
+                ) : null}
+              </>
+            ) : (
+              <div className="glance-row">
+                <span className="muted-copy">Collection</span>
+                <strong>No delivery fee</strong>
+              </div>
+            )}
             <div className="glance-row">
               <span className="muted-copy">Minimum order</span>
               <strong>{formatMoney(checkoutSession?.minimumOrderAmount ?? store.minimumOrderAmount ?? 0)}</strong>
@@ -709,7 +824,7 @@ export function CheckoutClient({ store, menuItems }: CheckoutClientProps) {
               <strong>
                 {checkoutSession
                   ? formatMoney(checkoutSession.totalAmount)
-                  : deliveryPreview.blocked
+                  : fulfillmentType === "pickup" || deliveryPreview.blocked
                     ? formatMoney(localSubtotal)
                     : formatMoney(Number((localSubtotal + deliveryPreview.fee).toFixed(2)))}
               </strong>
