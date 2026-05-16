@@ -1,4 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from "@nestjs/common";
+
+import { geocodeUkPostcode } from "./uk-postcode-geocode";
 import { Prisma } from "@prisma/client";
 
 import { hashPassword, verifyPassword } from "@hull-eats/auth";
@@ -424,32 +426,39 @@ export class HubRegistryService {
       throw new NotFoundException(`Hub ${hubId} does not have a store configured yet.`);
     }
 
+    const settings = { ...input.settings };
+    const geocoded = await geocodeUkPostcode(settings.postcode);
+    if (geocoded) {
+      settings.deliveryOriginLatitude = geocoded.latitude;
+      settings.deliveryOriginLongitude = geocoded.longitude;
+    }
+
     await prisma.$transaction(async (tx) => {
       await tx.merchant.update({
         where: { id: hubId },
         data: {
-          name: input.settings.name,
+          name: settings.name,
         },
       });
 
       await tx.store.update({
         where: { id: store.id },
         data: {
-          slug: slugify(input.settings.name) || store.slug,
-          name: input.settings.name,
-          city: input.settings.city,
-          postcode: input.settings.postcode,
-          cuisineLabel: input.settings.cuisineLabel,
-          onboardingMessage: input.settings.onboardingMessage,
-          heroImageUrl: input.settings.heroImageUrl,
-          etaMinutes: input.settings.etaMinutes,
-          deliveryFee: input.settings.deliveryFee,
-          deliveryConfig: this.deliveryJsonFromHubSettings(input.settings),
-          minimumOrderAmount: input.settings.minimumOrderAmount,
+          slug: slugify(settings.name) || store.slug,
+          name: settings.name,
+          city: settings.city,
+          postcode: settings.postcode,
+          cuisineLabel: settings.cuisineLabel,
+          onboardingMessage: settings.onboardingMessage,
+          heroImageUrl: settings.heroImageUrl,
+          etaMinutes: settings.etaMinutes,
+          deliveryFee: settings.deliveryFee,
+          deliveryConfig: this.deliveryJsonFromHubSettings(settings),
+          minimumOrderAmount: settings.minimumOrderAmount,
           isActive: true,
-          storefrontStatus: input.settings.isOpen ? "LIVE" : "ONBOARDING",
-          autoAcceptOrders: input.settings.autoAcceptOrders,
-          autoAcceptMaxPrepMinutes: input.settings.autoAcceptMaxPrepMinutes,
+          storefrontStatus: settings.isOpen ? "LIVE" : "ONBOARDING",
+          autoAcceptOrders: settings.autoAcceptOrders,
+          autoAcceptMaxPrepMinutes: settings.autoAcceptMaxPrepMinutes,
         },
       });
 

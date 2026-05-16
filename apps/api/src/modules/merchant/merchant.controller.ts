@@ -31,6 +31,7 @@ import {
 import { demoMenuByStore } from "../../common/demo-data";
 import { HubRegistryService } from "../../common/hub-registry.service";
 import { InternalAuthService } from "../../common/internal-auth.service";
+import { geocodeUkPostcode } from "../../common/uk-postcode-geocode";
 import {
   buildMerchantOrderReceipt,
   findMerchantOrder,
@@ -75,6 +76,30 @@ export class MerchantController {
     this.internalAuth.requireMerchantToken(authorization, hubId);
     const input = merchantWorkspaceUpdateInputSchema.parse(body);
     return this.hubRegistry.updateWorkspace(hubId, input);
+  }
+
+  /** Live UK postcode → coordinates for hub map pin (postcodes.io; optional Google fallback on API). */
+  @Get("hubs/:hubId/geocode")
+  async geocodeHubPostcode(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("hubId") hubId: string,
+    @Query("postcode") postcode: string | undefined,
+  ) {
+    this.internalAuth.requireMerchantToken(authorization, hubId);
+    const trimmed = postcode?.trim() ?? "";
+    if (!trimmed) {
+      throw new BadRequestException("postcode query is required");
+    }
+    const point = await geocodeUkPostcode(trimmed);
+    if (!point) {
+      throw new BadRequestException("Could not find coordinates for that postcode. Check it is a valid UK postcode.");
+    }
+    return {
+      latitude: point.latitude,
+      longitude: point.longitude,
+      source: point.source,
+      label: point.label,
+    };
   }
 
   @Post("hubs/:hubId/users")

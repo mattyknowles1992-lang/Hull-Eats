@@ -177,6 +177,10 @@ const sectorCheckboxLabelOnStyle: CSSProperties = {
 type HubDeliveryConfigProps = {
   settings: HubSettings;
   onChange: (patch: Partial<HubSettings>) => void;
+  /** When set, postcode changes trigger live geocode (postcodes.io via API) for the shop pin. */
+  apiBaseUrl?: string;
+  hubId?: string;
+  merchantToken?: string;
   styles: {
     eyebrow: CSSProperties;
     sectionTitle: CSSProperties;
@@ -194,14 +198,24 @@ type HubDeliveryConfigProps = {
   };
 };
 
-export function HubDeliveryConfig({ settings, onChange, styles }: HubDeliveryConfigProps) {
+export function HubDeliveryConfig({
+  settings,
+  onChange,
+  apiBaseUrl,
+  hubId,
+  merchantToken,
+  styles,
+}: HubDeliveryConfigProps) {
   const mapHostRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<import("leaflet").Map | null>(null);
   const layerGroupRef = useRef<import("leaflet").LayerGroup | null>(null);
   const zonesRef = useRef<HullPostcodeZone[]>([]);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
   const [mapReady, setMapReady] = useState(false);
   const [expandedOutward, setExpandedOutward] = useState<string | null>(null);
   const [activeZoneCode, setActiveZoneCode] = useState<string | null>(null);
+  const [pinGeocodeNote, setPinGeocodeNote] = useState<string | null>(null);
 
   const zones = useMemo(
     () =>
@@ -222,6 +236,59 @@ export function HubDeliveryConfig({ settings, onChange, styles }: HubDeliveryCon
       }),
     [settings.postcode, settings.deliveryOriginLatitude, settings.deliveryOriginLongitude],
   );
+
+  useEffect(() => {
+    const postcode = settings.postcode.trim();
+    if (!postcode || !apiBaseUrl || !hubId || !merchantToken) {
+      return;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const base = apiBaseUrl.replace(/\/$/, "");
+          const url = `${base}/v1/merchant/hubs/${encodeURIComponent(hubId)}/geocode?postcode=${encodeURIComponent(postcode)}`;
+          const response = await fetch(url, {
+            headers: { Authorization: `Bearer ${merchantToken}` },
+          });
+          if (!response.ok) {
+            if (!cancelled) {
+              setPinGeocodeNote("Could not place shop pin — check the hub postcode in Business profile.");
+            }
+            return;
+          }
+          const body = (await response.json()) as {
+            latitude: number;
+            longitude: number;
+            source?: string;
+            label?: string;
+          };
+          if (cancelled) {
+            return;
+          }
+          onChangeRef.current({
+            deliveryOriginLatitude: body.latitude,
+            deliveryOriginLongitude: body.longitude,
+          });
+          setPinGeocodeNote(
+            body.label
+              ? `Shop pin: ${body.label} (${body.source ?? "UK postcode lookup"})`
+              : "Shop pin placed from your hub postcode.",
+          );
+        } catch {
+          if (!cancelled) {
+            setPinGeocodeNote("Shop pin lookup failed — save hub settings to retry.");
+          }
+        }
+      })();
+    }, 600);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [settings.postcode, apiBaseUrl, hubId, merchantToken]);
 
   const setMode = (deliveryMode: DeliveryMode) => {
     onChange({ deliveryMode });
@@ -540,6 +607,7 @@ export function HubDeliveryConfig({ settings, onChange, styles }: HubDeliveryCon
         }}
       >
         <div ref={mapHostRef} style={styles.mapFrame} aria-label="Hull delivery area map" />
+        {pinGeocodeNote ? <p style={{ ...styles.subtleInfo, margin: "8px 0 0" }}>{pinGeocodeNote}</p> : null}
       </div>
 
       {settings.deliveryMode === "business_radius" ? (
@@ -558,16 +626,18 @@ export function HubDeliveryConfig({ settings, onChange, styles }: HubDeliveryCon
               })
             }
           />
-          <p style={styles.subtleInfo}>Orange circle on the map shows where you deliver. The pin uses your hub postcode.</p>
+          <p style={styles.subtleInfo}>
+            Orange circle shows your delivery radius. The shop pin is placed from your hub postcode using UK postcode
+            lookup (postcodes.io) when you save or update the postcode.
+          </p>
         </label>
       ) : (
         <div style={{ display: "grid", gap: 14 }}>
           <p style={styles.subtleInfo}>
-            The map starts with no sectors selected. The map stays pinned while you scroll the postcode list on small
-            screens. Open a district (HU1, HU2, … in numeric order), tick sectors (e.g. HU7 1, HU7 2), and each tick fills
-            that sector on the map. Shading is computed separately per district from sector anchors (not official
-            postcode outlines), which keeps tint off open water far better than one giant overlay. Use a full hub
-            postcode (e.g. HU3 1AB) in Business profile for the most accurate shop pin.
+            The map starts with no sectors selected and stays visible while you scroll on mobile. Postcode sectors use
+            real coordinates from postcodes.io (sample addresses per HU sector). Shading is an approximate tile per
+            district, not official boundary data — but it aligns much closer to land than before. Set a full hub postcode
+            in Business profile (e.g. HU3 1AB) so the shop pin is exact; save hub settings to store coordinates.
           </p>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
             <button

@@ -2804,6 +2804,9 @@ export default function MerchantPortalPage() {
                 <HubDeliveryConfig
                   settings={hubSettings}
                   onChange={patchHubDeliverySettings}
+                  apiBaseUrl={apiBaseUrl}
+                  hubId={activeHubId}
+                  merchantToken={merchantToken}
                   styles={hubDeliveryConfigStyles}
                 />
                 <div style={{ display: "grid", gap: 12, marginTop: 18 }}>
@@ -3244,6 +3247,9 @@ export default function MerchantPortalPage() {
               <HubDeliveryConfig
                 settings={hubSettings}
                 onChange={patchHubDeliverySettings}
+                apiBaseUrl={apiBaseUrl}
+                hubId={activeHubId}
+                merchantToken={merchantToken}
                 styles={hubDeliveryConfigStyles}
               />
               <div style={{ display: "grid", gap: 12, marginTop: 18 }}>

@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { HULL_SECTOR_GEOCODES } from "./hull-sector-geocodes.generated";
+
 /** Default delivery when hub has not set mile fees / zones (Hull Eats platform default). */
 export const PLATFORM_DEFAULT_DELIVERY_GBP = 3;
 
@@ -193,25 +195,24 @@ export const normaliseDeliveryPricing = (raw: unknown): StoreDeliveryPricing => 
   };
 };
 
-/** Approximate centroid per outward district for distance estimates (Hull focus). */
-export const HULL_AREA_OUTWARD_CENTROIDS: Record<string, { lat: number; lng: number }> = {
-  HU1: { lat: 53.7446, lng: -0.3357 },
-  HU2: { lat: 53.7547, lng: -0.3575 },
-  HU3: { lat: 53.7461, lng: -0.3842 },
-  HU4: { lat: 53.7712, lng: -0.3578 },
-  HU5: { lat: 53.7819, lng: -0.4371 },
-  HU6: { lat: 53.7581, lng: -0.3194 },
-  /** Cottingham / north Hull cluster — previous centroid sat too far north toward Beverley. */
-  HU7: { lat: 53.782, lng: -0.398 },
-  HU8: { lat: 53.7524, lng: -0.2778 },
-  HU9: { lat: 53.7312, lng: -0.3712 },
-  HU10: { lat: 53.7531, lng: -0.3988 },
-  HU11: { lat: 53.7268, lng: -0.4219 },
-  HU12: { lat: 53.7891, lng: -0.3559 },
-  HU13: { lat: 53.8034, lng: -0.3451 },
-  HU14: { lat: 53.8126, lng: -0.4349 },
-  HU15: { lat: 53.7642, lng: -0.4468 },
-  HU16: { lat: 53.7851, lng: -0.3019 },
+/** Outward district centroids from postcodes.io (see hull-sector-geocodes.generated.ts). */
+export const HULL_AREA_OUTWARD_CENTROIDS: Record<string, { lat: number; lng: number }> = Object.fromEntries(
+  Object.entries(HULL_SECTOR_GEOCODES.outwards).map(([code, point]) => [code, { lat: point.lat, lng: point.lng }]),
+);
+
+const syntheticSectorOffsetFromOutward = (
+  base: { lat: number; lng: number },
+  sectorDigit: string,
+): { lat: number; lng: number } => {
+  const digit = Number(sectorDigit);
+  const angle = ((digit - 1) / HULL_SECTOR_DIGITS.length) * 2 * Math.PI - Math.PI / 2;
+  const mileOffset = 0.18;
+  const latDegreesPerMile = 1 / 69;
+  const lngDegreesPerMile = 1 / (69 * Math.cos((base.lat * Math.PI) / 180));
+  return {
+    lat: base.lat + Math.sin(angle) * mileOffset * latDegreesPerMile,
+    lng: base.lng + Math.cos(angle) * mileOffset * lngDegreesPerMile,
+  };
 };
 
 /**
@@ -261,29 +262,29 @@ export const parseUkPostcodeSector = (
   return { outward: match[1], sector };
 };
 
-/** Approximate map position for a postcode sector within an outward district. */
+/**
+ * Map position for a postcode sector (HU7 3, …).
+ * Uses postcodes.io sample points when available; otherwise a small offset from the real outward centroid.
+ */
 export const getHullSectorCentroid = (outwardCode: string, sectorDigit: string): { lat: number; lng: number } | null => {
   const outward = outwardCode.trim().toUpperCase();
-  const base = HULL_AREA_OUTWARD_CENTROIDS[outward];
-  if (!base) {
+  const digit = sectorDigit.trim();
+  if (!/^[1-9]$/.test(digit)) {
     return null;
   }
 
-  const digit = Number(sectorDigit);
-  if (!Number.isFinite(digit) || digit < 1 || digit > 9) {
+  const sectorMap = HULL_SECTOR_GEOCODES.sectors as Record<string, Record<string, { lat: number; lng: number }>>;
+  const geocoded = sectorMap[outward]?.[digit];
+  if (geocoded) {
+    return { lat: geocoded.lat, lng: geocoded.lng };
+  }
+
+  const outwardBase = HULL_AREA_OUTWARD_CENTROIDS[outward];
+  if (!outwardBase) {
     return null;
   }
 
-  const angle = ((digit - 1) / HULL_SECTOR_DIGITS.length) * 2 * Math.PI - Math.PI / 2;
-  /** Keep sector seeds near the outward hub so map tiles stay local (Voronoi is computed per district). */
-  const mileOffset = 0.26;
-  const latDegreesPerMile = 1 / 69;
-  const lngDegreesPerMile = 1 / (69 * Math.cos((base.lat * Math.PI) / 180));
-
-  return {
-    lat: base.lat + Math.sin(angle) * mileOffset * latDegreesPerMile,
-    lng: base.lng + Math.cos(angle) * mileOffset * lngDegreesPerMile,
-  };
+  return syntheticSectorOffsetFromOutward(outwardBase, digit);
 };
 
 const toRad = (deg: number) => (deg * Math.PI) / 180;
