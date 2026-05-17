@@ -43,6 +43,7 @@ WHERE table_schema = 'public'
     'courier_profiles',
     'courier_accounts',
     'stores',
+    'store_hours',
     'businesses',
     'customer_push_tokens'
   )
@@ -93,3 +94,12 @@ FROM information_schema.columns
 WHERE table_schema = 'public'
   AND table_name = 'stores'
   AND column_name = 'delivery_config';
+
+-- -----------------------------------------------------------------------------
+-- STEP 9 — store_hours (merchant driver tracking / live map gating)
+-- -----------------------------------------------------------------------------
+SELECT column_name, data_type, is_nullable
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name = 'store_hours'
+ORDER BY ordinal_position;

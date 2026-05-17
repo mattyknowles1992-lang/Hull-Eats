@@ -137,3 +137,31 @@ ALTER TABLE public.order_items
 -- ---------------------------------------------------------------------------
 ALTER TABLE public.stores
   ADD COLUMN IF NOT EXISTS delivery_config JSONB;
+
+-- ---------------------------------------------------------------------------
+-- 6) store_hours (merchant live driver map — Prisma StoreHour @@map store_hours)
+--    Without this table, GET /v1/merchant/drivers/tracking returns 500.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.store_hours (
+  id TEXT NOT NULL,
+  store_id UUID NOT NULL,
+  day_of_week INTEGER NOT NULL,
+  open_time TEXT NOT NULL,
+  close_time TEXT NOT NULL,
+  is_closed BOOLEAN NOT NULL DEFAULT false,
+
+  CONSTRAINT store_hours_pkey PRIMARY KEY (id)
+);
+
+CREATE INDEX IF NOT EXISTS store_hours_store_id_idx ON public.store_hours (store_id);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'store_hours_store_id_fkey'
+  ) THEN
+    ALTER TABLE public.store_hours
+      ADD CONSTRAINT store_hours_store_id_fkey
+      FOREIGN KEY (store_id) REFERENCES public.stores (id) ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;

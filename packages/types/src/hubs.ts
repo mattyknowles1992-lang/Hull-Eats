@@ -1,6 +1,12 @@
 import { z } from "zod";
 
-import { deliveryModeSchema, hubOrderFulfillmentSchema, hullPostcodeZoneSchema } from "./delivery-pricing";
+import {
+  deliveryModeSchema,
+  hubOrderFulfillmentSchema,
+  hullPostcodeZoneSchema,
+  mergeHullPostcodeZones,
+  type HullPostcodeZone,
+} from "./delivery-pricing";
 
 import { menuItemSchema, storeTypeSchema, storefrontStatusSchema } from "./catalog";
 import { membershipRoleSchema } from "./rbac";
@@ -72,6 +78,22 @@ export const hubSettingsSchema = z.object({
   orderFulfillment: hubOrderFulfillmentSchema.default("delivery_and_collection"),
 });
 
+const optionalHttpUrl = z.preprocess((value) => {
+  if (value == null) {
+    return undefined;
+  }
+  if (typeof value === "string" && value.trim() === "") {
+    return undefined;
+  }
+  return value;
+}, z.string().url().optional());
+
+/** Menu line on hub PATCH — category comes from the parent section when omitted. */
+export const hubMenuSectionItemSchema = menuItemSchema.extend({
+  categoryId: menuItemSchema.shape.categoryId.optional(),
+  imageUrl: optionalHttpUrl,
+});
+
 export const hubMenuSectionSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
@@ -80,6 +102,11 @@ export const hubMenuSectionSchema = z.object({
   presetKey: z.string().max(64).nullable().optional(),
   defaultPrice: z.number().nonnegative().nullable().default(null),
   items: z.array(menuItemSchema).default([]),
+});
+
+/** PATCH workspace — relaxed menu lines (categoryId filled in prepareMerchantWorkspaceUpdateBody). */
+export const hubMenuSectionUpdateSchema = hubMenuSectionSchema.extend({
+  items: z.array(hubMenuSectionItemSchema).default([]),
 });
 
 export const hubMenuImportCandidateSchema = z.object({
@@ -130,10 +157,103 @@ export const changeHubPasswordInputSchema = z.object({
   newPassword: z.string().min(6),
 });
 
-export const merchantWorkspaceUpdateInputSchema = z.object({
+const coerceInt = (value: unknown, fallback: number) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.round(parsed) : fallback;
+};
+
+const coerceNonNegative = (value: unknown, fallback = 0) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+};
+
+const normalizeMileFees = (value: unknown): [number, number, number, number, number] => {
+  const source = Array.isArray(value) ? value.map((entry) => coerceNonNegative(entry, 0)) : [];
+  const padded = [...source];
+  while (padded.length < 5) {
+    padded.push(0);
+  }
+  return padded.slice(0, 5) as [number, number, number, number, number];
+};
+
+/** Normalise hub PATCH bodies before API Zod validation (sector 0, menu URLs, category ids). */
+export const prepareMerchantWorkspaceUpdateBody = (raw: unknown): unknown => {
+  if (!raw || typeof raw !== "object") {
+    return raw;
+  }
+
+  const body = raw as {
+    settings?: Record<string, unknown>;
+    menuSections?: unknown[];
+  };
+
+  const settings = body.settings;
+  const menuSections = Array.isArray(body.menuSections) ? body.menuSections : [];
+
+  return {
+    ...body,
+    settings: settings
+      ? {
+          ...settings,
+          etaMinutes: Math.max(1, coerceInt(settings.etaMinutes, 25)),
+          deliveryFee: coerceNonNegative(settings.deliveryFee, 0),
+          minimumOrderAmount: coerceNonNegative(settings.minimumOrderAmount, 0),
+          deliveryRadiusMiles: Math.min(40, Math.max(0.1, coerceNonNegative(settings.deliveryRadiusMiles, 5) || 5)),
+          autoAcceptMaxPrepMinutes: Math.min(180, Math.max(5, coerceInt(settings.autoAcceptMaxPrepMinutes, 60))),
+          deliveryMileFees: normalizeMileFees(settings.deliveryMileFees),
+          deliveryPostcodeZones: mergeHullPostcodeZones(settings.deliveryPostcodeZones as HullPostcodeZone[] | undefined),
+          deliveryOriginLatitude:
+            settings.deliveryOriginLatitude == null || settings.deliveryOriginLatitude === ""
+              ? null
+              : Number(settings.deliveryOriginLatitude),
+          deliveryOriginLongitude:
+            settings.deliveryOriginLongitude == null || settings.deliveryOriginLongitude === ""
+              ? null
+              : Number(settings.deliveryOriginLongitude),
+        }
+      : settings,
+    menuSections: menuSections.map((section) => {
+      if (!section || typeof section !== "object") {
+        return section;
+      }
+      const row = section as { id?: string; items?: unknown[] };
+      return {
+        ...row,
+        items: Array.isArray(row.items)
+          ? row.items.map((item) => {
+              if (!item || typeof item !== "object") {
+                return item;
+              }
+              const line = item as Record<string, unknown>;
+              const imageUrl =
+                typeof line.imageUrl === "string" && line.imageUrl.trim() === "" ? undefined : line.imageUrl;
+              return {
+                ...line,
+                categoryId: line.categoryId ?? row.id,
+                imageUrl,
+              };
+            })
+          : [],
+      };
+    }),
+  };
+};
+
+const merchantWorkspaceUpdateBodySchema = z.object({
   settings: hubSettingsSchema,
-  menuSections: z.array(hubMenuSectionSchema),
+  menuSections: z.array(hubMenuSectionUpdateSchema),
 });
+
+export const merchantWorkspaceUpdateInputSchema = z.preprocess(
+  prepareMerchantWorkspaceUpdateBody,
+  merchantWorkspaceUpdateBodySchema,
+);
+
+export type MerchantWorkspaceUpdateInput = z.infer<typeof merchantWorkspaceUpdateBodySchema>;
+
+/** Parse and sanitise a hub save payload (use in API and merchant portal before PATCH). */
+export const parseMerchantWorkspaceUpdateInput = (raw: unknown): MerchantWorkspaceUpdateInput =>
+  merchantWorkspaceUpdateInputSchema.parse(raw);
 
 export const createHubMenuSectionInputSchema = z.object({
   name: z.string().min(1),
@@ -176,7 +296,6 @@ export type CreateHubInput = z.infer<typeof createHubInputSchema>;
 export type CreateHubUserInput = z.infer<typeof createHubUserInputSchema>;
 export type MerchantLoginInput = z.infer<typeof merchantLoginInputSchema>;
 export type ChangeHubPasswordInput = z.infer<typeof changeHubPasswordInputSchema>;
-export type MerchantWorkspaceUpdateInput = z.infer<typeof merchantWorkspaceUpdateInputSchema>;
 export type CreateHubMenuSectionInput = z.infer<typeof createHubMenuSectionInputSchema>;
 export type CreateHubMenuItemInput = z.infer<typeof createHubMenuItemInputSchema>;
 export type PreviewMenuImportInput = z.infer<typeof previewMenuImportInputSchema>;

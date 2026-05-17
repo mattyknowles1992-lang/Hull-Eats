@@ -23,7 +23,7 @@ import {
   merchantDriverCashUpPeriodSchema,
   merchantLoginInputSchema,
   merchantRejectOrderSchema,
-  merchantWorkspaceUpdateInputSchema,
+  parseMerchantWorkspaceUpdateInput,
   previewMenuImportInputSchema,
   previewMenuTextImportInputSchema,
 } from "@hull-eats/types";
@@ -74,7 +74,7 @@ export class MerchantController {
     @Body() body: unknown,
   ) {
     this.internalAuth.requireMerchantToken(authorization, hubId);
-    const input = merchantWorkspaceUpdateInputSchema.parse(body);
+    const input = parseMerchantWorkspaceUpdateInput(body);
     return this.hubRegistry.updateWorkspace(hubId, input);
   }
 

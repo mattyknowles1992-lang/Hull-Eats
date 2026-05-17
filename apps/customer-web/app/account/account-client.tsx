@@ -4,6 +4,7 @@ import type { FormEvent } from "react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { SensoryDelightsToggle } from "../../src/components/sensory-delights-toggle";
 import { getBrowserSupabaseClient } from "../../src/lib/supabase-browser";
 
 type CustomerProfileRow = {
@@ -285,6 +286,14 @@ export function AccountClient() {
             <strong>{profile.phone ?? "Not saved"}</strong>
           </div>
         </div>
+      </div>
+
+      <div className="register-form-block">
+        <div className="register-form-heading">
+          <h3>Preferences</h3>
+          <p>Optional feedback when an order completes successfully.</p>
+        </div>
+        <SensoryDelightsToggle />
       </div>
 
       <div className="register-form-block">

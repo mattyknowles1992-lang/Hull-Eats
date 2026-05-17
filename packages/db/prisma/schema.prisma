@@ -403,12 +403,15 @@ model StorePromotion {
 
 model StoreHour {
   id        String   @id @default(cuid())
-  storeId   String
-  dayOfWeek Int
-  openTime  String
-  closeTime String
-  isClosed  Boolean  @default(false)
+  storeId   String   @map("store_id") @db.Uuid
+  dayOfWeek Int      @map("day_of_week")
+  openTime  String   @map("open_time")
+  closeTime String   @map("close_time")
+  isClosed  Boolean  @default(false) @map("is_closed")
   store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
+  @@map("store_hours")
 }
 
 model DeliveryZone {

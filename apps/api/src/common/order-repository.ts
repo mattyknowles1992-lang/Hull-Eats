@@ -13,6 +13,8 @@ import {
   orderSummarySchema,
   printJobPayloadSchema,
 } from "@hull-eats/types";
+import { Prisma } from "@prisma/client";
+
 import { prisma } from "@hull-eats/db";
 
 import { customerNotifications } from "./customer-notifications.service";
@@ -716,9 +718,21 @@ async function merchantCashUpPeriodBounds(
 }
 
 async function computeLiveMapAllowedForStore(storeId: string): Promise<{ allowed: boolean; message?: string }> {
-  const hours = await prisma.storeHour.findMany({
-    where: { storeId },
-  });
+  let hours: Awaited<ReturnType<typeof prisma.storeHour.findMany>>;
+  try {
+    hours = await prisma.storeHour.findMany({
+      where: { storeId },
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2021") {
+      return {
+        allowed: true,
+        message:
+          "Opening hours are not set up in the database yet (store_hours) — live map stays visible. Run the latest DB migration or docs/supabase-add-missing-features-only.sql.",
+      };
+    }
+    throw error;
+  }
 
   if (hours.length === 0) {
     return {

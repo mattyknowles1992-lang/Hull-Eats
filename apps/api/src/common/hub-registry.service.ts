@@ -1630,7 +1630,7 @@ export class HubRegistryService {
       name: item.name,
       description: item.description ?? "",
       price: Number(item.price ?? 0),
-      imageUrl: item.imageUrl ?? undefined,
+      imageUrl: typeof item.imageUrl === "string" && item.imageUrl.trim() ? item.imageUrl.trim() : undefined,
       isActive: item.isActive,
       trackStock: item.trackStock,
       stockQuantity: item.stockQuantity,

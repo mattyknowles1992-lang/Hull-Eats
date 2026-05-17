@@ -41,8 +41,8 @@ export const hullPostcodeZoneSchema = z.object({
   radiusMiles: z.number().min(0.1).max(40),
   /** Legacy whole-area flag; kept in sync with enabledSectors on read/write. */
   enabled: z.boolean(),
-  /** Sector digits enabled for this outward (HU7 1, HU7 2, …). Empty + enabled=true means all sectors. */
-  enabledSectors: z.array(z.string().regex(/^[1-9]$/)).default([]),
+  /** Sector digits enabled for this outward (HU7 0, HU7 1, …). Empty + enabled=true means all sectors. */
+  enabledSectors: z.array(z.string().regex(/^[0-9]$/)).default([]),
 });
 
 export type HullPostcodeZone = z.infer<typeof hullPostcodeZoneSchema>;

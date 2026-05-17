@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { HubMenuSection, HubSettings, HubUser, MerchantWorkspace, MenuItem, OrderSummary } from "@hull-eats/types";
+import { parseMerchantWorkspaceUpdateInput } from "@hull-eats/types";
 import {
   HUB_MENU_CATEGORY_CUSTOM_ID,
   createDefaultHullPostcodeZones,
@@ -468,17 +469,47 @@ async function fetchWorkspace(token: string, hubId: string) {
 }
 
 async function saveWorkspace(token: string, hubId: string, input: { settings: HubSettings; menuSections: HubMenuSection[] }) {
+  let payload: ReturnType<typeof parseMerchantWorkspaceUpdateInput>;
+  try {
+    payload = parseMerchantWorkspaceUpdateInput(input);
+  } catch (error) {
+    const issues =
+      error && typeof error === "object" && "issues" in error && Array.isArray((error as { issues: unknown }).issues)
+        ? (error as { issues: Array<{ path?: (string | number)[]; message?: string }> }).issues
+        : null;
+    if (issues?.length) {
+      throw new Error(
+        issues.map((issue) => `${issue.path?.join(".") ?? "request"}: ${issue.message ?? "invalid"}`).join("; "),
+      );
+    }
+    throw error;
+  }
+
   const response = await fetch(`${apiBaseUrl}/v1/merchant/hubs/${hubId}/workspace`, {
     method: "PATCH",
     headers: {
       "content-type": "application/json",
       authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify(input),
+    body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
-    throw new Error(`Hub workspace save failed with status ${response.status}`);
+    let detail = `Hub workspace save failed (${response.status})`;
+    try {
+      const body = (await response.json()) as {
+        message?: string;
+        issues?: Array<{ path?: string; message?: string }>;
+      };
+      if (body.issues?.length) {
+        detail = body.issues.map((issue) => `${issue.path ?? "request"}: ${issue.message ?? "invalid"}`).join("; ");
+      } else if (body.message) {
+        detail = body.message;
+      }
+    } catch {
+      // keep default detail
+    }
+    throw new Error(detail);
   }
 
   return (await response.json()) as MerchantWorkspace;

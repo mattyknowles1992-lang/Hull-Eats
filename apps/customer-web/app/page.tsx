@@ -6,7 +6,6 @@ import { useMemo, useRef, useState } from "react";
 import { deliveryFeeFromForStorefront } from "@hull-eats/types";
 
 import { HullMicrocopy } from "../src/components/hull-microcopy";
-import { SensoryDelightsToggle } from "../src/components/sensory-delights-toggle";
 import { YouAreHereWidget } from "../src/components/you-are-here-widget";
 import { playOrderSuccessDelight } from "../src/lib/customer-experience";
 import { AppSwitcher } from "./app-switcher";
@@ -317,7 +316,6 @@ export default function CustomerHomePage() {
 
           <div className="marketplace-hero-delights">
             <HullMicrocopy />
-            <SensoryDelightsToggle />
           </div>
 
           {customerCoordinates ? (
