@@ -433,58 +433,73 @@ export class HubRegistryService {
       settings.deliveryOriginLongitude = geocoded.longitude;
     }
 
-    await prisma.$transaction(async (tx) => {
-      await tx.merchant.update({
-        where: { id: hubId },
-        data: {
-          name: settings.name,
-        },
-      });
-
-      await tx.store.update({
-        where: { id: store.id },
-        data: {
-          slug: slugify(settings.name) || store.slug,
-          name: settings.name,
-          city: settings.city,
-          postcode: settings.postcode,
-          cuisineLabel: settings.cuisineLabel,
-          onboardingMessage: settings.onboardingMessage,
-          heroImageUrl: settings.heroImageUrl,
-          etaMinutes: settings.etaMinutes,
-          deliveryFee: settings.deliveryFee,
-          deliveryConfig: this.deliveryJsonFromHubSettings(settings),
-          minimumOrderAmount: settings.minimumOrderAmount,
-          isActive: true,
-          storefrontStatus: settings.isOpen ? "LIVE" : "ONBOARDING",
-          autoAcceptOrders: settings.autoAcceptOrders,
-          autoAcceptMaxPrepMinutes: settings.autoAcceptMaxPrepMinutes,
-        },
-      });
-
-      for (const [sectionIndex, section] of input.menuSections.entries()) {
-        await tx.menuCategory.upsert({
-          where: { id: section.id },
-          update: {
-            name: section.name,
-            description: encodeHubMenuCategoryDescription(section.presetKey, section.description ?? ""),
-            defaultPrice: section.defaultPrice,
-            sortOrder: sectionIndex,
-            isActive: true,
-          },
-          create: {
-            id: section.id,
-            storeId: store.id,
-            name: section.name,
-            description: encodeHubMenuCategoryDescription(section.presetKey, section.description ?? ""),
-            defaultPrice: section.defaultPrice,
-            sortOrder: sectionIndex,
-            isActive: true,
+    // Keep the interactive transaction short — Supabase pooler closes long txs (~5s) and Prisma raises P2028.
+    await prisma.$transaction(
+      async (tx) => {
+        await tx.merchant.update({
+          where: { id: hubId },
+          data: {
+            name: settings.name,
           },
         });
 
-        for (const [itemIndex, item] of section.items.entries()) {
-          await tx.menuItem.upsert({
+        await tx.store.update({
+          where: { id: store.id },
+          data: {
+            slug: slugify(settings.name) || store.slug,
+            name: settings.name,
+            city: settings.city,
+            postcode: settings.postcode,
+            cuisineLabel: settings.cuisineLabel,
+            onboardingMessage: settings.onboardingMessage,
+            heroImageUrl: settings.heroImageUrl,
+            etaMinutes: settings.etaMinutes,
+            deliveryFee: settings.deliveryFee,
+            deliveryConfig: this.deliveryJsonFromHubSettings(settings),
+            minimumOrderAmount: settings.minimumOrderAmount,
+            isActive: true,
+            storefrontStatus: settings.isOpen ? "LIVE" : "ONBOARDING",
+            autoAcceptOrders: settings.autoAcceptOrders,
+            autoAcceptMaxPrepMinutes: settings.autoAcceptMaxPrepMinutes,
+          },
+        });
+      },
+      { maxWait: 10_000, timeout: 20_000 },
+    );
+
+    await this.persistHubMenuSections(store.id, input.menuSections);
+
+    return this.getWorkspaceById(hubId);
+  }
+
+  private async persistHubMenuSections(
+    storeId: string,
+    menuSections: MerchantWorkspaceUpdateInput["menuSections"],
+  ) {
+    for (const [sectionIndex, section] of menuSections.entries()) {
+      await prisma.menuCategory.upsert({
+        where: { id: section.id },
+        update: {
+          name: section.name,
+          description: encodeHubMenuCategoryDescription(section.presetKey, section.description ?? ""),
+          defaultPrice: section.defaultPrice,
+          sortOrder: sectionIndex,
+          isActive: true,
+        },
+        create: {
+          id: section.id,
+          storeId,
+          name: section.name,
+          description: encodeHubMenuCategoryDescription(section.presetKey, section.description ?? ""),
+          defaultPrice: section.defaultPrice,
+          sortOrder: sectionIndex,
+          isActive: true,
+        },
+      });
+
+      await Promise.all(
+        section.items.map((item, itemIndex) =>
+          prisma.menuItem.upsert({
             where: { id: item.id },
             update: {
               name: item.name,
@@ -518,12 +533,10 @@ export class HubRegistryService {
               requiresIdVerification: item.requiresIdVerification ?? false,
               sortOrder: itemIndex,
             },
-          });
-        }
-      }
-    });
-
-    return this.getWorkspaceById(hubId);
+          }),
+        ),
+      );
+    }
   }
 
   async createHubUser(hubId: string, input: CreateHubUserInput) {
