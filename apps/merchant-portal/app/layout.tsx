@@ -1,4 +1,4 @@
-﻿import type { Metadata } from "next";
+﻿import type { Metadata, Viewport } from "next";
 import type { PropsWithChildren } from "react";
 
 import { Manrope } from "next/font/google";
@@ -14,6 +14,12 @@ const manrope = Manrope({
 export const metadata: Metadata = {
   title: "Hull Eats Merchant Portal",
   description: "Merchant order operations shell",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: PropsWithChildren) {

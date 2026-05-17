@@ -4018,18 +4018,7 @@ const hubAppShell: React.CSSProperties = {
   fontFamily: "Manrope, system-ui, sans-serif",
 };
 
-const hubSidebar: React.CSSProperties = {
-  position: "sticky",
-  top: 0,
-  height: "100vh",
-  display: "grid",
-  gridTemplateRows: "auto 1fr",
-  gap: 18,
-  borderRight: "1px solid rgba(15, 17, 21, 0.1)",
-  background: "#ffffff",
-  padding: 18,
-  overflowY: "auto",
-};
+const hubSidebar: React.CSSProperties = {};
 
 const sidebarBrand: React.CSSProperties = {
   display: "flex",
@@ -4088,7 +4077,7 @@ const sidebarButtonActive: React.CSSProperties = {
   ...sidebarButton,
   borderColor: "rgba(7, 155, 200, 0.2)",
   background: "rgba(7, 155, 200, 0.1)",
-  color: "#c95d12",
+  color: "#0680a6",
 };
 
 const hubMainArea: React.CSSProperties = {
@@ -4099,11 +4088,6 @@ const hubMainArea: React.CSSProperties = {
 };
 
 const hubMainHeader: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  gap: 18,
-  alignItems: "flex-end",
-  flexWrap: "wrap",
   borderRadius: 28,
   border: "1px solid rgba(15, 17, 21, 0.1)",
   background: "linear-gradient(180deg, #ffffff, #fbfbfc)",
@@ -4171,7 +4155,7 @@ const loginPanel: React.CSSProperties = {
 
 const eyebrow: React.CSSProperties = {
   margin: 0,
-  color: "#c95d12",
+  color: "#0680a6",
   fontSize: 12,
   fontWeight: 800,
   letterSpacing: "0.16em",
