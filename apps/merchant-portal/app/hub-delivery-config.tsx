@@ -483,8 +483,8 @@ export function HubDeliveryConfig({
         L.marker([businessOrigin.lat, businessOrigin.lng], { title: settings.name || "Your business" }).addTo(layers);
         const coverage = L.circle([businessOrigin.lat, businessOrigin.lng], {
           radius: milesToMeters(settings.deliveryRadiusMiles),
-          color: "#ff6a00",
-          fillColor: "#ff6a00",
+          color: "#079bc8",
+          fillColor: "#079bc8",
           fillOpacity: 0.14,
           weight: 2,
         }).addTo(layers);

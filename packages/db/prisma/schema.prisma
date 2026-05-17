@@ -360,8 +360,21 @@ model Store {
   menuImportBatches MenuImportBatch[]
   promotions        StorePromotion[]
   courierAssignments StoreCourierAssignment[]
+  configSnapshots    HubConfigSnapshot[]
 
   @@map("stores")
+}
+
+model HubConfigSnapshot {
+  id        String   @id @default(cuid())
+  storeId   String   @map("store_id") @db.Uuid
+  name      String
+  payload   Json
+  createdAt DateTime @default(now()) @map("created_at")
+  store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, createdAt])
+  @@map("hub_config_snapshots")
 }
 
 model StoreCourierAssignment {

@@ -15,6 +15,13 @@ import {
   normaliseDeliveryPricing,
   updateHubPromotionInputSchema,
 } from "@hull-eats/types";
+import {
+  HUB_CONFIG_SNAPSHOT_LIMIT,
+  hubConfigSnapshotPayloadSchema,
+  type HubConfigSnapshot,
+  type CreateHubConfigSnapshotInput,
+  type RenameHubConfigSnapshotInput,
+} from "@hull-eats/types";
 import type {
   ApplyMenuImportInput,
   CreateHubInput,
@@ -537,6 +544,104 @@ export class HubRegistryService {
         ),
       );
     }
+  }
+
+  private async resolveHubStoreId(hubId: string): Promise<string> {
+    const store = await prisma.store.findFirst({
+      where: { merchantId: hubId },
+      orderBy: { createdAt: "asc" },
+      select: { id: true },
+    });
+    if (!store) {
+      throw new NotFoundException(`Hub ${hubId} does not have a store configured yet.`);
+    }
+    return store.id;
+  }
+
+  async listHubConfigSnapshots(hubId: string): Promise<HubConfigSnapshot[]> {
+    await this.ensurePilotHub();
+    const storeId = await this.resolveHubStoreId(hubId);
+    const rows = await prisma.hubConfigSnapshot.findMany({
+      where: { storeId },
+      orderBy: { createdAt: "desc" },
+      take: HUB_CONFIG_SNAPSHOT_LIMIT,
+    });
+    return rows.map((row) => this.mapHubConfigSnapshot(row));
+  }
+
+  async createHubConfigSnapshot(hubId: string, input: CreateHubConfigSnapshotInput): Promise<HubConfigSnapshot> {
+    await this.ensurePilotHub();
+    const storeId = await this.resolveHubStoreId(hubId);
+    const payload = hubConfigSnapshotPayloadSchema.parse({
+      settings: input.settings,
+      menuSections: input.menuSections,
+    });
+
+    const existing = await prisma.hubConfigSnapshot.findMany({
+      where: { storeId },
+      orderBy: { createdAt: "asc" },
+      select: { id: true },
+    });
+    if (existing.length >= HUB_CONFIG_SNAPSHOT_LIMIT) {
+      const overflow = existing.length - HUB_CONFIG_SNAPSHOT_LIMIT + 1;
+      const toDelete = existing.slice(0, overflow).map((row) => row.id);
+      await prisma.hubConfigSnapshot.deleteMany({ where: { id: { in: toDelete } } });
+    }
+
+    const count = await prisma.hubConfigSnapshot.count({ where: { storeId } });
+    const defaultName = `Backup ${count + 1}`;
+
+    const created = await prisma.hubConfigSnapshot.create({
+      data: {
+        storeId,
+        name: input.name?.trim() || defaultName,
+        payload: payload as Prisma.InputJsonValue,
+      },
+    });
+
+    return this.mapHubConfigSnapshot(created);
+  }
+
+  async renameHubConfigSnapshot(hubId: string, snapshotId: string, input: RenameHubConfigSnapshotInput): Promise<HubConfigSnapshot> {
+    await this.ensurePilotHub();
+    const storeId = await this.resolveHubStoreId(hubId);
+    const row = await prisma.hubConfigSnapshot.findFirst({
+      where: { id: snapshotId, storeId },
+    });
+    if (!row) {
+      throw new NotFoundException(`Config backup ${snapshotId} was not found for this hub.`);
+    }
+    const updated = await prisma.hubConfigSnapshot.update({
+      where: { id: row.id },
+      data: { name: input.name.trim() },
+    });
+    return this.mapHubConfigSnapshot(updated);
+  }
+
+  async restoreHubConfigSnapshot(hubId: string, snapshotId: string): Promise<MerchantWorkspace> {
+    await this.ensurePilotHub();
+    const storeId = await this.resolveHubStoreId(hubId);
+    const row = await prisma.hubConfigSnapshot.findFirst({
+      where: { id: snapshotId, storeId },
+    });
+    if (!row) {
+      throw new NotFoundException(`Config backup ${snapshotId} was not found for this hub.`);
+    }
+    const payload = hubConfigSnapshotPayloadSchema.parse(row.payload);
+    return this.updateWorkspace(hubId, {
+      settings: payload.settings,
+      menuSections: payload.menuSections,
+    });
+  }
+
+  private mapHubConfigSnapshot(row: { id: string; name: string; createdAt: Date; payload: unknown }): HubConfigSnapshot {
+    const payload = hubConfigSnapshotPayloadSchema.parse(row.payload);
+    return {
+      id: row.id,
+      name: row.name,
+      createdAt: row.createdAt.toISOString(),
+      payload,
+    };
   }
 
   async createHubUser(hubId: string, input: CreateHubUserInput) {

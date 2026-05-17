@@ -40,16 +40,15 @@ export default async function HubDetailPage({ params }: { params: Promise<{ slug
       style={{
         minHeight: "100vh",
         background:
-          "radial-gradient(circle at top left, rgba(255, 107, 0, 0.14), transparent 24%), radial-gradient(circle at top right, rgba(35, 88, 189, 0.18), transparent 26%), linear-gradient(180deg, #020814 0%, #041120 40%, #091a31 100%)",
+          "radial-gradient(circle at top left, rgba(7, 155, 200, 0.18), transparent 24%), radial-gradient(circle at top right, rgba(35, 205, 255, 0.12), transparent 26%), linear-gradient(180deg, #020814 0%, #041120 40%, #091a31 100%)",
         color: "#f7fbff",
-        padding: "24px 18px 60px",
-        fontFamily: "Manrope, system-ui, sans-serif",
       }}
+      className="he-admin-page"
     >
-      <div style={{ width: "min(100%, 1160px)", margin: "0 auto" }}>
-        <header style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-end", flexWrap: "wrap", marginBottom: 22 }}>
+      <div className="he-admin-shell">
+        <header className="he-admin-header">
           <div>
-            <p style={{ margin: 0, color: "#ffb47d", fontSize: 13, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase" }}>
+            <p className="he-admin-eyebrow">
               Hub breakdown
             </p>
             <h1 style={{ margin: "8px 0 0", fontSize: 46, lineHeight: 0.95, fontFamily: "Georgia, serif" }}>{hub.businessName}</h1>

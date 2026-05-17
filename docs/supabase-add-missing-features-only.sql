@@ -165,3 +165,30 @@ BEGIN
       FOREIGN KEY (store_id) REFERENCES public.stores (id) ON DELETE CASCADE ON UPDATE CASCADE;
   END IF;
 END $$;
+
+-- ---------------------------------------------------------------------------
+-- 7) hub_config_snapshots (merchant config backups — settings + menu, max 5)
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.hub_config_snapshots (
+  id TEXT NOT NULL,
+  store_id UUID NOT NULL,
+  name TEXT NOT NULL,
+  payload JSONB NOT NULL,
+  created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  CONSTRAINT hub_config_snapshots_pkey PRIMARY KEY (id)
+);
+
+CREATE INDEX IF NOT EXISTS hub_config_snapshots_store_id_created_at_idx
+  ON public.hub_config_snapshots (store_id, created_at);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'hub_config_snapshots_store_id_fkey'
+  ) THEN
+    ALTER TABLE public.hub_config_snapshots
+      ADD CONSTRAINT hub_config_snapshots_store_id_fkey
+      FOREIGN KEY (store_id) REFERENCES public.stores (id) ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;

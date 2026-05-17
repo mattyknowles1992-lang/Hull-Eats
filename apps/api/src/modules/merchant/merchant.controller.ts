@@ -23,9 +23,11 @@ import {
   merchantDriverCashUpPeriodSchema,
   merchantLoginInputSchema,
   merchantRejectOrderSchema,
+  createHubConfigSnapshotInputSchema,
   parseMerchantWorkspaceUpdateInput,
   previewMenuImportInputSchema,
   previewMenuTextImportInputSchema,
+  renameHubConfigSnapshotInputSchema,
 } from "@hull-eats/types";
 
 import { demoMenuByStore } from "../../common/demo-data";
@@ -76,6 +78,45 @@ export class MerchantController {
     this.internalAuth.requireMerchantToken(authorization, hubId);
     const input = parseMerchantWorkspaceUpdateInput(body);
     return this.hubRegistry.updateWorkspace(hubId, input);
+  }
+
+  @Get("hubs/:hubId/config-snapshots")
+  listHubConfigSnapshots(@Headers("authorization") authorization: string | undefined, @Param("hubId") hubId: string) {
+    this.internalAuth.requireMerchantToken(authorization, hubId);
+    return this.hubRegistry.listHubConfigSnapshots(hubId);
+  }
+
+  @Post("hubs/:hubId/config-snapshots")
+  createHubConfigSnapshot(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("hubId") hubId: string,
+    @Body() body: unknown,
+  ) {
+    this.internalAuth.requireMerchantToken(authorization, hubId);
+    const input = createHubConfigSnapshotInputSchema.parse(body);
+    return this.hubRegistry.createHubConfigSnapshot(hubId, input);
+  }
+
+  @Patch("hubs/:hubId/config-snapshots/:snapshotId")
+  renameHubConfigSnapshot(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("hubId") hubId: string,
+    @Param("snapshotId") snapshotId: string,
+    @Body() body: unknown,
+  ) {
+    this.internalAuth.requireMerchantToken(authorization, hubId);
+    const input = renameHubConfigSnapshotInputSchema.parse(body);
+    return this.hubRegistry.renameHubConfigSnapshot(hubId, snapshotId, input);
+  }
+
+  @Post("hubs/:hubId/config-snapshots/:snapshotId/restore")
+  restoreHubConfigSnapshot(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("hubId") hubId: string,
+    @Param("snapshotId") snapshotId: string,
+  ) {
+    this.internalAuth.requireMerchantToken(authorization, hubId);
+    return this.hubRegistry.restoreHubConfigSnapshot(hubId, snapshotId);
   }
 
   /** Live UK postcode → coordinates for hub map pin (postcodes.io; optional Google fallback on API). */

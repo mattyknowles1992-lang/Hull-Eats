@@ -1,0 +1,72 @@
+:root {
+  --he-blue: #079bc8;
+  --he-blue-light: #23cdff;
+  --he-blue-dark: #0680a6;
+  --he-ink: #f7fbff;
+  --he-muted: #9fb2c9;
+  --he-line: rgba(188, 213, 255, 0.14);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--he-ink);
+  font-family: var(--font-manrope, "Manrope"), system-ui, sans-serif;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.he-admin-page {
+  min-height: 100vh;
+  padding: clamp(16px, 4vw, 24px) clamp(14px, 4vw, 18px) 60px;
+}
+
+.he-admin-shell {
+  width: min(100%, 1220px);
+  margin: 0 auto;
+}
+
+.he-admin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  margin-bottom: 22px;
+  flex-wrap: wrap;
+}
+
+.he-admin-eyebrow {
+  margin: 0;
+  color: #9ae8ff;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.he-admin-primary {
+  background: linear-gradient(180deg, var(--he-blue-light), var(--he-blue));
+  color: #fff;
+  box-shadow: 0 18px 34px rgba(7, 155, 200, 0.28);
+}
+
+@media (max-width: 640px) {
+  .he-admin-header h1 {
+    font-size: clamp(1.75rem, 8vw, 2.6rem) !important;
+  }
+}

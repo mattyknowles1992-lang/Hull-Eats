@@ -102,4 +102,14 @@ SELECT column_name, data_type, is_nullable
 FROM information_schema.columns
 WHERE table_schema = 'public'
   AND table_name = 'store_hours'
+  AND column_name IN ('id', 'store_id', 'day_of_week', 'open_time', 'close_time', 'is_closed')
+ORDER BY ordinal_position;
+
+-- -----------------------------------------------------------------------------
+-- STEP 10 — hub_config_snapshots (merchant settings backups)
+-- -----------------------------------------------------------------------------
+SELECT column_name, data_type, is_nullable
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name = 'hub_config_snapshots'
 ORDER BY ordinal_position;

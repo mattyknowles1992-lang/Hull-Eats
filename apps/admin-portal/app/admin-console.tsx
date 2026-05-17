@@ -389,15 +389,10 @@ const styles = {
   page: {
     minHeight: "100vh",
     background:
-      "radial-gradient(circle at top left, rgba(255, 107, 0, 0.14), transparent 24%), radial-gradient(circle at top right, rgba(35, 88, 189, 0.18), transparent 26%), linear-gradient(180deg, #020814 0%, #041120 40%, #091a31 100%)",
+      "radial-gradient(circle at top left, rgba(7, 155, 200, 0.18), transparent 24%), radial-gradient(circle at top right, rgba(35, 205, 255, 0.12), transparent 26%), linear-gradient(180deg, #020814 0%, #041120 40%, #091a31 100%)",
     color: "#f7fbff",
-    padding: "24px 18px 60px",
-    fontFamily: "Manrope, system-ui, sans-serif",
   } as const,
-  shell: {
-    width: "min(100%, 1220px)",
-    margin: "0 auto",
-  } as const,
+  shell: {} as const,
   card: {
     borderRadius: 28,
     border: "1px solid rgba(188, 213, 255, 0.14)",
@@ -453,11 +448,11 @@ const styles = {
     minHeight: 50,
     padding: "0 18px",
     borderRadius: 16,
-    border: "1px solid rgba(255, 176, 113, 0.2)",
+    border: "1px solid rgba(126, 224, 255, 0.2)",
     color: "#fff",
     fontWeight: 900,
-    background: "linear-gradient(180deg, #ff8a33, #ff6b00)",
-    boxShadow: "0 18px 34px rgba(255, 107, 0, 0.28)",
+    background: "linear-gradient(180deg, #23cdff, #079bc8)",
+    boxShadow: "0 18px 34px rgba(7, 155, 200, 0.28)",
     cursor: "pointer",
   } as const,
   buttonGlass: {
@@ -530,7 +525,7 @@ function SectionHeading({
         <p
           style={{
             margin: 0,
-            color: "#ffb47d",
+            color: "#9ae8ff",
             fontSize: 12,
             fontWeight: 800,
             letterSpacing: "0.14em",
@@ -1097,8 +1092,8 @@ export function AdminConsole() {
 
   if (!isLoggedIn) {
     return (
-      <main style={styles.page}>
-        <div style={styles.shell}>
+      <main className="he-admin-page" style={styles.page}>
+        <div className="he-admin-shell">
           <style jsx>{`
             .login-stage {
               position: relative;
@@ -1128,7 +1123,7 @@ export function AdminConsole() {
               width: 240px;
               height: 240px;
               border-radius: 50%;
-              background: radial-gradient(circle, rgba(255, 138, 51, 0.28), transparent 72%);
+              background: radial-gradient(circle, rgba(35, 205, 255, 0.28), transparent 72%);
               filter: blur(2px);
               animation: halo-drift 7s ease-in-out infinite;
             }
@@ -1293,7 +1288,7 @@ export function AdminConsole() {
                     <p
                       style={{
                         margin: 0,
-                        color: "#ffb47d",
+                        color: "#9ae8ff",
                         fontSize: 13,
                         fontWeight: 800,
                         letterSpacing: "0.16em",
@@ -1366,7 +1361,7 @@ export function AdminConsole() {
                   <p
                     style={{
                       margin: 0,
-                      color: "#ffb47d",
+                      color: "#9ae8ff",
                       fontSize: 12,
                       fontWeight: 800,
                       letterSpacing: "0.14em",
@@ -1450,8 +1445,8 @@ export function AdminConsole() {
   }
 
   return (
-    <main style={styles.page}>
-      <div style={styles.shell}>
+    <main className="he-admin-page" style={styles.page}>
+      <div className="he-admin-shell">
         <style jsx>{`
           .hero-grid,
           .split-grid,
@@ -1485,29 +1480,9 @@ export function AdminConsole() {
           }
         `}</style>
 
-        <header
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-end",
-            gap: 16,
-            marginBottom: 22,
-            flexWrap: "wrap",
-          }}
-        >
+        <header className="he-admin-header">
           <div>
-            <p
-              style={{
-                margin: 0,
-                color: "#ffb47d",
-                fontSize: 13,
-                fontWeight: 800,
-                letterSpacing: "0.16em",
-                textTransform: "uppercase",
-              }}
-            >
-              Hull Eats HQ
-            </p>
+            <p className="he-admin-eyebrow">Hull Eats HQ</p>
             <h1 style={{ margin: "8px 0 0", fontSize: 46, lineHeight: 0.95, fontFamily: "Georgia, serif" }}>
               Admin operations console
             </h1>
@@ -1936,7 +1911,7 @@ export function AdminConsole() {
                               {customer.hullEatsPlusActive ? "Hull Eats+ active" : `Subscription: ${customer.subscriptionStatus}`}
                             </span>
                             {customer.manualReviewRequired ? (
-                              <span style={{ color: "#ffb47d", fontSize: 13, fontWeight: 900 }}>Manual review</span>
+                              <span style={{ color: "#9ae8ff", fontSize: 13, fontWeight: 900 }}>Manual review</span>
                             ) : null}
                           </div>
                         </div>

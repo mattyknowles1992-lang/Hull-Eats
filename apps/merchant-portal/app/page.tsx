@@ -11,7 +11,9 @@ import {
   isHubMenuSectionPizza,
 } from "@hull-eats/types";
 
+import { HubConfigBackups } from "./hub-config-backups";
 import { HubDeliveryConfig } from "./hub-delivery-config";
+import { HE_BRAND } from "./portal-brand";
 import { HubDriversWorkbench } from "./hub-drivers-workbench";
 import { HubOffersWorkbench } from "./hub-offers-workbench";
 import { PizzaSizeDraftPanel, buildPizzaSizeOptionGroupFromRows, createInitialPizzaSizeRows } from "./pizza-size-draft";
@@ -1138,6 +1140,7 @@ export default function MerchantPortalPage() {
   const [offersNotice, setOffersNotice] = useState("");
   const [driverTracking, setDriverTracking] = useState<MerchantDriverTracking | null>(null);
   const [activeHubSection, setActiveHubSection] = useState<HubSection>("home");
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [activeHubPanel, setActiveHubPanel] = useState<
     "menu" | "import" | "businessProfile" | "deliveryRanges" | "settings" | "account"
   >("menu");
@@ -1196,6 +1199,7 @@ export default function MerchantPortalPage() {
   }, [newItem.sectionId]);
 
   const openHubSection = (section: HubSection) => {
+    setMobileNavOpen(false);
     setActiveHubSection(section);
 
     if (section === "orders") {
@@ -2006,9 +2010,37 @@ export default function MerchantPortalPage() {
     ? { ...primaryButton, ...saveHubButtonDirtyStyle }
     : primaryButton;
 
+  const handleRestoreConfigBackup = (workspace: { settings: HubSettings; menuSections: HubMenuSection[] }) => {
+    const settings = {
+      ...workspace.settings,
+      deliveryPostcodeZones:
+        workspace.settings.deliveryPostcodeZones.length > 0
+          ? workspace.settings.deliveryPostcodeZones
+          : createDefaultHullPostcodeZones(),
+    };
+    setHubSettings(settings);
+    setMenuSections(workspace.menuSections);
+    commitSavedHubSnapshot(settings, workspace.menuSections);
+    setSaveNotice("Backup restored and saved to your hub.");
+  };
+
   return (
-    <main style={hubAppShell}>
-      <aside style={hubSidebar}>
+    <main className="hub-app-shell" style={hubAppShell}>
+      {mobileNavOpen ? (
+        <button
+          type="button"
+          className="hub-sidebar-backdrop"
+          aria-label="Close navigation"
+          onClick={() => setMobileNavOpen(false)}
+        />
+      ) : null}
+      <div className="hub-mobile-bar">
+        <strong>{hubSettings.name || "Merchant hub"}</strong>
+        <button type="button" className="hub-nav-toggle" onClick={() => setMobileNavOpen(true)}>
+          Menu
+        </button>
+      </div>
+      <aside className={`hub-sidebar${mobileNavOpen ? " is-open" : ""}`} style={hubSidebar}>
         <div style={sidebarBrand}>
           <span style={sidebarMark}>HE</span>
           <span>
@@ -2090,18 +2122,23 @@ export default function MerchantPortalPage() {
         </nav>
       </aside>
 
-      <section style={hubMainArea}>
-        <header style={hubMainHeader}>
+      <section className="hub-main-area" style={hubMainArea}>
+        <header className="hub-main-header" style={hubMainHeader}>
           <div style={{ display: "grid", gap: 8 }}>
             <p style={eyebrow}>Hub workspace</p>
             <h1 style={hubTitle}>{hubSettings.name || "Merchant hub"}</h1>
             <p style={heroCopy}>Run orders, menu changes, earnings, users, and store setup from one clear workspace.</p>
           </div>
 
-          <div style={{ display: "grid", gap: 12, justifyItems: "start" }}>
+          <div className="hub-main-header-actions" style={{ display: "grid", gap: 12, justifyItems: "start" }}>
             {activeUser ? <span style={activeUserChip}>{activeUser.fullName} / {activeUser.role}</span> : null}
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <button type="button" style={saveHubButtonStyle} onClick={handleSaveHub}>
+            <div className="he-btn-row" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                className={hasUnsavedHubChanges ? "he-portal-primary is-dirty" : "he-portal-primary"}
+                style={saveHubButtonStyle}
+                onClick={handleSaveHub}
+              >
                 {hasUnsavedHubChanges ? "Save hub changes *" : "Save hub changes"}
               </button>
               {activeHubSlug ? (
@@ -2392,7 +2429,7 @@ export default function MerchantPortalPage() {
                 {menuSections.length === 0 ? <span style={mutedInlineNote}>Create your first category to start.</span> : null}
               </div>
 
-              <section style={menuWorkbenchGrid}>
+              <section className="he-menu-workbench" style={menuWorkbenchGrid}>
               <section style={categoryAccordionPanel}>
                 <div style={compactHeader}>
                   <div>
@@ -2810,7 +2847,7 @@ export default function MerchantPortalPage() {
 
           {activeHubPanel === "businessProfile" ? (
             <section style={compactEditorCard}>
-              <div style={twoColumnGrid}>
+              <div className="he-two-col" style={twoColumnGrid}>
                 <label style={field}>
                   <span style={darkFieldLabel}>Business name</span>
                   <input style={lightInput} value={hubSettings.name} onChange={(event) => handleHubFieldChange("name", event.target.value)} />
@@ -2845,7 +2882,7 @@ export default function MerchantPortalPage() {
 
           {activeHubPanel === "deliveryRanges" ? (
             <section style={compactEditorCard}>
-              <div style={twoColumnGrid}>
+              <div className="he-two-col" style={twoColumnGrid}>
                 <label style={field}>
                   <span style={darkFieldLabel}>Shop postcode</span>
                   <input
@@ -2889,7 +2926,7 @@ export default function MerchantPortalPage() {
 
           {activeHubPanel === "settings" ? (
             <section style={compactEditorCard}>
-              <div style={twoColumnGrid}>
+              <div className="he-two-col" style={twoColumnGrid}>
                 <label style={field}>
                   <span style={darkFieldLabel}>Delivery ETA (minutes)</span>
                   <input type="number" min={1} style={lightInput} value={hubSettings.etaMinutes} onChange={(event) => handleHubFieldChange("etaMinutes", Math.max(1, Number(event.target.value) || 1))} />
@@ -2934,6 +2971,17 @@ export default function MerchantPortalPage() {
                   </select>
                 </label>
               </div>
+              {merchantToken && activeHubId ? (
+                <HubConfigBackups
+                  apiBaseUrl={apiBaseUrl}
+                  hubId={activeHubId}
+                  merchantToken={merchantToken}
+                  hubSettings={hubSettings}
+                  menuSections={menuSections}
+                  onRestore={handleRestoreConfigBackup}
+                  onNotice={setSaveNotice}
+                />
+              ) : null}
             </section>
           ) : null}
 
@@ -3246,7 +3294,7 @@ export default function MerchantPortalPage() {
                 <p style={panelCopyDark}>This is the core storefront information pushed into the marketplace.</p>
               </div>
 
-              <div style={twoColumnGrid}>
+              <div className="he-two-col" style={twoColumnGrid}>
                 <label style={field}>
                   <span style={darkFieldLabel}>Business name</span>
                   <input style={lightInput} value={hubSettings.name} onChange={(event) => handleHubFieldChange("name", event.target.value)} />
@@ -3957,7 +4005,7 @@ export default function MerchantPortalPage() {
 const pageShell: React.CSSProperties = {
   minHeight: "100vh",
   background:
-    "radial-gradient(circle at top left, rgba(255, 107, 0, 0.12), transparent 24%), linear-gradient(180deg, #f6efe5 0%, #f2ebe0 100%)",
+    "radial-gradient(circle at top left, rgba(18, 183, 232, 0.12), transparent 24%), linear-gradient(180deg, #f6efe5 0%, #f2ebe0 100%)",
   color: "#101216",
   fontFamily: "Manrope, system-ui, sans-serif",
   padding: "24px 18px 56px",
@@ -3965,8 +4013,6 @@ const pageShell: React.CSSProperties = {
 
 const hubAppShell: React.CSSProperties = {
   minHeight: "100vh",
-  display: "grid",
-  gridTemplateColumns: "280px minmax(0, 1fr)",
   background: "#f7f8fa",
   color: "#101216",
   fontFamily: "Manrope, system-ui, sans-serif",
@@ -3999,7 +4045,7 @@ const sidebarMark: React.CSSProperties = {
   width: 42,
   height: 42,
   borderRadius: 14,
-  background: "linear-gradient(180deg, #ff8b3c, #ff6a00)",
+  background: "linear-gradient(180deg, #23cdff, #079bc8)",
   color: "#fff",
   fontWeight: 950,
 };
@@ -4040,8 +4086,8 @@ const sidebarButton: React.CSSProperties = {
 
 const sidebarButtonActive: React.CSSProperties = {
   ...sidebarButton,
-  borderColor: "rgba(255, 106, 0, 0.2)",
-  background: "rgba(255, 106, 0, 0.1)",
+  borderColor: "rgba(7, 155, 200, 0.2)",
+  background: "rgba(7, 155, 200, 0.1)",
   color: "#c95d12",
 };
 
@@ -4232,8 +4278,8 @@ const primaryButton: React.CSSProperties = {
   border: "1px solid rgba(15, 17, 21, 0.18)",
   color: "#fff",
   fontWeight: 900,
-  background: "linear-gradient(180deg, #ff8b3c, #ff6a00 62%, #db5700)",
-  boxShadow: "0 18px 28px rgba(255, 107, 0, 0.24), 0 10px 18px rgba(15, 17, 21, 0.18)",
+  background: "linear-gradient(180deg, #23cdff, #079bc8 62%, #0680a6)",
+  boxShadow: "0 18px 28px rgba(18, 183, 232, 0.24), 0 10px 18px rgba(15, 17, 21, 0.18)",
   cursor: "pointer",
 };
 
@@ -4314,7 +4360,7 @@ const unsavedHubBannerCopyParagraph: React.CSSProperties = {
 
 const saveHubButtonDirtyStyle: React.CSSProperties = {
   boxShadow:
-    "0 0 0 3px rgba(255, 106, 0, 0.35), 0 14px 24px rgba(255, 106, 0, 0.22)",
+    "0 0 0 3px rgba(7, 155, 200, 0.35), 0 14px 24px rgba(7, 155, 200, 0.22)",
   animation: "hub-save-pulse 1.6s ease-in-out infinite",
 };
 
@@ -4585,9 +4631,9 @@ const compactListButton: React.CSSProperties = {
 
 const compactListButtonActive: React.CSSProperties = {
   ...compactListButton,
-  borderColor: "rgba(255, 106, 0, 0.34)",
+  borderColor: "rgba(7, 155, 200, 0.34)",
   background: "linear-gradient(180deg, rgba(255, 244, 233, 1), rgba(255,255,255,0.98))",
-  boxShadow: "0 14px 24px rgba(255, 106, 0, 0.1)",
+  boxShadow: "0 14px 24px rgba(7, 155, 200, 0.1)",
 };
 
 const compactCreateBox: React.CSSProperties = {
@@ -5122,9 +5168,9 @@ const orangeBadge: React.CSSProperties = {
   minHeight: 34,
   padding: "0 12px",
   borderRadius: 999,
-  background: "linear-gradient(180deg, rgba(255, 142, 77, 0.18), rgba(255, 106, 0, 0.1))",
+  background: "linear-gradient(180deg, rgba(255, 142, 77, 0.18), rgba(7, 155, 200, 0.1))",
   color: "#9b4a12",
-  border: "1px solid rgba(255, 106, 0, 0.22)",
+  border: "1px solid rgba(7, 155, 200, 0.22)",
   fontWeight: 800,
   fontSize: 13,
 };
@@ -5341,6 +5387,6 @@ const orangeDot: React.CSSProperties = {
   height: 10,
   borderRadius: 999,
   marginTop: 6,
-  background: "linear-gradient(180deg, #ff8b3c, #ff6a00)",
-  boxShadow: "0 0 18px rgba(255, 107, 0, 0.24)",
+  background: "linear-gradient(180deg, #23cdff, #079bc8)",
+  boxShadow: "0 0 18px rgba(18, 183, 232, 0.24)",
 };
