@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { HubMenuSection, HubSettings, HubUser, MerchantWorkspace, MenuItem, OrderSummary } from "@hull-eats/types";
 import { parseMerchantWorkspaceUpdateInput } from "@hull-eats/types";
@@ -1146,6 +1146,8 @@ export default function MerchantPortalPage() {
   >("menu");
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
   const [selectedItemId, setSelectedItemId] = useState("");
+  const [isCreatingNewItem, setIsCreatingNewItem] = useState(false);
+  const newItemDraftRef = useRef<HTMLElement | null>(null);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showAccountPasswords, setShowAccountPasswords] = useState(false);
   const [showHubPasswordCurrent, setShowHubPasswordCurrent] = useState(false);
@@ -1183,10 +1185,12 @@ export default function MerchantPortalPage() {
     [menuSections, selectedCategoryId],
   );
 
-  const selectedItem = useMemo(
-    () => selectedCategory?.items.find((item) => item.id === selectedItemId) ?? selectedCategory?.items[0] ?? null,
-    [selectedCategory, selectedItemId],
-  );
+  const selectedItem = useMemo(() => {
+    if (isCreatingNewItem || !selectedCategory || !selectedItemId) {
+      return null;
+    }
+    return selectedCategory.items.find((item) => item.id === selectedItemId) ?? null;
+  }, [isCreatingNewItem, selectedCategory, selectedItemId]);
 
   const newItemTargetSection = useMemo(
     () => menuSections.find((section) => section.id === newItem.sectionId) ?? null,
@@ -1241,6 +1245,7 @@ export default function MerchantPortalPage() {
     if (!menuSections.length) {
       setSelectedCategoryId("");
       setSelectedItemId("");
+      setIsCreatingNewItem(false);
       return;
     }
 
@@ -1249,8 +1254,14 @@ export default function MerchantPortalPage() {
       setSelectedCategoryId(nextCategory.id);
     }
 
+    if (isCreatingNewItem) {
+      return;
+    }
+
     if (!nextCategory.items.length) {
-      setSelectedItemId("");
+      if (selectedItemId) {
+        setSelectedItemId("");
+      }
       return;
     }
 
@@ -1258,7 +1269,35 @@ export default function MerchantPortalPage() {
     if (nextItem.id !== selectedItemId) {
       setSelectedItemId(nextItem.id);
     }
-  }, [menuSections, selectedCategoryId, selectedItemId]);
+  }, [isCreatingNewItem, menuSections, selectedCategoryId, selectedItemId]);
+
+  const beginCreateItem = useCallback(
+    (sectionId: string) => {
+      const section = menuSections.find((entry) => entry.id === sectionId);
+      setIsCreatingNewItem(true);
+      setSelectedCategoryId(sectionId);
+      setSelectedItemId("");
+      setNewItem({
+        ...initialCreateItemState,
+        sectionId,
+        price: section?.defaultPrice != null ? String(section.defaultPrice) : "",
+      });
+      setPizzaSizeRows(createInitialPizzaSizeRows());
+      setMenuNotice("");
+      requestAnimationFrame(() => {
+        newItemDraftRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      });
+    },
+    [menuSections],
+  );
+
+  const cancelCreateItem = useCallback(() => {
+    setIsCreatingNewItem(false);
+    const section = menuSections.find((entry) => entry.id === selectedCategoryId);
+    setSelectedItemId(section?.items[0]?.id ?? "");
+    setNewItem((current) => ({ ...initialCreateItemState, sectionId: current.sectionId }));
+    setPizzaSizeRows(createInitialPizzaSizeRows());
+  }, [menuSections, selectedCategoryId]);
 
   const commitSavedHubSnapshot = useCallback((settings: HubSettings, sections: HubMenuSection[]) => {
     setSavedHubSnapshot({
@@ -1760,13 +1799,9 @@ export default function MerchantPortalPage() {
       setMenuSections(nextMenuSections);
       syncSavedMenuSnapshot(nextMenuSections);
       setSelectedCategoryId(createdCategory.id);
-      setSelectedItemId("");
       setNewCategory(initialCreateCategoryState);
-      setNewItem((current) => ({
-        ...current,
-        sectionId: current.sectionId || createdCategory.id,
-      }));
-      setMenuNotice(`Created ${createdCategory.name}.`);
+      beginCreateItem(createdCategory.id);
+      setMenuNotice(`Created ${createdCategory.name}. Add your first item below.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Menu category create failed.";
       setMenuNotice(message);
@@ -1840,6 +1875,7 @@ export default function MerchantPortalPage() {
           section.id === newItem.sectionId ? { ...section, items: [...section.items, createdItem] } : section,
         ),
       );
+      setIsCreatingNewItem(false);
       setSelectedCategoryId(newItem.sectionId);
       setSelectedItemId(createdItem.id);
       setNewItem((current) => ({
@@ -1847,7 +1883,7 @@ export default function MerchantPortalPage() {
         sectionId: current.sectionId,
       }));
       setPizzaSizeRows(createInitialPizzaSizeRows());
-      setMenuNotice(`Created ${createdItem.name}. Build its ingredients and options below.`);
+      setMenuNotice(`Created ${createdItem.name}. Add sizes, extras, and options below.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Menu item create failed.";
       setMenuNotice(message);
@@ -2418,6 +2454,7 @@ export default function MerchantPortalPage() {
                     type="button"
                     style={section.id === selectedCategory?.id ? menuTopTabActive : menuTopTab}
                     onClick={() => {
+                      setIsCreatingNewItem(false);
                       setSelectedCategoryId(section.id);
                       setSelectedItemId(section.items[0]?.id ?? "");
                       setNewItem((current) => ({ ...current, sectionId: section.id }));
@@ -2479,6 +2516,7 @@ export default function MerchantPortalPage() {
                       style={categoryAccordionCard}
                       onToggle={(event) => {
                         if (event.currentTarget.open) {
+                          setIsCreatingNewItem(false);
                           setSelectedCategoryId(section.id);
                           setSelectedItemId(section.items[0]?.id ?? "");
                           setNewItem((current) => ({ ...current, sectionId: section.id }));
@@ -2568,6 +2606,7 @@ export default function MerchantPortalPage() {
                               type="button"
                               style={item.id === selectedItem?.id ? compactListButtonActive : compactListButton}
                               onClick={() => {
+                                setIsCreatingNewItem(false);
                                 setSelectedCategoryId(section.id);
                                 setSelectedItemId(item.id);
                               }}
@@ -2601,7 +2640,7 @@ export default function MerchantPortalPage() {
                     </div>
 
                     <div style={menuItemCardGrid}>
-                      <button type="button" style={menuAddItemCard} onClick={() => setNewItem((current) => ({ ...current, sectionId: selectedCategory.id }))}>
+                      <button type="button" style={menuAddItemCard} onClick={() => beginCreateItem(selectedCategory.id)}>
                         <span style={addCircle}>+</span>
                         <strong>Add a new item</strong>
                       </button>
@@ -2611,7 +2650,10 @@ export default function MerchantPortalPage() {
                             type="button"
                             style={editDotButton}
                             aria-label={`Edit ${item.name}`}
-                            onClick={() => setSelectedItemId(item.id)}
+                            onClick={() => {
+                              setIsCreatingNewItem(false);
+                              setSelectedItemId(item.id);
+                            }}
                           >
                             Edit
                           </button>
@@ -2623,7 +2665,10 @@ export default function MerchantPortalPage() {
                             <button
                               type="button"
                               style={item.id === selectedItem?.id ? itemSelectButtonActive : itemSelectButton}
-                              onClick={() => setSelectedItemId(item.id)}
+                              onClick={() => {
+                                setIsCreatingNewItem(false);
+                                setSelectedItemId(item.id);
+                              }}
                             >
                               {item.optionGroups.length} variations
                             </button>
@@ -2635,7 +2680,101 @@ export default function MerchantPortalPage() {
                   </section>
                 ) : null}
 
-                {selectedCategory && selectedItem ? (
+                {isCreatingNewItem && selectedCategory ? (
+                  <section ref={newItemDraftRef} style={newItemDraftPanel}>
+                    <div style={itemTopRow}>
+                      <div>
+                        <p style={eyebrowDark}>New item</p>
+                        <h2 style={sectionTitle}>{selectedCategory.name}</h2>
+                        <p style={panelCopyDark}>
+                          Add name, description, price, and image first. Sizes, extras, and option groups are configured right after you create the item.
+                        </p>
+                      </div>
+                      <button type="button" style={secondaryButtonSmall} onClick={cancelCreateItem}>
+                        Cancel
+                      </button>
+                    </div>
+
+                    <div style={builderGrid}>
+                      <label style={field}>
+                        <span style={darkFieldLabel}>Item name</span>
+                        <input
+                          style={lightInput}
+                          value={newItem.name}
+                          onChange={(event) => setNewItem((current) => ({ ...current, name: event.target.value, sectionId: selectedCategory.id }))}
+                          placeholder="e.g. Margherita"
+                          autoFocus
+                        />
+                      </label>
+                      <label style={field}>
+                        <span style={darkFieldLabel}>Description</span>
+                        <textarea
+                          style={{ ...lightInput, minHeight: 96, paddingTop: 14, paddingBottom: 14, resize: "vertical" }}
+                          value={newItem.description}
+                          onChange={(event) => setNewItem((current) => ({ ...current, description: event.target.value, sectionId: selectedCategory.id }))}
+                          placeholder="What customers see on the menu"
+                        />
+                      </label>
+                      {isHubMenuSectionPizza(selectedCategory) ? (
+                        <div style={{ gridColumn: "1 / -1" }}>
+                          <PizzaSizeDraftPanel rows={pizzaSizeRows} onChange={setPizzaSizeRows} />
+                        </div>
+                      ) : (
+                        <label style={field}>
+                          <span style={darkFieldLabel}>Price</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            style={lightInput}
+                            value={newItem.price}
+                            onChange={(event) => setNewItem((current) => ({ ...current, price: event.target.value, sectionId: selectedCategory.id }))}
+                            placeholder={
+                              selectedCategory.defaultPrice != null
+                                ? `Default ${formatMoney(selectedCategory.defaultPrice)}`
+                                : "7.99"
+                            }
+                          />
+                        </label>
+                      )}
+                      <label style={field}>
+                        <span style={darkFieldLabel}>Product image URL</span>
+                        <input
+                          style={lightInput}
+                          value={newItem.imageUrl}
+                          onChange={(event) => setNewItem((current) => ({ ...current, imageUrl: event.target.value, sectionId: selectedCategory.id }))}
+                          placeholder="https://..."
+                        />
+                      </label>
+                      <label style={{ ...toggleLabel, gridColumn: "1 / -1" }}>
+                        <input
+                          type="checkbox"
+                          checked={newItem.requiresIdVerification}
+                          onChange={(event) =>
+                            setNewItem((current) => ({ ...current, requiresIdVerification: event.target.checked, sectionId: selectedCategory.id }))
+                          }
+                        />
+                        <span>Verify with ID at delivery (age-restricted)</span>
+                      </label>
+                    </div>
+
+                    <div className="he-section-actions" style={sectionActionRow}>
+                      <button type="button" style={primaryButton} onClick={() => void handleCreateItem()}>
+                        Create item
+                      </button>
+                      <button type="button" style={secondaryButton} onClick={cancelCreateItem}>
+                        Cancel
+                      </button>
+                    </div>
+                  </section>
+                ) : null}
+
+                {!isCreatingNewItem && selectedCategory && !selectedItem ? (
+                  <div style={emptyStateCard}>
+                    Tap <strong>Add a new item</strong> above, or select an item card to edit name, price, sizes, and options.
+                  </div>
+                ) : null}
+
+                {selectedCategory && selectedItem && !isCreatingNewItem ? (
                   <>
                     <div style={itemTopRow}>
                       <div>
@@ -4018,8 +4157,6 @@ const hubAppShell: React.CSSProperties = {
   fontFamily: "Manrope, system-ui, sans-serif",
 };
 
-const hubSidebar: React.CSSProperties = {};
-
 const sidebarBrand: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
@@ -4079,8 +4216,6 @@ const sidebarButtonActive: React.CSSProperties = {
   background: "rgba(7, 155, 200, 0.1)",
   color: "#0680a6",
 };
-
-const hubMainArea: React.CSSProperties = {};
 
 const hubMainHeader: React.CSSProperties = {
   borderRadius: 28,
@@ -4627,6 +4762,17 @@ const compactInput: React.CSSProperties = {
   ...lightInput,
   flex: "1 1 130px",
   minWidth: 0,
+};
+
+const newItemDraftPanel: React.CSSProperties = {
+  display: "grid",
+  gap: 16,
+  marginTop: 4,
+  borderRadius: 18,
+  border: "1px solid rgba(7, 155, 200, 0.28)",
+  background: "linear-gradient(180deg, rgba(35, 205, 255, 0.08), rgba(255, 255, 255, 0.98))",
+  padding: 18,
+  boxShadow: "0 16px 32px rgba(7, 155, 200, 0.1)",
 };
 
 const compactEditorCard: React.CSSProperties = {
