@@ -2040,7 +2040,7 @@ export default function MerchantPortalPage() {
           Menu
         </button>
       </div>
-      <aside className={`hub-sidebar${mobileNavOpen ? " is-open" : ""}`} style={hubSidebar}>
+      <aside className={`hub-sidebar${mobileNavOpen ? " is-open" : ""}`}>
         <div style={sidebarBrand}>
           <span style={sidebarMark}>HE</span>
           <span>
@@ -2122,7 +2122,7 @@ export default function MerchantPortalPage() {
         </nav>
       </aside>
 
-      <section className="hub-main-area" style={hubMainArea}>
+      <section className="hub-main-area">
         <header className="hub-main-header" style={hubMainHeader}>
           <div style={{ display: "grid", gap: 8 }}>
             <p style={eyebrow}>Hub workspace</p>
@@ -2159,7 +2159,7 @@ export default function MerchantPortalPage() {
         </header>
 
         {hasUnsavedHubChanges ? (
-          <div style={unsavedHubBanner} role="status" aria-live="polite">
+          <div className="he-unsaved-banner" style={unsavedHubBanner} role="status" aria-live="polite">
             <div style={unsavedHubBannerCopy}>
               <strong>Unsaved changes</strong>
               <p style={unsavedHubBannerCopyParagraph}>
@@ -2182,14 +2182,14 @@ export default function MerchantPortalPage() {
         {offersNotice ? <p style={successMessageStyle}>{offersNotice}</p> : null}
 
         {activeHubSection === "home" ? (
-          <section style={dashboardGrid}>
+          <section className="he-dashboard-grid" style={dashboardGrid}>
             <article style={dashboardHeroCard}>
               <p style={eyebrowDark}>Today</p>
               <h2 style={sectionTitle}>Ready for service</h2>
               <p style={panelCopyDark}>
                 Your menu has {menuStats.activeItems} live items across {menuStats.categories} categories.
               </p>
-              <div style={sectionActionRow}>
+              <div className="he-section-actions" style={sectionActionRow}>
                 <button type="button" style={primaryButton} onClick={() => openHubSection("menu")}>
                   Edit menu
                 </button>
@@ -2334,7 +2334,7 @@ export default function MerchantPortalPage() {
         ) : null}
 
         {activeHubSection === "help" ? (
-          <section style={dashboardGrid}>
+          <section className="he-dashboard-grid" style={dashboardGrid}>
             <article style={dashboardHeroCard}>
               <p style={eyebrowDark}>Help and support</p>
               <h2 style={sectionTitle}>Keep menu work quick</h2>
@@ -4080,12 +4080,7 @@ const sidebarButtonActive: React.CSSProperties = {
   color: "#0680a6",
 };
 
-const hubMainArea: React.CSSProperties = {
-  display: "grid",
-  gap: 18,
-  alignContent: "start",
-  padding: "24px clamp(18px, 3vw, 42px) 64px",
-};
+const hubMainArea: React.CSSProperties = {};
 
 const hubMainHeader: React.CSSProperties = {
   borderRadius: 28,
