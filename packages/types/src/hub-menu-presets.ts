@@ -29,7 +29,7 @@ export type HubMenuCategoryPresetChoice = {
 
 /** First option in UI should be “Add custom category” — use `HUB_MENU_CATEGORY_CUSTOM_ID`. */
 export const HUB_MENU_CATEGORY_PRESET_CHOICES: HubMenuCategoryPresetChoice[] = [
-  { id: "pizza", label: "Pizza", defaultName: "Pizza", defaultDescription: "Pizzas with size options." },
+  { id: "pizza", label: "Pizzas", defaultName: "Pizzas", defaultDescription: "Pizza menu — add each pizza name, then sizes and toppings per item." },
   { id: "burgers", label: "Burgers", defaultName: "Burgers", defaultDescription: "Classic burgers and house specials." },
   { id: "gourmet-burgers", label: "Gourmet burgers", defaultName: "Gourmet burgers", defaultDescription: "Premium burgers and chef specials." },
   { id: "kebabs", label: "Kebabs", defaultName: "Kebabs", defaultDescription: "Doner, shish, kofte, and wraps." },

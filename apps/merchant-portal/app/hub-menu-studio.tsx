@@ -4,15 +4,22 @@ import type { CSSProperties } from "react";
 import { useRef } from "react";
 
 import type { HubMenuSection, MenuItem } from "@hull-eats/types";
-import { HUB_MENU_CATEGORY_CUSTOM_ID, hubMenuCategorySelectOptions, isHubMenuSectionPizza } from "@hull-eats/types";
+import {
+  HUB_MENU_CATEGORY_CUSTOM_ID,
+  HUB_MENU_CATEGORY_PRESET_CHOICES,
+  hubMenuCategorySelectOptions,
+  isHubMenuSectionPizza,
+} from "@hull-eats/types";
 
 import { HubMenuCustomisationBuilder } from "./hub-menu-customisation";
 import { HubMenuPublishDialog } from "./hub-menu-publish-dialog";
+import { MenuItemImageField } from "./menu-item-image-field";
 import {
   applyMenuAvailabilityMode,
   describeMenuAvailability,
   formatMenuMoney,
   getMenuAvailabilityMode,
+  itemUsesSizePricing,
   menuTemplateCards,
   type MenuAvailabilityMode,
   type MenuPublishSummary,
@@ -127,6 +134,11 @@ export function HubMenuStudio({
   const showChoiceSetup = Boolean(selectedItem && showChoiceSetupForItemId === selectedItem.id);
   const availabilityModes: MenuAvailabilityMode[] = ["live", "sold_out", "hidden"];
   const studioLocked = readOnly;
+  const categoryIsPizza = isHubMenuSectionPizza(selectedCategory);
+  const creatingPizzaCategory = newCategory.presetId === "pizza";
+  const quickCategoryPresets = HUB_MENU_CATEGORY_PRESET_CHOICES.filter((choice) =>
+    ["pizza", "burgers", "meal-deals", "drinks", "sides"].includes(choice.id),
+  );
 
   return (
     <section className="hub-menu-studio" style={studioShell}>
@@ -194,30 +206,57 @@ export function HubMenuStudio({
       )}
 
       <section style={categoryCreateCard}>
-        <p style={sectionLabel}>Add category</p>
+        <p style={sectionLabel}>Step 1 — Menu category</p>
+        <p style={categoryCreateHint}>
+          A category is a group on your menu (e.g. <strong>Pizzas</strong>, Burgers, Drinks). You add individual product names inside it next.
+        </p>
+        <div style={quickPresetRow}>
+          {quickCategoryPresets.map((preset) => (
+            <button
+              key={preset.id}
+              type="button"
+              style={newCategory.presetId === preset.id ? quickPresetChipActive : quickPresetChip}
+              disabled={studioLocked}
+              onClick={() => onNewCategoryPresetChange(preset.id)}
+            >
+              {preset.label}
+            </button>
+          ))}
+          <button
+            type="button"
+            style={newCategory.presetId === HUB_MENU_CATEGORY_CUSTOM_ID ? quickPresetChipActive : quickPresetChip}
+            disabled={studioLocked}
+            onClick={() => onNewCategoryPresetChange(HUB_MENU_CATEGORY_CUSTOM_ID)}
+          >
+            Other
+          </button>
+        </div>
         <div style={categoryCreateRow}>
-          <select style={lightInput} value={newCategory.presetId} onChange={(event) => onNewCategoryPresetChange(event.target.value)}>
-            {categoryPresetOptions.map((opt) => (
-              <option key={opt.id} value={opt.id}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-          <input
-            style={lightInput}
-            value={newCategory.name}
-            onChange={(event) => onNewCategoryChange({ name: event.target.value })}
-            placeholder="Category name, e.g. Pizzas"
-          />
-          <input
-            type="number"
-            step="0.01"
-            style={{ ...lightInput, maxWidth: 120 }}
-            value={newCategory.defaultPrice}
-            onChange={(event) => onNewCategoryChange({ defaultPrice: event.target.value })}
-            placeholder="Default £"
-          />
-          <button type="button" style={primaryButton} onClick={onCreateCategory}>
+          <label style={categoryNameField}>
+            <span style={darkFieldLabel}>Category name (customer sees this)</span>
+            <input
+              style={lightInput}
+              value={newCategory.name}
+              onChange={(event) => onNewCategoryChange({ name: event.target.value })}
+              placeholder="e.g. Pizzas"
+              disabled={studioLocked}
+            />
+          </label>
+          {!creatingPizzaCategory ? (
+            <label style={defaultPriceField}>
+              <span style={darkFieldLabel}>Optional default £ for new items</span>
+              <input
+                type="number"
+                step="0.01"
+                style={lightInput}
+                value={newCategory.defaultPrice}
+                onChange={(event) => onNewCategoryChange({ defaultPrice: event.target.value })}
+                placeholder="7.99"
+                disabled={studioLocked}
+              />
+            </label>
+          ) : null}
+          <button type="button" style={primaryButton} onClick={onCreateCategory} disabled={studioLocked}>
             Add category
           </button>
         </div>
@@ -282,8 +321,16 @@ export function HubMenuStudio({
           <div style={itemsPanel}>
             <div style={itemsPanelHeader}>
               <div>
-                <p style={sectionLabel}>Items in {selectedCategory.name}</p>
-                <p style={itemsPanelCopy}>Select an item to edit, or add a new one.</p>
+                <p style={sectionLabel}>Step 2 — Products in {selectedCategory.name}</p>
+                <p style={itemsPanelCopy}>
+                  Each button is one product (e.g. a pizza name). Tap to set description, photo, sizes, and extras. Extras and toppings are
+                  configured on each product — not in this list.
+                </p>
+                {categoryIsPizza ? (
+                  <p style={pizzaTip}>
+                    For pizzas: add the name here, set a price on each size, then scroll down on that pizza to add crust and extra toppings.
+                  </p>
+                ) : null}
               </div>
               <button type="button" style={primaryButton} onClick={() => onBeginCreateItem(selectedCategory.id)}>
                 + Add item
@@ -305,7 +352,9 @@ export function HubMenuStudio({
                 </button>
               ))}
               {selectedCategory.items.length === 0 ? (
-                <div style={emptyStateCard}>No items yet. Tap Add item to create your first product.</div>
+                <div style={emptyStateCard}>
+                  No products yet. Tap <strong>+ Add item</strong> — e.g. Margherita — then add description, sizes, and toppings.
+                </div>
               ) : null}
             </div>
           </div>
@@ -314,8 +363,8 @@ export function HubMenuStudio({
             <section ref={newItemDraftRef} style={newItemPanel}>
               <div style={panelHeaderRow}>
                 <div>
-                  <p style={eyebrow}>Step 2 — New item</p>
-                  <h3 style={panelHeading}>{selectedCategory.name}</h3>
+                  <p style={eyebrow}>New product in {selectedCategory.name}</p>
+                  <h3 style={panelHeading}>Name, description &amp; sizes</h3>
                 </div>
                 <button type="button" style={secondaryButtonSmall} onClick={onCancelCreateItem}>
                   Cancel
@@ -323,17 +372,17 @@ export function HubMenuStudio({
               </div>
               <div style={builderGrid}>
                 <label style={field}>
-                  <span style={darkFieldLabel}>Item name</span>
+                  <span style={darkFieldLabel}>Product name</span>
                   <input
                     style={lightInput}
                     value={newItem.name}
                     onChange={(event) => onNewItemChange({ name: event.target.value })}
-                    placeholder="e.g. Margherita"
+                    placeholder={categoryIsPizza ? "e.g. Margherita" : "e.g. Cheeseburger"}
                     autoFocus
                   />
                 </label>
                 <label style={field}>
-                  <span style={darkFieldLabel}>Description</span>
+                  <span style={darkFieldLabel}>Description (shown on menu)</span>
                   <textarea
                     style={{ ...lightInput, minHeight: 88, paddingTop: 12, paddingBottom: 12, resize: "vertical" }}
                     value={newItem.description}
@@ -347,7 +396,7 @@ export function HubMenuStudio({
                   </div>
                 ) : (
                   <label style={field}>
-                    <span style={darkFieldLabel}>Price</span>
+                    <span style={darkFieldLabel}>Price (£)</span>
                     <input
                       type="number"
                       step="0.01"
@@ -358,18 +407,14 @@ export function HubMenuStudio({
                     />
                   </label>
                 )}
-                <label style={field}>
-                  <span style={darkFieldLabel}>Image URL (optional)</span>
-                  <input
-                    style={lightInput}
-                    value={newItem.imageUrl}
-                    onChange={(event) => onNewItemChange({ imageUrl: event.target.value })}
-                    placeholder="https://..."
-                  />
-                </label>
+                <MenuItemImageField
+                  value={newItem.imageUrl || undefined}
+                  onChange={(imageUrl) => onNewItemChange({ imageUrl: imageUrl ?? "" })}
+                  disabled={studioLocked}
+                />
               </div>
               <button type="button" style={primaryButton} onClick={onCreateItem}>
-                Create item — then add sizes &amp; choices
+                {categoryIsPizza ? "Add pizza — then set crust & toppings" : "Add product — then add choices if needed"}
               </button>
             </section>
           ) : null}
@@ -378,7 +423,7 @@ export function HubMenuStudio({
             <section style={editItemPanel}>
               <div style={panelHeaderRow}>
                 <div>
-                  <p style={eyebrow}>Step 2 &amp; 3 — Edit item</p>
+                  <p style={eyebrow}>Editing product</p>
                   <h3 style={panelHeading}>{selectedItem.name}</h3>
                 </div>
                 <div style={inlineActions}>
@@ -396,7 +441,9 @@ export function HubMenuStudio({
                   <div style={panelHeaderRow}>
                     <div>
                       <strong style={{ fontSize: "1.05rem" }}>What kind of item is this?</strong>
-                      <p style={studioCopy}>Pick a starter layout for sizes, toppings, and extras. You can rename everything after.</p>
+                      <p style={studioCopy}>
+                        Pick a layout for toppings and extras on this product. {categoryIsPizza ? "Sizes are already set above." : "You can rename every group after."}
+                      </p>
                     </div>
                     <button type="button" style={secondaryButtonSmall} onClick={onDismissChoiceSetup}>
                       Skip for now
@@ -423,23 +470,30 @@ export function HubMenuStudio({
 
               <div style={builderGrid}>
                 <label style={field}>
-                  <span style={darkFieldLabel}>Item name</span>
+                  <span style={darkFieldLabel}>Product name</span>
                   <input
                     style={lightInput}
                     value={selectedItem.name}
                     onChange={(event) => onUpdateItem((current) => ({ ...current, name: event.target.value }))}
                   />
                 </label>
-                <label style={field}>
-                  <span style={darkFieldLabel}>Price (from)</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    style={lightInput}
-                    value={moneyInput(selectedItem.price)}
-                    onChange={(event) => onUpdateItem((current) => ({ ...current, price: Number(event.target.value) || 0 }))}
-                  />
-                </label>
+                {itemUsesSizePricing(selectedItem) ? (
+                  <div style={sizePriceNotice}>
+                    <strong>Prices are on each size</strong>
+                    <p>Edit size prices in the <em>Sizes &amp; toppings</em> section below — not here.</p>
+                  </div>
+                ) : (
+                  <label style={field}>
+                    <span style={darkFieldLabel}>Price (£)</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      style={lightInput}
+                      value={moneyInput(selectedItem.price)}
+                      onChange={(event) => onUpdateItem((current) => ({ ...current, price: Number(event.target.value) || 0 }))}
+                    />
+                  </label>
+                )}
                 <label style={{ ...field, gridColumn: "1 / -1" }}>
                   <span style={darkFieldLabel}>Description</span>
                   <textarea
@@ -448,14 +502,11 @@ export function HubMenuStudio({
                     onChange={(event) => onUpdateItem((current) => ({ ...current, description: event.target.value }))}
                   />
                 </label>
-                <label style={{ ...field, gridColumn: "1 / -1" }}>
-                  <span style={darkFieldLabel}>Image URL</span>
-                  <input
-                    style={lightInput}
-                    value={selectedItem.imageUrl ?? ""}
-                    onChange={(event) => onUpdateItem((current) => ({ ...current, imageUrl: event.target.value || undefined }))}
-                  />
-                </label>
+                <MenuItemImageField
+                  value={selectedItem.imageUrl}
+                  onChange={(imageUrl) => onUpdateItem((current) => ({ ...current, imageUrl }))}
+                  disabled={studioLocked}
+                />
               </div>
 
               <section style={availabilityPanel}>
@@ -495,7 +546,10 @@ export function HubMenuStudio({
               ) : null}
 
               <section style={choicesSection}>
-                <p style={sectionLabel}>Sizes, toppings, salad &amp; extras</p>
+                <p style={sectionLabel}>Step 3 — Sizes, toppings &amp; extras (this product only)</p>
+                <p style={choicesSectionCopy}>
+                  Add choice groups customers pick at checkout — e.g. Size, Crust, Extra toppings. Duplicate another pizza to reuse the same groups.
+                </p>
                 <HubMenuCustomisationBuilder
                   item={selectedItem}
                   onChangeComponents={(components) => onUpdateItem((current) => ({ ...current, components }))}
@@ -506,7 +560,9 @@ export function HubMenuStudio({
           ) : null}
 
           {!isCreatingNewItem && !selectedItem ? (
-            <div style={emptyStateCard}>Select an item from the list, or tap Add item to create one in {selectedCategory.name}.</div>
+            <div style={emptyStateCard}>
+              Select a product from the list above, or tap <strong>+ Add item</strong> to add one to {selectedCategory.name}.
+            </div>
           ) : null}
         </section>
       ) : null}
@@ -606,8 +662,54 @@ const categoryCreateCard: CSSProperties = {
   borderRadius: 16,
   border: "1px solid rgba(15, 17, 21, 0.1)",
   background: "#fff",
+  display: "grid",
+  gap: 10,
 };
-const categoryCreateRow: CSSProperties = { display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginTop: 10 };
+const categoryCreateHint: CSSProperties = { margin: 0, color: "#5b6470", lineHeight: 1.55, fontSize: "0.9rem" };
+const quickPresetRow: CSSProperties = { display: "flex", flexWrap: "wrap", gap: 8 };
+const quickPresetChip: CSSProperties = {
+  padding: "8px 14px",
+  borderRadius: 999,
+  border: "1px solid rgba(15, 17, 21, 0.14)",
+  background: "#fff",
+  fontWeight: 800,
+  fontSize: 13,
+  cursor: "pointer",
+};
+const quickPresetChipActive: CSSProperties = {
+  ...quickPresetChip,
+  borderColor: "rgba(7, 155, 200, 0.45)",
+  background: "rgba(7, 155, 200, 0.12)",
+  color: "#064f68",
+};
+const categoryCreateRow: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "minmax(0, 1fr) minmax(100px, 140px) auto",
+  gap: 10,
+  alignItems: "end",
+};
+const categoryNameField: CSSProperties = { display: "grid", gap: 6 };
+const defaultPriceField: CSSProperties = { display: "grid", gap: 6 };
+const pizzaTip: CSSProperties = {
+  margin: "8px 0 0",
+  padding: "10px 12px",
+  borderRadius: 12,
+  background: "rgba(7, 155, 200, 0.08)",
+  border: "1px solid rgba(7, 155, 200, 0.22)",
+  color: "#064f68",
+  fontSize: "0.84rem",
+  lineHeight: 1.5,
+};
+const sizePriceNotice: CSSProperties = {
+  padding: 12,
+  borderRadius: 12,
+  background: "rgba(7, 155, 200, 0.08)",
+  border: "1px solid rgba(7, 155, 200, 0.2)",
+  color: "#064f68",
+  display: "grid",
+  gap: 4,
+};
+const choicesSectionCopy: CSSProperties = { margin: "0 0 10px", color: "#5b6470", lineHeight: 1.55, fontSize: "0.88rem" };
 const categoryTabRow: CSSProperties = { display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 };
 const categoryTab: CSSProperties = {
   border: "1px solid rgba(15, 17, 21, 0.12)",

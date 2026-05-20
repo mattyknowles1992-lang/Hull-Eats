@@ -36,6 +36,7 @@ import {
   buildMenuTemplate,
   cloneMenuItemDraft,
   computeMenuPublishIssues,
+  mergeMenuTemplateWithExistingSizes,
   menuTemplateCards,
   type MenuTemplateKind,
 } from "./menu-studio-core";
@@ -1365,7 +1366,7 @@ export default function MerchantPortalPage() {
     const isPizza = isHubMenuSectionPizza(targetSection);
 
     if (!newItem.sectionId || !newItem.name.trim()) {
-      setMenuNotice("Choose a category and item name before creating the item.");
+      setMenuNotice("Choose a category and product name before creating the item.");
       return;
     }
 
@@ -1390,7 +1391,7 @@ export default function MerchantPortalPage() {
       optionGroups = [];
     }
 
-    const createdItem = buildLocalMenuItem({
+    let createdItem = buildLocalMenuItem({
       categoryId: newItem.sectionId,
       name: newItem.name,
       description: newItem.description,
@@ -1402,6 +1403,10 @@ export default function MerchantPortalPage() {
       isActive: false,
     });
 
+    if (isPizza) {
+      createdItem = mergeMenuTemplateWithExistingSizes(createdItem, "pizza");
+    }
+
     updateMenuSections((current) =>
       current.map((section) =>
         section.id === newItem.sectionId ? { ...section, items: [...section.items, createdItem] } : section,
@@ -1410,13 +1415,17 @@ export default function MerchantPortalPage() {
     setIsCreatingNewItem(false);
     setSelectedCategoryId(newItem.sectionId);
     setSelectedItemId(createdItem.id);
-    setShowChoiceSetupForItemId(createdItem.id);
+    setShowChoiceSetupForItemId(isPizza ? null : createdItem.id);
     setNewItem((current) => ({
       ...initialCreateItemState,
       sectionId: current.sectionId,
     }));
     setPizzaSizeRows(createInitialPizzaSizeRows());
-    setMenuNotice(`Added ${createdItem.name} to your draft (hidden until you set Live and publish).`);
+    setMenuNotice(
+      isPizza
+        ? `Added ${createdItem.name} with sizes, crust, and topping groups. Review below, set Live, then publish.`
+        : `Added ${createdItem.name} to your draft (hidden until you set Live and publish).`,
+    );
   };
 
   const handleApplyCategoryPrice = (sectionId: string) => {
@@ -1446,12 +1455,17 @@ export default function MerchantPortalPage() {
       return;
     }
 
-    const template = buildMenuTemplate(kind);
-    updateItem(selectedCategory.id, selectedItem.id, (current) => ({
-      ...current,
-      components: template.components,
-      optionGroups: template.optionGroups,
-    }));
+    updateItem(selectedCategory.id, selectedItem.id, (current) => {
+      if (kind === "pizza" && isHubMenuSectionPizza(selectedCategory)) {
+        return mergeMenuTemplateWithExistingSizes(current, kind);
+      }
+      const template = buildMenuTemplate(kind);
+      return {
+        ...current,
+        components: template.components,
+        optionGroups: template.optionGroups,
+      };
+    });
     setShowChoiceSetupForItemId(null);
     setMenuNotice(
       kind === "simple"

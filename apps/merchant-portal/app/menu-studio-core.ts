@@ -253,6 +253,26 @@ export function formatMenuMoney(value: number) {
   return `£${value.toFixed(2)}`;
 }
 
+/** True when the item already has a required size choice group (prices live on each size). */
+export function itemUsesSizePricing(item: MenuItem): boolean {
+  return item.optionGroups.some(
+    (group) => group.isRequired && /size/i.test(group.name) && group.options.some((option) => option.label.trim()),
+  );
+}
+
+/** Apply a template but keep an existing size group from the pizza size builder. */
+export function mergeMenuTemplateWithExistingSizes(item: MenuItem, kind: MenuTemplateKind): MenuItem {
+  const template = buildMenuTemplate(kind);
+  const existingSizeGroups = item.optionGroups.filter((group) => /size/i.test(group.name));
+  const templateWithoutSizes = template.optionGroups.filter((group) => !/size/i.test(group.name));
+
+  return {
+    ...item,
+    components: template.components.length > 0 ? template.components : item.components,
+    optionGroups: [...existingSizeGroups, ...templateWithoutSizes],
+  };
+}
+
 const flattenMenuItemIds = (sections: HubMenuSection[]) => new Set(sections.flatMap((section) => section.items.map((item) => item.id)));
 
 export function getMenuAvailabilityMode(item: MenuItem): MenuAvailabilityMode {

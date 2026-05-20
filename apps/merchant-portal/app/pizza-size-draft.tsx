@@ -122,9 +122,9 @@ export function PizzaSizeDraftPanel({ rows, onChange }: PizzaSizeDraftPanelProps
 
   return (
     <div style={panelStyle}>
-      <strong style={{ fontSize: "0.92rem", color: "#0f1115" }}>Pizza sizes</strong>
+      <strong style={{ fontSize: "0.92rem", color: "#0f1115" }}>Size &amp; price for this pizza</strong>
       <p style={{ margin: 0, fontSize: "0.82rem", color: "#5b6470", lineHeight: 1.45 }}>
-        Tick the sizes you sell and set each price (£). The lowest selected price is the menu base; larger sizes add the difference at checkout.
+        Tick each size you sell and enter the full price (£) next to it. Customers pick a size at checkout — you do not need a separate single price for the pizza.
       </p>
       {rows.map((row) => (
         <div key={row.key} style={rowStyle}>
