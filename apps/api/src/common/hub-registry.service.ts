@@ -11,8 +11,10 @@ import {
   createHubPromotionInputSchema,
   decodeHubMenuCategoryDescription,
   encodeHubMenuCategoryDescription,
+  hubRolesCreatableBy,
   hullZoneHasCoverage,
   normaliseDeliveryPricing,
+  type MembershipRole,
   updateHubPromotionInputSchema,
 } from "@hull-eats/types";
 import {
@@ -483,6 +485,27 @@ export class HubRegistryService {
     storeId: string,
     menuSections: MerchantWorkspaceUpdateInput["menuSections"],
   ) {
+    if (menuSections.length === 0) {
+      throw new BadRequestException("Cannot publish an empty menu. Add at least one category first.");
+    }
+
+    const incomingSectionIds = menuSections.map((section) => section.id);
+    const incomingItemIds = menuSections.flatMap((section) => section.items.map((item) => item.id));
+
+    await prisma.menuItem.deleteMany({
+      where: {
+        category: { storeId },
+        ...(incomingItemIds.length > 0 ? { id: { notIn: incomingItemIds } } : {}),
+      },
+    });
+
+    await prisma.menuCategory.deleteMany({
+      where: {
+        storeId,
+        ...(incomingSectionIds.length > 0 ? { id: { notIn: incomingSectionIds } } : {}),
+      },
+    });
+
     for (const [sectionIndex, section] of menuSections.entries()) {
       await prisma.menuCategory.upsert({
         where: { id: section.id },
@@ -644,8 +667,13 @@ export class HubRegistryService {
     };
   }
 
-  async createHubUser(hubId: string, input: CreateHubUserInput) {
+  async createHubUser(hubId: string, input: CreateHubUserInput, actorRole: MembershipRole) {
     await this.ensurePilotHub();
+
+    const allowedRoles = hubRolesCreatableBy(actorRole);
+    if (!allowedRoles.includes(input.role)) {
+      throw new BadRequestException("You cannot create a hub user with that role.");
+    }
 
     const merchant = await prisma.merchant.findUnique({ where: { id: hubId } });
     if (!merchant) {
@@ -815,7 +843,7 @@ export class HubRegistryService {
         price: input.price,
         imageUrl: input.imageUrl ?? null,
         customisationConfig: this.buildCustomisationConfig(input),
-        isActive: true,
+        isActive: false,
         isFeatured: false,
         trackStock: false,
         stockQuantity: null,
@@ -1128,14 +1156,14 @@ export class HubRegistryService {
           where: { categoryId: section.id },
         });
 
-          await tx.menuItem.create({
-            data: {
-              categoryId: section.id,
-              name: candidate.itemName,
-              description: candidate.description,
-              price: candidatePrice > 0 ? candidate.price : section.defaultPrice ?? 0,
-              customisationConfig: this.buildCustomisationConfig({ components: [], optionGroups: [] }),
-              isActive: true,
+        await tx.menuItem.create({
+          data: {
+            categoryId: section.id,
+            name: candidate.itemName,
+            description: candidate.description,
+            price: candidatePrice > 0 ? candidate.price : section.defaultPrice ?? 0,
+            customisationConfig: this.buildCustomisationConfig({ components: [], optionGroups: [] }),
+            isActive: false,
             isFeatured: false,
             trackStock: false,
             stockQuantity: null,
@@ -1791,7 +1819,7 @@ export class HubRegistryService {
   }
 
   private mapMembershipRoleToDb(role: string) {
-    return role.toUpperCase() as "OWNER" | "MANAGER" | "STAFF";
+    return role.toUpperCase() as "OWNER" | "MANAGER" | "STAFF" | "VIEWER";
   }
 
   private mapStockStatusToDb(status: string) {

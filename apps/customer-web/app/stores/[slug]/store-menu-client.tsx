@@ -106,6 +106,21 @@ const getGroupCountLabel = (group: MenuItem["optionGroups"][number]) => {
 };
 
 /** Compact line under the title: lists included parts when present; otherwise a short slice of copy. Full menu description stays on title/tooltip. */
+const isMenuItemOrderable = (item: MenuItem) => item.isActive && item.stockStatus !== "out_of_stock";
+
+const getMenuItemStatusLabel = (item: MenuItem) => {
+  if (!item.isActive) {
+    return null;
+  }
+  if (item.stockStatus === "out_of_stock") {
+    return "Sold out";
+  }
+  if (item.stockStatus === "low_stock") {
+    return "Limited availability";
+  }
+  return null;
+};
+
 const getMenuItemListingLine = (item: MenuItem): string | null => {
   const labels = item.components.map((component) => component.label.trim()).filter(Boolean);
   if (labels.length > 0) {
@@ -411,6 +426,10 @@ export function StoreMenuClient({
   );
 
   const openCustomise = (item: MenuItem) => {
+    if (!isMenuItemOrderable(item)) {
+      return;
+    }
+
     if (item.components.length === 0 && item.optionGroups.length === 0) {
       addConfiguredItemToBasket(
         {
@@ -827,9 +846,14 @@ export function StoreMenuClient({
               {category.items.map((item) => {
                 const listing = getMenuItemListingLine(item);
                 const fullDescription = item.description?.trim();
+                const orderable = isMenuItemOrderable(item);
+                const statusLabel = getMenuItemStatusLabel(item);
 
                 return (
-                <article key={item.id} className="menu-item-card menu-item-card-visual">
+                <article
+                  key={item.id}
+                  className={`menu-item-card menu-item-card-visual${orderable ? "" : " is-unavailable"}`}
+                >
                   <div
                     className="menu-item-image"
                     style={{
@@ -847,12 +871,24 @@ export function StoreMenuClient({
                           </p>
                         ) : null}
                       </div>
-                      <strong className="menu-item-price-pill">{formatMoney(item.price)}</strong>
+                      <div style={{ display: "grid", gap: 6, justifyItems: "end" }}>
+                        {statusLabel ? <span className="menu-item-status-pill">{statusLabel}</span> : null}
+                        <strong className="menu-item-price-pill">{formatMoney(item.price)}</strong>
+                      </div>
                     </div>
 
                     <div className="menu-item-footer">
-                      <button type="button" className={`glass-button add-item-button${addedItemId === item.id ? " is-added" : ""}`} onClick={() => openCustomise(item)}>
-                        {item.components.length > 0 || item.optionGroups.length > 0 ? "Customise and add" : "Add"}
+                      <button
+                        type="button"
+                        className={`glass-button add-item-button${addedItemId === item.id ? " is-added" : ""}`}
+                        disabled={!orderable}
+                        onClick={() => openCustomise(item)}
+                      >
+                        {!orderable
+                          ? "Unavailable"
+                          : item.components.length > 0 || item.optionGroups.length > 0
+                            ? "Customise and add"
+                            : "Add"}
                       </button>
                     </div>
                   </div>

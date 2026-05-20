@@ -21,6 +21,7 @@ enum MembershipRole {
   OWNER   @map("owner")
   MANAGER @map("manager")
   STAFF   @map("staff")
+  VIEWER  @map("viewer")
 
   @@map("membership_role")
 }

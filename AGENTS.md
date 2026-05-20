@@ -36,10 +36,18 @@ Public responsive customer website.
 Purpose:
 
 - Store discovery
-- Store menu browsing
+- Store menu browsing (including sold-out labelling; hidden merchant items are filtered by the API)
 - Basket and checkout
 - Customer registration/sign-in through Supabase
 - Customer order tracking
+- Hull Marketplace and Hull Services entry points (separate surfaces; shared top-bar auth pattern)
+
+**Customer accounts (current):**
+
+- Full signup at `/register` via `register-form.tsx` → `supabase.auth.signUp` with profile/address metadata.
+- Sign-in at `/account` (`account-client.tsx`). Homepage auth uses `marketplace-auth-buttons.tsx`: signed-out users see **Sign in / Sign up**; signed-in users see **Your account** only.
+- **Hull Eats+ / paid delivery plans are not offered at signup** (metadata still sends `preferred_delivery_plan: "pay_as_you_go"` for DB compatibility). Do not reintroduce plan pickers without product approval.
+- Persisted customer rows (`customer_profiles`, `customer_addresses`, etc.) are created by Supabase triggers in `docs/supabase-bootstrap.sql`. The admin API lists customers via `CustomerRegistryService` (`/v1/admin/customers`). Both the API `DATABASE_URL` and Supabase project must match for admin lists to populate.
 
 This app should not own business configuration state. It reads live marketplace data produced by the API/database.
 
@@ -85,12 +93,37 @@ Purpose:
 - Fetch the authenticated hub workspace from the API
 - Manage business/store settings
 - Configure delivery fee, minimum order, ETA, and open/live status
-- Create and edit menu categories
-- Create and edit menu items
+- **Menu Studio** (draft menu editing, then one **Save & publish menu** action)
 - Build item ingredients/components and customer option groups
 - Stage menu imports for review
-- Create/remove business users
-- Future order inbox, paperless kitchen screen, printing, add-ons, and integrations
+- Create/remove business users (owner/manager/staff/**viewer**; owners create logins; **viewer** is browse-only)
+- Order inbox and operational panels (accept/reject, drivers, promotions, config snapshots)
+- Future paperless kitchen screen, printing, add-ons, and integrations
+
+**Menu Studio implementation (current):**
+
+- UI modules live under `apps/merchant-portal/app/`:
+  - `hub-menu-studio.tsx` — main menu builder surface
+  - `hub-menu-customisation.tsx` — components and option groups
+  - `hub-menu-publish-dialog.tsx` — publish confirmation
+  - `menu-studio-core.ts` — draft IDs, availability modes, publish checklist/summary (no API calls)
+- Categories/items are edited **locally in portal state** until publish. Create/delete category/item no longer hits per-item API routes during editing.
+- **Save & publish menu** calls `PUT` hub workspace (`saveWorkspace`) with full `menuSections` + `settings`. The API persists menu via `hub-registry.service.ts` → `persistHubMenuSections`.
+- **Item visibility:** `live` (`isActive: true`, in stock), `sold_out` (`isActive: true`, `stockStatus: out_of_stock`), `hidden` (`isActive: false`). New items default to **hidden** until marked live and published.
+- **Customer-facing menus** (`marketplace-catalog.ts` / `findLiveMarketplaceMenu`) only return `menuItems` where `isActive: true`. Sold-out items stay visible on the store menu with ordering disabled (`store-menu-client.tsx`).
+- **Menu import apply** still writes hidden rows to Postgres immediately; owners must set items live and publish for buyers to see them.
+- `beforeunload` warns when there are unsaved hub/menu edits.
+
+**Hub roles (`packages/types/src/hub-access.ts`):**
+
+| Role | Menu/settings save | Orders (accept/reject/print) | Create/remove users |
+|------|---------------------|------------------------------|---------------------|
+| owner | yes | yes | yes |
+| manager | yes | yes | no |
+| staff | no | yes | no |
+| viewer | no | no | no |
+
+Enforced in `apps/api/src/common/hub-permissions.ts` + `merchant.controller.ts` (token `role` claim) and mirrored in merchant portal UI (disabled save, menu studio read-only for viewer, owner-only user admin).
 
 This app must remain separate from the customer apps and deploy as its own service. It is the business-facing software product.
 
@@ -195,8 +228,8 @@ The intended flow is:
 4. The login email is also used as the hub username, and the password is hashed before storage.
 5. Business owner signs into `apps/merchant-portal` with email and password.
 6. API returns a merchant session token and the hub workspace.
-7. Merchant portal fetches/saves hub settings, users, categories, menu items, and menu imports through the API.
-8. Customer apps read the resulting live marketplace/store/menu data from the API/database.
+7. Merchant portal fetches hub workspace, edits menu **in draft**, then **publishes** the full workspace (settings + `menuSections`) through the API.
+8. Customer apps read the resulting live marketplace/store/menu data from the API/database (`isActive: true` items only on live storefronts).
 
 Do not collapse this into one app. The admin portal and merchant portal need their own deployment/configuration because they are business software surfaces.
 
@@ -365,11 +398,13 @@ These areas are not complete and should be treated as future work unless the use
 - Kiosk app/software
 - Third-party order aggregation
 - Full audit logging
-- Fine-grained RBAC
+- Further RBAC polish (e.g. read-only delivery/offers panels, audit log of permission denials)
 - Rate limiting and account lockout
 - Full live courier/location tracking
 - Hull Marketplace resale: Prisma tables `resale_*` (listings, conversations, messages, offers, purchases, reviews, resolution cases) and migrations `20260511180000_resale_marketplace`, `20260511190000_resale_reviews_resolution`; public HTTP APIs for publish, threads, offers, paid/not-sold, mandatory buyer reviews, seller trust metrics, and resolution cases are still to be built
 - Customer web: `NEXT_PUBLIC_MARKETPLACE_LISTING_REQUIRES_HULL_EATS_PLUS` (default false) gates listing copy and sell form; set `true` when Hull Eats+ listing rules go live
+- Merchant menu import: accepted import rows persist immediately as hidden DB items; a future improvement is pure draft imports until publish
+- Deploy menu-studio changes together: `hull-eats-api`, `hull-eats-merchant-portal`, and `hull-eats-customer-web` (sold-out UI + publish pruning)
 
 ## User Direction To Preserve
 

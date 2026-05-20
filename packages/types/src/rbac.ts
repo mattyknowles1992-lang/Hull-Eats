@@ -22,7 +22,7 @@ export const permissionKeys = [
   "customer:orders:read",
 ] as const;
 
-export const membershipRoles = ["owner", "manager", "staff"] as const;
+export const membershipRoles = ["owner", "manager", "staff", "viewer"] as const;
 
 export const userRoleSchema = z.enum(userRoles);
 export const permissionKeySchema = z.enum(permissionKeys);

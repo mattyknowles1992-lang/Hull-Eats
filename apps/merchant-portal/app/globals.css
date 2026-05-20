@@ -233,6 +233,21 @@ textarea {
     grid-template-columns: minmax(0, 1fr) !important;
   }
 
+  .hub-menu-studio .he-btn-row {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    width: 100%;
+  }
+
+  .hub-menu-category-tabs {
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+
+  .hub-menu-studio .availability-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
   .he-section-actions,
   .he-btn-row {
     display: grid !important;

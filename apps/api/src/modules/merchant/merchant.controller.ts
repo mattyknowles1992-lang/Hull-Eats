@@ -32,7 +32,9 @@ import {
 
 import { demoMenuByStore } from "../../common/demo-data";
 import { HubRegistryService } from "../../common/hub-registry.service";
+import { requireHubPermission } from "../../common/hub-permissions";
 import { InternalAuthService } from "../../common/internal-auth.service";
+import type { MembershipRole } from "@hull-eats/types";
 import { geocodeUkPostcode } from "../../common/uk-postcode-geocode";
 import {
   buildMerchantOrderReceipt,
@@ -75,7 +77,8 @@ export class MerchantController {
     @Param("hubId") hubId: string,
     @Body() body: unknown,
   ) {
-    this.internalAuth.requireMerchantToken(authorization, hubId);
+    const session = this.internalAuth.requireMerchantToken(authorization, hubId);
+    requireHubPermission(session.role, "canEditWorkspace");
     const input = parseMerchantWorkspaceUpdateInput(body);
     return this.hubRegistry.updateWorkspace(hubId, input);
   }
@@ -92,7 +95,8 @@ export class MerchantController {
     @Param("hubId") hubId: string,
     @Body() body: unknown,
   ) {
-    this.internalAuth.requireMerchantToken(authorization, hubId);
+    const session = this.internalAuth.requireMerchantToken(authorization, hubId);
+    requireHubPermission(session.role, "canEditWorkspace");
     const input = createHubConfigSnapshotInputSchema.parse(body);
     return this.hubRegistry.createHubConfigSnapshot(hubId, input);
   }
@@ -104,7 +108,8 @@ export class MerchantController {
     @Param("snapshotId") snapshotId: string,
     @Body() body: unknown,
   ) {
-    this.internalAuth.requireMerchantToken(authorization, hubId);
+    const session = this.internalAuth.requireMerchantToken(authorization, hubId);
+    requireHubPermission(session.role, "canEditWorkspace");
     const input = renameHubConfigSnapshotInputSchema.parse(body);
     return this.hubRegistry.renameHubConfigSnapshot(hubId, snapshotId, input);
   }
@@ -115,7 +120,8 @@ export class MerchantController {
     @Param("hubId") hubId: string,
     @Param("snapshotId") snapshotId: string,
   ) {
-    this.internalAuth.requireMerchantToken(authorization, hubId);
+    const session = this.internalAuth.requireMerchantToken(authorization, hubId);
+    requireHubPermission(session.role, "canEditWorkspace");
     return this.hubRegistry.restoreHubConfigSnapshot(hubId, snapshotId);
   }
 
@@ -149,9 +155,10 @@ export class MerchantController {
     @Param("hubId") hubId: string,
     @Body() body: unknown,
   ) {
-    this.internalAuth.requireMerchantToken(authorization, hubId);
+    const session = this.internalAuth.requireMerchantToken(authorization, hubId);
+    requireHubPermission(session.role, "canManageUsers");
     const input = createHubUserInputSchema.parse(body);
-    return this.hubRegistry.createHubUser(hubId, input);
+    return this.hubRegistry.createHubUser(hubId, input, session.role as MembershipRole);
   }
 
   @Post("hubs/:hubId/password")
@@ -171,7 +178,8 @@ export class MerchantController {
     @Param("hubId") hubId: string,
     @Param("userId") userId: string,
   ) {
-    this.internalAuth.requireMerchantToken(authorization, hubId);
+    const session = this.internalAuth.requireMerchantToken(authorization, hubId);
+    requireHubPermission(session.role, "canManageUsers");
     return this.hubRegistry.deleteHubUser(hubId, userId);
   }
 
@@ -181,7 +189,8 @@ export class MerchantController {
     @Param("hubId") hubId: string,
     @Body() body: unknown,
   ) {
-    this.internalAuth.requireMerchantToken(authorization, hubId);
+    const session = this.internalAuth.requireMerchantToken(authorization, hubId);
+    requireHubPermission(session.role, "canEditWorkspace");
     const input = createHubMenuSectionInputSchema.parse(body);
     return this.hubRegistry.createMenuSection(hubId, input);
   }
@@ -192,7 +201,8 @@ export class MerchantController {
     @Param("hubId") hubId: string,
     @Param("sectionId") sectionId: string,
   ) {
-    this.internalAuth.requireMerchantToken(authorization, hubId);
+    const session = this.internalAuth.requireMerchantToken(authorization, hubId);
+    requireHubPermission(session.role, "canEditWorkspace");
     return this.hubRegistry.deleteMenuSection(hubId, sectionId);
   }
 
@@ -203,7 +213,8 @@ export class MerchantController {
     @Param("sectionId") sectionId: string,
     @Body() body: unknown,
   ) {
-    this.internalAuth.requireMerchantToken(authorization, hubId);
+    const session = this.internalAuth.requireMerchantToken(authorization, hubId);
+    requireHubPermission(session.role, "canEditWorkspace");
     const input = createHubMenuItemInputSchema.parse(body);
     return this.hubRegistry.createMenuItem(hubId, sectionId, input);
   }
@@ -214,7 +225,8 @@ export class MerchantController {
     @Param("hubId") hubId: string,
     @Param("itemId") itemId: string,
   ) {
-    this.internalAuth.requireMerchantToken(authorization, hubId);
+    const session = this.internalAuth.requireMerchantToken(authorization, hubId);
+    requireHubPermission(session.role, "canEditWorkspace");
     return this.hubRegistry.deleteMenuItem(hubId, itemId);
   }
 
@@ -224,7 +236,8 @@ export class MerchantController {
     @Param("hubId") hubId: string,
     @Body() body: unknown,
   ) {
-    this.internalAuth.requireMerchantToken(authorization, hubId);
+    const session = this.internalAuth.requireMerchantToken(authorization, hubId);
+    requireHubPermission(session.role, "canEditWorkspace");
     const input = previewMenuImportInputSchema.parse(body);
     return this.hubRegistry.previewMenuImport(hubId, input);
   }
@@ -235,7 +248,8 @@ export class MerchantController {
     @Param("hubId") hubId: string,
     @Body() body: unknown,
   ) {
-    this.internalAuth.requireMerchantToken(authorization, hubId);
+    const session = this.internalAuth.requireMerchantToken(authorization, hubId);
+    requireHubPermission(session.role, "canEditWorkspace");
     const input = previewMenuTextImportInputSchema.parse(body);
     return this.hubRegistry.previewMenuTextImport(hubId, input);
   }
@@ -247,7 +261,8 @@ export class MerchantController {
     @Param("importId") importId: string,
     @Body() body: unknown,
   ) {
-    this.internalAuth.requireMerchantToken(authorization, hubId);
+    const session = this.internalAuth.requireMerchantToken(authorization, hubId);
+    requireHubPermission(session.role, "canEditWorkspace");
     const input = applyMenuImportInputSchema.parse(body);
     return this.hubRegistry.applyMenuImport(hubId, importId, input);
   }
@@ -264,7 +279,8 @@ export class MerchantController {
     @Param("hubId") hubId: string,
     @Body() body: unknown,
   ) {
-    this.internalAuth.requireMerchantToken(authorization, hubId);
+    const session = this.internalAuth.requireMerchantToken(authorization, hubId);
+    requireHubPermission(session.role, "canEditWorkspace");
     return this.hubRegistry.createStorePromotion(hubId, body);
   }
 
@@ -275,7 +291,8 @@ export class MerchantController {
     @Param("promotionId") promotionId: string,
     @Body() body: unknown,
   ) {
-    this.internalAuth.requireMerchantToken(authorization, hubId);
+    const session = this.internalAuth.requireMerchantToken(authorization, hubId);
+    requireHubPermission(session.role, "canEditWorkspace");
     return this.hubRegistry.updateStorePromotion(hubId, promotionId, body);
   }
 
@@ -285,7 +302,8 @@ export class MerchantController {
     @Param("hubId") hubId: string,
     @Param("promotionId") promotionId: string,
   ) {
-    this.internalAuth.requireMerchantToken(authorization, hubId);
+    const session = this.internalAuth.requireMerchantToken(authorization, hubId);
+    requireHubPermission(session.role, "canEditWorkspace");
     return this.hubRegistry.deleteStorePromotion(hubId, promotionId);
   }
 
@@ -323,7 +341,8 @@ export class MerchantController {
 
   @Post("hubs/:hubId/drivers/assignments")
   addHubCourierAssignment(@Headers("authorization") authorization: string | undefined, @Param("hubId") hubId: string, @Body() body: unknown) {
-    this.internalAuth.requireMerchantToken(authorization, hubId);
+    const session = this.internalAuth.requireMerchantToken(authorization, hubId);
+    requireHubPermission(session.role, "canOperateOrders");
     return this.hubRegistry.addHubCourierAssignment(hubId, body);
   }
 
@@ -333,7 +352,8 @@ export class MerchantController {
     @Param("hubId") hubId: string,
     @Param("courierProfileId") courierProfileId: string,
   ) {
-    this.internalAuth.requireMerchantToken(authorization, hubId);
+    const session = this.internalAuth.requireMerchantToken(authorization, hubId);
+    requireHubPermission(session.role, "canOperateOrders");
     return this.hubRegistry.removeHubCourierAssignment(hubId, courierProfileId);
   }
 
@@ -360,7 +380,8 @@ export class MerchantController {
     @Param("itemId") itemId: string,
     @Body() body: Record<string, unknown>,
   ) {
-    this.internalAuth.requireMerchantToken(authorization);
+    const session = this.internalAuth.requireMerchantToken(authorization);
+    requireHubPermission(session.role, "canEditWorkspace");
     return { status: "updated", entity: "menu-item", itemId, payload: body };
   }
 
@@ -370,7 +391,8 @@ export class MerchantController {
     @Param("itemId") itemId: string,
     @Body() body: Record<string, unknown>,
   ) {
-    this.internalAuth.requireMerchantToken(authorization);
+    const session = this.internalAuth.requireMerchantToken(authorization);
+    requireHubPermission(session.role, "canEditWorkspace");
     return { status: "updated", entity: "menu-item-stock", itemId, payload: body };
   }
 
@@ -381,6 +403,7 @@ export class MerchantController {
     @Body() body: unknown,
   ) {
     const session = this.internalAuth.requireMerchantToken(authorization);
+    requireHubPermission(session.role, "canOperateOrders");
     const input = merchantAcceptOrderSchema.parse(body);
     return updateMerchantOrder(session.hubId!, orderId, {
       status: "ACCEPTED",
@@ -396,6 +419,7 @@ export class MerchantController {
     @Body() body: unknown,
   ) {
     const session = this.internalAuth.requireMerchantToken(authorization);
+    requireHubPermission(session.role, "canOperateOrders");
     const input = merchantRejectOrderSchema.parse(body);
     return updateMerchantOrder(session.hubId!, orderId, {
       status: "REJECTED",
@@ -410,6 +434,7 @@ export class MerchantController {
     @Body() body: { prepTimeMinutes: number },
   ) {
     const session = this.internalAuth.requireMerchantToken(authorization);
+    requireHubPermission(session.role, "canOperateOrders");
     return updateMerchantOrder(session.hubId!, orderId, {
       status: "PREPARING",
       note: `Merchant updated prep time to ${body.prepTimeMinutes} minutes.`,
@@ -420,6 +445,7 @@ export class MerchantController {
   @Post("orders/:orderId/print")
   async printOrder(@Headers("authorization") authorization: string | undefined, @Param("orderId") orderId: string) {
     const session = this.internalAuth.requireMerchantToken(authorization);
+    requireHubPermission(session.role, "canOperateOrders");
     return queueMerchantOrderReceiptPrint(session.hubId!, orderId);
   }
 

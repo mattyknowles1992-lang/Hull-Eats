@@ -3729,6 +3729,28 @@ button.filter-pill {
   max-width: 100%;
 }
 
+.menu-item-card-visual.is-unavailable {
+  opacity: 0.72;
+}
+
+.menu-item-status-pill {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: rgba(181, 88, 0, 0.14);
+  color: #8a4b12;
+  border: 1px solid rgba(181, 88, 0, 0.28);
+}
+
+.menu-item-card-visual.is-unavailable .add-item-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
 .menu-item-image {
   position: relative;
   min-height: 150px;

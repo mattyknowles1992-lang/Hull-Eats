@@ -1,27 +1,50 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-import type { HubMenuSection, HubSettings, HubUser, MerchantWorkspace, MenuItem, OrderSummary } from "@hull-eats/types";
+import type {
+  HubMenuSection,
+  HubSettings,
+  HubUser,
+  MembershipRole,
+  MerchantWorkspace,
+  MenuItem,
+  OrderSummary,
+} from "@hull-eats/types";
 import { parseMerchantWorkspaceUpdateInput } from "@hull-eats/types";
 import {
   HUB_MENU_CATEGORY_CUSTOM_ID,
   createDefaultHullPostcodeZones,
+  getHubAccess,
   hubMenuCategorySelectOptions,
+  hubRoleLabel,
+  hubRolesCreatableBy,
   isHubMenuSectionPizza,
 } from "@hull-eats/types";
 
 import { HubConfigBackups } from "./hub-config-backups";
 import { HubDeliveryConfig } from "./hub-delivery-config";
+import { HubMenuCustomisationBuilder } from "./hub-menu-customisation";
+import { HubMenuStudio } from "./hub-menu-studio";
 import { HE_BRAND } from "./portal-brand";
 import { HubDriversWorkbench } from "./hub-drivers-workbench";
 import { HubOffersWorkbench } from "./hub-offers-workbench";
+import {
+  buildLocalMenuCategory,
+  buildLocalMenuItem,
+  buildMenuPublishSummary,
+  buildMenuTemplate,
+  cloneMenuItemDraft,
+  computeMenuPublishIssues,
+  menuTemplateCards,
+  type MenuTemplateKind,
+} from "./menu-studio-core";
 import { PizzaSizeDraftPanel, buildPizzaSizeOptionGroupFromRows, createInitialPizzaSizeRows } from "./pizza-size-draft";
 import type { PizzaSizeRow } from "./pizza-size-draft";
 
 const HUB_CATEGORY_PRESET_OPTIONS = hubMenuCategorySelectOptions();
 
-type HubRole = "owner" | "manager" | "staff";
+type HubRole = MembershipRole;
 type StockStatus = "in_stock" | "low_stock" | "out_of_stock";
 type HubSection =
   | "home"
@@ -37,9 +60,6 @@ type HubSection =
   | "users"
   | "settings"
   | "help";
-type MenuComponent = MenuItem["components"][number];
-type MenuOptionGroup = MenuItem["optionGroups"][number];
-type MenuOption = MenuOptionGroup["options"][number];
 
 const defaultApiBaseUrl = process.env.NODE_ENV === "production" ? "https://hull-eats-api.onrender.com" : "http://localhost:4000";
 const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL ?? defaultApiBaseUrl).replace(/\/$/, "");
@@ -121,8 +141,6 @@ type PasswordFormState = {
   newPassword: string;
   confirmPassword: string;
 };
-
-type MenuTemplateKind = "simple" | "pizza" | "burger" | "meal" | "drink" | "dessert" | "custom";
 
 type StoredMerchantSession = {
   token: string;
@@ -225,219 +243,6 @@ const formatTrackingTime = (value?: string | null) =>
         minute: "2-digit",
       })
     : "No ping yet";
-
-const createDraftId = (prefix: string) => `${prefix}-${Math.random().toString(36).slice(2, 8)}-${Date.now().toString(36)}`;
-
-const parseCsv = (value: string) =>
-  value
-    .split(",")
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-
-const createEmptyComponent = (): MenuComponent => ({
-  id: createDraftId("component"),
-  label: "",
-  quantity: 1,
-  removable: false,
-});
-
-const createEmptyOption = (): MenuOption => ({
-  id: createDraftId("option"),
-  label: "",
-  description: "",
-  priceDelta: 0,
-  isDefault: false,
-  maxQuantity: 1,
-});
-
-const createEmptyOptionGroup = (): MenuOptionGroup => ({
-  id: createDraftId("group"),
-  name: "",
-  description: "",
-  selectionMode: "single",
-  isRequired: false,
-  minSelections: 0,
-  maxSelections: 1,
-  showWhenValueIds: [],
-  options: [createEmptyOption()],
-});
-
-const createTemplateOption = (label: string, priceDelta = 0, isDefault = false): MenuOption => ({
-  id: createDraftId("option"),
-  label,
-  description: "",
-  priceDelta,
-  isDefault,
-  maxQuantity: 1,
-});
-
-const createTemplateGroup = (
-  name: string,
-  options: MenuOption[],
-  config: Partial<Omit<MenuOptionGroup, "id" | "name" | "options">> = {},
-): MenuOptionGroup => ({
-  id: createDraftId("group"),
-  name,
-  description: config.description ?? "",
-  selectionMode: config.selectionMode ?? "single",
-  isRequired: config.isRequired ?? false,
-  minSelections: config.minSelections ?? 0,
-  maxSelections: config.maxSelections ?? (config.selectionMode === "multiple" ? null : 1),
-  showWhenValueIds: config.showWhenValueIds ?? [],
-  options,
-});
-
-const menuTemplateCards: Array<{ kind: MenuTemplateKind; title: string; copy: string }> = [
-  { kind: "simple", title: "Simple item", copy: "Fixed price item with image, description, stock, and live toggle." },
-  { kind: "pizza", title: "Pizza", copy: "Sizes, crust per size, toppings, extras, and removable ingredients." },
-  { kind: "burger", title: "Burger", copy: "Patty size, salad/sauce removals, cheese, bacon, and extra patties." },
-  { kind: "meal", title: "Meal deal", copy: "Required main, side, drink, sauce, and optional upgrades." },
-  { kind: "drink", title: "Drink", copy: "Bottle/can sizes, flavours, multipacks, and chilled availability." },
-  { kind: "dessert", title: "Dessert", copy: "Sauces, toppings, ice cream, custard, and add-ons." },
-  { kind: "custom", title: "Custom", copy: "Start blank and build any option groups by hand." },
-];
-
-function buildMenuTemplate(kind: MenuTemplateKind) {
-  if (kind === "pizza") {
-    const sizeOptions = [
-      createTemplateOption('8"', 0, true),
-      createTemplateOption('10"', 2.6),
-      createTemplateOption('12"', 3.6),
-      createTemplateOption('16"', 9.29),
-    ];
-
-    const crustGroups = sizeOptions.map((sizeOption, index) =>
-      createTemplateGroup(
-        `Choose Your Crust (${sizeOption.label})`,
-        [
-          createTemplateOption("Regular Crust", 0, true),
-          createTemplateOption("Stuffed Crust", [1.25, 1.5, 2, 2.75][index] ?? 2),
-        ],
-        { isRequired: true, minSelections: 1, maxSelections: 1, showWhenValueIds: [sizeOption.id] },
-      ),
-    );
-
-    return {
-      components: [
-        { id: createDraftId("component"), label: "Cheese", quantity: 1, removable: true },
-        { id: createDraftId("component"), label: "Tomato base", quantity: 1, removable: true },
-      ],
-      optionGroups: [
-        createTemplateGroup("Choose Size", sizeOptions, { isRequired: true, minSelections: 1, maxSelections: 1 }),
-        ...crustGroups,
-        createTemplateGroup(
-          "Extras",
-          [
-            createTemplateOption("Extra cheese", 1),
-            createTemplateOption("Pepperoni", 1.2),
-            createTemplateOption("Chicken", 1.5),
-            createTemplateOption("Mushrooms", 0.8),
-            createTemplateOption("Jalapenos", 0.8),
-          ],
-          { selectionMode: "multiple", isRequired: false, minSelections: 0, maxSelections: null },
-        ),
-      ],
-    };
-  }
-
-  if (kind === "burger") {
-    return {
-      components: [
-        { id: createDraftId("component"), label: "Bun", quantity: 1, removable: false },
-        { id: createDraftId("component"), label: "Patty", quantity: 1, removable: false },
-        { id: createDraftId("component"), label: "Cheese", quantity: 1, removable: true },
-        { id: createDraftId("component"), label: "Lettuce", quantity: 1, removable: true },
-        { id: createDraftId("component"), label: "Sauce", quantity: 1, removable: true },
-      ],
-      optionGroups: [
-        createTemplateGroup(
-          "Choose Size",
-          [createTemplateOption("1/4 pound", 0, true), createTemplateOption("1/2 pound", 2.5)],
-          { isRequired: true, minSelections: 1, maxSelections: 1 },
-        ),
-        createTemplateGroup(
-          "Extras",
-          [
-            createTemplateOption("Extra patty", 2.5),
-            createTemplateOption("Bacon", 1.5),
-            createTemplateOption("Extra cheese", 0.8),
-            createTemplateOption("Hash brown", 1),
-            createTemplateOption("Loaded fries upgrade", 3),
-          ],
-          { selectionMode: "multiple", maxSelections: null },
-        ),
-      ],
-    };
-  }
-
-  if (kind === "meal") {
-    return {
-      components: [],
-      optionGroups: [
-        createTemplateGroup("Choose Main", [createTemplateOption("Burger", 0, true), createTemplateOption("Wrap", 0), createTemplateOption("Chicken strips", 1)], {
-          isRequired: true,
-          minSelections: 1,
-          maxSelections: 1,
-        }),
-        createTemplateGroup("Choose Side", [createTemplateOption("Fries", 0, true), createTemplateOption("Loaded fries", 2.5), createTemplateOption("Rice", 0)], {
-          isRequired: true,
-          minSelections: 1,
-          maxSelections: 1,
-        }),
-        createTemplateGroup("Choose Drink", [createTemplateOption("Can", 0, true), createTemplateOption("Bottle", 1), createTemplateOption("Milkshake", 3)], {
-          isRequired: true,
-          minSelections: 1,
-          maxSelections: 1,
-        }),
-        createTemplateGroup("Sauces", [createTemplateOption("Garlic mayo", 0), createTemplateOption("BBQ", 0), createTemplateOption("Chilli", 0)], {
-          selectionMode: "multiple",
-          maxSelections: 3,
-        }),
-      ],
-    };
-  }
-
-  if (kind === "drink") {
-    return {
-      components: [],
-      optionGroups: [
-        createTemplateGroup("Choose Size", [createTemplateOption("Can", 0, true), createTemplateOption("500ml bottle", 1), createTemplateOption("1.5L bottle", 2.5)], {
-          isRequired: true,
-          minSelections: 1,
-          maxSelections: 1,
-        }),
-        createTemplateGroup("Choose Flavour", [createTemplateOption("Cola", 0, true), createTemplateOption("Orange", 0), createTemplateOption("Lemonade", 0)], {
-          isRequired: true,
-          minSelections: 1,
-          maxSelections: 1,
-        }),
-      ],
-    };
-  }
-
-  if (kind === "dessert") {
-    return {
-      components: [],
-      optionGroups: [
-        createTemplateGroup("Choose Sauce", [createTemplateOption("Chocolate", 0, true), createTemplateOption("White chocolate", 0), createTemplateOption("Caramel", 0)], {
-          isRequired: true,
-          minSelections: 1,
-          maxSelections: 1,
-        }),
-        createTemplateGroup(
-          "Extras",
-          [createTemplateOption("Ice cream", 1.5), createTemplateOption("Cookie dough", 2), createTemplateOption("Strawberries", 1), createTemplateOption("Kinder topping", 1.2)],
-          { selectionMode: "multiple", maxSelections: null },
-        ),
-      ],
-    };
-  }
-
-  return {
-    components: [],
-    optionGroups: kind === "custom" ? [createEmptyOptionGroup()] : [],
-  };
-}
 
 async function loginToHub(usernameOrEmail: string, password: string): Promise<MerchantLoginResponse> {
   const response = await fetch(`${apiBaseUrl}/v1/merchant/auth/login`, {
@@ -801,313 +606,6 @@ const escapeHtml = (value: string) =>
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
 
-type CustomisationBuilderProps = {
-  item: MenuItem;
-  onChangeComponents: (components: MenuItem["components"]) => void;
-  onChangeOptionGroups: (optionGroups: MenuItem["optionGroups"]) => void;
-};
-
-function CustomisationBuilder({ item, onChangeComponents, onChangeOptionGroups }: CustomisationBuilderProps) {
-  const optionReferenceList = item.optionGroups.flatMap((group) =>
-    group.options.map((option) => ({
-      id: option.id,
-      label: option.label || option.id,
-      groupName: group.name || "Unnamed group",
-    })),
-  );
-
-  const updateComponent = (componentId: string, patch: Partial<MenuComponent>) => {
-    onChangeComponents(item.components.map((component) => (component.id === componentId ? { ...component, ...patch } : component)));
-  };
-
-  const updateGroup = (groupId: string, patch: Partial<MenuOptionGroup>) => {
-    onChangeOptionGroups(item.optionGroups.map((group) => (group.id === groupId ? { ...group, ...patch } : group)));
-  };
-
-  const updateOption = (groupId: string, optionId: string, patch: Partial<MenuOption>) => {
-    onChangeOptionGroups(
-      item.optionGroups.map((group) =>
-        group.id === groupId
-          ? {
-              ...group,
-              options: group.options.map((option) => (option.id === optionId ? { ...option, ...patch } : option)),
-            }
-          : group,
-      ),
-    );
-  };
-
-  return (
-    <div style={{ display: "grid", gap: 14 }}>
-      <section style={subBuilderCard}>
-        <div style={subBuilderHeader}>
-          <div>
-            <strong style={builderTitle}>Included ingredients</strong>
-            <p style={builderCopy}>Set what comes in the item by default and whether the customer can remove it.</p>
-          </div>
-          <button type="button" style={secondaryButtonSmall} onClick={() => onChangeComponents([...item.components, createEmptyComponent()])}>
-            Add ingredient
-          </button>
-        </div>
-
-        {item.components.length === 0 ? <div style={emptyStateCard}>No ingredients yet. Add bun, patties, cheese, salad, sauces, or sides here.</div> : null}
-
-        <div style={{ display: "grid", gap: 10 }}>
-          {item.components.map((component) => (
-            <div key={component.id} style={builderRow}>
-              <input
-                style={lightInput}
-                value={component.label}
-                onChange={(event) => updateComponent(component.id, { label: event.target.value })}
-                placeholder="Ingredient name"
-              />
-              <input
-                type="number"
-                min={1}
-                style={lightInput}
-                value={component.quantity}
-                onChange={(event) => updateComponent(component.id, { quantity: Math.max(1, Number(event.target.value) || 1) })}
-              />
-              <label style={toggleLabel}>
-                <input
-                  type="checkbox"
-                  checked={component.removable}
-                  onChange={(event) => updateComponent(component.id, { removable: event.target.checked })}
-                />
-                <span>Customer can remove</span>
-              </label>
-              <button
-                type="button"
-                style={secondaryButtonSmall}
-                onClick={() => onChangeComponents(item.components.filter((entry) => entry.id !== component.id))}
-              >
-                Remove
-              </button>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section style={subBuilderCard}>
-        <div style={subBuilderHeader}>
-          <div>
-            <strong style={builderTitle}>Option groups</strong>
-            <p style={builderCopy}>Build meal choices, drink selectors, extra toppings, sauces, and dependent follow-up options.</p>
-          </div>
-          <button type="button" style={secondaryButtonSmall} onClick={() => onChangeOptionGroups([...item.optionGroups, createEmptyOptionGroup()])}>
-            Add option group
-          </button>
-        </div>
-
-        {item.optionGroups.length === 0 ? (
-          <div style={emptyStateCard}>No option groups yet. Add groups like Meal Choice, Choose Your Can, Extras, Sauce, or Salad.</div>
-        ) : null}
-
-        <div style={{ display: "grid", gap: 14 }}>
-          {item.optionGroups.map((group) => (
-            <article key={group.id} style={optionGroupCard}>
-              <div style={subBuilderHeader}>
-                <div>
-                  <strong style={builderTitle}>{group.name || "Untitled group"}</strong>
-                  <p style={builderCopy}>Group id: {group.id}</p>
-                </div>
-                <button
-                  type="button"
-                  style={secondaryButtonSmall}
-                  onClick={() => onChangeOptionGroups(item.optionGroups.filter((entry) => entry.id !== group.id))}
-                >
-                  Remove group
-                </button>
-              </div>
-
-              <div style={builderGrid}>
-                <label style={field}>
-                  <span style={darkFieldLabel}>Group name</span>
-                  <input
-                    style={lightInput}
-                    value={group.name}
-                    onChange={(event) => updateGroup(group.id, { name: event.target.value })}
-                    placeholder="Meal choice"
-                  />
-                </label>
-                <label style={field}>
-                  <span style={darkFieldLabel}>Selection type</span>
-                  <select
-                    style={lightInput}
-                    value={group.selectionMode}
-                    onChange={(event) =>
-                      updateGroup(group.id, {
-                        selectionMode: event.target.value as MenuOptionGroup["selectionMode"],
-                        maxSelections: event.target.value === "single" ? 1 : group.maxSelections,
-                      })
-                    }
-                  >
-                    <option value="single">Single choice</option>
-                    <option value="multiple">Multiple choice</option>
-                  </select>
-                </label>
-                <label style={field}>
-                  <span style={darkFieldLabel}>Minimum selections</span>
-                  <input
-                    type="number"
-                    min={0}
-                    style={lightInput}
-                    value={group.minSelections}
-                    onChange={(event) => updateGroup(group.id, { minSelections: Math.max(0, Number(event.target.value) || 0) })}
-                  />
-                </label>
-                <label style={field}>
-                  <span style={darkFieldLabel}>Maximum selections</span>
-                  <input
-                    type="number"
-                    min={1}
-                    style={lightInput}
-                    value={group.maxSelections ?? ""}
-                    onChange={(event) =>
-                      updateGroup(group.id, {
-                        maxSelections: event.target.value ? Math.max(1, Number(event.target.value) || 1) : null,
-                      })
-                    }
-                    placeholder={group.selectionMode === "single" ? "1" : "Leave blank for no max"}
-                  />
-                </label>
-                <label style={field}>
-                  <span style={darkFieldLabel}>Description</span>
-                  <input
-                    style={lightInput}
-                    value={group.description}
-                    onChange={(event) => updateGroup(group.id, { description: event.target.value })}
-                    placeholder="Choose your can for the meal"
-                  />
-                </label>
-                <label style={field}>
-                  <span style={darkFieldLabel}>Show only after these option ids</span>
-                  <input
-                    style={lightInput}
-                    value={group.showWhenValueIds.join(", ")}
-                    onChange={(event) => updateGroup(group.id, { showWhenValueIds: parseCsv(event.target.value) })}
-                    placeholder="meal-choice-make-it-a-meal"
-                  />
-                </label>
-              </div>
-
-              <label style={toggleLabel}>
-                <input
-                  type="checkbox"
-                  checked={group.isRequired}
-                  onChange={(event) => updateGroup(group.id, { isRequired: event.target.checked })}
-                />
-                <span>Customer must choose from this group</span>
-              </label>
-
-              {optionReferenceList.length > 0 ? (
-                <div style={referenceStrip}>
-                  {optionReferenceList.map((reference) => (
-                    <span key={reference.id} style={referenceChip}>
-                      {reference.groupName}: {reference.label} / {reference.id}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-
-              <div style={{ display: "grid", gap: 10 }}>
-                {group.options.map((option) => (
-                  <div key={option.id} style={optionRow}>
-                    <div style={builderGrid}>
-                      <label style={field}>
-                        <span style={darkFieldLabel}>Option label</span>
-                        <input
-                          style={lightInput}
-                          value={option.label}
-                          onChange={(event) => updateOption(group.id, option.id, { label: event.target.value })}
-                          placeholder="Coke"
-                        />
-                      </label>
-                      <label style={field}>
-                        <span style={darkFieldLabel}>Description</span>
-                        <input
-                          style={lightInput}
-                          value={option.description}
-                          onChange={(event) => updateOption(group.id, option.id, { description: event.target.value })}
-                          placeholder="330ml can"
-                        />
-                      </label>
-                      <label style={field}>
-                        <span style={darkFieldLabel}>Price change</span>
-                        <input
-                          type="number"
-                          step="0.01"
-                          style={lightInput}
-                          value={option.priceDelta}
-                          onChange={(event) => updateOption(group.id, option.id, { priceDelta: Number(event.target.value) || 0 })}
-                        />
-                      </label>
-                      <label style={field}>
-                        <span style={darkFieldLabel}>Max quantity</span>
-                        <input
-                          type="number"
-                          min={1}
-                          style={lightInput}
-                          value={option.maxQuantity}
-                          onChange={(event) => updateOption(group.id, option.id, { maxQuantity: Math.max(1, Number(event.target.value) || 1) })}
-                        />
-                      </label>
-                    </div>
-
-                    <div style={optionActionRow}>
-                      <label style={toggleLabel}>
-                        <input
-                          type="checkbox"
-                          checked={option.isDefault}
-                          onChange={(event) => updateOption(group.id, option.id, { isDefault: event.target.checked })}
-                        />
-                        <span>Preselected by default</span>
-                      </label>
-                      <span style={subtleInfo}>Option id: {option.id}</span>
-                      <button
-                        type="button"
-                        style={secondaryButtonSmall}
-                        onClick={() =>
-                          onChangeOptionGroups(
-                            item.optionGroups.map((entry) =>
-                              entry.id === group.id
-                                ? {
-                                    ...entry,
-                                    options: entry.options.filter((existingOption) => existingOption.id !== option.id),
-                                  }
-                                : entry,
-                            ),
-                          )
-                        }
-                      >
-                        Remove option
-                      </button>
-                    </div>
-                  </div>
-                ))}
-
-                <button
-                  type="button"
-                  style={secondaryButtonSmall}
-                  onClick={() =>
-                    onChangeOptionGroups(
-                      item.optionGroups.map((entry) =>
-                        entry.id === group.id ? { ...entry, options: [...entry.options, createEmptyOption()] } : entry,
-                      ),
-                    )
-                  }
-                >
-                  Add option
-                </button>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
-    </div>
-  );
-}
-
 export default function MerchantPortalPage() {
   const [merchantToken, setMerchantToken] = useState("");
   const [loginUsername, setLoginUsername] = useState("");
@@ -1147,13 +645,17 @@ export default function MerchantPortalPage() {
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
   const [selectedItemId, setSelectedItemId] = useState("");
   const [isCreatingNewItem, setIsCreatingNewItem] = useState(false);
-  const newItemDraftRef = useRef<HTMLElement | null>(null);
+  const [showChoiceSetupForItemId, setShowChoiceSetupForItemId] = useState<string | null>(null);
+  const [menuPublishDialogOpen, setMenuPublishDialogOpen] = useState(false);
+  const [menuPublishing, setMenuPublishing] = useState(false);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showAccountPasswords, setShowAccountPasswords] = useState(false);
   const [showHubPasswordCurrent, setShowHubPasswordCurrent] = useState(false);
   const [showHubPasswordNew, setShowHubPasswordNew] = useState(false);
   const [showHubPasswordConfirm, setShowHubPasswordConfirm] = useState(false);
   const [showCreateUserPassword, setShowCreateUserPassword] = useState(false);
+
+  const menuPublishIssues = useMemo(() => computeMenuPublishIssues(menuSections), [menuSections]);
 
   const menuStats = useMemo(() => {
     const totalItems = menuSections.reduce((sum, section) => sum + section.items.length, 0);
@@ -1284,9 +786,6 @@ export default function MerchantPortalPage() {
       });
       setPizzaSizeRows(createInitialPizzaSizeRows());
       setMenuNotice("");
-      requestAnimationFrame(() => {
-        newItemDraftRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      });
     },
     [menuSections],
   );
@@ -1327,6 +826,18 @@ export default function MerchantPortalPage() {
       savedHubSnapshot,
     );
   }, [hubSettings, menuSections, merchantToken, savedHubSnapshot]);
+
+  const menuPublishSummary = useMemo(
+    () => buildMenuPublishSummary(menuSections, savedHubSnapshot?.menuSections ?? null, hasUnsavedHubChanges),
+    [menuSections, savedHubSnapshot, hasUnsavedHubChanges],
+  );
+
+  const hubAccess = useMemo(() => (activeUser ? getHubAccess(activeUser.role) : null), [activeUser]);
+
+  const creatableHubRoles = useMemo(
+    () => (activeUser ? hubRolesCreatableBy(activeUser.role) : []),
+    [activeUser],
+  );
 
   useEffect(() => {
     if (!hasUnsavedHubChanges) {
@@ -1390,6 +901,11 @@ export default function MerchantPortalPage() {
       return;
     }
 
+    if (!hubAccess?.canOperateOrders) {
+      setOrderNotice("Your account cannot accept or reject orders.");
+      return;
+    }
+
     try {
       await acceptMerchantOrder(merchantToken, order.id, hubSettings.etaMinutes);
       await loadMerchantOrders(merchantToken, { silent: true });
@@ -1401,6 +917,11 @@ export default function MerchantPortalPage() {
 
   const handleRejectMerchantOrder = async (order: OrderSummary) => {
     if (!merchantToken) {
+      return;
+    }
+
+    if (!hubAccess?.canOperateOrders) {
+      setOrderNotice("Your account cannot accept or reject orders.");
       return;
     }
 
@@ -1690,31 +1211,51 @@ export default function MerchantPortalPage() {
       return;
     }
 
+    if (!hubAccess?.canEditWorkspace) {
+      setSaveNotice("Your account is view-only and cannot save hub or menu changes.");
+      return;
+    }
+
+    setMenuPublishing(true);
     try {
       const workspace = await saveWorkspace(merchantToken, activeHubId, {
         settings: hubSettings,
         menuSections,
       });
       setHubSettings({
-      ...workspace.settings,
-      deliveryPostcodeZones:
-        workspace.settings.deliveryPostcodeZones.length > 0
-          ? workspace.settings.deliveryPostcodeZones
-          : createDefaultHullPostcodeZones(),
-    });
+        ...workspace.settings,
+        deliveryPostcodeZones:
+          workspace.settings.deliveryPostcodeZones.length > 0
+            ? workspace.settings.deliveryPostcodeZones
+            : createDefaultHullPostcodeZones(),
+      });
       setMenuSections(workspace.menuSections);
       setHubUsers(workspace.users);
       setPendingImports(workspace.pendingImports ?? []);
       commitSavedHubSnapshot(workspace.settings, workspace.menuSections);
-      setSaveNotice(`Saved ${workspace.hub.businessName} hub changes.`);
+      setMenuPublishDialogOpen(false);
+      setSaveNotice(`Live menu published for ${workspace.hub.businessName}.`);
+      setMenuNotice("Customers will see your updated menu on Hull Eats.");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Hub save failed.";
+      const message = error instanceof Error ? error.message : "Menu publish failed.";
       setSaveNotice(message);
+      setMenuNotice(message);
+    } finally {
+      setMenuPublishing(false);
     }
+  };
+
+  const handleRequestPublishMenu = () => {
+    setMenuPublishDialogOpen(true);
   };
 
   const handleCreateUser = async () => {
     if (!merchantToken || !activeHubId) {
+      return;
+    }
+
+    if (!hubAccess?.canManageUsers) {
+      setUserNotice("Only hub owners can create business logins.");
       return;
     }
 
@@ -1757,6 +1298,11 @@ export default function MerchantPortalPage() {
       return;
     }
 
+    if (!hubAccess?.canManageUsers) {
+      setUserNotice("Only hub owners can remove business logins.");
+      return;
+    }
+
     try {
       await deleteBusinessUser(merchantToken, activeHubId, userId);
       setHubUsers((current) => current.filter((user) => user.id !== userId));
@@ -1777,59 +1323,44 @@ export default function MerchantPortalPage() {
     }));
   };
 
-  const handleCreateCategory = async () => {
-    if (!merchantToken || !activeHubId) {
-      return;
-    }
-
+  const handleCreateCategory = () => {
     if (!newCategory.name.trim()) {
       setMenuNotice("Enter a category name before creating it.");
       return;
     }
 
-    try {
-      const createdCategory = await createMenuCategory(merchantToken, activeHubId, {
-        presetId: newCategory.presetId,
-        name: newCategory.name.trim(),
-        description: newCategory.description.trim(),
-        defaultPrice: newCategory.defaultPrice.trim(),
-      });
-
-      const nextMenuSections = [...menuSections, createdCategory];
-      setMenuSections(nextMenuSections);
-      syncSavedMenuSnapshot(nextMenuSections);
-      setSelectedCategoryId(createdCategory.id);
-      setNewCategory(initialCreateCategoryState);
-      beginCreateItem(createdCategory.id);
-      setMenuNotice(`Created ${createdCategory.name}. Add your first item below.`);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Menu category create failed.";
-      setMenuNotice(message);
-    }
+    const createdCategory = buildLocalMenuCategory(newCategory);
+    updateMenuSections((current) => [...current, createdCategory]);
+    setSelectedCategoryId(createdCategory.id);
+    setNewCategory(initialCreateCategoryState);
+    beginCreateItem(createdCategory.id);
+    setMenuNotice(`Added ${createdCategory.name} to your draft. Save & publish menu when ready.`);
   };
 
-  const handleDeleteCategory = async (sectionId: string, sectionName: string) => {
-    if (!merchantToken || !activeHubId) {
+  const handleDeleteCategory = (sectionId: string, sectionName: string) => {
+    const itemCount = menuSections.find((section) => section.id === sectionId)?.items.length ?? 0;
+    const detail =
+      itemCount > 0
+        ? ` This removes ${itemCount} item${itemCount === 1 ? "" : "s"} from your draft.`
+        : "";
+    if (
+      !window.confirm(
+        `Remove "${sectionName}" from your menu?${detail}\n\nCustomers are not affected until you save & publish.`,
+      )
+    ) {
       return;
     }
 
-    try {
-      await deleteMenuCategory(merchantToken, activeHubId, sectionId);
-      const nextMenuSections = menuSections.filter((section) => section.id !== sectionId);
-      setMenuSections(nextMenuSections);
-      syncSavedMenuSnapshot(nextMenuSections);
-      setMenuNotice(`${sectionName} removed.`);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Menu category delete failed.";
-      setMenuNotice(message);
+    updateMenuSections((current) => current.filter((section) => section.id !== sectionId));
+    if (selectedCategoryId === sectionId) {
+      const remaining = menuSections.filter((section) => section.id !== sectionId);
+      setSelectedCategoryId(remaining[0]?.id ?? "");
+      setSelectedItemId(remaining[0]?.items[0]?.id ?? "");
     }
+    setMenuNotice(`${sectionName} removed from draft. Publish to update the live menu.`);
   };
 
-  const handleCreateItem = async () => {
-    if (!merchantToken || !activeHubId) {
-      return;
-    }
-
+  const handleCreateItem = () => {
     const targetSection = menuSections.find((section) => section.id === newItem.sectionId);
     const isPizza = isHubMenuSectionPizza(targetSection);
 
@@ -1859,35 +1390,33 @@ export default function MerchantPortalPage() {
       optionGroups = [];
     }
 
-    try {
-      const createdItem = await createMenuItem(merchantToken, activeHubId, newItem.sectionId, {
-        name: newItem.name.trim(),
-        description: newItem.description.trim(),
-        price,
-        imageUrl: newItem.imageUrl.trim() || undefined,
-        requiresIdVerification: newItem.requiresIdVerification,
-        components: [],
-        optionGroups,
-      });
+    const createdItem = buildLocalMenuItem({
+      categoryId: newItem.sectionId,
+      name: newItem.name,
+      description: newItem.description,
+      price,
+      imageUrl: newItem.imageUrl.trim() || undefined,
+      requiresIdVerification: newItem.requiresIdVerification,
+      components: [],
+      optionGroups,
+      isActive: false,
+    });
 
-      setMenuSections((current) =>
-        current.map((section) =>
-          section.id === newItem.sectionId ? { ...section, items: [...section.items, createdItem] } : section,
-        ),
-      );
-      setIsCreatingNewItem(false);
-      setSelectedCategoryId(newItem.sectionId);
-      setSelectedItemId(createdItem.id);
-      setNewItem((current) => ({
-        ...initialCreateItemState,
-        sectionId: current.sectionId,
-      }));
-      setPizzaSizeRows(createInitialPizzaSizeRows());
-      setMenuNotice(`Created ${createdItem.name}. Add sizes, extras, and options below.`);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Menu item create failed.";
-      setMenuNotice(message);
-    }
+    updateMenuSections((current) =>
+      current.map((section) =>
+        section.id === newItem.sectionId ? { ...section, items: [...section.items, createdItem] } : section,
+      ),
+    );
+    setIsCreatingNewItem(false);
+    setSelectedCategoryId(newItem.sectionId);
+    setSelectedItemId(createdItem.id);
+    setShowChoiceSetupForItemId(createdItem.id);
+    setNewItem((current) => ({
+      ...initialCreateItemState,
+      sectionId: current.sectionId,
+    }));
+    setPizzaSizeRows(createInitialPizzaSizeRows());
+    setMenuNotice(`Added ${createdItem.name} to your draft (hidden until you set Live and publish).`);
   };
 
   const handleApplyCategoryPrice = (sectionId: string) => {
@@ -1908,12 +1437,12 @@ export default function MerchantPortalPage() {
           : entry,
       ),
     );
-    setMenuNotice(`${section.name} items now use ${formatMoney(section.defaultPrice)}. Save hub changes to publish it.`);
+    setMenuNotice(`${section.name} items now use ${formatMoney(section.defaultPrice)} in your draft. Save & publish menu when ready.`);
   };
 
   const handleApplyMenuTemplate = (kind: MenuTemplateKind) => {
     if (!selectedCategory || !selectedItem) {
-      setMenuNotice("Choose an item before applying a setup recipe.");
+      setMenuNotice("Choose an item before applying a layout.");
       return;
     }
 
@@ -1923,31 +1452,47 @@ export default function MerchantPortalPage() {
       components: template.components,
       optionGroups: template.optionGroups,
     }));
+    setShowChoiceSetupForItemId(null);
     setMenuNotice(
       kind === "simple"
-        ? `${selectedItem.name} is now a simple fixed-price item.`
-        : `${selectedItem.name} now has the ${menuTemplateCards.find((card) => card.kind === kind)?.title ?? "custom"} setup recipe.`,
+        ? `${selectedItem.name} is a simple fixed-price item.`
+        : `${selectedItem.name} now has the "${menuTemplateCards.find((card) => card.kind === kind)?.title ?? "custom"}" choice layout.`,
     );
   };
 
-  const handleDeleteItem = async (itemId: string, itemName: string) => {
-    if (!merchantToken || !activeHubId) {
+  const handleDuplicateItem = (item: MenuItem) => {
+    if (!selectedCategory) {
       return;
     }
 
-    try {
-      await deleteMenuItem(merchantToken, activeHubId, itemId);
-      const nextMenuSections = menuSections.map((section) => ({
+    const createdItem = cloneMenuItemDraft(item);
+    updateMenuSections((current) =>
+      current.map((section) =>
+        section.id === selectedCategory.id ? { ...section, items: [...section.items, createdItem] } : section,
+      ),
+    );
+    setSelectedItemId(createdItem.id);
+    setShowChoiceSetupForItemId(null);
+    setMenuNotice(`Duplicated as ${createdItem.name} (hidden until you publish).`);
+  };
+
+  const handleDeleteItem = (itemId: string, itemName: string) => {
+    if (!window.confirm(`Remove "${itemName}" from your menu?\n\nCustomers are not affected until you save & publish.`)) {
+      return;
+    }
+
+    updateMenuSections((current) =>
+      current.map((section) => ({
         ...section,
         items: section.items.filter((item) => item.id !== itemId),
-      }));
-      setMenuSections(nextMenuSections);
-      syncSavedMenuSnapshot(nextMenuSections);
-      setMenuNotice(`${itemName} removed.`);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Menu item delete failed.";
-      setMenuNotice(message);
+      })),
+    );
+    if (selectedItemId === itemId) {
+      const section = menuSections.find((entry) => entry.items.some((item) => item.id === itemId));
+      const remaining = section?.items.filter((item) => item.id !== itemId) ?? [];
+      setSelectedItemId(remaining[0]?.id ?? "");
     }
+    setMenuNotice(`${itemName} removed from draft. Publish to update the live menu.`);
   };
 
   const handlePreviewImport = async () => {
@@ -1994,10 +1539,11 @@ export default function MerchantPortalPage() {
     try {
       const workspace = await applyMenuImport(merchantToken, activeHubId, importId, selectedImportCandidateIds);
       setMenuSections(workspace.menuSections);
-      syncSavedMenuSnapshot(workspace.menuSections);
       setPendingImports(workspace.pendingImports ?? []);
       setSelectedImportCandidateIds([]);
-      setMenuNotice("Accepted import candidates were added into the live menu builder.");
+      setMenuNotice(
+        "Import saved as hidden items in your hub. Set each item to Live, then save & publish menu for customers to see them.",
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : "Menu import apply failed.";
       setMenuNotice(message);
@@ -2167,13 +1713,18 @@ export default function MerchantPortalPage() {
           </div>
 
           <div className="hub-main-header-actions" style={{ display: "grid", gap: 12, justifyItems: "start" }}>
-            {activeUser ? <span style={activeUserChip}>{activeUser.fullName} / {activeUser.role}</span> : null}
+            {activeUser ? (
+              <span style={activeUserChip}>
+                {activeUser.fullName} / {hubRoleLabel(activeUser.role)}
+              </span>
+            ) : null}
             <div className="he-btn-row" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               <button
                 type="button"
                 className={hasUnsavedHubChanges ? "he-portal-primary is-dirty" : "he-portal-primary"}
                 style={saveHubButtonStyle}
                 onClick={handleSaveHub}
+                disabled={!hubAccess?.canEditWorkspace}
               >
                 {hasUnsavedHubChanges ? "Save hub changes *" : "Save hub changes"}
               </button>
@@ -2203,10 +1754,16 @@ export default function MerchantPortalPage() {
                 <strong>Save hub changes</strong> (or <strong>Publish changes</strong> on the menu screen).
               </p>
             </div>
-            <button type="button" style={saveHubButtonStyle} onClick={handleSaveHub}>
+            <button type="button" style={saveHubButtonStyle} onClick={handleSaveHub} disabled={!hubAccess?.canEditWorkspace}>
               Save now
             </button>
           </div>
+        ) : null}
+
+        {hubAccess && !hubAccess.canEditWorkspace ? (
+          <p style={successMessageStyle} role="status">
+            View-only access: you can browse this hub but cannot save menu, delivery, or offer changes.
+          </p>
         ) : null}
 
         {saveNotice ? <p style={successMessageStyle}>{saveNotice}</p> : null}
@@ -2290,7 +1847,7 @@ export default function MerchantPortalPage() {
                   </div>
                   <div style={itemBadgeRow}>
                     <span style={darkBadge}>{order.status}</span>
-                    {isPending ? (
+                    {isPending && hubAccess?.canOperateOrders ? (
                       <>
                         <button
                           type="button"
@@ -2304,9 +1861,11 @@ export default function MerchantPortalPage() {
                         </button>
                       </>
                     ) : null}
+                    {hubAccess?.canOperateOrders ? (
                     <button type="button" style={secondaryButtonSmall} onClick={() => void handlePrintOrderReceipt(order)}>
                       Print receipt
                     </button>
+                    ) : null}
                     <span style={orangeBadge}>£{order.totalAmount.toFixed(2)}</span>
                   </div>
                 </article>
@@ -2431,491 +1990,79 @@ export default function MerchantPortalPage() {
           </div>
 
           {activeHubPanel === "menu" ? (
-            <section style={menuManagementShell}>
-              <div style={menuManagementTopBar}>
-                <div>
-                  <p style={eyebrowDark}>Menu management</p>
-                  <h2 style={compactTitle}>Your menu</h2>
-                </div>
-                <div style={menuTopActions}>
-                  <button type="button" style={secondaryButton} onClick={() => setActiveHubPanel("import")}>
-                    Paste menu
-                  </button>
-                  <button type="button" style={saveHubButtonStyle} onClick={handleSaveHub}>
-                    {hasUnsavedHubChanges ? "Publish changes *" : "Publish changes"}
-                  </button>
-                </div>
-              </div>
-
-              <div style={menuTopTabRow}>
-                {menuSections.slice(0, 7).map((section) => (
-                  <button
-                    key={section.id}
-                    type="button"
-                    style={section.id === selectedCategory?.id ? menuTopTabActive : menuTopTab}
-                    onClick={() => {
-                      setIsCreatingNewItem(false);
-                      setSelectedCategoryId(section.id);
-                      setSelectedItemId(section.items[0]?.id ?? "");
-                      setNewItem((current) => ({ ...current, sectionId: section.id }));
-                    }}
-                  >
-                    {section.name}
-                  </button>
-                ))}
-                {menuSections.length === 0 ? <span style={mutedInlineNote}>Create your first category to start.</span> : null}
-              </div>
-
-              <section className="he-menu-workbench" style={menuWorkbenchGrid}>
-              <section style={categoryAccordionPanel}>
-                <div style={compactHeader}>
-                  <div>
-                    <p style={eyebrowDark}>Categories</p>
-                    <h2 style={railTitle}>Build the menu in sections</h2>
-                  </div>
-                </div>
-
-                <div style={{ display: "grid", gap: 8, width: "100%" }}>
-                  <select
-                    style={{ ...lightInput, width: "100%" }}
-                    value={newCategory.presetId}
-                    onChange={(event) => handleNewCategoryPresetChange(event.target.value)}
-                  >
-                    {HUB_CATEGORY_PRESET_OPTIONS.map((opt) => (
-                      <option key={opt.id} value={opt.id}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                  <div style={compactCreateBox}>
-                    <input
-                      style={compactInput}
-                      value={newCategory.name}
-                      onChange={(event) => setNewCategory((current) => ({ ...current, name: event.target.value }))}
-                      placeholder="Create category or path, e.g. Drinks / Fizzy"
-                    />
-                    <input
-                      type="number"
-                      step="0.01"
-                      style={{ ...compactInput, maxWidth: 140 }}
-                      value={newCategory.defaultPrice}
-                      onChange={(event) => setNewCategory((current) => ({ ...current, defaultPrice: event.target.value }))}
-                      placeholder="Default £"
-                    />
-                    <button type="button" style={primaryButton} onClick={handleCreateCategory}>
-                      Add category
-                    </button>
-                  </div>
-                </div>
-
-                <div style={categoryAccordionList}>
-                  {menuSections.map((section) => (
-                    <details
-                      key={section.id}
-                      open={section.id === selectedCategory?.id}
-                      style={categoryAccordionCard}
-                      onToggle={(event) => {
-                        if (event.currentTarget.open) {
-                          setIsCreatingNewItem(false);
-                          setSelectedCategoryId(section.id);
-                          setSelectedItemId(section.items[0]?.id ?? "");
-                          setNewItem((current) => ({ ...current, sectionId: section.id }));
-                        }
-                      }}
-                    >
-                      <summary style={categoryAccordionSummary}>
-                        <span>
-                          <strong>{section.name}</strong>
-                          <small>{section.items.length} items</small>
-                        </span>
-                        <span style={orangeBadge}>{section.id === selectedCategory?.id ? "Open" : "Edit"}</span>
-                      </summary>
-
-                      <div style={categoryAccordionBody}>
-                        <div style={builderGrid}>
-                          <label style={field}>
-                            <span style={darkFieldLabel}>Category name</span>
-                            <input style={lightInput} value={section.name} onChange={(event) => updateSection(section.id, "name", event.target.value)} />
-                          </label>
-                          <label style={field}>
-                            <span style={darkFieldLabel}>Category note</span>
-                            <input
-                              style={lightInput}
-                              value={section.description ?? ""}
-                              onChange={(event) => updateSection(section.id, "description", event.target.value)}
-                              placeholder="Optional short description"
-                            />
-                          </label>
-                          <label style={field}>
-                            <span style={darkFieldLabel}>Category default price</span>
-                            <input
-                              type="number"
-                              step="0.01"
-                              style={lightInput}
-                              value={section.defaultPrice ?? ""}
-                              onChange={(event) =>
-                                updateSection(section.id, "defaultPrice", event.target.value ? Number(event.target.value) : null)
-                              }
-                              placeholder="Use when most items in this category cost the same"
-                            />
-                          </label>
-                        </div>
-
-                        <div style={compactCreateBox}>
-                          <div style={emptyStateCard}>
-                            {section.defaultPrice === null || section.defaultPrice === undefined
-                              ? "No category price set. Items need their own price."
-                              : `Category price: ${formatMoney(section.defaultPrice)}. New items can use this automatically.`}
-                          </div>
-                          <button type="button" style={secondaryButton} onClick={() => handleApplyCategoryPrice(section.id)}>
-                            Apply price to all items
-                          </button>
-                        </div>
-
-                        <div style={{ display: "grid", gap: 8, width: "100%" }}>
-                          <div style={compactCreateBox}>
-                            <input
-                              style={compactInput}
-                              value={newItem.sectionId === section.id ? newItem.name : ""}
-                              onChange={(event) => setNewItem((current) => ({ ...current, name: event.target.value, sectionId: section.id }))}
-                              placeholder="New item name"
-                            />
-                            {!(isHubMenuSectionPizza(section) && newItem.sectionId === section.id) ? (
-                              <input
-                                type="number"
-                                step="0.01"
-                                style={{ ...compactInput, maxWidth: 120 }}
-                                value={newItem.sectionId === section.id ? newItem.price : ""}
-                                onChange={(event) => setNewItem((current) => ({ ...current, price: event.target.value, sectionId: section.id }))}
-                                placeholder={section.defaultPrice ? `Uses £${section.defaultPrice.toFixed(2)}` : "Price"}
-                              />
-                            ) : null}
-                            <button type="button" style={primaryButton} onClick={handleCreateItem}>
-                              Add item
-                            </button>
-                          </div>
-                          {isHubMenuSectionPizza(section) && newItem.sectionId === section.id ? (
-                            <PizzaSizeDraftPanel rows={pizzaSizeRows} onChange={setPizzaSizeRows} />
-                          ) : null}
-                        </div>
-
-                        <div style={compactList}>
-                          {section.items.map((item) => (
-                            <button
-                              key={item.id}
-                              type="button"
-                              style={item.id === selectedItem?.id ? compactListButtonActive : compactListButton}
-                              onClick={() => {
-                                setIsCreatingNewItem(false);
-                                setSelectedCategoryId(section.id);
-                                setSelectedItemId(item.id);
-                              }}
-                            >
-                              <strong>{item.name}</strong>
-                              <span>
-                                {formatMoney(item.price)} / {item.isActive ? "live" : "hidden"}
-                              </span>
-                            </button>
-                          ))}
-                          {section.items.length === 0 ? <div style={emptyStateCard}>No items in this category yet.</div> : null}
-                        </div>
-                      </div>
-                    </details>
-                  ))}
-                </div>
-              </section>
-
-              <section style={compactEditorCard}>
-                {selectedCategory ? (
-                  <section style={menuItemBoardStrip}>
-                    <div style={menuBoardHeader}>
-                      <div>
-                        <p style={eyebrowDark}>Selected category</p>
-                        <h2 style={sectionTitle}>{selectedCategory.name}</h2>
-                        <p style={panelCopyDark}>{selectedCategory.description || "Add, price, image, and configure every item in this category."}</p>
-                      </div>
-                      <button type="button" style={secondaryButtonSmall} onClick={() => handleDeleteCategory(selectedCategory.id, selectedCategory.name)}>
-                        Delete category
-                      </button>
-                    </div>
-
-                    <div style={menuItemCardGrid}>
-                      <button type="button" style={menuAddItemCard} onClick={() => beginCreateItem(selectedCategory.id)}>
-                        <span style={addCircle}>+</span>
-                        <strong>Add a new item</strong>
-                      </button>
-                      {selectedCategory.items.map((item) => (
-                        <article key={item.id} style={item.id === selectedItem?.id ? menuItemBoardCardActive : menuItemBoardCard}>
-                          <button
-                            type="button"
-                            style={editDotButton}
-                            aria-label={`Edit ${item.name}`}
-                            onClick={() => {
-                              setIsCreatingNewItem(false);
-                              setSelectedItemId(item.id);
-                            }}
-                          >
-                            Edit
-                          </button>
-                          <div style={menuItemPhotoBox}>{item.imageUrl ? <img src={item.imageUrl} alt="" style={menuItemPhotoImage} /> : "Upload photo"}</div>
-                          <div style={menuItemCardBody}>
-                            <strong>{item.name}</strong>
-                            <p>{item.description || "No description yet."}</p>
-                            <span>from {formatMoney(item.price)}</span>
-                            <button
-                              type="button"
-                              style={item.id === selectedItem?.id ? itemSelectButtonActive : itemSelectButton}
-                              onClick={() => {
-                                setIsCreatingNewItem(false);
-                                setSelectedItemId(item.id);
-                              }}
-                            >
-                              {item.optionGroups.length} variations
-                            </button>
-                          </div>
-                        </article>
-                      ))}
-                      {selectedCategory.items.length === 0 ? <div style={emptyStateCard}>No items in this category yet. Add one from the category rail.</div> : null}
-                    </div>
-                  </section>
-                ) : null}
-
-                {isCreatingNewItem && selectedCategory ? (
-                  <section ref={newItemDraftRef} style={newItemDraftPanel}>
-                    <div style={itemTopRow}>
-                      <div>
-                        <p style={eyebrowDark}>New item</p>
-                        <h2 style={sectionTitle}>{selectedCategory.name}</h2>
-                        <p style={panelCopyDark}>
-                          Add name, description, price, and image first. Sizes, extras, and option groups are configured right after you create the item.
-                        </p>
-                      </div>
-                      <button type="button" style={secondaryButtonSmall} onClick={cancelCreateItem}>
-                        Cancel
-                      </button>
-                    </div>
-
-                    <div style={builderGrid}>
-                      <label style={field}>
-                        <span style={darkFieldLabel}>Item name</span>
-                        <input
-                          style={lightInput}
-                          value={newItem.name}
-                          onChange={(event) => setNewItem((current) => ({ ...current, name: event.target.value, sectionId: selectedCategory.id }))}
-                          placeholder="e.g. Margherita"
-                          autoFocus
-                        />
-                      </label>
-                      <label style={field}>
-                        <span style={darkFieldLabel}>Description</span>
-                        <textarea
-                          style={{ ...lightInput, minHeight: 96, paddingTop: 14, paddingBottom: 14, resize: "vertical" }}
-                          value={newItem.description}
-                          onChange={(event) => setNewItem((current) => ({ ...current, description: event.target.value, sectionId: selectedCategory.id }))}
-                          placeholder="What customers see on the menu"
-                        />
-                      </label>
-                      {isHubMenuSectionPizza(selectedCategory) ? (
-                        <div style={{ gridColumn: "1 / -1" }}>
-                          <PizzaSizeDraftPanel rows={pizzaSizeRows} onChange={setPizzaSizeRows} />
-                        </div>
-                      ) : (
-                        <label style={field}>
-                          <span style={darkFieldLabel}>Price</span>
-                          <input
-                            type="number"
-                            step="0.01"
-                            style={lightInput}
-                            value={newItem.price}
-                            onChange={(event) => setNewItem((current) => ({ ...current, price: event.target.value, sectionId: selectedCategory.id }))}
-                            placeholder={
-                              selectedCategory.defaultPrice != null
-                                ? `Default ${formatMoney(selectedCategory.defaultPrice)}`
-                                : "7.99"
-                            }
-                          />
-                        </label>
-                      )}
-                      <label style={field}>
-                        <span style={darkFieldLabel}>Product image URL</span>
-                        <input
-                          style={lightInput}
-                          value={newItem.imageUrl}
-                          onChange={(event) => setNewItem((current) => ({ ...current, imageUrl: event.target.value, sectionId: selectedCategory.id }))}
-                          placeholder="https://..."
-                        />
-                      </label>
-                      <label style={{ ...toggleLabel, gridColumn: "1 / -1" }}>
-                        <input
-                          type="checkbox"
-                          checked={newItem.requiresIdVerification}
-                          onChange={(event) =>
-                            setNewItem((current) => ({ ...current, requiresIdVerification: event.target.checked, sectionId: selectedCategory.id }))
-                          }
-                        />
-                        <span>Verify with ID at delivery (age-restricted)</span>
-                      </label>
-                    </div>
-
-                    <div className="he-section-actions" style={sectionActionRow}>
-                      <button type="button" style={primaryButton} onClick={() => void handleCreateItem()}>
-                        Create item
-                      </button>
-                      <button type="button" style={secondaryButton} onClick={cancelCreateItem}>
-                        Cancel
-                      </button>
-                    </div>
-                  </section>
-                ) : null}
-
-                {!isCreatingNewItem && selectedCategory && !selectedItem ? (
-                  <div style={emptyStateCard}>
-                    Tap <strong>Add a new item</strong> above, or select an item card to edit name, price, sizes, and options.
-                  </div>
-                ) : null}
-
-                {selectedCategory && selectedItem && !isCreatingNewItem ? (
-                  <>
-                    <div style={itemTopRow}>
-                      <div>
-                        <p style={eyebrowDark}>Editing item</p>
-                        <h2 style={sectionTitle}>{selectedItem.name}</h2>
-                        <p style={panelCopyDark}>
-                          Pick a setup recipe, then adjust prices, images, ingredients, extras, and required choices.
-                        </p>
-                      </div>
-                      <button type="button" style={secondaryButtonSmall} onClick={() => handleDeleteItem(selectedItem.id, selectedItem.name)}>
-                        Remove
-                      </button>
-                    </div>
-
-                    <section style={templatePanel}>
-                      <div style={templateHeader}>
-                        <div>
-                          <strong style={builderTitle}>Item setup recipe</strong>
-                          <p style={builderCopy}>Use these to cover pizzas, burgers, meals, drinks, desserts, simple items, or a fully custom build.</p>
-                        </div>
-                        <span style={orangeBadge}>
-                          {selectedItem.optionGroups.length} option groups
-                        </span>
-                      </div>
-                      <div style={templateGrid}>
-                        {menuTemplateCards.map((template) => (
-                          <button
-                            key={template.kind}
-                            type="button"
-                            style={templateButton}
-                            onClick={() => handleApplyMenuTemplate(template.kind)}
-                          >
-                            <strong>{template.title}</strong>
-                            <span>{template.copy}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </section>
-
-                    <div style={builderGrid}>
-                      <label style={field}>
-                        <span style={darkFieldLabel}>Name</span>
-                        <input
-                          style={lightInput}
-                          value={selectedItem.name}
-                          onChange={(event) => updateItem(selectedCategory.id, selectedItem.id, (current) => ({ ...current, name: event.target.value }))}
-                        />
-                      </label>
-                      <label style={field}>
-                        <span style={darkFieldLabel}>Price</span>
-                        <input
-                          type="number"
-                          step="0.01"
-                          style={lightInput}
-                          value={moneyInput(selectedItem.price)}
-                          onChange={(event) => updateItem(selectedCategory.id, selectedItem.id, (current) => ({ ...current, price: Number(event.target.value) || 0 }))}
-                        />
-                      </label>
-                      <label style={field}>
-                        <span style={darkFieldLabel}>Stock</span>
-                        <select
-                          style={lightInput}
-                          value={selectedItem.stockStatus}
-                          onChange={(event) =>
-                            updateItem(selectedCategory.id, selectedItem.id, (current) => ({ ...current, stockStatus: event.target.value as StockStatus }))
-                          }
-                        >
-                          <option value="in_stock">In stock</option>
-                          <option value="low_stock">Low stock</option>
-                          <option value="out_of_stock">Out of stock</option>
-                        </select>
-                      </label>
-                    </div>
-
-                    <label style={field}>
-                      <span style={darkFieldLabel}>Description</span>
-                      <textarea
-                        style={{ ...lightInput, minHeight: 92, paddingTop: 14, paddingBottom: 14, resize: "vertical" }}
-                        value={selectedItem.description}
-                        onChange={(event) => updateItem(selectedCategory.id, selectedItem.id, (current) => ({ ...current, description: event.target.value }))}
-                      />
-                    </label>
-
-                    <label style={field}>
-                      <span style={darkFieldLabel}>Product image URL</span>
-                      <input
-                        style={lightInput}
-                        value={selectedItem.imageUrl ?? ""}
-                        onChange={(event) => updateItem(selectedCategory.id, selectedItem.id, (current) => ({ ...current, imageUrl: event.target.value || undefined }))}
-                        placeholder="https://..."
-                      />
-                    </label>
-
-                    <div style={toggleRow}>
-                      <label style={toggleLabel}>
-                        <input
-                          type="checkbox"
-                          checked={selectedItem.isActive}
-                          onChange={(event) => updateItem(selectedCategory.id, selectedItem.id, (current) => ({ ...current, isActive: event.target.checked }))}
-                        />
-                        <span>Live on marketplace</span>
-                      </label>
-                      <label style={toggleLabel}>
-                        <input
-                          type="checkbox"
-                          checked={selectedItem.trackStock}
-                          onChange={(event) => updateItem(selectedCategory.id, selectedItem.id, (current) => ({ ...current, trackStock: event.target.checked }))}
-                        />
-                        <span>Track stock</span>
-                      </label>
-                      <label style={toggleLabel}>
-                        <input
-                          type="checkbox"
-                          checked={selectedItem.requiresIdVerification ?? false}
-                          onChange={(event) =>
-                            updateItem(selectedCategory.id, selectedItem.id, (current) => ({
-                              ...current,
-                              requiresIdVerification: event.target.checked,
-                            }))
-                          }
-                        />
-                        <span>Verify with ID</span>
-                      </label>
-                    </div>
-
-                    <details style={advancedDrawer}>
-                      <summary style={advancedSummary}>Meals, extras, removals and custom choices</summary>
-                      <CustomisationBuilder
-                        item={selectedItem}
-                        onChangeComponents={(components) => updateItem(selectedCategory.id, selectedItem.id, (current) => ({ ...current, components }))}
-                        onChangeOptionGroups={(optionGroups) => updateItem(selectedCategory.id, selectedItem.id, (current) => ({ ...current, optionGroups }))}
-                      />
-                    </details>
-                  </>
-                ) : (
-                  <div style={emptyStateCard}>Choose an item, or add one with the quick field on the left.</div>
-                )}
-              </section>
-            </section>
-            </section>
+            <HubMenuStudio
+              menuSections={menuSections}
+              selectedCategory={selectedCategory}
+              selectedItem={selectedItem}
+              isCreatingNewItem={isCreatingNewItem}
+              showChoiceSetupForItemId={showChoiceSetupForItemId}
+              newCategory={newCategory}
+              newItem={newItem}
+              pizzaSizeRows={pizzaSizeRows}
+              publishIssues={menuPublishIssues}
+              hasUnsavedHubChanges={hasUnsavedHubChanges}
+              activeHubSlug={activeHubSlug}
+              customerWebBaseUrl={customerWebBaseUrl}
+              categoryPresetOptions={HUB_CATEGORY_PRESET_OPTIONS}
+              onNewCategoryPresetChange={handleNewCategoryPresetChange}
+              onNewCategoryChange={(patch) => setNewCategory((current) => ({ ...current, ...patch }))}
+              onNewItemChange={(patch) => setNewItem((current) => ({ ...current, ...patch }))}
+              onPizzaSizeRowsChange={setPizzaSizeRows}
+              onSelectCategory={(sectionId) => {
+                setIsCreatingNewItem(false);
+                setSelectedCategoryId(sectionId);
+                const section = menuSections.find((s) => s.id === sectionId);
+                setSelectedItemId(section?.items[0]?.id ?? "");
+                setNewItem((current) => ({ ...current, sectionId }));
+              }}
+              onSelectItem={(itemId) => {
+                setIsCreatingNewItem(false);
+                setSelectedItemId(itemId);
+              }}
+              onBeginCreateItem={beginCreateItem}
+              onCancelCreateItem={cancelCreateItem}
+              onCreateItem={handleCreateItem}
+              onCreateCategory={handleCreateCategory}
+              onDuplicateItem={handleDuplicateItem}
+              onDeleteCategory={() => {
+                if (selectedCategory) {
+                  handleDeleteCategory(selectedCategory.id, selectedCategory.name);
+                }
+              }}
+              onDeleteItem={() => {
+                if (selectedItem) {
+                  handleDeleteItem(selectedItem.id, selectedItem.name);
+                }
+              }}
+              onApplyTemplate={handleApplyMenuTemplate}
+              onDismissChoiceSetup={() => setShowChoiceSetupForItemId(null)}
+              onRequestPublish={handleRequestPublishMenu}
+              publishDialogOpen={menuPublishDialogOpen}
+              publishSummary={menuPublishSummary}
+              menuPublishing={menuPublishing}
+              onCancelPublish={() => setMenuPublishDialogOpen(false)}
+              onConfirmPublish={() => void handleSaveHub()}
+              onOpenImport={() => setActiveHubPanel("import")}
+              onUpdateSectionField={(field, value) => {
+                if (selectedCategory) {
+                  updateSection(selectedCategory.id, field, value);
+                }
+              }}
+              onApplyCategoryPrice={() => {
+                if (selectedCategory) {
+                  handleApplyCategoryPrice(selectedCategory.id);
+                }
+              }}
+              onUpdateItem={(updater) => {
+                if (selectedCategory && selectedItem) {
+                  updateItem(selectedCategory.id, selectedItem.id, updater);
+                }
+              }}
+              saveButtonStyle={saveHubButtonStyle}
+              readOnly={!hubAccess?.canEditWorkspace}
+            />
           ) : null}
+
 
           {activeHubPanel === "import" ? (
             <section style={compactEditorCard}>
@@ -3845,7 +2992,7 @@ export default function MerchantPortalPage() {
                             </label>
                           </div>
 
-                          <CustomisationBuilder
+                          <HubMenuCustomisationBuilder
                             item={item}
                             onChangeComponents={(components) => updateItem(section.id, item.id, (current) => ({ ...current, components }))}
                             onChangeOptionGroups={(optionGroups) => updateItem(section.id, item.id, (current) => ({ ...current, optionGroups }))}
@@ -3950,12 +3097,13 @@ export default function MerchantPortalPage() {
               </div>
             </section>
 
+            {hubAccess?.canManageUsers ? (
             <section style={panelCard}>
               <div style={panelHeader}>
                 <div>
                   <p style={eyebrowDark}>Business users</p>
                   <h2 style={sectionTitle}>Create hub login</h2>
-                  <p style={panelCopyDark}>Create a username and password for the business owner or team members inside the hub.</p>
+                  <p style={panelCopyDark}>Owners can add manager, staff, or view-only logins for this hub.</p>
                 </div>
               </div>
 
@@ -4010,9 +3158,11 @@ export default function MerchantPortalPage() {
                     value={newUser.role}
                     onChange={(event) => setNewUser((current) => ({ ...current, role: event.target.value as HubRole }))}
                   >
-                    <option value="owner">Owner</option>
-                    <option value="manager">Manager</option>
-                    <option value="staff">Staff</option>
+                    {creatableHubRoles.map((role) => (
+                      <option key={role} value={role}>
+                        {hubRoleLabel(role)}
+                      </option>
+                    ))}
                   </select>
                 </label>
 
@@ -4021,6 +3171,11 @@ export default function MerchantPortalPage() {
                 </button>
               </div>
             </section>
+            ) : (
+              <section style={panelCard}>
+                <p style={panelCopyDark}>Only hub owners can create or remove business logins.</p>
+              </section>
+            )}
 
             <section style={panelCard}>
               <div style={panelHeader}>
@@ -4096,8 +3251,9 @@ export default function MerchantPortalPage() {
                       <span style={{ color: "#596271" }}>{user.email}</span>
                     </div>
                     <div style={{ display: "grid", gap: 8, justifyItems: "start" }}>
-                      <span style={darkBadge}>{user.role}</span>
+                      <span style={darkBadge}>{hubRoleLabel(user.role)}</span>
                       <span style={subtleInfo}>Username: {user.username}</span>
+                      {hubAccess?.canManageUsers && user.id !== activeUser?.id ? (
                       <button
                         type="button"
                         onClick={() => handleDeleteUser(user.id, user.username)}
@@ -4105,6 +3261,7 @@ export default function MerchantPortalPage() {
                       >
                         Remove user
                       </button>
+                      ) : null}
                     </div>
                   </article>
                 ))}

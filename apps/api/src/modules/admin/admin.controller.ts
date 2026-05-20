@@ -83,7 +83,7 @@ export class AdminController {
   ) {
     this.internalAuth.requireAdminToken(authorization);
     const input = createHubUserInputSchema.parse(body);
-    return this.hubRegistry.createHubUser(hubId, input);
+    return this.hubRegistry.createHubUser(hubId, input, "owner");
   }
 
   @Post("merchants")
