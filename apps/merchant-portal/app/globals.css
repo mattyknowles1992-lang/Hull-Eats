@@ -261,6 +261,10 @@ textarea {
     max-height: none !important;
   }
 
+  .hub-menu-studio-tabs {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
   .hub-menu-item-sidebar {
     max-height: none !important;
   }

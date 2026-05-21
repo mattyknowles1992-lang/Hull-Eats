@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { HubMenuSection, HubSettings, MenuItem } from "@hull-eats/types";
 import {
@@ -9,6 +9,7 @@ import {
   hubMenuCategorySelectOptions,
   isHubMenuExtrasLibrarySection,
   isHubMenuMealLibrarySection,
+  isHubMenuStaffLibrarySection,
   isHubMenuSectionPizza,
   type HubMenuCategoryPresetChoice,
 } from "@hull-eats/types";
@@ -33,7 +34,6 @@ import {
   getMenuAvailabilityMode,
   getMenuItemPriceLabel,
   itemUsesSizePricing,
-  staffMenuSections,
   type HubExtraTopping,
   type ManualVariationRow,
   type MenuAvailabilityMode,
@@ -108,12 +108,13 @@ type HubMenuStudioProps = {
   menuPublishing: boolean;
   onCancelPublish: () => void;
   onConfirmPublish: () => void;
-  onUpdateSectionField: (field: "name" | "description" | "defaultPrice", value: string | number | null) => void;
-  onApplyCategoryPrice: () => void;
+  onUpdateSectionField: (field: "name" | "description", value: string | number | null) => void;
   onUpdateItem: (updater: (item: MenuItem) => MenuItem) => void;
   saveButtonStyle: CSSProperties;
   readOnly?: boolean;
 };
+
+type MenuStudioLeftTab = "categories" | "extras" | "meals";
 
 const moneyInput = (value: number) => (Number.isFinite(value) ? value : 0);
 
@@ -216,7 +217,6 @@ export function HubMenuStudio({
   onCancelPublish,
   onConfirmPublish,
   onUpdateSectionField,
-  onApplyCategoryPrice,
   onUpdateItem,
   saveButtonStyle,
   readOnly = false,
@@ -224,14 +224,10 @@ export function HubMenuStudio({
   const newItemDraftRef = useRef<HTMLElement | null>(null);
   const availabilityModes: MenuAvailabilityMode[] = ["live", "sold_out", "hidden"];
   const studioLocked = readOnly;
-  const staffSections = staffMenuSections(menuSections);
+  const [leftTab, setLeftTab] = useState<MenuStudioLeftTab>("categories");
   const visibleSections = customerFacingMenuSections(menuSections);
-  const selectedIsStaffLibrary =
-    selectedCategory != null &&
-    (isHubMenuExtrasLibrarySection(selectedCategory) || isHubMenuMealLibrarySection(selectedCategory));
   const categoryIsPizza = isHubMenuSectionPizza(selectedCategory);
   const mealTemplates = getHubMealTemplatesFromSection(mealSection);
-  const creatingPizzaCategory = newCategory.presetId === "pizza";
   const creatingItemSection = menuSections.find((section) => section.id === newItem.sectionId) ?? null;
   const creatingItemIsPizza = isHubMenuSectionPizza(creatingItemSection);
   const creatingItemBuilderMode = getCategoryItemBuilderMode(creatingItemSection ?? selectedCategory);
@@ -242,6 +238,39 @@ export function HubMenuStudio({
     : -1;
   const canMoveCategoryUp = selectedCustomerIndex > 0;
   const canMoveCategoryDown = selectedCustomerIndex >= 0 && selectedCustomerIndex < visibleSections.length - 1;
+
+  useEffect(() => {
+    if (!selectedCategory) {
+      return;
+    }
+    if (isHubMenuExtrasLibrarySection(selectedCategory)) {
+      setLeftTab("extras");
+    } else if (isHubMenuMealLibrarySection(selectedCategory)) {
+      setLeftTab("meals");
+    } else if (!isHubMenuExtrasLibrarySection(selectedCategory) && !isHubMenuMealLibrarySection(selectedCategory)) {
+      setLeftTab("categories");
+    }
+  }, [selectedCategory?.id]);
+
+  const selectLeftTab = (tab: MenuStudioLeftTab) => {
+    setLeftTab(tab);
+    if (tab === "extras" && extrasSection) {
+      onSelectCategory(extrasSection.id);
+      return;
+    }
+    if (tab === "meals" && mealSection) {
+      onSelectCategory(mealSection.id);
+      return;
+    }
+    const firstCategory = visibleSections[0];
+    if (firstCategory) {
+      onSelectCategory(firstCategory.id);
+    }
+  };
+
+  const showCategoryBuilder = leftTab === "categories" && selectedCategory && !isHubMenuStaffLibrarySection(selectedCategory);
+  const showExtrasPanel = leftTab === "extras";
+  const showMealsPanel = leftTab === "meals";
 
   return (
     <section className="hub-menu-studio" style={studioShell}>
@@ -305,84 +334,42 @@ export function HubMenuStudio({
         </div>
       ) : null}
 
-      <section style={categoryCreateCard}>
-        <p style={sectionLabel}>Add category</p>
-        <div style={categoryCreateRowSimple}>
-          <label style={categorySelectField}>
-            <span style={darkFieldLabel}>Category type</span>
-            <select
-              style={lightInput}
-              value={newCategory.presetId}
-              disabled={studioLocked}
-              onChange={(event) => onNewCategoryPresetChange(event.target.value)}
-            >
-              {categoryPresetOptions.map((option: HubMenuCategoryPresetChoice) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label style={categoryNameField}>
-            <span style={darkFieldLabel}>Name on menu</span>
-            <input
-              style={lightInput}
-              value={newCategory.name}
-              onChange={(event) => onNewCategoryChange({ name: event.target.value })}
-              placeholder="e.g. Pizzas"
-              disabled={studioLocked}
-            />
-          </label>
-          {!creatingPizzaCategory ? (
-            <label style={defaultPriceField}>
-              <span style={darkFieldLabel}>Default price (£)</span>
-              <input
-                type="number"
-                step="0.01"
-                style={lightInput}
-                value={newCategory.defaultPrice}
-                onChange={(event) => onNewCategoryChange({ defaultPrice: event.target.value })}
-                placeholder="7.99"
-                disabled={studioLocked}
-              />
-            </label>
-          ) : null}
-          <button type="button" style={primaryButton} onClick={onCreateCategory} disabled={studioLocked}>
-            Add category
-          </button>
-        </div>
-      </section>
-
-      {staffSections.length > 0 || visibleSections.length > 0 ? (
-        <div className="hub-menu-builder-layout">
+      <div className="hub-menu-builder-layout">
           <aside className="hub-menu-category-sidebar" style={categorySidebar}>
-            <p style={sidebarTitle}>Menu setup</p>
-            <p style={sidebarHint}>Staff-only sections are not shown on the customer website.</p>
-            <nav style={categoryNav} aria-label="Menu categories">
-              {staffSections.map((section) => (
-                <button
-                  key={section.id}
-                  type="button"
-                  className="hub-menu-category-nav-btn"
-                  style={
-                    section.id === selectedCategory?.id
-                      ? isHubMenuMealLibrarySection(section)
-                        ? categoryNavMealActive
-                        : categoryNavStaffActive
-                      : isHubMenuMealLibrarySection(section)
-                        ? categoryNavMeal
-                        : categoryNavStaff
-                  }
-                  onClick={() => onSelectCategory(section.id)}
-                >
-                  <span style={categoryNavName}>{section.name}</span>
-                  <span style={categoryNavMeta}>
-                    {section.items.length} {isHubMenuMealLibrarySection(section) ? "meal" : "topping"}
-                    {section.items.length === 1 ? "" : "s"}
-                  </span>
-                </button>
-              ))}
-              {staffSections.length > 0 && visibleSections.length > 0 ? <div style={sidebarDivider} /> : null}
+            <div className="hub-menu-studio-tabs" style={leftTabRow} role="tablist" aria-label="Menu builder sections">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={leftTab === "categories"}
+                style={leftTab === "categories" ? leftTabActive : leftTabButton}
+                onClick={() => selectLeftTab("categories")}
+              >
+                Categories
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={leftTab === "extras"}
+                style={leftTab === "extras" ? leftTabActive : leftTabButton}
+                onClick={() => selectLeftTab("extras")}
+              >
+                Toppings / extras
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={leftTab === "meals"}
+                style={leftTab === "meals" ? leftTabActive : leftTabButton}
+                onClick={() => selectLeftTab("meals")}
+              >
+                Make it a meal
+              </button>
+            </div>
+
+            {leftTab === "categories" ? (
+              <>
+                <p style={sidebarHint}>Customer menu categories — set the price on each item, not here.</p>
+                <nav style={categoryNav} aria-label="Menu categories">
               {visibleSections.map((section, index) => (
                 <div key={section.id} style={categoryNavRow}>
                   <button
@@ -418,33 +405,72 @@ export function HubMenuStudio({
                   </div>
                 </div>
               ))}
-            </nav>
+                </nav>
+                <section style={sidebarAddCategory}>
+                  <p style={sectionLabel}>New category</p>
+                  <label style={field}>
+                    <span style={darkFieldLabel}>Type</span>
+                    <select
+                      style={lightInput}
+                      value={newCategory.presetId}
+                      disabled={studioLocked}
+                      onChange={(event) => onNewCategoryPresetChange(event.target.value)}
+                    >
+                      {categoryPresetOptions.map((option: HubMenuCategoryPresetChoice) => (
+                        <option key={option.id} value={option.id}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label style={field}>
+                    <span style={darkFieldLabel}>Name on menu</span>
+                    <input
+                      style={lightInput}
+                      value={newCategory.name}
+                      onChange={(event) => onNewCategoryChange({ name: event.target.value })}
+                      placeholder="e.g. Pizzas"
+                      disabled={studioLocked}
+                    />
+                  </label>
+                  <button type="button" style={primaryButtonCompact} onClick={onCreateCategory} disabled={studioLocked}>
+                    Add category
+                  </button>
+                </section>
+              </>
+            ) : leftTab === "extras" ? (
+              <p style={sidebarHint}>Build your topping list here. Tick which toppings each item offers in the Categories tab.</p>
+            ) : (
+              <p style={sidebarHint}>Create meal deals here, then enable them per item under Categories.</p>
+            )}
           </aside>
 
-          {selectedCategory ? (
-            <div className="hub-menu-builder-workspace" style={builderWorkspace}>
+          <div className="hub-menu-builder-workspace" style={builderWorkspace}>
             <div className="hub-menu-builder-main" style={builderMain}>
-              {selectedIsStaffLibrary ? (
+              {showExtrasPanel && extrasSection ? (
                 <div className="hub-menu-staff-library-editor" style={staffLibraryEditor}>
-                  {isHubMenuExtrasLibrarySection(selectedCategory) && extrasSection ? (
-                    <HubMenuExtrasLibrary
-                      section={extrasSection}
-                      onAddTopping={onAddExtraTopping}
-                      onRemoveTopping={onRemoveExtraTopping}
-                      readOnly={studioLocked}
-                    />
-                  ) : null}
-                  {isHubMenuMealLibrarySection(selectedCategory) && mealSection ? (
-                    <HubMenuMealLibrary
-                      section={mealSection}
-                      onAddTemplate={onAddMealTemplate}
-                      onUpdateTemplate={onUpdateMealTemplate}
-                      onRemoveTemplate={onRemoveMealTemplate}
-                      readOnly={studioLocked}
-                    />
-                  ) : null}
+                  <HubMenuExtrasLibrary
+                    section={extrasSection}
+                    onAddTopping={onAddExtraTopping}
+                    onRemoveTopping={onRemoveExtraTopping}
+                    readOnly={studioLocked}
+                  />
                 </div>
-              ) : (
+              ) : null}
+
+              {showMealsPanel && mealSection ? (
+                <div className="hub-menu-staff-library-editor" style={staffLibraryEditor}>
+                  <HubMenuMealLibrary
+                    section={mealSection}
+                    onAddTemplate={onAddMealTemplate}
+                    onUpdateTemplate={onUpdateMealTemplate}
+                    onRemoveTemplate={onRemoveMealTemplate}
+                    readOnly={studioLocked}
+                  />
+                </div>
+              ) : null}
+
+              {showCategoryBuilder ? (
                 <>
               <aside className="hub-menu-item-sidebar" style={itemSidebar}>
                 <div style={itemSidebarHeader}>
@@ -498,23 +524,8 @@ export function HubMenuStudio({
                         onChange={(event) => onUpdateSectionField("description", event.target.value)}
                       />
                     </label>
-                    <label style={field}>
-                      <span style={darkFieldLabel}>Default price for new items</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        style={lightInput}
-                        value={selectedCategory.defaultPrice ?? ""}
-                        onChange={(event) =>
-                          onUpdateSectionField("defaultPrice", event.target.value ? Number(event.target.value) : null)
-                        }
-                      />
-                    </label>
                   </div>
                   <div style={inlineActions}>
-                    <button type="button" style={secondaryButton} onClick={onApplyCategoryPrice}>
-                      Apply default price to all items
-                    </button>
                     <button type="button" style={dangerButtonSmall} onClick={onDeleteCategory}>
                       Delete category
                     </button>
@@ -570,7 +581,7 @@ export function HubMenuStudio({
                       style={lightInput}
                       value={newItem.price}
                       onChange={(event) => onNewItemChange({ price: event.target.value })}
-                      placeholder={creatingItemSection?.defaultPrice != null ? formatMenuMoney(creatingItemSection.defaultPrice) : "7.99"}
+                      placeholder="e.g. 7.99"
                     />
                   </label>
                 )}
@@ -735,25 +746,23 @@ export function HubMenuStudio({
             </section>
           ) : null}
 
-          {!selectedIsStaffLibrary && !isCreatingNewItem && !selectedItem ? (
+          {showCategoryBuilder && !isCreatingNewItem && !selectedItem ? (
             <div style={emptyStateCard}>
               Select a product from the list, or tap <strong>+ Add item</strong> to add one to {selectedCategory.name}.
             </div>
           ) : null}
               </div>
                 </>
-              )}
+              ) : leftTab === "categories" ? (
+                <div style={emptyStateCard}>
+                  Add a category on the left, then add items and set each item&apos;s price here.
+                </div>
+              ) : null}
             </div>
 
             <HubMenuLivePreview settings={hubSettings} menuSections={menuSections} hasUnsavedChanges={hasUnsavedHubChanges} />
-            </div>
-          ) : (
-            <div style={emptyStateCard}>Select a category on the left to add and edit items.</div>
-          )}
-        </div>
-      ) : (
-        <div style={emptyStateCard}>Create your first category above — e.g. Pizzas, Chicken, Drinks.</div>
-      )}
+          </div>
+      </div>
       </div>
 
       {studioLocked ? null : (
@@ -987,6 +996,30 @@ const categoryNavButtonActive: CSSProperties = {
 };
 const categoryNavName: CSSProperties = { fontWeight: 800, fontSize: "0.92rem" };
 const categoryNavMeta: CSSProperties = { fontSize: "0.78rem", opacity: 0.8 };
+const leftTabRow: CSSProperties = { display: "grid", gap: 6 };
+const leftTabButton: CSSProperties = {
+  textAlign: "left",
+  padding: "10px 12px",
+  borderRadius: 10,
+  border: "1px solid rgba(15, 17, 21, 0.12)",
+  background: "#fff",
+  fontWeight: 800,
+  fontSize: "0.86rem",
+  cursor: "pointer",
+};
+const leftTabActive: CSSProperties = {
+  ...leftTabButton,
+  borderColor: "rgba(7, 155, 200, 0.45)",
+  background: "rgba(7, 155, 200, 0.12)",
+  color: "#064f68",
+};
+const sidebarAddCategory: CSSProperties = {
+  display: "grid",
+  gap: 8,
+  paddingTop: 10,
+  marginTop: 6,
+  borderTop: "1px solid rgba(15, 17, 21, 0.1)",
+};
 const builderMain: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "minmax(200px, 240px) minmax(0, 1fr)",

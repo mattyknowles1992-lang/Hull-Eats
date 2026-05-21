@@ -796,7 +796,7 @@ export default function MerchantPortalPage() {
       setNewItem({
         ...initialCreateItemState,
         sectionId,
-        price: section?.defaultPrice != null ? String(section.defaultPrice) : "",
+        price: "",
       });
       setPizzaSizeRows(createInitialPizzaSizeRows());
       setNewItemVariationRows([]);
@@ -1391,7 +1391,7 @@ export default function MerchantPortalPage() {
     updateMenuSections((current) => [...current, createdCategory]);
     setSelectedCategoryId(createdCategory.id);
     setNewCategory(initialCreateCategoryState);
-    setMenuNotice(`Added ${createdCategory.name}. Select it below and tap + Add item.`);
+    setMenuNotice(`Added ${createdCategory.name}. Add items in Categories and set a price on each one.`);
   };
 
   const handleDeleteCategory = (sectionId: string, sectionName: string) => {
@@ -1438,12 +1438,15 @@ export default function MerchantPortalPage() {
       price = built.basePrice;
       optionGroups = built.optionGroups;
     } else {
-      const effectivePrice = newItem.price.trim() ? Number(newItem.price) : targetSection?.defaultPrice;
-      if (effectivePrice === null || effectivePrice === undefined || Number.isNaN(effectivePrice)) {
-        setMenuNotice("Enter an item price or set a category default price before creating the item.");
+      if (!newItem.price.trim()) {
+        setMenuNotice("Enter a price on this item before saving.");
         return;
       }
-      price = effectivePrice;
+      price = Number(newItem.price);
+      if (Number.isNaN(price) || price < 0) {
+        setMenuNotice("Enter a valid price for this item.");
+        return;
+      }
       optionGroups = [];
     }
 
@@ -2190,12 +2193,7 @@ export default function MerchantPortalPage() {
               onOpenImport={() => setActiveHubPanel("import")}
               onUpdateSectionField={(field, value) => {
                 if (selectedCategory) {
-                  updateSection(selectedCategory.id, field, value);
-                }
-              }}
-              onApplyCategoryPrice={() => {
-                if (selectedCategory) {
-                  handleApplyCategoryPrice(selectedCategory.id);
+                  updateSection(selectedCategory.id, field, String(value ?? ""));
                 }
               }}
               onUpdateItem={(updater) => {
