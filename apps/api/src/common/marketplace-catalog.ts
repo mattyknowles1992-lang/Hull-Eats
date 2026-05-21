@@ -1,8 +1,14 @@
 import { NotFoundException } from "@nestjs/common";
 
 import { prisma } from "@hull-eats/db";
-import type { MenuItem, StoreSummary } from "@hull-eats/types";
-import { decodeHubMenuCategoryDescription, normaliseDeliveryPricing } from "@hull-eats/types";
+import type { MenuItem, StoreSummary, StorefrontPromotionBanner } from "@hull-eats/types";
+import {
+  applyStorefrontPromotionsToMenu,
+  decodeHubMenuCategoryDescription,
+  normaliseDeliveryPricing,
+} from "@hull-eats/types";
+
+import { mapStorePromotionRow } from "./store-promotion-mapper";
 
 import { demoMenuByStore, demoMenuSectionsByStore, demoStores } from "./demo-data";
 
@@ -19,6 +25,7 @@ export type MarketplaceMenu = {
   menuSetupComplete: boolean;
   onboardingMessage?: string;
   categories: MarketplaceMenuCategory[];
+  activePromotions: StorefrontPromotionBanner[];
 };
 
 const mapStoreType = (type: string): StoreSummary["type"] => type.toLowerCase() as StoreSummary["type"];
@@ -170,6 +177,10 @@ export const findLiveMarketplaceMenu = async (slugOrId: string): Promise<Marketp
           },
         },
       },
+      promotions: {
+        where: { isActive: true },
+        orderBy: { createdAt: "desc" },
+      },
     },
   });
 
@@ -180,21 +191,32 @@ export const findLiveMarketplaceMenu = async (slugOrId: string): Promise<Marketp
   const categories = store.menuCategories
     .map((section) => {
       const decoded = decodeHubMenuCategoryDescription(section.description);
-      return {
-        id: section.id,
-        name: section.name,
-        description: decoded.description || undefined,
-        items: section.menuItems.map((item) => mapMenuItem(item)),
-      };
+      return { section, decoded };
     })
+    .filter(
+      ({ decoded }) => decoded.presetKey !== "extras-library" && decoded.presetKey !== "meal-upgrades-library",
+    )
+    .map(({ section, decoded }) => ({
+      id: section.id,
+      name: section.name,
+      description: decoded.description || undefined,
+      items: section.menuItems.map((item) => mapMenuItem(item)),
+    }))
     .filter((category) => category.items.length > 0);
+
+  const hubPromotions = store.promotions.map((row) => mapStorePromotionRow(row));
+  const { categories: categoriesWithOffers, activePromotions } = applyStorefrontPromotionsToMenu(
+    categories,
+    hubPromotions,
+  );
 
   return {
     storeId: store.id,
     storeSlug: store.slug,
     menuSetupComplete: store.menuSetupComplete,
     onboardingMessage: store.onboardingMessage ?? undefined,
-    categories,
+    categories: categoriesWithOffers,
+    activePromotions,
   };
 };
 
@@ -230,6 +252,7 @@ export const resolveMarketplaceMenu = async (slugOrId: string): Promise<Marketpl
               },
             ]
           : [],
+    activePromotions: [],
   };
 };
 

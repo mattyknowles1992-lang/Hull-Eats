@@ -63,7 +63,18 @@ Defined in [render.yaml](/C:/Hull_Eats/render.yaml):
 
 ### Shared backend env
 
-- `DATABASE_URL`
+- `DATABASE_URL` — runtime (API/worker); Supabase **pooler** (port 6543) is fine
+- `DATABASE_URL_DIRECT` — optional but recommended for `pnpm db:deploy` / `pnpm db:check` (Supabase **direct** URI, port 5432). Copy from `.env.example`.
+
+**Apply and verify schema from your machine (auto-loads `Hull_Eats/.env`):**
+
+```powershell
+corepack pnpm db:check    # pass/fail: migrations, tables, hub viewer role
+corepack pnpm db:deploy   # apply any pending Prisma migrations
+```
+
+Manual SQL alternative for the viewer role only: `ALTER TYPE "membership_role" ADD VALUE IF NOT EXISTS 'viewer';` in Supabase SQL Editor.
+
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `STRIPE_SECRET_KEY`

@@ -20,6 +20,12 @@ export function decodeHubMenuCategoryDescription(raw: string | null | undefined)
 
 export const HUB_MENU_CATEGORY_CUSTOM_ID = "custom";
 
+/** Internal category for hub-wide extra toppings (hidden on customer menu). */
+export const HUB_MENU_EXTRAS_LIBRARY_PRESET = "extras-library";
+
+/** Internal category for meal-upgrade templates (hidden on customer menu). */
+export const HUB_MENU_MEAL_LIBRARY_PRESET = "meal-upgrades-library";
+
 export type HubMenuCategoryPresetChoice = {
   id: string;
   label: string;
@@ -65,6 +71,24 @@ export function hubMenuCategorySelectOptions(): HubMenuCategoryPresetChoice[] {
     { id: HUB_MENU_CATEGORY_CUSTOM_ID, label: "Add custom category", defaultName: "", defaultDescription: "" },
     ...HUB_MENU_CATEGORY_PRESET_CHOICES,
   ];
+}
+
+export function isHubMenuExtrasLibrarySection(
+  section: { presetKey?: string | null; name?: string } | null | undefined,
+): boolean {
+  return section?.presetKey === HUB_MENU_EXTRAS_LIBRARY_PRESET;
+}
+
+export function isHubMenuMealLibrarySection(
+  section: { presetKey?: string | null; name?: string } | null | undefined,
+): boolean {
+  return section?.presetKey === HUB_MENU_MEAL_LIBRARY_PRESET;
+}
+
+export function isHubMenuStaffLibrarySection(
+  section: { presetKey?: string | null; name?: string } | null | undefined,
+): boolean {
+  return isHubMenuExtrasLibrarySection(section) || isHubMenuMealLibrarySection(section);
 }
 
 export function isHubMenuSectionPizza(section: { presetKey?: string | null; name?: string } | null | undefined): boolean {

@@ -32,6 +32,8 @@ export const menuItemSchema = z.object({
   name: z.string().min(1),
   description: z.string().default(""),
   price: z.number().nonnegative(),
+  /** Original list price when a live offer reduces `price` on the storefront. */
+  compareAtPrice: z.number().nonnegative().optional(),
   isActive: z.boolean().default(true),
   imageUrl: z.string().url().optional(),
   trackStock: z.boolean().default(false),

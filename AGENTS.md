@@ -384,6 +384,16 @@ corepack pnpm --filter @hull-eats/customer-web typecheck
 
 Use `corepack pnpm ...` on machines where `pnpm` is not directly on PATH.
 
+**Database (loads `Hull_Eats/.env` automatically):**
+
+```powershell
+corepack pnpm db:check    # verify .env, migrations, core tables, viewer role
+corepack pnpm db:deploy   # apply pending Prisma migrations
+corepack pnpm db:status   # show migration status only
+```
+
+Set `DATABASE_URL_DIRECT` in `.env` (Supabase direct URI, port 5432) for reliable `db:deploy` / `db:check`. Keep `DATABASE_URL` as the pooler URL for the API on Render. See `.env.example`.
+
 ## Known Gaps
 
 These areas are not complete and should be treated as future work unless the user asks for them directly:

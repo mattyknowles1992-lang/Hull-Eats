@@ -3865,6 +3865,73 @@ button.filter-pill {
   box-shadow: 0 10px 18px rgba(15, 17, 21, 0.14);
 }
 
+.menu-item-price-offer {
+  display: grid;
+  gap: 4px;
+  justify-items: end;
+}
+
+.menu-item-price-was {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #7a8491;
+  text-decoration: line-through;
+}
+
+.menu-item-price-pill-offer {
+  background: linear-gradient(180deg, #9b4a12, #7a3608);
+}
+
+.store-offers-banner-stack {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.store-offers-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border-radius: 22px;
+  border: 1px solid rgba(155, 74, 18, 0.22);
+  background: linear-gradient(135deg, rgba(255, 244, 232, 0.96), rgba(255, 252, 247, 0.98));
+  box-shadow: 0 16px 30px rgba(155, 74, 18, 0.08);
+}
+
+.store-offers-banner-copy h3 {
+  margin: 6px 0 0;
+  font-size: 1.2rem;
+}
+
+.store-offers-banner-copy p {
+  margin: 8px 0 0;
+  color: #596271;
+  line-height: 1.5;
+}
+
+.store-offers-banner-eyebrow {
+  margin: 0;
+  color: #9b4a12;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.store-offers-banner-badge {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: #181b22;
+  color: #fff7ef;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .menu-item-footer {
   display: flex;
   justify-content: flex-end;

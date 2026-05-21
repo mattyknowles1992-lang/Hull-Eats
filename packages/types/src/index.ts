@@ -13,6 +13,7 @@ export * from "./marketplace-resale";
 export * from "./orders";
 export * from "./payments";
 export * from "./promotions";
+export * from "./storefront-promotions";
 export * from "./printer";
 export * from "./queues";
 export * from "./rbac";

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-import type { MenuItem, StoreSummary } from "@hull-eats/types";
+import type { MenuItem, StoreSummary, StorefrontPromotionBanner } from "@hull-eats/types";
 
 import {
   addConfiguredItemToBasket,
@@ -54,9 +54,26 @@ type StoreMenuClientProps = {
   storeDeliveryFee?: number;
   storeDeliveryPricing?: StoreSummary["deliveryPricing"];
   categories: MenuCategory[];
+  activePromotions?: StorefrontPromotionBanner[];
 };
 
 const formatMoney = (value: number) => `£${value.toFixed(2)}`;
+
+function MenuItemPrice({ item }: { item: MenuItem }) {
+  const hasOffer =
+    item.compareAtPrice != null && item.compareAtPrice > item.price;
+
+  if (!hasOffer) {
+    return <strong className="menu-item-price-pill">{formatMoney(item.price)}</strong>;
+  }
+
+  return (
+    <div className="menu-item-price-offer" aria-label={`Was ${formatMoney(item.compareAtPrice!)}, now ${formatMoney(item.price)}`}>
+      <span className="menu-item-price-was">{formatMoney(item.compareAtPrice!)}</span>
+      <strong className="menu-item-price-pill menu-item-price-pill-offer">{formatMoney(item.price)}</strong>
+    </div>
+  );
+}
 
 const categoryImageRules = [
   {
@@ -170,6 +187,7 @@ export function StoreMenuClient({
   storeDeliveryFee,
   storeDeliveryPricing,
   categories,
+  activePromotions = [],
 }: StoreMenuClientProps) {
   const [basket, setBasket] = useState<StoreBasket | null>(null);
   const [activeItem, setActiveItem] = useState<MenuItem | null>(null);
@@ -783,6 +801,21 @@ export function StoreMenuClient({
           </section>
         ) : null}
 
+      {activePromotions.length > 0 ? (
+        <section className="store-offers-banner-stack" aria-label="Live offers">
+          {activePromotions.map((promotion) => (
+            <article key={promotion.id} className="store-offers-banner">
+              <div className="store-offers-banner-copy">
+                <p className="store-offers-banner-eyebrow">Offer</p>
+                <h3>{promotion.headline}</h3>
+                {promotion.detail ? <p>{promotion.detail}</p> : null}
+              </div>
+              <span className="store-offers-banner-badge">Live now</span>
+            </article>
+          ))}
+        </section>
+      ) : null}
+
       <section className="menu-category-filter-panel" aria-label="Menu category filters">
         <div className="menu-category-filter-header">
           <div>
@@ -873,7 +906,7 @@ export function StoreMenuClient({
                       </div>
                       <div style={{ display: "grid", gap: 6, justifyItems: "end" }}>
                         {statusLabel ? <span className="menu-item-status-pill">{statusLabel}</span> : null}
-                        <strong className="menu-item-price-pill">{formatMoney(item.price)}</strong>
+                        <MenuItemPrice item={item} />
                       </div>
                     </div>
 
@@ -1040,7 +1073,7 @@ export function StoreMenuClient({
             <section className="customise-summary-card">
               <div className="glance-row">
                 <span className="muted-copy">Base item</span>
-                <strong>{formatMoney(activeItem.price)}</strong>
+                <MenuItemPrice item={activeItem} />
               </div>
               <div className="glance-row">
                 <span className="muted-copy">Customisations</span>

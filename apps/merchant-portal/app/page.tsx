@@ -20,6 +20,7 @@ import {
   hubRoleLabel,
   hubRolesCreatableBy,
   isHubMenuSectionPizza,
+  isHubMenuStaffLibrarySection,
 } from "@hull-eats/types";
 
 import { HubConfigBackups } from "./hub-config-backups";
@@ -30,14 +31,22 @@ import { HE_BRAND } from "./portal-brand";
 import { HubDriversWorkbench } from "./hub-drivers-workbench";
 import { HubOffersWorkbench } from "./hub-offers-workbench";
 import {
+  applyDefaultExtraToppingsToItem,
+  applyManualVariationsToItem,
   buildLocalMenuCategory,
   buildLocalMenuItem,
   buildMenuPublishSummary,
   buildMenuTemplate,
   cloneMenuItemDraft,
   computeMenuPublishIssues,
+  ensureStaffMenuSections,
+  findExtrasLibrarySection,
+  findMealLibrarySection,
+  getHubExtraToppingsFromSection,
   mergeMenuTemplateWithExistingSizes,
   menuTemplateCards,
+  reorderCustomerMenuSections,
+  type ManualVariationRow,
   type MenuTemplateKind,
 } from "./menu-studio-core";
 import { PizzaSizeDraftPanel, buildPizzaSizeOptionGroupFromRows, createInitialPizzaSizeRows } from "./pizza-size-draft";
@@ -625,6 +634,7 @@ export default function MerchantPortalPage() {
   const [newCategory, setNewCategory] = useState<CreateCategoryFormState>(initialCreateCategoryState);
   const [newItem, setNewItem] = useState<CreateItemFormState>(initialCreateItemState);
   const [pizzaSizeRows, setPizzaSizeRows] = useState<PizzaSizeRow[]>(() => createInitialPizzaSizeRows());
+  const [newItemVariationRows, setNewItemVariationRows] = useState<ManualVariationRow[]>([]);
   const [selectedImportCandidateIds, setSelectedImportCandidateIds] = useState<string[]>([]);
   const [selectedImportImageName, setSelectedImportImageName] = useState("");
   const [pastedMenuText, setPastedMenuText] = useState("");
@@ -648,6 +658,7 @@ export default function MerchantPortalPage() {
   const [isCreatingNewItem, setIsCreatingNewItem] = useState(false);
   const [showChoiceSetupForItemId, setShowChoiceSetupForItemId] = useState<string | null>(null);
   const [menuPublishDialogOpen, setMenuPublishDialogOpen] = useState(false);
+  const [menuPreviewOpen, setMenuPreviewOpen] = useState(false);
   const [menuPublishing, setMenuPublishing] = useState(false);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showAccountPasswords, setShowAccountPasswords] = useState(false);
@@ -656,6 +667,8 @@ export default function MerchantPortalPage() {
   const [showHubPasswordConfirm, setShowHubPasswordConfirm] = useState(false);
   const [showCreateUserPassword, setShowCreateUserPassword] = useState(false);
 
+  const extrasSection = useMemo(() => findExtrasLibrarySection(menuSections), [menuSections]);
+  const mealSection = useMemo(() => findMealLibrarySection(menuSections), [menuSections]);
   const menuPublishIssues = useMemo(() => computeMenuPublishIssues(menuSections), [menuSections]);
 
   const menuStats = useMemo(() => {
@@ -786,6 +799,7 @@ export default function MerchantPortalPage() {
         price: section?.defaultPrice != null ? String(section.defaultPrice) : "",
       });
       setPizzaSizeRows(createInitialPizzaSizeRows());
+      setNewItemVariationRows([]);
       setMenuNotice("");
     },
     [menuSections],
@@ -797,6 +811,7 @@ export default function MerchantPortalPage() {
     setSelectedItemId(section?.items[0]?.id ?? "");
     setNewItem((current) => ({ ...initialCreateItemState, sectionId: current.sectionId }));
     setPizzaSizeRows(createInitialPizzaSizeRows());
+    setNewItemVariationRows([]);
   }, [menuSections, selectedCategoryId]);
 
   const commitSavedHubSnapshot = useCallback((settings: HubSettings, sections: HubMenuSection[]) => {
@@ -858,6 +873,10 @@ export default function MerchantPortalPage() {
     setSaveNotice("");
   };
 
+  const handleMoveCategory = (sectionId: string, direction: "up" | "down") => {
+    updateMenuSections((current) => reorderCustomerMenuSections(current, sectionId, direction));
+  };
+
   const applyWorkspace = (workspace: MerchantWorkspace, user: HubUser | null) => {
     setActiveHubId(workspace.hub.id);
     setActiveHubSlug(workspace.hub.slug);
@@ -870,13 +889,15 @@ export default function MerchantPortalPage() {
           ? workspace.settings.deliveryPostcodeZones
           : createDefaultHullPostcodeZones(),
     });
-    setMenuSections(workspace.menuSections);
+    const sections = ensureStaffMenuSections(workspace.menuSections);
+    setMenuSections(sections);
     setPendingImports(workspace.pendingImports ?? []);
-    setSelectedCategoryId(workspace.menuSections[0]?.id ?? "");
-    setSelectedItemId(workspace.menuSections[0]?.items[0]?.id ?? "");
+    const firstCustomer = sections.find((section) => !isHubMenuStaffLibrarySection(section));
+    setSelectedCategoryId(firstCustomer?.id ?? sections[0]?.id ?? "");
+    setSelectedItemId(firstCustomer?.items[0]?.id ?? "");
     setNewItem((current) => ({
       ...current,
-      sectionId: workspace.menuSections[0]?.id ?? "",
+      sectionId: firstCustomer?.id ?? sections[0]?.id ?? "",
     }));
     commitSavedHubSnapshot(workspace.settings, workspace.menuSections);
   };
@@ -1207,6 +1228,42 @@ export default function MerchantPortalPage() {
     );
   };
 
+  const handleSaveDraft = async () => {
+    if (!merchantToken || !activeHubId) {
+      return;
+    }
+    if (!hubAccess?.canEditWorkspace) {
+      setSaveNotice("Your account is view-only and cannot save menu changes.");
+      return;
+    }
+    setMenuPublishing(true);
+    try {
+      const workspace = await saveWorkspace(merchantToken, activeHubId, {
+        settings: hubSettings,
+        menuSections,
+      });
+      setHubSettings({
+        ...workspace.settings,
+        deliveryPostcodeZones:
+          workspace.settings.deliveryPostcodeZones.length > 0
+            ? workspace.settings.deliveryPostcodeZones
+            : createDefaultHullPostcodeZones(),
+      });
+      setMenuSections(ensureStaffMenuSections(workspace.menuSections));
+      setHubUsers(workspace.users);
+      setPendingImports(workspace.pendingImports ?? []);
+      commitSavedHubSnapshot(workspace.settings, workspace.menuSections);
+      setSaveNotice("Draft saved — you can come back and publish when ready.");
+      setMenuNotice("Progress saved. Customers only see changes after you publish.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Save failed.";
+      setSaveNotice(message);
+      setMenuNotice(message);
+    } finally {
+      setMenuPublishing(false);
+    }
+  };
+
   const handleSaveHub = async () => {
     if (!merchantToken || !activeHubId) {
       return;
@@ -1230,7 +1287,7 @@ export default function MerchantPortalPage() {
             ? workspace.settings.deliveryPostcodeZones
             : createDefaultHullPostcodeZones(),
       });
-      setMenuSections(workspace.menuSections);
+      setMenuSections(ensureStaffMenuSections(workspace.menuSections));
       setHubUsers(workspace.users);
       setPendingImports(workspace.pendingImports ?? []);
       commitSavedHubSnapshot(workspace.settings, workspace.menuSections);
@@ -1334,8 +1391,7 @@ export default function MerchantPortalPage() {
     updateMenuSections((current) => [...current, createdCategory]);
     setSelectedCategoryId(createdCategory.id);
     setNewCategory(initialCreateCategoryState);
-    beginCreateItem(createdCategory.id);
-    setMenuNotice(`Added ${createdCategory.name} to your draft. Save & publish menu when ready.`);
+    setMenuNotice(`Added ${createdCategory.name}. Select it below and tap + Add item.`);
   };
 
   const handleDeleteCategory = (sectionId: string, sectionName: string) => {
@@ -1405,6 +1461,13 @@ export default function MerchantPortalPage() {
 
     if (isPizza) {
       createdItem = mergeMenuTemplateWithExistingSizes(createdItem, "pizza");
+    } else if (newItemVariationRows.some((row) => row.label.trim())) {
+      createdItem = applyManualVariationsToItem(createdItem, newItemVariationRows);
+    }
+
+    const hubToppings = getHubExtraToppingsFromSection(extrasSection);
+    if (!isPizza && hubToppings.length > 0) {
+      createdItem = applyDefaultExtraToppingsToItem(createdItem, hubToppings);
     }
 
     updateMenuSections((current) =>
@@ -1421,10 +1484,11 @@ export default function MerchantPortalPage() {
       sectionId: current.sectionId,
     }));
     setPizzaSizeRows(createInitialPizzaSizeRows());
+    setNewItemVariationRows([]);
     setMenuNotice(
       isPizza
         ? `Added ${createdItem.name} with sizes, crust, and topping groups. Review below, set Live, then publish.`
-        : `Added ${createdItem.name} to your draft (hidden until you set Live and publish).`,
+        : `Added ${createdItem.name} to your draft (hidden until you set Live and publish). Duplicate to copy it for another portion size.`,
     );
   };
 
@@ -1486,8 +1550,11 @@ export default function MerchantPortalPage() {
       ),
     );
     setSelectedItemId(createdItem.id);
+    setIsCreatingNewItem(false);
     setShowChoiceSetupForItemId(null);
-    setMenuNotice(`Duplicated as ${createdItem.name} (hidden until you publish).`);
+    setMenuNotice(
+      `Duplicated "${item.name}". Change the name (e.g. 6 → 8 wings) and price, then set Live and publish.`,
+    );
   };
 
   const handleDeleteItem = (itemId: string, itemName: string) => {
@@ -1552,7 +1619,7 @@ export default function MerchantPortalPage() {
 
     try {
       const workspace = await applyMenuImport(merchantToken, activeHubId, importId, selectedImportCandidateIds);
-      setMenuSections(workspace.menuSections);
+      setMenuSections(ensureStaffMenuSections(workspace.menuSections));
       setPendingImports(workspace.pendingImports ?? []);
       setSelectedImportCandidateIds([]);
       setMenuNotice(
@@ -1615,7 +1682,7 @@ export default function MerchantPortalPage() {
           : createDefaultHullPostcodeZones(),
     };
     setHubSettings(settings);
-    setMenuSections(workspace.menuSections);
+    setMenuSections(ensureStaffMenuSections(workspace.menuSections));
     commitSavedHubSnapshot(settings, workspace.menuSections);
     setSaveNotice("Backup restored and saved to your hub.");
   };
@@ -2009,15 +2076,19 @@ export default function MerchantPortalPage() {
               selectedCategory={selectedCategory}
               selectedItem={selectedItem}
               isCreatingNewItem={isCreatingNewItem}
-              showChoiceSetupForItemId={showChoiceSetupForItemId}
               newCategory={newCategory}
               newItem={newItem}
               pizzaSizeRows={pizzaSizeRows}
+              newItemVariationRows={newItemVariationRows}
+              onNewItemVariationRowsChange={setNewItemVariationRows}
               publishIssues={menuPublishIssues}
               hasUnsavedHubChanges={hasUnsavedHubChanges}
-              activeHubSlug={activeHubSlug}
-              customerWebBaseUrl={customerWebBaseUrl}
+              hubSettings={hubSettings}
+              menuPreviewOpen={menuPreviewOpen}
+              onOpenMenuPreview={() => setMenuPreviewOpen(true)}
+              onCloseMenuPreview={() => setMenuPreviewOpen(false)}
               categoryPresetOptions={HUB_CATEGORY_PRESET_OPTIONS}
+              onMoveCategory={handleMoveCategory}
               onNewCategoryPresetChange={handleNewCategoryPresetChange}
               onNewCategoryChange={(patch) => setNewCategory((current) => ({ ...current, ...patch }))}
               onNewItemChange={(patch) => setNewItem((current) => ({ ...current, ...patch }))}
@@ -2048,9 +2119,69 @@ export default function MerchantPortalPage() {
                   handleDeleteItem(selectedItem.id, selectedItem.name);
                 }
               }}
-              onApplyTemplate={handleApplyMenuTemplate}
-              onDismissChoiceSetup={() => setShowChoiceSetupForItemId(null)}
+              onSaveDraft={() => void handleSaveDraft()}
               onRequestPublish={handleRequestPublishMenu}
+              extrasSection={extrasSection}
+              onAddExtraTopping={(item) => {
+                if (!extrasSection) {
+                  return;
+                }
+                updateMenuSections((current) =>
+                  current.map((section) =>
+                    section.id === extrasSection.id ? { ...section, items: [...section.items, item] } : section,
+                  ),
+                );
+              }}
+              onRemoveExtraTopping={(itemId) => {
+                if (!extrasSection) {
+                  return;
+                }
+                updateMenuSections((current) =>
+                  current.map((section) =>
+                    section.id === extrasSection.id
+                      ? { ...section, items: section.items.filter((item) => item.id !== itemId) }
+                      : section,
+                  ),
+                );
+              }}
+              mealSection={mealSection}
+              onAddMealTemplate={(item) => {
+                if (!mealSection) {
+                  return;
+                }
+                updateMenuSections((current) =>
+                  current.map((section) =>
+                    section.id === mealSection.id ? { ...section, items: [...section.items, item] } : section,
+                  ),
+                );
+              }}
+              onUpdateMealTemplate={(itemId, updater) => {
+                if (!mealSection) {
+                  return;
+                }
+                updateMenuSections((current) =>
+                  current.map((section) =>
+                    section.id === mealSection.id
+                      ? {
+                          ...section,
+                          items: section.items.map((item) => (item.id === itemId ? updater(item) : item)),
+                        }
+                      : section,
+                  ),
+                );
+              }}
+              onRemoveMealTemplate={(itemId) => {
+                if (!mealSection) {
+                  return;
+                }
+                updateMenuSections((current) =>
+                  current.map((section) =>
+                    section.id === mealSection.id
+                      ? { ...section, items: section.items.filter((item) => item.id !== itemId) }
+                      : section,
+                  ),
+                );
+              }}
               publishDialogOpen={menuPublishDialogOpen}
               publishSummary={menuPublishSummary}
               menuPublishing={menuPublishing}

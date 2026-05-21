@@ -20,6 +20,7 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
 
   const liveMenu = await fetchMarketplaceMenu(resolvedParams.slug);
   const demoMenu = storeMenus[store.slug] ?? fallbackMenu;
+  const activePromotions = liveMenu?.activePromotions ?? [];
   const menu = liveMenu
     ? {
         headline: liveMenu.onboardingMessage || demoMenu.headline,
@@ -92,6 +93,7 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
                 storeDeliveryFee={store.deliveryFee}
                 storeDeliveryPricing={store.deliveryPricing}
                 categories={menu.categories}
+                activePromotions={activePromotions}
               />
             ) : (
               <article className="empty-catalog-card">

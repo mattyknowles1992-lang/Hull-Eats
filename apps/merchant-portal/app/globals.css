@@ -239,9 +239,30 @@ textarea {
     width: 100%;
   }
 
-  .hub-menu-category-tabs {
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: thin;
+  .hub-menu-builder-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .hub-menu-builder-workspace {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .hub-menu-builder-main {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .hub-menu-live-preview {
+    position: static !important;
+    max-height: none !important;
+  }
+
+  .hub-menu-category-sidebar {
+    position: static !important;
+    max-height: none !important;
+  }
+
+  .hub-menu-item-sidebar {
+    max-height: none !important;
   }
 
   .hub-menu-studio .availability-grid {

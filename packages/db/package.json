@@ -13,8 +13,12 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "prisma:generate": "prisma generate",
     "prisma:diff": "dotenv -e ../../.env -- prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --script",
-    "prisma:migrate": "prisma migrate dev --schema prisma/schema.prisma",
-    "seed": "tsx prisma/seed.ts"
+    "prisma:migrate": "dotenv -e ../../.env -- prisma migrate dev --schema prisma/schema.prisma",
+    "prisma:migrate:deploy": "tsx scripts/migrate-deploy.ts",
+    "prisma:migrate:status": "tsx scripts/migrate-status.ts",
+    "db:check": "tsx scripts/verify-database.ts",
+    "db:baseline": "tsx scripts/baseline-and-deploy.ts",
+    "seed": "dotenv -e ../../.env -- tsx prisma/seed.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.7.0"

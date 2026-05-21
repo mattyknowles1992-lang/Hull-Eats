@@ -30,6 +30,7 @@ export class PublicController {
       menuSetupComplete: menu.menuSetupComplete,
       onboardingMessage: menu.onboardingMessage,
       categories: menu.categories,
+      activePromotions: menu.activePromotions,
     };
   }
 

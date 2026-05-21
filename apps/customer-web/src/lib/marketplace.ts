@@ -1,4 +1,4 @@
-import type { MenuItem, StoreSummary } from "@hull-eats/types";
+import type { MenuItem, StoreSummary, StorefrontPromotionBanner } from "@hull-eats/types";
 
 const defaultApiBaseUrl = process.env.NODE_ENV === "production" ? "https://hull-eats-api.onrender.com" : "http://localhost:4000";
 const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL ?? defaultApiBaseUrl).replace(/\/$/, "");
@@ -15,6 +15,7 @@ export type MarketplaceMenu = {
   menuSetupComplete: boolean;
   onboardingMessage?: string;
   categories: MarketplaceMenuCategory[];
+  activePromotions?: StorefrontPromotionBanner[];
 };
 
 async function readJson<T>(response: Response): Promise<T | null> {
