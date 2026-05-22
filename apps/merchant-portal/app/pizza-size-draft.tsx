@@ -79,6 +79,77 @@ export function buildPizzaSizeOptionGroupFromRows(
   };
 }
 
+export function isPizzaSizeOptionGroup(group: MenuItem["optionGroups"][number]): boolean {
+  return group.isRequired && /size/i.test(group.name);
+}
+
+export function pizzaSizeRowsFromMenuItem(item: MenuItem): PizzaSizeRow[] {
+  const sizeGroup = item.optionGroups.find((group) => isPizzaSizeOptionGroup(group));
+  const rows = createInitialPizzaSizeRows();
+  if (!sizeGroup) {
+    return rows;
+  }
+
+  const rowByLabel = new Map(rows.map((row) => [row.label, row]));
+  const customRows: PizzaSizeRow[] = [];
+
+  for (const option of sizeGroup.options) {
+    if (!option.label.trim()) {
+      continue;
+    }
+    const fullPrice = Number((item.price + option.priceDelta).toFixed(2));
+    const standard = rowByLabel.get(option.label);
+    if (standard) {
+      rowByLabel.set(option.label, {
+        ...standard,
+        selected: true,
+        price: String(fullPrice),
+      });
+      continue;
+    }
+    customRows.push({
+      key: option.id,
+      label: option.label,
+      selected: true,
+      price: String(fullPrice),
+      labelEditable: true,
+    });
+  }
+
+  return [...rowByLabel.values(), ...customRows];
+}
+
+/** Drops auto-generated crust groups and duplicate topping groups from the old pizza template. */
+export function simplifyPizzaMenuItem(item: MenuItem): MenuItem {
+  return {
+    ...item,
+    components: [],
+    optionGroups: item.optionGroups.filter(
+      (group) => !/^Crust \(/i.test(group.name) && group.name !== "Extra toppings",
+    ),
+  };
+}
+
+export function applyPizzaSizesToMenuItem(
+  item: MenuItem,
+  rows: PizzaSizeRow[],
+): MenuItem | { error: string } {
+  const built = buildPizzaSizeOptionGroupFromRows(rows);
+  if ("error" in built) {
+    return built;
+  }
+
+  const otherGroups = item.optionGroups.filter(
+    (group) => !isPizzaSizeOptionGroup(group) && !/^Crust \(/i.test(group.name) && group.name !== "Extra toppings",
+  );
+
+  return {
+    ...item,
+    price: built.basePrice,
+    optionGroups: [...otherGroups, ...built.optionGroups],
+  };
+}
+
 const panelStyle: CSSProperties = {
   display: "grid",
   gap: 10,

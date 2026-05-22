@@ -2,17 +2,18 @@
 
 import type { CSSProperties } from "react";
 
-import type { MenuPublishSummary } from "./menu-studio-core";
+import type { HubMenuBoardRecord, MenuPublishSummary } from "./menu-studio-core";
 
 type HubMenuPublishDialogProps = {
   open: boolean;
   summary: MenuPublishSummary;
   publishing: boolean;
+  publishingBoard?: HubMenuBoardRecord | null;
   onCancel: () => void;
   onConfirm: () => void;
 };
 
-export function HubMenuPublishDialog({ open, summary, publishing, onCancel, onConfirm }: HubMenuPublishDialogProps) {
+export function HubMenuPublishDialog({ open, summary, publishing, publishingBoard, onCancel, onConfirm }: HubMenuPublishDialogProps) {
   if (!open) {
     return null;
   }
@@ -33,7 +34,11 @@ export function HubMenuPublishDialog({ open, summary, publishing, onCancel, onCo
           Update your live Hull Eats menu?
         </h2>
         <p style={copy}>
-          Customers only see changes after you publish. Your draft stays in this hub until then.
+          {publishingBoard
+            ? publishingBoard.publishMode === "replace"
+              ? `Publishing "${publishingBoard.name}" will replace your current live customer menu.`
+              : `Publishing "${publishingBoard.name}" will add its categories alongside your existing live menu.`
+            : "Customers only see changes after you publish. Your draft stays in this hub until then."}
         </p>
 
         <div style={statsGrid}>
@@ -61,16 +66,18 @@ export function HubMenuPublishDialog({ open, summary, publishing, onCancel, onCo
         ) : null}
 
         {hasBlockingIssues ? (
-          <div style={issuesBox}>
+          <div className="he-hub-banner" role="alert">
             <strong>Fix these before publishing</strong>
-            <ul style={issuesList}>
+            <ul>
               {summary.issues.map((issue) => (
                 <li key={issue}>{issue}</li>
               ))}
             </ul>
           </div>
         ) : (
-          <div style={readyBox}>Your menu passes the publish checklist.</div>
+          <div className="he-hub-banner" role="status">
+            Your menu passes the publish checklist.
+          </div>
         )}
 
         <div style={actions}>
@@ -78,7 +85,7 @@ export function HubMenuPublishDialog({ open, summary, publishing, onCancel, onCo
             Keep editing
           </button>
           <button type="button" className="he-portal-primary" style={primaryButton} onClick={onConfirm} disabled={publishing || hasBlockingIssues}>
-            {publishing ? "Publishing…" : "Publish to live menu"}
+            {publishing ? "Publishing…" : publishingBoard ? `Publish ${publishingBoard.name}` : "Publish to live menu"}
           </button>
         </div>
       </section>
@@ -131,22 +138,6 @@ const statCard: CSSProperties = {
   textAlign: "center",
 };
 const changeList: CSSProperties = { margin: 0, paddingLeft: 20, color: "#3d4652", lineHeight: 1.6 };
-const issuesBox: CSSProperties = {
-  padding: 14,
-  borderRadius: 14,
-  border: "1px solid rgba(181, 88, 0, 0.35)",
-  background: "rgba(255, 244, 233, 1)",
-  color: "#5b3d12",
-};
-const issuesList: CSSProperties = { margin: "10px 0 0", paddingLeft: 20, lineHeight: 1.6 };
-const readyBox: CSSProperties = {
-  padding: 12,
-  borderRadius: 14,
-  border: "1px solid rgba(23, 156, 107, 0.25)",
-  background: "rgba(23, 156, 107, 0.08)",
-  color: "#0f5e3d",
-  fontWeight: 700,
-};
 const actions: CSSProperties = { display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "flex-end", marginTop: 4 };
 const secondaryButton: CSSProperties = {
   border: "1px solid rgba(15, 17, 21, 0.16)",

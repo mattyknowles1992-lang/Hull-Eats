@@ -26,6 +26,18 @@ export const HUB_MENU_EXTRAS_LIBRARY_PRESET = "extras-library";
 /** Internal category for meal-upgrade templates (hidden on customer menu). */
 export const HUB_MENU_MEAL_LIBRARY_PRESET = "meal-upgrades-library";
 
+/** @deprecated Migrated to burger-parts-library + kebab-parts-library */
+export const HUB_MENU_BURGER_KEBAB_PARTS_PRESET = "burger-kebab-parts-library";
+
+/** Internal category for burger base parts (buns, meat, salad — hidden on customer menu). */
+export const HUB_MENU_BURGER_PARTS_PRESET = "burger-parts-library";
+
+/** Internal category for kebab base parts (bread, meat, salad — hidden on customer menu). */
+export const HUB_MENU_KEBAB_PARTS_PRESET = "kebab-parts-library";
+
+/** Internal store for draft menu boards (seasonal / alternative menus — hidden on customer menu). */
+export const HUB_MENU_BOARDS_PRESET = "menu-boards-config";
+
 export type HubMenuCategoryPresetChoice = {
   id: string;
   label: string;
@@ -85,10 +97,101 @@ export function isHubMenuMealLibrarySection(
   return section?.presetKey === HUB_MENU_MEAL_LIBRARY_PRESET;
 }
 
+export function isHubMenuBurgerKebabPartsSection(
+  section: { presetKey?: string | null; name?: string } | null | undefined,
+): boolean {
+  return section?.presetKey === HUB_MENU_BURGER_KEBAB_PARTS_PRESET;
+}
+
+export function isHubMenuBurgerPartsSection(
+  section: { presetKey?: string | null; name?: string } | null | undefined,
+): boolean {
+  return section?.presetKey === HUB_MENU_BURGER_PARTS_PRESET;
+}
+
+export function isHubMenuKebabPartsSection(
+  section: { presetKey?: string | null; name?: string } | null | undefined,
+): boolean {
+  return section?.presetKey === HUB_MENU_KEBAB_PARTS_PRESET;
+}
+
+export function isHubMenuComposePartsSection(
+  section: { presetKey?: string | null; name?: string } | null | undefined,
+): boolean {
+  return (
+    isHubMenuBurgerPartsSection(section) ||
+    isHubMenuKebabPartsSection(section) ||
+    isHubMenuBurgerKebabPartsSection(section)
+  );
+}
+
+export function isHubMenuMenuBoardsConfigSection(
+  section: { presetKey?: string | null; name?: string } | null | undefined,
+): boolean {
+  return section?.presetKey === HUB_MENU_BOARDS_PRESET;
+}
+
 export function isHubMenuStaffLibrarySection(
   section: { presetKey?: string | null; name?: string } | null | undefined,
 ): boolean {
-  return isHubMenuExtrasLibrarySection(section) || isHubMenuMealLibrarySection(section);
+  return (
+    isHubMenuExtrasLibrarySection(section) ||
+    isHubMenuMealLibrarySection(section) ||
+    isHubMenuComposePartsSection(section) ||
+    isHubMenuMenuBoardsConfigSection(section)
+  );
+}
+
+/** Customer-facing meal deal bundles — pick mains/sides/drinks from the live menu. */
+export function isHubMenuMealDealsCategory(
+  section: { presetKey?: string | null; name?: string } | null | undefined,
+): boolean {
+  if (!section || isHubMenuStaffLibrarySection(section)) {
+    return false;
+  }
+  if (section.presetKey === "meal-deals") {
+    return true;
+  }
+  const name = (section.name ?? "").trim().toLowerCase();
+  return /\bmeal deal/.test(name);
+}
+
+const BURGER_MENU_PRESET_KEYS = new Set(["burgers", "gourmet-burgers"]);
+const KEBAB_MENU_PRESET_KEYS = new Set(["kebabs", "wraps"]);
+
+/** Customer-facing burger categories — use burger parts composer. */
+export function isHubMenuBurgerMenuCategory(
+  section: { presetKey?: string | null; name?: string } | null | undefined,
+): boolean {
+  if (!section || isHubMenuStaffLibrarySection(section)) {
+    return false;
+  }
+  if (section.presetKey && BURGER_MENU_PRESET_KEYS.has(section.presetKey)) {
+    return true;
+  }
+  const name = (section.name ?? "").trim().toLowerCase();
+  return /\bburger/.test(name);
+}
+
+/** Customer-facing kebab/wrap categories — use kebab parts composer. */
+export function isHubMenuKebabMenuCategory(
+  section: { presetKey?: string | null; name?: string } | null | undefined,
+): boolean {
+  if (!section || isHubMenuStaffLibrarySection(section)) {
+    return false;
+  }
+  if (section.presetKey && KEBAB_MENU_PRESET_KEYS.has(section.presetKey)) {
+    return true;
+  }
+  const name = (section.name ?? "").trim().toLowerCase();
+  return /\b(kebab|wrap|doner|shawarma)\b/.test(name);
+}
+
+/** @deprecated Use isHubMenuBurgerMenuCategory or isHubMenuKebabMenuCategory */
+export function isHubMenuBurgerKebabMenuCategory(
+  section: { presetKey?: string | null; name?: string } | null | undefined,
+): boolean {
+  return isHubMenuBurgerMenuCategory(section) || isHubMenuKebabMenuCategory(section);
 }
 
 export function isHubMenuSectionPizza(section: { presetKey?: string | null; name?: string } | null | undefined): boolean {

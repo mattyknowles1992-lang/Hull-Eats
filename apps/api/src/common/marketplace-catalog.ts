@@ -194,7 +194,13 @@ export const findLiveMarketplaceMenu = async (slugOrId: string): Promise<Marketp
       return { section, decoded };
     })
     .filter(
-      ({ decoded }) => decoded.presetKey !== "extras-library" && decoded.presetKey !== "meal-upgrades-library",
+      ({ decoded }) =>
+        decoded.presetKey !== "extras-library" &&
+        decoded.presetKey !== "meal-upgrades-library" &&
+        decoded.presetKey !== "burger-kebab-parts-library" &&
+        decoded.presetKey !== "burger-parts-library" &&
+        decoded.presetKey !== "kebab-parts-library" &&
+        decoded.presetKey !== "menu-boards-config",
     )
     .map(({ section, decoded }) => ({
       id: section.id,

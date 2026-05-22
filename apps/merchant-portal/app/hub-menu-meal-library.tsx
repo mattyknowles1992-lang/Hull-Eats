@@ -1,97 +1,77 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import type { HubMenuSection, MenuItem } from "@hull-eats/types";
 
+import { HubMenuMealDealItemsPicker } from "./hub-menu-meal-deal-items-picker";
 import {
   buildMealLibraryItem,
+  customerFacingMenuSections,
   formatMenuMoney,
-  getHubMealTemplatesFromSection,
+  getMealTemplateCustomerNote,
   getMealTemplateFromItem,
+  listPickableMenuProducts,
+  mealDealItemsFromTemplate,
+  splitMealDealItems,
   updateMealLibraryItemTemplate,
-  type HubMealDrinkOption,
-  type HubMealSideOption,
+  type MealDealItem,
 } from "./menu-studio-core";
-import { ManualVariationsEditor } from "./hub-menu-variations-editor";
 
 type Props = {
   section: HubMenuSection;
+  menuSections: HubMenuSection[];
+  readOnly?: boolean;
   onAddTemplate: (item: MenuItem) => void;
   onUpdateTemplate: (itemId: string, updater: (item: MenuItem) => MenuItem) => void;
   onRemoveTemplate: (itemId: string) => void;
-  readOnly?: boolean;
 };
 
 export function HubMenuMealLibrary({
   section,
+  menuSections,
+  readOnly = false,
   onAddTemplate,
   onUpdateTemplate,
   onRemoveTemplate,
-  readOnly = false,
 }: Props) {
-  const [label, setLabel] = useState("Make it a Meal (Fries & a Can)");
-  const [upgradePrice, setUpgradePrice] = useState("3");
-  const templates = getHubMealTemplatesFromSection(section);
-
-  const handleAdd = () => {
-    if (!label.trim()) {
-      return;
-    }
-    const price = Number(upgradePrice);
-    onAddTemplate(
-      buildMealLibraryItem({
-        categoryId: section.id,
-        label: label.trim(),
-        upgradePrice: Number.isFinite(price) && price >= 0 ? price : 0,
-      }),
-    );
-    setLabel("Make it a Meal (Fries & a Can)");
-    setUpgradePrice("3");
-  };
+  const menuProducts = useMemo(() => listPickableMenuProducts(menuSections), [menuSections]);
+  const hasMenuProducts = menuProducts.length > 0;
+  const customerSectionCount = customerFacingMenuSections(menuSections).length;
 
   return (
-    <section style={card}>
-      <div>
-        <strong style={{ fontSize: "0.95rem" }}>Make it a meal templates</strong>
-        <p style={{ margin: "6px 0 0", fontSize: "0.84rem", color: "#5b6470", lineHeight: 1.45 }}>
-          Create meal upgrades here (e.g. fries + drink for £3). On each menu item, tick <strong>Make it a meal</strong> and
-          pick which template to offer — you can swap sides or drinks per item.
-        </p>
-      </div>
+    <div className="hub-menu-meal-library">
+      <p className="hub-menu-meal-library__intro">
+        Meal deals add an upgrade price on top of the main item. Pick real menu products for the deal — customers choose
+        when they order.
+      </p>
 
-      {!readOnly ? (
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 100px auto", gap: 8, alignItems: "end" }}>
-          <label style={{ display: "grid", gap: 4 }}>
-            <span style={fieldLabel}>Customer sees</span>
-            <input style={input} value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Make it a Meal…" />
-          </label>
-          <label style={{ display: "grid", gap: 4 }}>
-            <span style={fieldLabel}>Extra £</span>
-            <input
-              type="number"
-              step="0.01"
-              min={0}
-              style={input}
-              value={upgradePrice}
-              onChange={(e) => setUpgradePrice(e.target.value)}
-            />
-          </label>
-          <button type="button" style={addButton} onClick={handleAdd}>
-            Add meal
-          </button>
-        </div>
+      {customerSectionCount === 0 ? (
+        <p className="hub-menu-meal-library__hint">
+          Add at least one <strong>customer menu</strong> category with items (e.g. Fries, Coke), then return here to
+          build meal deals.
+        </p>
       ) : null}
 
-      {templates.length === 0 ? (
-        <p style={{ margin: 0, fontSize: "0.84rem", color: "#5b6470" }}>No meal templates yet — add your default fries &amp; drink deal.</p>
+      {readOnly ? null : (
+        <NewMealDealForm
+          categoryId={section.id}
+          menuProducts={menuProducts}
+          hasMenuProducts={hasMenuProducts}
+          onAdd={onAddTemplate}
+        />
+      )}
+
+      {section.items.length === 0 ? (
+        <p className="hub-menu-meal-library__empty">No meal deals yet. Use the form above to add your first deal.</p>
       ) : (
-        <div style={{ display: "grid", gap: 12 }}>
+        <div className="hub-menu-meal-library__list">
           {section.items.map((item) => (
             <MealTemplateEditor
               key={item.id}
               item={item}
+              menuProducts={menuProducts}
               readOnly={readOnly}
               onUpdate={(updater) => onUpdateTemplate(item.id, updater)}
               onRemove={() => onRemoveTemplate(item.id)}
@@ -99,49 +79,135 @@ export function HubMenuMealLibrary({
           ))}
         </div>
       )}
-    </section>
+    </div>
+  );
+}
+
+function NewMealDealForm({
+  categoryId,
+  menuProducts,
+  hasMenuProducts,
+  onAdd,
+}: {
+  categoryId: string;
+  menuProducts: ReturnType<typeof listPickableMenuProducts>;
+  hasMenuProducts: boolean;
+  onAdd: (item: MenuItem) => void;
+}) {
+  const [label, setLabel] = useState("Make it a Meal");
+  const [upgradePrice, setUpgradePrice] = useState("3");
+  const [customerNote, setCustomerNote] = useState("");
+  const [dealItems, setDealItems] = useState<MealDealItem[]>([]);
+
+  const reset = () => {
+    setLabel("Make it a Meal");
+    setUpgradePrice("3");
+    setCustomerNote("");
+    setDealItems([]);
+  };
+
+  const handleSave = () => {
+    const trimmed = label.trim();
+    if (!trimmed || dealItems.length === 0) {
+      return;
+    }
+    const { sides, drinks } = splitMealDealItems(dealItems);
+    onAdd(
+      buildMealLibraryItem({
+        categoryId,
+        label: trimmed,
+        upgradePrice: Number(upgradePrice) || 0,
+        sides,
+        drinks,
+        customerNote: customerNote.trim(),
+      }),
+    );
+    reset();
+  };
+
+  const canSave = label.trim().length > 0 && dealItems.length > 0;
+
+  return (
+    <article className="hub-menu-meal-library__new-deal">
+      <p style={newDealTitle}>New meal deal</p>
+
+      <div className="hub-menu-meal-library__deal-meta">
+        <label style={field}>
+          <span style={fieldLabel}>Customer sees</span>
+          <input style={input} value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Make it a Meal…" />
+        </label>
+        <label style={field}>
+          <span style={fieldLabel}>Meal deal price (£)</span>
+          <input
+            type="number"
+            step="0.01"
+            min={0}
+            style={input}
+            value={upgradePrice}
+            onChange={(e) => setUpgradePrice(e.target.value)}
+            title="Added on top of the main item when the customer upgrades"
+          />
+        </label>
+      </div>
+
+      <label style={{ ...field, gridColumn: "1 / -1" }}>
+        <span style={fieldLabel}>Note for customers (optional)</span>
+        <textarea
+          style={{ ...input, minHeight: 64, resize: "vertical" }}
+          value={customerNote}
+          onChange={(e) => setCustomerNote(e.target.value)}
+          placeholder="e.g. Includes one side and one drink"
+        />
+      </label>
+
+      {!hasMenuProducts ? (
+        <p className="hub-menu-meal-library__hint">
+          Add items to your <strong>customer menu</strong> tabs first, then pick them below. You can also add custom
+          names.
+        </p>
+      ) : null}
+
+      <HubMenuMealDealItemsPicker items={dealItems} menuProducts={menuProducts} readOnly={false} onChange={setDealItems} />
+
+      {dealItems.length === 0 ? (
+        <p style={warn}>Add at least one menu item (side or drink) before saving.</p>
+      ) : null}
+
+      <button type="button" className="hub-menu-meal-library__save-btn" disabled={!canSave} onClick={handleSave}>
+        Save meal deal
+      </button>
+    </article>
   );
 }
 
 function MealTemplateEditor({
   item,
+  menuProducts,
   readOnly,
   onUpdate,
   onRemove,
 }: {
   item: MenuItem;
+  menuProducts: ReturnType<typeof listPickableMenuProducts>;
   readOnly: boolean;
   onUpdate: (updater: (item: MenuItem) => MenuItem) => void;
   onRemove: () => void;
 }) {
   const template = getMealTemplateFromItem(item);
+  const dealItems = mealDealItemsFromTemplate(template);
+  const customerNote = getMealTemplateCustomerNote(item);
 
-  const sideRows = template.sides.map((side) => ({
-    id: side.id,
-    label: side.label,
-    price: String(side.priceDelta),
-  }));
-  const drinkRows = template.drinks.map((drink) => ({
-    id: drink.id,
-    label: drink.label,
-    price: String(drink.priceDelta),
-  }));
-
-  const mapRowsToSides = (rows: { id: string; label: string; price: string }[]): HubMealSideOption[] =>
-    rows
-      .filter((row) => row.label.trim())
-      .map((row) => ({
-        id: row.id,
-        label: row.label.trim(),
-        priceDelta: Number(row.price) || 0,
-      }));
+  const setDealItems = (items: MealDealItem[]) => {
+    const { sides, drinks } = splitMealDealItems(items);
+    onUpdate((current) => updateMealLibraryItemTemplate(current, { sides, drinks }));
+  };
 
   return (
     <article style={templateCard}>
       <div style={templateHeader}>
-        <div style={{ display: "grid", gap: 8, flex: 1 }}>
-          <label style={{ display: "grid", gap: 4 }}>
-            <span style={fieldLabel}>Label</span>
+        <div style={{ display: "grid", gap: 8, flex: 1, minWidth: 0 }}>
+          <label style={field}>
+            <span style={fieldLabel}>Customer sees</span>
             <input
               style={input}
               value={item.name}
@@ -149,8 +215,8 @@ function MealTemplateEditor({
               onChange={(e) => onUpdate((current) => updateMealLibraryItemTemplate(current, { label: e.target.value }))}
             />
           </label>
-          <label style={{ display: "grid", gap: 4, maxWidth: 120 }}>
-            <span style={fieldLabel}>Extra £</span>
+          <label style={{ ...field, maxWidth: 180 }}>
+            <span style={fieldLabel}>Meal deal price (£)</span>
             <input
               type="number"
               step="0.01"
@@ -167,85 +233,62 @@ function MealTemplateEditor({
         </div>
         {readOnly ? null : (
           <button type="button" style={removeButton} onClick={onRemove}>
-            Remove
+            Remove deal
           </button>
         )}
       </div>
       <p style={{ margin: 0, fontSize: "0.82rem", color: "#5b6470" }}>
-        Default upgrade: <strong>{formatMenuMoney(template.upgradePrice)}</strong> on top of the item
+        Deal price: <strong>{formatMenuMoney(template.upgradePrice)}</strong> · {dealItems.length} item
+        {dealItems.length === 1 ? "" : "s"} in deal
       </p>
-      <div style={{ display: "grid", gap: 10 }}>
-        <div>
-          <strong style={{ fontSize: "0.84rem" }}>Side choices</strong>
-          <ManualVariationsEditor
-            rows={sideRows}
-            readOnly={readOnly}
-            placeholderLabel="e.g. Fries"
-            addButtonLabel="+ Add side option"
-            onChange={(rows) =>
-              onUpdate((current) => updateMealLibraryItemTemplate(current, { sides: mapRowsToSides(rows) }))
-            }
-          />
-        </div>
-        <div>
-          <strong style={{ fontSize: "0.84rem" }}>Drink choices</strong>
-          <ManualVariationsEditor
-            rows={drinkRows}
-            readOnly={readOnly}
-            placeholderLabel="e.g. Coke"
-            addButtonLabel="+ Add drink option"
-            onChange={(rows) =>
-              onUpdate((current) =>
-                updateMealLibraryItemTemplate(current, {
-                  drinks: mapRowsToSides(rows) as HubMealDrinkOption[],
-                }),
-              )
-            }
-          />
-        </div>
-      </div>
+      <label style={field}>
+        <span style={fieldLabel}>Note for customers (optional)</span>
+        <textarea
+          style={{ ...input, minHeight: 56, resize: "vertical" }}
+          value={customerNote}
+          disabled={readOnly}
+          onChange={(e) => onUpdate((current) => updateMealLibraryItemTemplate(current, { customerNote: e.target.value }))}
+        />
+      </label>
+      <HubMenuMealDealItemsPicker
+        items={dealItems}
+        menuProducts={menuProducts}
+        readOnly={readOnly}
+        onChange={setDealItems}
+      />
     </article>
   );
 }
 
-const card: CSSProperties = {
-  padding: 14,
-  borderRadius: 14,
-  border: "1px solid rgba(155, 74, 18, 0.22)",
-  background: "rgba(255, 244, 232, 0.5)",
-  display: "grid",
-  gap: 12,
-};
-
-const templateCard: CSSProperties = {
-  padding: 12,
-  borderRadius: 12,
-  border: "1px solid rgba(15, 17, 21, 0.1)",
-  background: "#fff",
-  display: "grid",
-  gap: 10,
-};
-
-const templateHeader: CSSProperties = { display: "flex", gap: 10, alignItems: "flex-start" };
+const field: CSSProperties = { display: "grid", gap: 6, minWidth: 0 };
 
 const fieldLabel: CSSProperties = { fontSize: "0.78rem", fontWeight: 800, color: "#3d4652" };
 
 const input: CSSProperties = {
+  width: "100%",
+  minWidth: 0,
+  minHeight: 44,
   padding: "10px 12px",
   borderRadius: 10,
   border: "1px solid rgba(15, 17, 21, 0.15)",
   font: "inherit",
+  boxSizing: "border-box",
 };
 
-const addButton: CSSProperties = {
-  padding: "10px 14px",
-  borderRadius: 10,
-  border: "none",
-  background: "#9b4a12",
-  color: "#fff",
-  fontWeight: 800,
-  cursor: "pointer",
+const newDealTitle: CSSProperties = { margin: 0, fontWeight: 900, fontSize: "0.95rem", color: "#064f68" };
+
+const warn: CSSProperties = { margin: 0, fontSize: "0.84rem", color: "#5b6470" };
+
+const templateCard: CSSProperties = {
+  padding: 14,
+  borderRadius: 12,
+  border: "1px solid rgba(15, 17, 21, 0.1)",
+  background: "#fff",
+  display: "grid",
+  gap: 12,
 };
+
+const templateHeader: CSSProperties = { display: "flex", gap: 10, alignItems: "flex-start", flexWrap: "wrap" };
 
 const removeButton: CSSProperties = {
   padding: "8px 12px",

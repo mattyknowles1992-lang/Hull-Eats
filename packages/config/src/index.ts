@@ -40,6 +40,8 @@ export type AppEnv = z.infer<typeof envSchema>;
 
 export const loadEnv = (rawEnv: NodeJS.ProcessEnv): AppEnv => envSchema.parse(rawEnv);
 
+export { loadMonorepoEnvFile } from "./load-env-file";
+
 export const resolveRedisUrl = (env: AppEnv): string => {
   if (env.REDIS_URL) {
     return env.REDIS_URL;

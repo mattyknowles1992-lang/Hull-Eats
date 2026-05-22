@@ -68,7 +68,7 @@ export function HubMenuPreview({ open, onClose, settings, menuSections, hasUnsav
           </button>
         </header>
 
-        <div style={previewBanner}>
+        <div className="he-hub-banner" style={previewBannerLayout}>
           <strong>{hasUnsavedChanges ? "Showing your unsaved draft" : "Showing your current draft"}</strong>
           <p>
             This is how your menu can look on Hull Eats. Customers only see it after you <strong>Save &amp; publish</strong> and
@@ -244,11 +244,12 @@ const closeButton: CSSProperties = {
   cursor: "pointer",
 };
 
-const previewBanner: CSSProperties = {
-  padding: "12px 18px",
-  background: "linear-gradient(90deg, rgba(7, 155, 200, 0.14), rgba(245, 180, 0, 0.12))",
-  borderBottom: "1px solid rgba(7, 155, 200, 0.2)",
-  color: "#0f1115",
+const previewBannerLayout: CSSProperties = {
+  borderRadius: 0,
+  borderLeft: "none",
+  borderRight: "none",
+  borderTop: "none",
+  boxShadow: "none",
 };
 
 const previewScroll: CSSProperties = {

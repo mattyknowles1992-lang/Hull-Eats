@@ -145,17 +145,27 @@ const formatReceiptPreview = (
     "",
     "ITEMS",
     "-----",
-    ...payload.lines.flatMap((line) => [
-      `${line.quantity} x ${line.name}`,
-      line.notes ? `  Note: ${line.notes}` : "",
-      ...(line.components ?? []).map(
-        (component) => `  - ${component.quantity} x ${component.label}${component.removed ? " / removed" : ""}`,
-      ),
-      ...(line.selectedOptions ?? []).map(
-        (option) =>
-          `  - ${option.quantity} x ${option.groupName}: ${option.valueName}${option.priceDelta > 0 ? ` (+${option.priceDelta.toFixed(2)})` : ""}`,
-      ),
-    ]),
+    ...payload.lines.flatMap((line) => {
+      const baseParts = (line.components ?? []).filter((component) => !component.removed);
+      const removedParts = (line.components ?? []).filter((component) => component.removed);
+      return [
+        `${line.quantity} x ${line.name}`,
+        line.notes ? `  Note: ${line.notes}` : "",
+        ...(baseParts.length > 0
+          ? ["  BUILD:", ...baseParts.map((component) => `    • ${component.quantity} x ${component.label}`)]
+          : []),
+        ...(removedParts.length > 0
+          ? [
+              "  NO:",
+              ...removedParts.map((component) => `    • ${component.quantity} x ${component.label}`),
+            ]
+          : []),
+        ...(line.selectedOptions ?? []).map(
+          (option) =>
+            `  + ${option.quantity} x ${option.groupName}: ${option.valueName}${option.priceDelta > 0 ? ` (+${option.priceDelta.toFixed(2)})` : ""}`,
+        ),
+      ];
+    }),
     "",
     "TOTALS",
     "------",
@@ -279,13 +289,18 @@ const splitReceiptNote = (note?: string) => {
 
 const formatLineChecklist = (line: PrintJobPayload["lines"][number]) => {
   const noteParts = splitReceiptNote(line.notes);
+  const buildParts = (line.components ?? []).filter((component) => !component.removed);
+  const noParts = (line.components ?? []).filter((component) => component.removed);
 
   return [
     `${line.quantity} x ${line.name}`,
     line.totalPrice !== undefined ? `    Item total: ${formatReceiptMoney(line.totalPrice)}` : "",
     ...noteParts.plainNotes.map((note) => `    NOTE: ${note}`),
     ...noteParts.removed.map((item) => `    [ ] REMOVE ${item}`),
-    ...(line.components ?? []).map((component) => `    [${component.removed ? " " : "x"}] ${component.label} x${component.quantity}`),
+    ...(buildParts.length > 0 ? ["    BUILD:"] : []),
+    ...buildParts.map((component) => `    [x] ${component.label} x${component.quantity}`),
+    ...(noParts.length > 0 ? ["    NO:"] : []),
+    ...noParts.map((component) => `    [ ] ${component.label} x${component.quantity}`),
     ...noteParts.options.map((option) => `    [x] ${option}`),
     ...(line.selectedOptions ?? []).map(
       (option) =>

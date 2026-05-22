@@ -51,6 +51,26 @@ const MAP_SECTOR_PADDING: [number, number] = [52, 52];
 const MAP_OUTWARD_PADDING: [number, number] = [44, 44];
 const MAP_OVERVIEW_PADDING: [number, number] = [40, 40];
 
+type LeafletModule = typeof import("leaflet");
+
+/** Approximate bounds for a mile-radius circle without attaching a Leaflet layer to the map. */
+function deliveryRadiusBounds(L: LeafletModule, lat: number, lng: number, miles: number): import("leaflet").LatLngBounds {
+  const safeMiles = Math.max(0.1, Number(miles) || 0.1);
+  const meters = milesToMeters(safeMiles);
+  const latOffset = meters / 111_320;
+  const lngOffset = meters / (111_320 * Math.cos((lat * Math.PI) / 180));
+  return L.latLngBounds([lat - latOffset, lng - lngOffset], [lat + latOffset, lng + lngOffset]);
+}
+
+function boundsLookValid(bounds: import("leaflet").LatLngBounds | null | undefined): bounds is import("leaflet").LatLngBounds {
+  if (!bounds?.isValid?.()) {
+    return false;
+  }
+  const sw = bounds.getSouthWest();
+  const ne = bounds.getNorthEast();
+  return [sw.lat, sw.lng, ne.lat, ne.lng].every((value) => Number.isFinite(value));
+}
+
 const leafletIconAssets = {
   iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png",
   iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png",
@@ -575,6 +595,27 @@ export function HubDeliveryConfig({
         L.latLng(HULL_MAP_BOUNDS.north, HULL_MAP_BOUNDS.east),
       );
 
+      const safeFlyToBounds = (
+        bounds: import("leaflet").LatLngBounds,
+        padding: [number, number],
+        maxZoom: number,
+      ) => {
+        if (!boundsLookValid(bounds)) {
+          return false;
+        }
+        try {
+          map.invalidateSize();
+          map.flyToBounds(bounds, {
+            padding,
+            maxZoom,
+            ...MAP_CAMERA_EASE,
+          });
+          return true;
+        } catch {
+          return false;
+        }
+      };
+
       const flyToFeatureBounds = (features: HullSectorBoundaryFeature[], padding: [number, number], maxZoom: number) => {
         if (features.length === 0) {
           return false;
@@ -582,27 +623,25 @@ export function HubDeliveryConfig({
         const layer = L.geoJSON({ type: "FeatureCollection", features } as HullSectorBoundaryCollection);
         const bounds = layer.getBounds();
         layer.remove();
-        if (!bounds.isValid()) {
-          return false;
-        }
-        map.flyToBounds(bounds, {
-          padding,
-          maxZoom,
-          ...MAP_CAMERA_EASE,
-        });
-        return true;
+        return safeFlyToBounds(bounds, padding, maxZoom);
       };
 
       const flyToHullOverview = () => {
-        map.flyToBounds(hullBounds, { padding: MAP_OVERVIEW_PADDING, maxZoom: 11, ...MAP_CAMERA_EASE });
+        safeFlyToBounds(hullBounds, MAP_OVERVIEW_PADDING, 11);
       };
 
       if (settings.deliveryMode === "business_radius" && businessOrigin) {
-        const coverage = L.circle([businessOrigin.lat, businessOrigin.lng], {
-          radius: milesToMeters(settings.deliveryRadiusMiles),
-        });
-        map.flyToBounds(coverage.getBounds(), { padding: [32, 32], maxZoom: 13, ...MAP_CAMERA_EASE });
-        coverage.remove();
+        const bounds = deliveryRadiusBounds(
+          L,
+          businessOrigin.lat,
+          businessOrigin.lng,
+          settings.deliveryRadiusMiles,
+        );
+        if (
+          !safeFlyToBounds(bounds, [32, 32], 13)
+        ) {
+          map.flyTo([businessOrigin.lat, businessOrigin.lng], 12, MAP_CAMERA_EASE);
+        }
         return;
       }
 

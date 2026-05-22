@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type {
   HubMenuSection,
@@ -19,6 +19,7 @@ import {
   hubMenuCategorySelectOptions,
   hubRoleLabel,
   hubRolesCreatableBy,
+  isHubMenuMealDealsCategory,
   isHubMenuSectionPizza,
   isHubMenuStaffLibrarySection,
 } from "@hull-eats/types";
@@ -26,26 +27,44 @@ import {
 import { HubConfigBackups } from "./hub-config-backups";
 import { HubDeliveryConfig } from "./hub-delivery-config";
 import { HubMenuCustomisationBuilder } from "./hub-menu-customisation";
+import {
+  clearBrowserMenuDraft,
+  loadBrowserMenuDraft,
+  saveBrowserMenuDraft,
+  type BrowserMenuDraft,
+} from "./hub-menu-browser-draft";
 import { HubMenuStudio } from "./hub-menu-studio";
 import { HE_BRAND } from "./portal-brand";
 import { HubDriversWorkbench } from "./hub-drivers-workbench";
 import { HubOffersWorkbench } from "./hub-offers-workbench";
 import {
-  applyDefaultExtraToppingsToItem,
   applyManualVariationsToItem,
+  applyMenuBoardPublish,
+  appendMenuBoard,
   buildLocalMenuCategory,
   buildLocalMenuItem,
+  mergeItemDescriptionWithComponents,
   buildMenuPublishSummary,
   buildMenuTemplate,
   cloneMenuItemDraft,
   computeMenuPublishIssues,
+  customerFacingMenuSections,
   ensureStaffMenuSections,
+  findBurgerPartsSection,
+  findKebabPartsSection,
   findExtrasLibrarySection,
   findMealLibrarySection,
+  getMealDealBundleSelection,
   getHubExtraToppingsFromSection,
   mergeMenuTemplateWithExistingSizes,
   menuTemplateCards,
-  reorderCustomerMenuSections,
+  moveCustomerMenuSectionToIndex,
+  readMenuBoardsConfig,
+  switchToMainMenu,
+  switchToMenuBoard,
+  updateMenuBoardInConfig,
+  type HubMenuBoardKind,
+  type HubMenuBoardPublishMode,
   type ManualVariationRow,
   type MenuTemplateKind,
 } from "./menu-studio-core";
@@ -635,6 +654,8 @@ export default function MerchantPortalPage() {
   const [newItem, setNewItem] = useState<CreateItemFormState>(initialCreateItemState);
   const [pizzaSizeRows, setPizzaSizeRows] = useState<PizzaSizeRow[]>(() => createInitialPizzaSizeRows());
   const [newItemVariationRows, setNewItemVariationRows] = useState<ManualVariationRow[]>([]);
+  const [newItemComponents, setNewItemComponents] = useState<MenuItem["components"]>([]);
+  const [newItemOptionGroups, setNewItemOptionGroups] = useState<MenuItem["optionGroups"]>([]);
   const [selectedImportCandidateIds, setSelectedImportCandidateIds] = useState<string[]>([]);
   const [selectedImportImageName, setSelectedImportImageName] = useState("");
   const [pastedMenuText, setPastedMenuText] = useState("");
@@ -647,6 +668,10 @@ export default function MerchantPortalPage() {
   const [orderNotice, setOrderNotice] = useState("");
   const [driverNotice, setDriverNotice] = useState("");
   const [offersNotice, setOffersNotice] = useState("");
+  const [browserDraftRestore, setBrowserDraftRestore] = useState<BrowserMenuDraft | null>(null);
+  const [menuHubPersistState, setMenuHubPersistState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const menuSaveInFlightRef = useRef(false);
+  const menuSaveQueuedRef = useRef(false);
   const [driverTracking, setDriverTracking] = useState<MerchantDriverTracking | null>(null);
   const [activeHubSection, setActiveHubSection] = useState<HubSection>("home");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -660,6 +685,7 @@ export default function MerchantPortalPage() {
   const [menuPublishDialogOpen, setMenuPublishDialogOpen] = useState(false);
   const [menuPreviewOpen, setMenuPreviewOpen] = useState(false);
   const [menuPublishing, setMenuPublishing] = useState(false);
+  const [editingMenuBoardId, setEditingMenuBoardId] = useState<string | null>(null);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showAccountPasswords, setShowAccountPasswords] = useState(false);
   const [showHubPasswordCurrent, setShowHubPasswordCurrent] = useState(false);
@@ -668,7 +694,14 @@ export default function MerchantPortalPage() {
   const [showCreateUserPassword, setShowCreateUserPassword] = useState(false);
 
   const extrasSection = useMemo(() => findExtrasLibrarySection(menuSections), [menuSections]);
+  const burgerPartsSection = useMemo(() => findBurgerPartsSection(menuSections), [menuSections]);
+  const kebabPartsSection = useMemo(() => findKebabPartsSection(menuSections), [menuSections]);
   const mealSection = useMemo(() => findMealLibrarySection(menuSections), [menuSections]);
+  const menuBoards = useMemo(() => readMenuBoardsConfig(menuSections).boards, [menuSections]);
+  const editingMenuBoard = useMemo(
+    () => menuBoards.find((board) => board.id === editingMenuBoardId) ?? null,
+    [menuBoards, editingMenuBoardId],
+  );
   const menuPublishIssues = useMemo(() => computeMenuPublishIssues(menuSections), [menuSections]);
 
   const menuStats = useMemo(() => {
@@ -758,15 +791,22 @@ export default function MerchantPortalPage() {
   };
 
   useEffect(() => {
-    if (!menuSections.length) {
-      setSelectedCategoryId("");
-      setSelectedItemId("");
-      setIsCreatingNewItem(false);
+    const customerSections = menuSections.filter((section) => !isHubMenuStaffLibrarySection(section));
+
+    if (customerSections.length === 0) {
+      if (selectedItemId) {
+        setSelectedItemId("");
+      }
+      if (isCreatingNewItem) {
+        setIsCreatingNewItem(false);
+      }
       return;
     }
 
-    const nextCategory = menuSections.find((section) => section.id === selectedCategoryId) ?? menuSections[0]!;
-    if (nextCategory.id !== selectedCategoryId) {
+    const selectedIsCustomer = customerSections.some((section) => section.id === selectedCategoryId);
+    const nextCategory =
+      customerSections.find((section) => section.id === selectedCategoryId) ?? customerSections[0]!;
+    if (!selectedIsCustomer && nextCategory.id !== selectedCategoryId) {
       setSelectedCategoryId(nextCategory.id);
     }
 
@@ -800,6 +840,8 @@ export default function MerchantPortalPage() {
       });
       setPizzaSizeRows(createInitialPizzaSizeRows());
       setNewItemVariationRows([]);
+      setNewItemComponents([]);
+      setNewItemOptionGroups([]);
       setMenuNotice("");
     },
     [menuSections],
@@ -812,6 +854,8 @@ export default function MerchantPortalPage() {
     setNewItem((current) => ({ ...initialCreateItemState, sectionId: current.sectionId }));
     setPizzaSizeRows(createInitialPizzaSizeRows());
     setNewItemVariationRows([]);
+    setNewItemComponents([]);
+    setNewItemOptionGroups([]);
   }, [menuSections, selectedCategoryId]);
 
   const commitSavedHubSnapshot = useCallback((settings: HubSettings, sections: HubMenuSection[]) => {
@@ -850,6 +894,103 @@ export default function MerchantPortalPage() {
 
   const hubAccess = useMemo(() => (activeUser ? getHubAccess(activeUser.role) : null), [activeUser]);
 
+  const applyWorkspaceSaveResult = useCallback((workspace: MerchantWorkspace) => {
+    setHubSettings({
+      ...workspace.settings,
+      deliveryPostcodeZones:
+        workspace.settings.deliveryPostcodeZones.length > 0
+          ? workspace.settings.deliveryPostcodeZones
+          : createDefaultHullPostcodeZones(),
+    });
+    const sections = ensureStaffMenuSections(workspace.menuSections);
+    setMenuSections(sections);
+    setHubUsers(workspace.users);
+    setPendingImports(workspace.pendingImports ?? []);
+    commitSavedHubSnapshot(workspace.settings, sections);
+    if (activeHubId) {
+      clearBrowserMenuDraft(activeHubId);
+    }
+    setBrowserDraftRestore(null);
+  }, [activeHubId, commitSavedHubSnapshot]);
+
+  const persistWorkspaceToHub = useCallback(
+    async (options?: { manualCheckpoint?: boolean }) => {
+      if (!merchantToken || !activeHubId || !hubAccess?.canEditWorkspace) {
+        return false;
+      }
+
+      if (menuSaveInFlightRef.current) {
+        menuSaveQueuedRef.current = true;
+        return false;
+      }
+
+      menuSaveInFlightRef.current = true;
+      setMenuHubPersistState("saving");
+      if (options?.manualCheckpoint) {
+        setMenuPublishing(true);
+      }
+
+      try {
+        const workspace = await saveWorkspace(merchantToken, activeHubId, {
+          settings: hubSettings,
+          menuSections,
+        });
+        applyWorkspaceSaveResult(workspace);
+        setMenuHubPersistState("saved");
+        if (options?.manualCheckpoint) {
+          setSaveNotice("Draft saved on your hub — ready to publish when you choose.");
+          setMenuNotice("All items and options are kept. Nothing was removed. Publish when customers should see changes.");
+        }
+        return true;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Save failed.";
+        setMenuHubPersistState("error");
+        setSaveNotice(message);
+        if (options?.manualCheckpoint) {
+          setMenuNotice(message);
+        }
+        return false;
+      } finally {
+        menuSaveInFlightRef.current = false;
+        if (options?.manualCheckpoint) {
+          setMenuPublishing(false);
+        }
+        if (menuSaveQueuedRef.current) {
+          menuSaveQueuedRef.current = false;
+          void persistWorkspaceToHub();
+        }
+      }
+    },
+    [
+      activeHubId,
+      applyWorkspaceSaveResult,
+      hubAccess?.canEditWorkspace,
+      hubSettings,
+      menuSections,
+      merchantToken,
+    ],
+  );
+
+  useEffect(() => {
+    if (!hasUnsavedHubChanges || !merchantToken || !activeHubId || !hubAccess?.canEditWorkspace) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void persistWorkspaceToHub();
+    }, 2000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [
+    activeHubId,
+    hasUnsavedHubChanges,
+    hubAccess?.canEditWorkspace,
+    hubSettings,
+    menuSections,
+    merchantToken,
+    persistWorkspaceToHub,
+  ]);
+
   const creatableHubRoles = useMemo(
     () => (activeUser ? hubRolesCreatableBy(activeUser.role) : []),
     [activeUser],
@@ -873,8 +1014,8 @@ export default function MerchantPortalPage() {
     setSaveNotice("");
   };
 
-  const handleMoveCategory = (sectionId: string, direction: "up" | "down") => {
-    updateMenuSections((current) => reorderCustomerMenuSections(current, sectionId, direction));
+  const handleReorderCategory = (sectionId: string, toIndex: number) => {
+    updateMenuSections((current) => moveCustomerMenuSectionToIndex(current, sectionId, toIndex));
   };
 
   const applyWorkspace = (workspace: MerchantWorkspace, user: HubUser | null) => {
@@ -892,14 +1033,52 @@ export default function MerchantPortalPage() {
     const sections = ensureStaffMenuSections(workspace.menuSections);
     setMenuSections(sections);
     setPendingImports(workspace.pendingImports ?? []);
-    const firstCustomer = sections.find((section) => !isHubMenuStaffLibrarySection(section));
-    setSelectedCategoryId(firstCustomer?.id ?? sections[0]?.id ?? "");
+    const customerSections = sections.filter((section) => !isHubMenuStaffLibrarySection(section));
+    const firstCustomer = customerSections[0];
+    setSelectedCategoryId(firstCustomer?.id ?? "");
     setSelectedItemId(firstCustomer?.items[0]?.id ?? "");
     setNewItem((current) => ({
       ...current,
-      sectionId: firstCustomer?.id ?? sections[0]?.id ?? "",
+      sectionId: firstCustomer?.id ?? "",
     }));
-    commitSavedHubSnapshot(workspace.settings, workspace.menuSections);
+    commitSavedHubSnapshot(workspace.settings, sections);
+
+    const browserDraft = loadBrowserMenuDraft(workspace.hub.id);
+    if (
+      browserDraft &&
+      !hubWorkspaceSnapshotsEqual(
+        { settings: browserDraft.settings, menuSections: browserDraft.menuSections },
+        { settings: workspace.settings, menuSections: sections },
+      )
+    ) {
+      setBrowserDraftRestore(browserDraft);
+    } else {
+      setBrowserDraftRestore(null);
+    }
+  };
+
+  const restoreBrowserMenuDraft = () => {
+    if (!browserDraftRestore || !activeHubId) {
+      return;
+    }
+    const sections = ensureStaffMenuSections(browserDraftRestore.menuSections);
+    setHubSettings({
+      ...browserDraftRestore.settings,
+      deliveryPostcodeZones:
+        browserDraftRestore.settings.deliveryPostcodeZones.length > 0
+          ? browserDraftRestore.settings.deliveryPostcodeZones
+          : createDefaultHullPostcodeZones(),
+    });
+    setMenuSections(sections);
+    setBrowserDraftRestore(null);
+    setMenuNotice("Restored older work from this browser only. It will auto-save to your hub shortly.");
+  };
+
+  const discardBrowserMenuDraft = () => {
+    if (activeHubId) {
+      clearBrowserMenuDraft(activeHubId);
+    }
+    setBrowserDraftRestore(null);
   };
 
   const loadMerchantOrders = async (token = merchantToken, options: { silent?: boolean } = {}) => {
@@ -1054,6 +1233,18 @@ export default function MerchantPortalPage() {
   };
 
   useEffect(() => {
+    if (!activeHubId || !merchantToken) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      saveBrowserMenuDraft(activeHubId, menuSections, hubSettings);
+    }, 800);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [activeHubId, hubSettings, menuSections, merchantToken]);
+
+  useEffect(() => {
     const storedSession = window.localStorage.getItem(merchantSessionStorageKey);
     if (!storedSession) {
       return;
@@ -1145,6 +1336,7 @@ export default function MerchantPortalPage() {
     setSelectedItemId("");
     setPasswordForm(initialPasswordFormState);
     setSavedHubSnapshot(null);
+    setBrowserDraftRestore(null);
     setSaveNotice("");
     setUserNotice("");
     setMenuNotice("");
@@ -1236,32 +1428,7 @@ export default function MerchantPortalPage() {
       setSaveNotice("Your account is view-only and cannot save menu changes.");
       return;
     }
-    setMenuPublishing(true);
-    try {
-      const workspace = await saveWorkspace(merchantToken, activeHubId, {
-        settings: hubSettings,
-        menuSections,
-      });
-      setHubSettings({
-        ...workspace.settings,
-        deliveryPostcodeZones:
-          workspace.settings.deliveryPostcodeZones.length > 0
-            ? workspace.settings.deliveryPostcodeZones
-            : createDefaultHullPostcodeZones(),
-      });
-      setMenuSections(ensureStaffMenuSections(workspace.menuSections));
-      setHubUsers(workspace.users);
-      setPendingImports(workspace.pendingImports ?? []);
-      commitSavedHubSnapshot(workspace.settings, workspace.menuSections);
-      setSaveNotice("Draft saved — you can come back and publish when ready.");
-      setMenuNotice("Progress saved. Customers only see changes after you publish.");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Save failed.";
-      setSaveNotice(message);
-      setMenuNotice(message);
-    } finally {
-      setMenuPublishing(false);
-    }
+    await persistWorkspaceToHub({ manualCheckpoint: true });
   };
 
   const handleSaveHub = async () => {
@@ -1276,23 +1443,20 @@ export default function MerchantPortalPage() {
 
     setMenuPublishing(true);
     try {
-      const workspace = await saveWorkspace(merchantToken, activeHubId, {
-        settings: hubSettings,
-        menuSections,
-      });
-      setHubSettings({
-        ...workspace.settings,
-        deliveryPostcodeZones:
-          workspace.settings.deliveryPostcodeZones.length > 0
-            ? workspace.settings.deliveryPostcodeZones
-            : createDefaultHullPostcodeZones(),
-      });
-      setMenuSections(ensureStaffMenuSections(workspace.menuSections));
-      setHubUsers(workspace.users);
-      setPendingImports(workspace.pendingImports ?? []);
-      commitSavedHubSnapshot(workspace.settings, workspace.menuSections);
+      if (editingMenuBoardId) {
+        setMenuSections((current) => applyMenuBoardPublish(current, editingMenuBoardId, editingMenuBoardId));
+        setEditingMenuBoardId(null);
+      }
+      let saved = await persistWorkspaceToHub({ manualCheckpoint: true });
+      if (!saved) {
+        await new Promise((resolve) => window.setTimeout(resolve, 800));
+        saved = await persistWorkspaceToHub({ manualCheckpoint: true });
+      }
+      if (!saved) {
+        throw new Error("Could not save the menu to your hub before publishing.");
+      }
       setMenuPublishDialogOpen(false);
-      setSaveNotice(`Live menu published for ${workspace.hub.businessName}.`);
+      setSaveNotice(`Live menu published for ${hubSettings.name}.`);
       setMenuNotice("Customers will see your updated menu on Hull Eats.");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Menu publish failed.";
@@ -1305,6 +1469,64 @@ export default function MerchantPortalPage() {
 
   const handleRequestPublishMenu = () => {
     setMenuPublishDialogOpen(true);
+  };
+
+  const focusFirstCustomerCategory = (sections: HubMenuSection[]) => {
+    const first = customerFacingMenuSections(sections)[0];
+    setSelectedCategoryId(first?.id ?? "");
+    setSelectedItemId(first?.items[0]?.id ?? "");
+    setNewItem((current) => ({ ...current, sectionId: first?.id ?? current.sectionId }));
+  };
+
+  const handleSelectMainMenu = () => {
+    if (!editingMenuBoardId) {
+      return;
+    }
+    updateMenuSections((current) => {
+      const next = switchToMainMenu(current, editingMenuBoardId);
+      focusFirstCustomerCategory(next);
+      return next;
+    });
+    setEditingMenuBoardId(null);
+    setMenuNotice("Back on your main menu.");
+  };
+
+  const handleSelectMenuBoard = (boardId: string) => {
+    if (editingMenuBoardId === boardId) {
+      return;
+    }
+    const board = menuBoards.find((entry) => entry.id === boardId);
+    updateMenuSections((current) => {
+      const next = switchToMenuBoard(current, editingMenuBoardId, boardId);
+      focusFirstCustomerCategory(next);
+      return next;
+    });
+    setEditingMenuBoardId(boardId);
+    setMenuNotice(board ? `Editing ${board.name}.` : "Editing draft menu.");
+  };
+
+  const handleCreateMenuBoard = (kind: HubMenuBoardKind) => {
+    updateMenuSections((current) => {
+      const created = appendMenuBoard(current, editingMenuBoardId, kind);
+      setEditingMenuBoardId(created.boardId);
+      focusFirstCustomerCategory(created.sections);
+      return created.sections;
+    });
+    setMenuNotice(
+      kind === "seasonal"
+        ? "Seasonal menu created — edit it, then publish when ready."
+        : kind === "alternative"
+          ? "Alternative menu created — edit it, then publish when ready."
+          : "New menu draft created — edit it, then publish when ready.",
+    );
+  };
+
+  const handleUpdateMenuBoardPublishMode = (boardId: string, mode: HubMenuBoardPublishMode) => {
+    updateMenuSections((current) => updateMenuBoardInConfig(current, boardId, { publishMode: mode }));
+  };
+
+  const handleRenameMenuBoard = (boardId: string, name: string) => {
+    updateMenuSections((current) => updateMenuBoardInConfig(current, boardId, { name }));
   };
 
   const handleCreateUser = async () => {
@@ -1410,11 +1632,13 @@ export default function MerchantPortalPage() {
 
     updateMenuSections((current) => current.filter((section) => section.id !== sectionId));
     if (selectedCategoryId === sectionId) {
-      const remaining = menuSections.filter((section) => section.id !== sectionId);
+      const remaining = menuSections
+        .filter((section) => section.id !== sectionId)
+        .filter((section) => !isHubMenuStaffLibrarySection(section));
       setSelectedCategoryId(remaining[0]?.id ?? "");
       setSelectedItemId(remaining[0]?.items[0]?.id ?? "");
     }
-    setMenuNotice(`${sectionName} removed from draft. Publish to update the live menu.`);
+    setMenuNotice(`${sectionName} removed. Saving to your hub — publish when customers should see the change.`);
   };
 
   const handleCreateItem = () => {
@@ -1424,6 +1648,24 @@ export default function MerchantPortalPage() {
     if (!newItem.sectionId || !newItem.name.trim()) {
       setMenuNotice("Choose a category and product name before creating the item.");
       return;
+    }
+
+    if (isHubMenuMealDealsCategory(targetSection)) {
+      const bundle = getMealDealBundleSelection({
+        ...buildLocalMenuItem({
+          categoryId: newItem.sectionId,
+          name: newItem.name,
+          description: newItem.description,
+          price: Number(newItem.price) || 0,
+          requiresIdVerification: newItem.requiresIdVerification,
+          components: newItemComponents,
+          optionGroups: newItemOptionGroups,
+        }),
+      });
+      if (bundle.mainIds.length === 0 || bundle.sideIds.length === 0 || bundle.drinkIds.length === 0) {
+        setMenuNotice("Pick at least one main, side, and drink from your menu for this meal deal.");
+        return;
+      }
     }
 
     let price: number;
@@ -1457,20 +1699,15 @@ export default function MerchantPortalPage() {
       price,
       imageUrl: newItem.imageUrl.trim() || undefined,
       requiresIdVerification: newItem.requiresIdVerification,
-      components: [],
-      optionGroups,
+      components: newItemComponents.filter((component) => component.label.trim()),
+      optionGroups: isPizza ? [...optionGroups, ...newItemOptionGroups] : newItemOptionGroups,
       isActive: false,
     });
 
-    if (isPizza) {
-      createdItem = mergeMenuTemplateWithExistingSizes(createdItem, "pizza");
-    } else if (newItemVariationRows.some((row) => row.label.trim())) {
-      createdItem = applyManualVariationsToItem(createdItem, newItemVariationRows);
-    }
+    createdItem = mergeItemDescriptionWithComponents(createdItem, true);
 
-    const hubToppings = getHubExtraToppingsFromSection(extrasSection);
-    if (!isPizza && hubToppings.length > 0) {
-      createdItem = applyDefaultExtraToppingsToItem(createdItem, hubToppings);
+    if (newItemVariationRows.some((row) => row.label.trim())) {
+      createdItem = applyManualVariationsToItem(createdItem, newItemVariationRows);
     }
 
     updateMenuSections((current) =>
@@ -1488,10 +1725,12 @@ export default function MerchantPortalPage() {
     }));
     setPizzaSizeRows(createInitialPizzaSizeRows());
     setNewItemVariationRows([]);
+    setNewItemComponents([]);
+    setNewItemOptionGroups([]);
     setMenuNotice(
       isPizza
-        ? `Added ${createdItem.name} with sizes, crust, and topping groups. Review below, set Live, then publish.`
-        : `Added ${createdItem.name} to your draft (hidden until you set Live and publish). Duplicate to copy it for another portion size.`,
+        ? `Added ${createdItem.name} — saving to your hub. Set Live and publish when customers should see it.`
+        : `Added ${createdItem.name} — saving to your hub. It stays until you remove it. Publish when customers should see it.`,
     );
   };
 
@@ -1623,6 +1862,7 @@ export default function MerchantPortalPage() {
     try {
       const workspace = await applyMenuImport(merchantToken, activeHubId, importId, selectedImportCandidateIds);
       setMenuSections(ensureStaffMenuSections(workspace.menuSections));
+      setEditingMenuBoardId(null);
       setPendingImports(workspace.pendingImports ?? []);
       setSelectedImportCandidateIds([]);
       setMenuNotice(
@@ -1665,7 +1905,7 @@ export default function MerchantPortalPage() {
               </button>
             </div>
 
-            {loginError ? <p style={errorMessageStyle}>{loginError}</p> : null}
+            {loginError ? <p className="he-hub-banner he-hub-banner--error">{loginError}</p> : null}
           </section>
         </section>
       </main>
@@ -1686,6 +1926,7 @@ export default function MerchantPortalPage() {
     };
     setHubSettings(settings);
     setMenuSections(ensureStaffMenuSections(workspace.menuSections));
+    setEditingMenuBoardId(null);
     commitSavedHubSnapshot(settings, workspace.menuSections);
     setSaveNotice("Backup restored and saved to your hub.");
   };
@@ -1829,11 +2070,31 @@ export default function MerchantPortalPage() {
           </div>
         </header>
 
+        {browserDraftRestore ? (
+          <div className="he-hub-banner he-hub-banner--row" role="status">
+            <div>
+              <strong>Unsaved menu work in this browser</strong>
+              <p>
+                You have extras or menu edits from before your last save (for example after a refresh). Restore them or
+                discard to use what is saved on the hub.
+              </p>
+            </div>
+            <div className="he-btn-row" style={{ flex: "0 0 auto" }}>
+              <button type="button" className="he-portal-primary" style={saveHubButtonStyle} onClick={restoreBrowserMenuDraft}>
+                Restore
+              </button>
+              <button type="button" style={secondaryButton} onClick={discardBrowserMenuDraft}>
+                Discard
+              </button>
+            </div>
+          </div>
+        ) : null}
+
         {hasUnsavedHubChanges ? (
-          <div className="he-unsaved-banner" style={unsavedHubBanner} role="status" aria-live="polite">
-            <div style={unsavedHubBannerCopy}>
+          <div className="he-hub-banner he-hub-banner--row he-unsaved-banner" role="status" aria-live="polite">
+            <div>
               <strong>Unsaved changes</strong>
-              <p style={unsavedHubBannerCopyParagraph}>
+              <p>
                 Delivery, business, and menu edits are not live for customers until you save. Use{" "}
                 <strong>Save hub changes</strong> (or <strong>Publish changes</strong> on the menu screen).
               </p>
@@ -1845,18 +2106,18 @@ export default function MerchantPortalPage() {
         ) : null}
 
         {hubAccess && !hubAccess.canEditWorkspace ? (
-          <p style={successMessageStyle} role="status">
+          <p className="he-hub-banner" role="status">
             View-only access: you can browse this hub but cannot save menu, delivery, or offer changes.
           </p>
         ) : null}
 
-        {saveNotice ? <p style={successMessageStyle}>{saveNotice}</p> : null}
-        {menuNotice ? <p style={successMessageStyle}>{menuNotice}</p> : null}
-        {userNotice ? <p style={successMessageStyle}>{userNotice}</p> : null}
-        {passwordNotice ? <p style={successMessageStyle}>{passwordNotice}</p> : null}
-        {orderNotice ? <p style={successMessageStyle}>{orderNotice}</p> : null}
-        {driverNotice ? <p style={successMessageStyle}>{driverNotice}</p> : null}
-        {offersNotice ? <p style={successMessageStyle}>{offersNotice}</p> : null}
+        {saveNotice ? <p className="he-hub-banner" role="status">{saveNotice}</p> : null}
+        {menuNotice ? <p className="he-hub-banner" role="status">{menuNotice}</p> : null}
+        {userNotice ? <p className="he-hub-banner" role="status">{userNotice}</p> : null}
+        {passwordNotice ? <p className="he-hub-banner" role="status">{passwordNotice}</p> : null}
+        {orderNotice ? <p className="he-hub-banner" role="status">{orderNotice}</p> : null}
+        {driverNotice ? <p className="he-hub-banner" role="status">{driverNotice}</p> : null}
+        {offersNotice ? <p className="he-hub-banner" role="status">{offersNotice}</p> : null}
 
         {activeHubSection === "home" ? (
           <section className="he-dashboard-grid" style={dashboardGrid}>
@@ -2084,14 +2345,18 @@ export default function MerchantPortalPage() {
               pizzaSizeRows={pizzaSizeRows}
               newItemVariationRows={newItemVariationRows}
               onNewItemVariationRowsChange={setNewItemVariationRows}
-              publishIssues={menuPublishIssues}
+              newItemComponents={newItemComponents}
+              onNewItemComponentsChange={setNewItemComponents}
+              newItemOptionGroups={newItemOptionGroups}
+              onNewItemOptionGroupsChange={setNewItemOptionGroups}
               hasUnsavedHubChanges={hasUnsavedHubChanges}
+              menuHubPersistState={menuHubPersistState}
               hubSettings={hubSettings}
               menuPreviewOpen={menuPreviewOpen}
               onOpenMenuPreview={() => setMenuPreviewOpen(true)}
               onCloseMenuPreview={() => setMenuPreviewOpen(false)}
               categoryPresetOptions={HUB_CATEGORY_PRESET_OPTIONS}
-              onMoveCategory={handleMoveCategory}
+              onReorderCategory={handleReorderCategory}
               onNewCategoryPresetChange={handleNewCategoryPresetChange}
               onNewCategoryChange={(patch) => setNewCategory((current) => ({ ...current, ...patch }))}
               onNewItemChange={(patch) => setNewItem((current) => ({ ...current, ...patch }))}
@@ -2147,6 +2412,52 @@ export default function MerchantPortalPage() {
                   ),
                 );
               }}
+              burgerPartsSection={burgerPartsSection}
+              kebabPartsSection={kebabPartsSection}
+              onAddBurgerPart={(item) => {
+                if (!burgerPartsSection) {
+                  return;
+                }
+                updateMenuSections((current) =>
+                  current.map((section) =>
+                    section.id === burgerPartsSection.id ? { ...section, items: [...section.items, item] } : section,
+                  ),
+                );
+              }}
+              onRemoveBurgerPart={(itemId) => {
+                if (!burgerPartsSection) {
+                  return;
+                }
+                updateMenuSections((current) =>
+                  current.map((section) =>
+                    section.id === burgerPartsSection.id
+                      ? { ...section, items: section.items.filter((item) => item.id !== itemId) }
+                      : section,
+                  ),
+                );
+              }}
+              onAddKebabPart={(item) => {
+                if (!kebabPartsSection) {
+                  return;
+                }
+                updateMenuSections((current) =>
+                  current.map((section) =>
+                    section.id === kebabPartsSection.id ? { ...section, items: [...section.items, item] } : section,
+                  ),
+                );
+              }}
+              onRemoveKebabPart={(itemId) => {
+                if (!kebabPartsSection) {
+                  return;
+                }
+                updateMenuSections((current) =>
+                  current.map((section) =>
+                    section.id === kebabPartsSection.id
+                      ? { ...section, items: section.items.filter((item) => item.id !== itemId) }
+                      : section,
+                  ),
+                );
+              }}
               mealSection={mealSection}
               onAddMealTemplate={(item) => {
                 if (!mealSection) {
@@ -2190,6 +2501,13 @@ export default function MerchantPortalPage() {
               menuPublishing={menuPublishing}
               onCancelPublish={() => setMenuPublishDialogOpen(false)}
               onConfirmPublish={() => void handleSaveHub()}
+              menuBoards={menuBoards}
+              editingMenuBoardId={editingMenuBoardId}
+              onSelectMainMenu={handleSelectMainMenu}
+              onSelectMenuBoard={handleSelectMenuBoard}
+              onCreateMenuBoard={handleCreateMenuBoard}
+              onUpdateMenuBoardPublishMode={handleUpdateMenuBoardPublishMode}
+              onRenameMenuBoard={handleRenameMenuBoard}
               onOpenImport={() => setActiveHubPanel("import")}
               onUpdateSectionField={(field, value) => {
                 if (selectedCategory) {
@@ -3725,51 +4043,6 @@ const secondaryButtonSmall: React.CSSProperties = {
   fontWeight: 800,
   background: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(247,241,234,0.96))",
   cursor: "pointer",
-};
-
-const errorMessageStyle: React.CSSProperties = {
-  marginTop: 16,
-  padding: "14px 16px",
-  borderRadius: 16,
-  color: "#8a2121",
-  background: "rgba(255, 95, 95, 0.12)",
-  border: "1px solid rgba(255, 95, 95, 0.24)",
-};
-
-const successMessageStyle: React.CSSProperties = {
-  margin: 0,
-  padding: "14px 16px",
-  borderRadius: 16,
-  color: "#0f5e3d",
-  background: "rgba(23, 156, 107, 0.12)",
-  border: "1px solid rgba(23, 156, 107, 0.18)",
-};
-
-const unsavedHubBanner: React.CSSProperties = {
-  display: "flex",
-  flexWrap: "wrap",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: 14,
-  padding: "14px 16px",
-  borderRadius: 16,
-  border: "1px solid rgba(181, 88, 0, 0.45)",
-  background: "linear-gradient(180deg, rgba(255, 244, 233, 1), rgba(255, 235, 210, 0.98))",
-  boxShadow: "0 12px 28px rgba(181, 88, 0, 0.14)",
-};
-
-const unsavedHubBannerCopy: React.CSSProperties = {
-  display: "grid",
-  gap: 6,
-  minWidth: 0,
-  flex: "1 1 220px",
-};
-
-const unsavedHubBannerCopyParagraph: React.CSSProperties = {
-  margin: 0,
-  color: "#5b3d12",
-  lineHeight: 1.5,
-  fontSize: "0.9rem",
 };
 
 const saveHubButtonDirtyStyle: React.CSSProperties = {

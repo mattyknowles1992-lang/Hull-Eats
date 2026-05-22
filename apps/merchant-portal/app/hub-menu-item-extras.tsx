@@ -41,7 +41,7 @@ export function HubMenuItemExtrasPicker({
   if (toppings.length === 0) {
     return (
       <p style={{ margin: 0, fontSize: "0.84rem", color: "#5b6470" }}>
-        Add toppings under <strong>Extra toppings</strong> on the left first.
+        Add extras under <strong>Added extras</strong> on the left first.
       </p>
     );
   }
@@ -58,44 +58,41 @@ export function HubMenuItemExtrasPicker({
         <strong>Let customers add extra toppings on this item</strong>
       </label>
 
-      {enabled ? (
-        <>
-          <div style={toolbar}>
-            <button type="button" style={linkButton} disabled={readOnly} onClick={onSelectAll}>
-              Select all
-            </button>
-            <button type="button" style={linkButton} disabled={readOnly} onClick={onClearAll}>
-              Clear all
-            </button>
-          </div>
-          <div style={{ display: "grid", gap: 6 }}>
-            {toppings.map((topping) => {
-              const checked = selectedIds.has(topping.id);
-              const price = priceById.get(topping.id) ?? topping.price;
-              return (
-                <label key={topping.id} style={optionRow}>
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    disabled={readOnly}
-                    onChange={(e) => onToggle(topping.id, e.target.checked)}
-                  />
-                  <span style={{ flex: 1, fontWeight: 700 }}>{topping.label}</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min={0}
-                    disabled={readOnly || !checked}
-                    style={{ ...priceInput, opacity: checked ? 1 : 0.45 }}
-                    value={price}
-                    onChange={(e) => onPriceChange(topping.id, Number(e.target.value) || 0)}
-                  />
-                </label>
-              );
-            })}
-          </div>
-        </>
-      ) : null}
+      <div style={enabled ? toppingList : toppingListDisabled}>
+        <div style={toolbar}>
+          <button type="button" style={linkButton} disabled={readOnly || !enabled} onClick={onSelectAll}>
+            Select all
+          </button>
+          <button type="button" style={linkButton} disabled={readOnly || !enabled} onClick={onClearAll}>
+            Clear all
+          </button>
+        </div>
+        {toppings.map((topping) => {
+          const checked = enabled && selectedIds.has(topping.id);
+          const price = priceById.get(topping.id) ?? topping.price;
+          return (
+            <label key={topping.id} style={optionRow}>
+              <input
+                type="checkbox"
+                checked={checked}
+                disabled={readOnly || !enabled}
+                onChange={(e) => onToggle(topping.id, e.target.checked)}
+              />
+              <span style={{ flex: 1, fontWeight: 700 }}>{topping.label}</span>
+              <input
+                type="number"
+                step="0.01"
+                min={0}
+                disabled={readOnly || !enabled || !checked}
+                className="hub-menu-item-extras__price"
+                style={{ opacity: enabled && checked ? 1 : 0.45 }}
+                value={price}
+                onChange={(e) => onPriceChange(topping.id, Number(e.target.value) || 0)}
+              />
+            </label>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -122,6 +119,15 @@ const linkButton: CSSProperties = {
   fontSize: "0.84rem",
 };
 
+const toppingList: CSSProperties = { display: "grid", gap: 6 };
+
+const toppingListDisabled: CSSProperties = {
+  ...toppingList,
+  opacity: 0.45,
+  pointerEvents: "none",
+  userSelect: "none",
+};
+
 const optionRow: CSSProperties = {
   display: "flex",
   alignItems: "center",
@@ -132,11 +138,3 @@ const optionRow: CSSProperties = {
   cursor: "pointer",
 };
 
-const priceInput: CSSProperties = {
-  width: 88,
-  padding: "6px 8px",
-  borderRadius: 8,
-  border: "1px solid rgba(15, 17, 21, 0.15)",
-  font: "inherit",
-  textAlign: "right",
-};
