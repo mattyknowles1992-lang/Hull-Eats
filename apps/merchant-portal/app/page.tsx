@@ -38,7 +38,6 @@ import { HE_BRAND } from "./portal-brand";
 import { HubDriversWorkbench } from "./hub-drivers-workbench";
 import { HubOffersWorkbench } from "./hub-offers-workbench";
 import {
-  applyManualVariationsToItem,
   applyMenuBoardPublish,
   appendMenuBoard,
   buildLocalMenuCategory,
@@ -65,7 +64,6 @@ import {
   updateMenuBoardInConfig,
   type HubMenuBoardKind,
   type HubMenuBoardPublishMode,
-  type ManualVariationRow,
   type MenuTemplateKind,
 } from "./menu-studio-core";
 import { PizzaSizeDraftPanel, buildPizzaSizeOptionGroupFromRows, createInitialPizzaSizeRows } from "./pizza-size-draft";
@@ -653,7 +651,6 @@ export default function MerchantPortalPage() {
   const [newCategory, setNewCategory] = useState<CreateCategoryFormState>(initialCreateCategoryState);
   const [newItem, setNewItem] = useState<CreateItemFormState>(initialCreateItemState);
   const [pizzaSizeRows, setPizzaSizeRows] = useState<PizzaSizeRow[]>(() => createInitialPizzaSizeRows());
-  const [newItemVariationRows, setNewItemVariationRows] = useState<ManualVariationRow[]>([]);
   const [newItemComponents, setNewItemComponents] = useState<MenuItem["components"]>([]);
   const [newItemOptionGroups, setNewItemOptionGroups] = useState<MenuItem["optionGroups"]>([]);
   const [selectedImportCandidateIds, setSelectedImportCandidateIds] = useState<string[]>([]);
@@ -730,7 +727,7 @@ export default function MerchantPortalPage() {
   }, [activeHubSection]);
 
   const selectedCategory = useMemo(
-    () => menuSections.find((section) => section.id === selectedCategoryId) ?? menuSections[0] ?? null,
+    () => menuSections.find((section) => section.id === selectedCategoryId) ?? null,
     [menuSections, selectedCategoryId],
   );
 
@@ -792,6 +789,17 @@ export default function MerchantPortalPage() {
 
   useEffect(() => {
     const customerSections = menuSections.filter((section) => !isHubMenuStaffLibrarySection(section));
+    const selectedSection = menuSections.find((section) => section.id === selectedCategoryId) ?? null;
+
+    if (selectedSection && isHubMenuStaffLibrarySection(selectedSection)) {
+      if (isCreatingNewItem) {
+        setIsCreatingNewItem(false);
+      }
+      if (selectedItemId) {
+        setSelectedItemId("");
+      }
+      return;
+    }
 
     if (customerSections.length === 0) {
       if (selectedItemId) {
@@ -800,13 +808,16 @@ export default function MerchantPortalPage() {
       if (isCreatingNewItem) {
         setIsCreatingNewItem(false);
       }
+      if (selectedCategoryId && !selectedSection) {
+        setSelectedCategoryId("");
+      }
       return;
     }
 
-    const selectedIsCustomer = customerSections.some((section) => section.id === selectedCategoryId);
     const nextCategory =
       customerSections.find((section) => section.id === selectedCategoryId) ?? customerSections[0]!;
-    if (!selectedIsCustomer && nextCategory.id !== selectedCategoryId) {
+
+    if (!selectedCategoryId || !customerSections.some((section) => section.id === selectedCategoryId)) {
       setSelectedCategoryId(nextCategory.id);
     }
 
@@ -821,7 +832,9 @@ export default function MerchantPortalPage() {
       return;
     }
 
-    const nextItem = nextCategory.items.find((item) => item.id === selectedItemId) ?? nextCategory.items[0]!;
+    const activeCategory =
+      customerSections.find((section) => section.id === selectedCategoryId) ?? nextCategory;
+    const nextItem = activeCategory.items.find((item) => item.id === selectedItemId) ?? activeCategory.items[0]!;
     if (nextItem.id !== selectedItemId) {
       setSelectedItemId(nextItem.id);
     }
@@ -839,7 +852,6 @@ export default function MerchantPortalPage() {
         price: "",
       });
       setPizzaSizeRows(createInitialPizzaSizeRows());
-      setNewItemVariationRows([]);
       setNewItemComponents([]);
       setNewItemOptionGroups([]);
       setMenuNotice("");
@@ -853,7 +865,6 @@ export default function MerchantPortalPage() {
     setSelectedItemId(section?.items[0]?.id ?? "");
     setNewItem((current) => ({ ...initialCreateItemState, sectionId: current.sectionId }));
     setPizzaSizeRows(createInitialPizzaSizeRows());
-    setNewItemVariationRows([]);
     setNewItemComponents([]);
     setNewItemOptionGroups([]);
   }, [menuSections, selectedCategoryId]);
@@ -1706,10 +1717,6 @@ export default function MerchantPortalPage() {
 
     createdItem = mergeItemDescriptionWithComponents(createdItem, true);
 
-    if (newItemVariationRows.some((row) => row.label.trim())) {
-      createdItem = applyManualVariationsToItem(createdItem, newItemVariationRows);
-    }
-
     updateMenuSections((current) =>
       current.map((section) =>
         section.id === newItem.sectionId ? { ...section, items: [...section.items, createdItem] } : section,
@@ -1724,7 +1731,6 @@ export default function MerchantPortalPage() {
       sectionId: current.sectionId,
     }));
     setPizzaSizeRows(createInitialPizzaSizeRows());
-    setNewItemVariationRows([]);
     setNewItemComponents([]);
     setNewItemOptionGroups([]);
     setMenuNotice(
@@ -2343,8 +2349,6 @@ export default function MerchantPortalPage() {
               newCategory={newCategory}
               newItem={newItem}
               pizzaSizeRows={pizzaSizeRows}
-              newItemVariationRows={newItemVariationRows}
-              onNewItemVariationRowsChange={setNewItemVariationRows}
               newItemComponents={newItemComponents}
               onNewItemComponentsChange={setNewItemComponents}
               newItemOptionGroups={newItemOptionGroups}
@@ -2355,6 +2359,8 @@ export default function MerchantPortalPage() {
               menuPreviewOpen={menuPreviewOpen}
               onOpenMenuPreview={() => setMenuPreviewOpen(true)}
               onCloseMenuPreview={() => setMenuPreviewOpen(false)}
+              storeSlug={activeHubSlug}
+              customerWebBaseUrl={customerWebBaseUrl}
               categoryPresetOptions={HUB_CATEGORY_PRESET_OPTIONS}
               onReorderCategory={handleReorderCategory}
               onNewCategoryPresetChange={handleNewCategoryPresetChange}
@@ -2365,7 +2371,8 @@ export default function MerchantPortalPage() {
                 setIsCreatingNewItem(false);
                 setSelectedCategoryId(sectionId);
                 const section = menuSections.find((s) => s.id === sectionId);
-                setSelectedItemId(section?.items[0]?.id ?? "");
+                const isStaff = section ? isHubMenuStaffLibrarySection(section) : false;
+                setSelectedItemId(isStaff ? "" : (section?.items[0]?.id ?? ""));
                 setNewItem((current) => ({ ...current, sectionId }));
               }}
               onSelectItem={(itemId) => {
@@ -2456,6 +2463,22 @@ export default function MerchantPortalPage() {
                       ? { ...section, items: section.items.filter((item) => item.id !== itemId) }
                       : section,
                   ),
+                );
+              }}
+              onUpdateBurgerPartsSection={(updater) => {
+                if (!burgerPartsSection) {
+                  return;
+                }
+                updateMenuSections((current) =>
+                  current.map((section) => (section.id === burgerPartsSection.id ? updater(section) : section)),
+                );
+              }}
+              onUpdateKebabPartsSection={(updater) => {
+                if (!kebabPartsSection) {
+                  return;
+                }
+                updateMenuSections((current) =>
+                  current.map((section) => (section.id === kebabPartsSection.id ? updater(section) : section)),
                 );
               }}
               mealSection={mealSection}

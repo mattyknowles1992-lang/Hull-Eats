@@ -1,5 +1,7 @@
 import type { HubMenuSection, MenuItem } from "@hull-eats/types";
 import {
+  decodeHubMenuCategoryDescription,
+  encodeHubMenuCategoryDescription,
   HUB_MENU_CATEGORY_CUSTOM_ID,
   HUB_MENU_BURGER_KEBAB_PARTS_PRESET,
   HUB_MENU_BURGER_PARTS_PRESET,
@@ -27,6 +29,18 @@ export type HubExtraTopping = {
 };
 
 export const EXTRAS_TOPPINGS_GROUP_NAME = "Extra toppings";
+const EXTRAS_TOPPINGS_MARKER = /^__HULL_EXTRAS__/;
+
+export function isExtrasToppingsGroup(group: MenuOptionGroup): boolean {
+  if (EXTRAS_TOPPINGS_MARKER.test(group.description ?? "")) {
+    return true;
+  }
+  return group.name.trim() === EXTRAS_TOPPINGS_GROUP_NAME;
+}
+
+export function findExtrasToppingsGroup(item: MenuItem): MenuOptionGroup | null {
+  return item.optionGroups.find((group) => isExtrasToppingsGroup(group)) ?? null;
+}
 export const MANUAL_VARIATIONS_GROUP_NAME = "Options";
 
 /** Shown in the menu builder — stored as option group name `Options` on the item. */
@@ -110,8 +124,25 @@ export function getMealTemplateCustomerNote(item: MenuItem): string {
   const match = item.description?.match(MEAL_CFG_PREFIX);
   return match?.[2]?.trim() ?? "";
 }
+/** Default title customers see for the meal upgrade choice (editable per item). */
+export const MEAL_CHOICE_GROUP_DEFAULT_NAME = "Make it a meal";
+export const MEAL_ON_ITS_OWN_LABEL = "On its own";
+/** @deprecated Legacy persisted name — still recognised when loading menus. */
 export const MEAL_CHOICE_GROUP_NAME = "Meal choice";
+const MEAL_CHOICE_MARKER = /^__HULL_MEAL_CHOICE__/;
 const MEAL_TEMPLATE_MARKER = /^__HULL_MEAL_TEMPLATE:([a-zA-Z0-9-]+)__$/;
+
+export function isMealChoiceGroup(group: MenuOptionGroup): boolean {
+  if (MEAL_CHOICE_MARKER.test(group.description ?? "")) {
+    return true;
+  }
+  const name = group.name.trim();
+  return name === MEAL_CHOICE_GROUP_NAME || name === MEAL_CHOICE_GROUP_DEFAULT_NAME || /^make it a meal/i.test(name);
+}
+
+export function findMealChoiceGroup(item: MenuItem): MenuOptionGroup | null {
+  return item.optionGroups.find((group) => isMealChoiceGroup(group)) ?? null;
+}
 
 export type HubMealSideOption = {
   id: string;
@@ -511,7 +542,14 @@ export type ComposeProductLine = "burger" | "kebab";
 
 export type BurgerPartSlot = "bun" | "meat" | "salad";
 export type KebabPartSlot = "bread" | "meat" | "salad";
-export type ComposePartSlot = BurgerPartSlot | KebabPartSlot;
+/** Slot key stored on each part item — defaults plus `custom-*` groups businesses add. */
+export type ComposePartSlot = string;
+
+export type PartSlotDefinition = {
+  id: string;
+  key: ComposePartSlot;
+  label: string;
+};
 
 export type HubMenuPart = {
   id: string;
@@ -520,7 +558,8 @@ export type HubMenuPart = {
   slot: ComposePartSlot;
 };
 
-const PART_V2_PREFIX = /^__HULL_PART:(burger|kebab):(bun|bread|meat|salad)__(?:\r?\n)?([\s\S]*)$/;
+const PART_V2_PREFIX = /^__HULL_PART:(burger|kebab):([a-z0-9_-]+)__(?:\r?\n)?([\s\S]*)$/;
+const PART_SLOTS_CFG_PREFIX = /^__HULL_PART_SLOTS:(burger|kebab):([\s\S]*?)__(?:\r?\n)?([\s\S]*)$/;
 const PART_LEGACY_PREFIX = /^__HULL_PART_KIND:(bread|protein|salad|sauce|other)__(?:\r?\n)?([\s\S]*)$/;
 
 const BURGER_SLOT_LABELS: Record<BurgerPartSlot, string> = {
@@ -595,19 +634,150 @@ export function decodePartLibraryItem(item: MenuItem, defaultLine: ComposeProduc
   };
 }
 
-export function partSlotLabel(line: ComposeProductLine, slot: ComposePartSlot): string {
+export function defaultPartSlotDefinitions(line: ComposeProductLine): PartSlotDefinition[] {
+  if (line === "burger") {
+    return [
+      { id: "slot-bun", key: "bun", label: BURGER_SLOT_LABELS.bun },
+      { id: "slot-meat", key: "meat", label: BURGER_SLOT_LABELS.meat },
+      { id: "slot-salad", key: "salad", label: BURGER_SLOT_LABELS.salad },
+    ];
+  }
+  return [
+    { id: "slot-bread", key: "bread", label: KEBAB_SLOT_LABELS.bread },
+    { id: "slot-meat", key: "meat", label: KEBAB_SLOT_LABELS.meat },
+    { id: "slot-salad", key: "salad", label: KEBAB_SLOT_LABELS.salad },
+  ];
+}
+
+function parsePartSlotsPayload(raw: string): PartSlotDefinition[] {
+  try {
+    const parsed = JSON.parse(raw) as { slots?: unknown };
+    if (!Array.isArray(parsed.slots)) {
+      return [];
+    }
+    return parsed.slots
+      .map((entry) => {
+        if (!entry || typeof entry !== "object") {
+          return null;
+        }
+        const row = entry as { id?: string; key?: string; label?: string };
+        const key = row.key?.trim();
+        const label = row.label?.trim();
+        if (!key || !label) {
+          return null;
+        }
+        return {
+          id: row.id ?? createMenuDraftId("slot-def"),
+          key,
+          label,
+        };
+      })
+      .filter(Boolean) as PartSlotDefinition[];
+  } catch {
+    return [];
+  }
+}
+
+function stripPartSlotsMarker(description: string): string {
+  const match = description.trim().match(PART_SLOTS_CFG_PREFIX);
+  if (!match) {
+    return description.trim();
+  }
+  return (match[3] ?? "").trim();
+}
+
+function encodePartSlotsInDescription(line: ComposeProductLine, slots: PartSlotDefinition[], userNote = ""): string {
+  const payload = JSON.stringify({ slots });
+  const note = stripPartSlotsMarker(userNote.trim());
+  const marker = `__HULL_PART_SLOTS:${line}:${payload}__`;
+  return note ? `${marker}\n${note}` : marker;
+}
+
+export function readPartSlotDefinitions(section: HubMenuSection | null | undefined, line: ComposeProductLine): PartSlotDefinition[] {
+  if (!section) {
+    return defaultPartSlotDefinitions(line);
+  }
+  const decoded = decodeHubMenuCategoryDescription(section.description ?? "");
+  const match = decoded.description.match(PART_SLOTS_CFG_PREFIX);
+  if (match?.[2]) {
+    const stored = parsePartSlotsPayload(match[2]);
+    if (stored.length > 0) {
+      return stored;
+    }
+  }
+  return defaultPartSlotDefinitions(line);
+}
+
+export function writePartSlotDefinitions(
+  section: HubMenuSection,
+  line: ComposeProductLine,
+  slots: PartSlotDefinition[],
+): HubMenuSection {
+  const decoded = decodeHubMenuCategoryDescription(section.description ?? "");
+  const description = encodePartSlotsInDescription(line, slots, decoded.description);
+  return {
+    ...section,
+    description: encodeHubMenuCategoryDescription(section.presetKey ?? null, description),
+  };
+}
+
+export function addPartSlotDefinition(section: HubMenuSection, line: ComposeProductLine, label: string): HubMenuSection {
+  const slots = readPartSlotDefinitions(section, line);
+  const trimmed = label.trim() || "New group";
+  const key = `custom-${createMenuDraftId("slot")}`;
+  return writePartSlotDefinitions(section, line, [
+    ...slots,
+    { id: createMenuDraftId("slot-def"), key, label: trimmed },
+  ]);
+}
+
+export function renamePartSlotDefinition(
+  section: HubMenuSection,
+  line: ComposeProductLine,
+  slotKey: ComposePartSlot,
+  label: string,
+): HubMenuSection {
+  const slots = readPartSlotDefinitions(section, line).map((slot) =>
+    slot.key === slotKey ? { ...slot, label: label.trim() || slot.label } : slot,
+  );
+  return writePartSlotDefinitions(section, line, slots);
+}
+
+export function removePartSlotDefinition(
+  section: HubMenuSection,
+  line: ComposeProductLine,
+  slotKey: ComposePartSlot,
+): HubMenuSection {
+  const slots = readPartSlotDefinitions(section, line).filter((slot) => slot.key !== slotKey);
+  const nextSlots = slots.length > 0 ? slots : defaultPartSlotDefinitions(line);
+  const withoutSlotItems = section.items.filter((item) => decodePartLibraryItem(item, line).slot !== slotKey);
+  return {
+    ...writePartSlotDefinitions(section, line, nextSlots),
+    items: withoutSlotItems,
+  };
+}
+
+export function partSlotLabel(
+  line: ComposeProductLine,
+  slot: ComposePartSlot,
+  slotDefinitions?: PartSlotDefinition[],
+): string {
+  const fromConfig = slotDefinitions?.find((entry) => entry.key === slot)?.label;
+  if (fromConfig) {
+    return fromConfig;
+  }
   if (line === "burger") {
     return BURGER_SLOT_LABELS[slot as BurgerPartSlot] ?? slot;
   }
   return KEBAB_SLOT_LABELS[slot as KebabPartSlot] ?? slot;
 }
 
-export function burgerPartSlots(): BurgerPartSlot[] {
-  return ["bun", "meat", "salad"];
+export function burgerPartSlots(section?: HubMenuSection | null): ComposePartSlot[] {
+  return readPartSlotDefinitions(section, "burger").map((slot) => slot.key);
 }
 
-export function kebabPartSlots(): KebabPartSlot[] {
-  return ["bread", "meat", "salad"];
+export function kebabPartSlots(section?: HubMenuSection | null): ComposePartSlot[] {
+  return readPartSlotDefinitions(section, "kebab").map((slot) => slot.key);
 }
 
 export function componentFromMenuPart(part: HubMenuPart, quantity = 1, removable = false): MenuComponent {
@@ -1530,7 +1700,7 @@ export function getItemExtraToppingSelection(item: MenuItem): {
   selectedIds: Set<string>;
   priceById: Map<string, number>;
 } {
-  const group = item.optionGroups.find((entry) => entry.name === EXTRAS_TOPPINGS_GROUP_NAME);
+  const group = findExtrasToppingsGroup(item);
   if (!group) {
     return { enabled: false, selectedIds: new Set(), priceById: new Map() };
   }
@@ -1552,7 +1722,7 @@ export function applyExtraToppingsToItem(
   selectedIds: Set<string>,
   priceById: Map<string, number>,
 ): MenuItem {
-  const withoutExtras = item.optionGroups.filter((group) => group.name !== EXTRAS_TOPPINGS_GROUP_NAME);
+  const withoutExtras = item.optionGroups.filter((group) => !isExtrasToppingsGroup(group));
   if (!enabled || selectedIds.size === 0) {
     return { ...item, optionGroups: withoutExtras };
   }
@@ -1572,14 +1742,16 @@ export function applyExtraToppingsToItem(
     return { ...item, optionGroups: withoutExtras };
   }
 
+  const existingTitle = findExtrasToppingsGroup(item)?.name ?? EXTRAS_TOPPINGS_GROUP_NAME;
+
   return {
     ...item,
     optionGroups: [
       ...withoutExtras,
       {
         id: createMenuDraftId("group"),
-        name: EXTRAS_TOPPINGS_GROUP_NAME,
-        description: "",
+        name: existingTitle,
+        description: "__HULL_EXTRAS__",
         selectionMode: "multiple" as const,
         isRequired: false,
         minSelections: 0,
@@ -1635,6 +1807,266 @@ export function applyManualVariationsToItem(item: MenuItem, rows: ManualVariatio
         })),
       },
     ],
+  };
+}
+
+export type ItemOptionBlockKind = "extras" | "meal" | "custom" | "pizza_sizes" | "meal_bundle" | "crust";
+
+export type ItemOptionBlock = {
+  id: string;
+  kind: ItemOptionBlockKind;
+  label: string;
+  groupIds: string[];
+  canReorder: boolean;
+  canRemove: boolean;
+};
+
+function isPizzaSizeOptionGroupName(group: MenuOptionGroup): boolean {
+  return group.isRequired && /size/i.test(group.name);
+}
+
+function isMealBundleOptionGroupName(name: string): boolean {
+  return name === MEAL_BUNDLE_MAIN_GROUP || name === MEAL_BUNDLE_SIDE_GROUP || name === MEAL_BUNDLE_DRINK_GROUP;
+}
+
+function isMealFollowOnGroup(group: MenuOptionGroup, mealYesIds: Set<string>): boolean {
+  return group.showWhenValueIds.some((id) => mealYesIds.has(id) || id.includes("-meal-yes"));
+}
+
+function collectMealCluster(groups: MenuOptionGroup[], startIndex: number): { cluster: MenuOptionGroup[]; endIndex: number } {
+  const mealGroup = groups[startIndex];
+  if (!mealGroup) {
+    return { cluster: [], endIndex: startIndex };
+  }
+  const mealYesIds = new Set(mealGroup.options.filter((option) => option.id.includes("-meal-yes")).map((option) => option.id));
+  const cluster = [mealGroup];
+  let index = startIndex + 1;
+  while (index < groups.length) {
+    const group = groups[index];
+    if (!group || !isMealFollowOnGroup(group, mealYesIds)) {
+      break;
+    }
+    cluster.push(group);
+    index += 1;
+  }
+  return { cluster, endIndex: index };
+}
+
+export function listItemOptionBlocks(item: MenuItem): ItemOptionBlock[] {
+  const blocks: ItemOptionBlock[] = [];
+  const groups = item.optionGroups;
+  let index = 0;
+
+  while (index < groups.length) {
+    const group = groups[index];
+    if (!group) {
+      index += 1;
+      continue;
+    }
+
+    if (isExtrasToppingsGroup(group)) {
+      blocks.push({
+        id: `block-extras-${group.id}`,
+        kind: "extras",
+        label: group.name.trim() || EXTRAS_TOPPINGS_GROUP_NAME,
+        groupIds: [group.id],
+        canReorder: true,
+        canRemove: true,
+      });
+      index += 1;
+      continue;
+    }
+
+    if (isMealChoiceGroup(group)) {
+      const { cluster, endIndex } = collectMealCluster(groups, index);
+      blocks.push({
+        id: `block-meal-${cluster[0]?.id ?? group.id}`,
+        kind: "meal",
+        label: group.name.trim() || MEAL_CHOICE_GROUP_DEFAULT_NAME,
+        groupIds: cluster.map((entry) => entry.id),
+        canReorder: true,
+        canRemove: true,
+      });
+      index = endIndex;
+      continue;
+    }
+
+    if (isMealBundleOptionGroupName(group.name)) {
+      const bundleIds: string[] = [];
+      while (index < groups.length && groups[index] && isMealBundleOptionGroupName(groups[index]!.name)) {
+        bundleIds.push(groups[index]!.id);
+        index += 1;
+      }
+      blocks.push({
+        id: `block-meal-bundle-${bundleIds[0] ?? group.id}`,
+        kind: "meal_bundle",
+        label: "Meal deal choices",
+        groupIds: bundleIds,
+        canReorder: false,
+        canRemove: false,
+      });
+      continue;
+    }
+
+    if (isPizzaSizeOptionGroupName(group)) {
+      blocks.push({
+        id: `block-pizza-size-${group.id}`,
+        kind: "pizza_sizes",
+        label: group.name.trim() || "Pizza sizes",
+        groupIds: [group.id],
+        canReorder: false,
+        canRemove: false,
+      });
+      index += 1;
+      continue;
+    }
+
+    if (/^Crust \(/i.test(group.name)) {
+      blocks.push({
+        id: `block-crust-${group.id}`,
+        kind: "crust",
+        label: group.name.trim(),
+        groupIds: [group.id],
+        canReorder: false,
+        canRemove: false,
+      });
+      index += 1;
+      continue;
+    }
+
+    blocks.push({
+      id: `block-custom-${group.id}`,
+      kind: "custom",
+      label: group.name.trim() || "Customer choice",
+      groupIds: [group.id],
+      canReorder: true,
+      canRemove: true,
+    });
+    index += 1;
+  }
+
+  return blocks;
+}
+
+export function flattenItemOptionBlocks(item: MenuItem, blocks: ItemOptionBlock[]): MenuItem {
+  const groupsById = new Map(item.optionGroups.map((group) => [group.id, group]));
+  const ordered: MenuOptionGroup[] = [];
+
+  for (const block of blocks) {
+    for (const groupId of block.groupIds) {
+      const group = groupsById.get(groupId);
+      if (group) {
+        ordered.push(group);
+      }
+    }
+  }
+
+  for (const group of item.optionGroups) {
+    if (!ordered.some((entry) => entry.id === group.id)) {
+      ordered.push(group);
+    }
+  }
+
+  return { ...item, optionGroups: ordered };
+}
+
+export function reorderItemOptionBlocks(item: MenuItem, fromIndex: number, toIndex: number): MenuItem {
+  const blocks = listItemOptionBlocks(item);
+  const reorderable = blocks.filter((block) => block.canReorder);
+
+  const fromBlock = reorderable[fromIndex];
+  if (!fromBlock) {
+    return item;
+  }
+
+  const reorderableNext = [...reorderable];
+  const [moved] = reorderableNext.splice(fromIndex, 1);
+  if (!moved) {
+    return item;
+  }
+  const clampedTo = Math.max(0, Math.min(toIndex, reorderableNext.length));
+  reorderableNext.splice(clampedTo, 0, moved);
+
+  const merged: ItemOptionBlock[] = [];
+  let reorderCursor = 0;
+  for (const block of blocks) {
+    if (!block.canReorder) {
+      merged.push(block);
+    } else {
+      const next = reorderableNext[reorderCursor];
+      if (next) {
+        merged.push(next);
+      }
+      reorderCursor += 1;
+    }
+  }
+
+  return flattenItemOptionBlocks(item, merged);
+}
+
+export function removeItemOptionBlock(item: MenuItem, blockId: string): MenuItem {
+  const block = listItemOptionBlocks(item).find((entry) => entry.id === blockId);
+  if (!block) {
+    return item;
+  }
+  const removeIds = new Set(block.groupIds);
+  return {
+    ...item,
+    optionGroups: item.optionGroups.filter((group) => !removeIds.has(group.id)),
+  };
+}
+
+export function updateItemOptionGroup(
+  item: MenuItem,
+  groupId: string,
+  patch: Partial<MenuOptionGroup>,
+): MenuItem {
+  return {
+    ...item,
+    optionGroups: item.optionGroups.map((group) => (group.id === groupId ? { ...group, ...patch } : group)),
+  };
+}
+
+export function updateItemOptionInGroup(
+  item: MenuItem,
+  groupId: string,
+  optionId: string,
+  patch: Partial<MenuOption>,
+): MenuItem {
+  return {
+    ...item,
+    optionGroups: item.optionGroups.map((group) =>
+      group.id === groupId
+        ? {
+            ...group,
+            options: group.options.map((option) => (option.id === optionId ? { ...option, ...patch } : option)),
+          }
+        : group,
+    ),
+  };
+}
+
+export function addItemCustomOptionGroup(item: MenuItem, title = "New choice"): MenuItem {
+  const group = createEmptyOptionGroup();
+  group.name = title;
+  return { ...item, optionGroups: [...item.optionGroups, group] };
+}
+
+export function addItemOptionToGroup(item: MenuItem, groupId: string): MenuItem {
+  return {
+    ...item,
+    optionGroups: item.optionGroups.map((group) =>
+      group.id === groupId ? { ...group, options: [...group.options, createEmptyOption()] } : group,
+    ),
+  };
+}
+
+export function removeItemOptionFromGroup(item: MenuItem, groupId: string, optionId: string): MenuItem {
+  return {
+    ...item,
+    optionGroups: item.optionGroups.map((group) =>
+      group.id === groupId ? { ...group, options: group.options.filter((option) => option.id !== optionId) } : group,
+    ),
   };
 }
 
@@ -1753,12 +2185,28 @@ export function stripMealUpgradeGroups(item: MenuItem): MenuItem {
   return {
     ...item,
     optionGroups: item.optionGroups.filter((group) => {
-      if (group.name === MEAL_CHOICE_GROUP_NAME) {
+      if (isMealChoiceGroup(group)) {
         return false;
       }
       return !group.showWhenValueIds.some((id) => id.includes("-meal-yes"));
     }),
   };
+}
+
+export function updateMealChoiceGroupTitle(item: MenuItem, title: string): MenuItem {
+  const mealGroup = findMealChoiceGroup(item);
+  if (!mealGroup) {
+    return item;
+  }
+  return updateItemOptionGroup(item, mealGroup.id, { name: title.trim() || MEAL_CHOICE_GROUP_DEFAULT_NAME });
+}
+
+export function updateExtrasGroupTitle(item: MenuItem, title: string): MenuItem {
+  const group = findExtrasToppingsGroup(item);
+  if (!group) {
+    return item;
+  }
+  return updateItemOptionGroup(item, group.id, { name: title.trim() || EXTRAS_TOPPINGS_GROUP_NAME });
 }
 
 export function getItemMealUpgradeSelection(
@@ -1770,7 +2218,7 @@ export function getItemMealUpgradeSelection(
   selectedSideIds: Set<string>;
   selectedDrinkIds: Set<string>;
 } {
-  const mealGroup = item.optionGroups.find((group) => group.name === MEAL_CHOICE_GROUP_NAME);
+  const mealGroup = findMealChoiceGroup(item);
   if (!mealGroup) {
     return { enabled: false, templateId: null, selectedSideIds: new Set(), selectedDrinkIds: new Set() };
   }
@@ -1806,17 +2254,19 @@ export function buildMealUpgradeOptionGroups(
   template: HubMealTemplate,
   selectedSideIds: Set<string>,
   selectedDrinkIds: Set<string>,
+  customerGroupTitle = MEAL_CHOICE_GROUP_DEFAULT_NAME,
 ): MenuItem["optionGroups"] {
   const seed = createMenuDraftId("meal");
   const mealYesId = `${seed}-meal-yes`;
   const sides = template.sides.filter((side) => selectedSideIds.has(side.id));
   const drinks = template.drinks.filter((drink) => selectedDrinkIds.has(drink.id));
+  const upgradeLabel = template.label.trim() || MEAL_CHOICE_GROUP_DEFAULT_NAME;
 
   const groups: MenuItem["optionGroups"] = [
     {
       id: createMenuDraftId("group"),
-      name: MEAL_CHOICE_GROUP_NAME,
-      description: `__HULL_MEAL_TEMPLATE:${template.id}__`,
+      name: customerGroupTitle.trim() || MEAL_CHOICE_GROUP_DEFAULT_NAME,
+      description: `__HULL_MEAL_CHOICE__\n__HULL_MEAL_TEMPLATE:${template.id}__`,
       selectionMode: "single",
       isRequired: true,
       minSelections: 1,
@@ -1825,7 +2275,7 @@ export function buildMealUpgradeOptionGroups(
       options: [
         {
           id: `${seed}-no-meal`,
-          label: "On its own",
+          label: MEAL_ON_ITS_OWN_LABEL,
           description: "",
           priceDelta: 0,
           isDefault: true,
@@ -1833,7 +2283,7 @@ export function buildMealUpgradeOptionGroups(
         },
         {
           id: mealYesId,
-          label: template.label,
+          label: upgradeLabel,
           description: "",
           priceDelta: template.upgradePrice,
           isDefault: false,
@@ -1902,10 +2352,11 @@ export function applyMealUpgradeToItem(
 
   const sideIds = selectedSideIds.size > 0 ? selectedSideIds : new Set(template.sides.map((side) => side.id));
   const drinkIds = selectedDrinkIds.size > 0 ? selectedDrinkIds : new Set(template.drinks.map((drink) => drink.id));
+  const existingTitle = findMealChoiceGroup(item)?.name ?? MEAL_CHOICE_GROUP_DEFAULT_NAME;
 
   return {
     ...withoutMeal,
-    optionGroups: [...withoutMeal.optionGroups, ...buildMealUpgradeOptionGroups(template, sideIds, drinkIds)],
+    optionGroups: [...withoutMeal.optionGroups, ...buildMealUpgradeOptionGroups(template, sideIds, drinkIds, existingTitle)],
   };
 }
 

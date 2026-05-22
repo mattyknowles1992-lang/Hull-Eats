@@ -204,3 +204,18 @@ export function isHubMenuSectionPizza(section: { presetKey?: string | null; name
   const n = (section.name ?? "").trim().toLowerCase();
   return n === "pizza" || n === "pizzas";
 }
+
+const HULL_INTERNAL_OPTION_LINE = /^__HULL_[A-Z0-9_]+(?::[^_]*)?__$/i;
+
+/** Strip hub-internal markers from option group descriptions before customers see them. */
+export function customerFacingOptionGroupDescription(description?: string | null): string {
+  if (!description?.trim()) {
+    return "";
+  }
+  return description
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !HULL_INTERNAL_OPTION_LINE.test(line))
+    .join("\n")
+    .trim();
+}

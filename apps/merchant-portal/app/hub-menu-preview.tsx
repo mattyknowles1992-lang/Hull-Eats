@@ -3,8 +3,9 @@
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useState } from "react";
 
-import type { HubMenuSection, HubSettings } from "@hull-eats/types";
+import type { HubMenuSection, HubSettings, MenuItem } from "@hull-eats/types";
 
+import { HubMenuPreviewCustomise } from "./hub-menu-preview-customise";
 import {
   buildMenuPreviewCategories,
   describeMenuAvailability,
@@ -19,17 +20,30 @@ type HubMenuPreviewProps = {
   settings: HubSettings;
   menuSections: HubMenuSection[];
   hasUnsavedChanges: boolean;
+  storeSlug?: string;
+  customerWebBaseUrl?: string;
 };
 
 const defaultHero =
   "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1600&q=82";
 
-export function HubMenuPreview({ open, onClose, settings, menuSections, hasUnsavedChanges }: HubMenuPreviewProps) {
+export function HubMenuPreview({
+  open,
+  onClose,
+  settings,
+  menuSections,
+  hasUnsavedChanges,
+  storeSlug = "",
+  customerWebBaseUrl = "",
+}: HubMenuPreviewProps) {
   const categories = useMemo(() => buildMenuPreviewCategories(menuSections), [menuSections]);
   const [activeCategoryId, setActiveCategoryId] = useState(categories[0]?.id ?? "");
+  const [customiseItem, setCustomiseItem] = useState<MenuItem | null>(null);
+  const liveStoreUrl = storeSlug.trim() && customerWebBaseUrl.trim() ? `${customerWebBaseUrl.replace(/\/$/, "")}/stores/${storeSlug.trim()}` : "";
 
   useEffect(() => {
     if (!open) {
+      setCustomiseItem(null);
       return;
     }
 
@@ -71,8 +85,16 @@ export function HubMenuPreview({ open, onClose, settings, menuSections, hasUnsav
         <div className="he-hub-banner" style={previewBannerLayout}>
           <strong>{hasUnsavedChanges ? "Showing your unsaved draft" : "Showing your current draft"}</strong>
           <p>
-            This is how your menu can look on Hull Eats. Customers only see it after you <strong>Save &amp; publish</strong> and
-            your store is open on the marketplace.
+            Tap any customisable item to try options exactly as customers will. Live site updates after{" "}
+            <strong>Save &amp; publish</strong>.
+            {liveStoreUrl ? (
+              <>
+                {" "}
+                <a href={liveStoreUrl} target="_blank" rel="noreferrer" style={liveLink}>
+                  Open live customer menu
+                </a>
+              </>
+            ) : null}
           </p>
         </div>
 
@@ -138,8 +160,27 @@ export function HubMenuPreview({ open, onClose, settings, menuSections, hasUnsav
                         const mode = getMenuAvailabilityMode(item);
                         const availability = describeMenuAvailability(mode);
 
+                        const hasChoices = item.components.length > 0 || item.optionGroups.length > 0;
+                        const canTryChoices = mode !== "sold_out" && hasChoices;
+
                         return (
-                          <article key={item.id} style={itemCard}>
+                          <article
+                            key={item.id}
+                            style={canTryChoices ? itemCardClickable : itemCard}
+                            role={canTryChoices ? "button" : undefined}
+                            tabIndex={canTryChoices ? 0 : undefined}
+                            onClick={canTryChoices ? () => setCustomiseItem(item) : undefined}
+                            onKeyDown={
+                              canTryChoices
+                                ? (event) => {
+                                    if (event.key === "Enter" || event.key === " ") {
+                                      event.preventDefault();
+                                      setCustomiseItem(item);
+                                    }
+                                  }
+                                : undefined
+                            }
+                          >
                             {item.imageUrl ? (
                               <img src={item.imageUrl} alt="" style={itemImage} />
                             ) : (
@@ -153,8 +194,8 @@ export function HubMenuPreview({ open, onClose, settings, menuSections, hasUnsav
                               {item.description ? <p style={itemDescription}>{item.description}</p> : null}
                               {mode === "sold_out" ? (
                                 <span style={soldOutBadge}>{availability.label}</span>
-                              ) : item.optionGroups.length > 0 ? (
-                                <span style={customisableBadge}>Customisable</span>
+                              ) : hasChoices ? (
+                                <span style={customisableBadge}>{canTryChoices ? "Tap to try options" : "Customisable"}</span>
                               ) : null}
                             </div>
                           </article>
@@ -183,6 +224,8 @@ export function HubMenuPreview({ open, onClose, settings, menuSections, hasUnsav
           </aside>
         </div>
       </div>
+
+      <HubMenuPreviewCustomise item={customiseItem} onClose={() => setCustomiseItem(null)} />
     </div>
   );
 }
@@ -392,6 +435,18 @@ const itemCard: CSSProperties = {
   borderRadius: 14,
   border: "1px solid rgba(15, 17, 21, 0.08)",
   background: "#fafbfd",
+};
+
+const itemCardClickable: CSSProperties = {
+  ...itemCard,
+  cursor: "pointer",
+  textAlign: "left",
+  width: "100%",
+};
+
+const liveLink: CSSProperties = {
+  color: "#0680a6",
+  fontWeight: 800,
 };
 
 const itemImage: CSSProperties = {

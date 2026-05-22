@@ -239,6 +239,51 @@ textarea {
   gap: 18px;
 }
 
+.hub-menu-parts-library__slot-config {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(6, 79, 104, 0.18);
+  background: rgba(232, 248, 255, 0.55);
+}
+
+.hub-menu-parts-library__slot-config-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.hub-menu-parts-library__slot-config-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.hub-menu-parts-library__slot-config-field {
+  flex: 1;
+  min-width: 160px;
+}
+
+.hub-menu-parts-library__slot-config-remove {
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(155, 28, 28, 0.25);
+  background: #fff;
+  color: #9b1c1c;
+  font-weight: 800;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.hub-menu-parts-library__slot-config-add {
+  margin-top: 4px;
+}
+
 .hub-menu-parts-library__slot-add {
   margin-bottom: 4px;
 }
@@ -248,6 +293,62 @@ textarea {
   font-size: 0.82rem;
   color: #8a2121;
   font-weight: 700;
+}
+
+.hub-menu-item-options-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.hub-menu-option-block {
+  display: grid;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 17, 21, 0.12);
+  background: #fff;
+}
+
+.hub-menu-option-block.is-dragging {
+  opacity: 0.55;
+}
+
+.hub-menu-option-block__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.hub-menu-option-block__grip {
+  flex: 0 0 16px;
+  align-self: center;
+  display: grid;
+  grid-template-columns: repeat(2, 4px);
+  gap: 3px;
+  padding: 6px 2px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.hub-menu-option-block__grip span {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #9aa3af;
+}
+
+.hub-menu-option-choice-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(100px, 140px) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+@media (max-width: 640px) {
+  .hub-menu-option-choice-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .hub-menu-tab-empty {

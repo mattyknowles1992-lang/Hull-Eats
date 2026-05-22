@@ -7,31 +7,37 @@ import type { MenuItem } from "@hull-eats/types";
 
 import {
   applyComponentsToItem,
-  burgerPartSlots,
   componentFromMenuPart,
   filterPartsNotListedAsExtras,
   isLabelListedAsExtra,
-  kebabPartSlots,
   partSlotLabel,
   type ComposePartSlot,
   type ComposeProductLine,
   type HubExtraTopping,
   type HubMenuPart,
+  type PartSlotDefinition,
 } from "./menu-studio-core";
 
 type Props = {
   item: MenuItem;
   line: ComposeProductLine;
   parts: HubMenuPart[];
+  slotDefinitions: PartSlotDefinition[];
   extras: HubExtraTopping[];
   readOnly?: boolean;
   onUpdateItem: (updater: (item: MenuItem) => MenuItem) => void;
 };
 
-export function HubMenuItemPartsPicker({ item, line, parts, extras, readOnly = false, onUpdateItem }: Props) {
+export function HubMenuItemPartsPicker({
+  item,
+  line,
+  parts,
+  slotDefinitions,
+  extras,
+  readOnly = false,
+  onUpdateItem,
+}: Props) {
   const [syncDescription, setSyncDescription] = useState(true);
-
-  const slots = line === "burger" ? burgerPartSlots() : kebabPartSlots();
   const availableParts = useMemo(() => filterPartsNotListedAsExtras(parts, extras), [parts, extras]);
 
   const selectedByPartId = useMemo(() => {
@@ -44,8 +50,8 @@ export function HubMenuItemPartsPicker({ item, line, parts, extras, readOnly = f
 
   const partsBySlot = useMemo(() => {
     const groups = new Map<ComposePartSlot, HubMenuPart[]>();
-    for (const slot of slots) {
-      groups.set(slot, []);
+    for (const slot of slotDefinitions) {
+      groups.set(slot.key, []);
     }
     for (const part of availableParts) {
       const bucket = groups.get(part.slot) ?? [];
@@ -53,7 +59,7 @@ export function HubMenuItemPartsPicker({ item, line, parts, extras, readOnly = f
       groups.set(part.slot, bucket);
     }
     return groups;
-  }, [availableParts, slots]);
+  }, [availableParts, slotDefinitions]);
 
   const extrasUsedAsBase = useMemo(
     () => extras.filter((extra) => item.components.some((c) => normalize(c.label) === normalize(extra.label))),
@@ -120,14 +126,14 @@ export function HubMenuItemPartsPicker({ item, line, parts, extras, readOnly = f
         <span>List parts in customer description (Includes: …)</span>
       </label>
 
-      {slots.map((slot) => {
-        const slotParts = partsBySlot.get(slot) ?? [];
+      {slotDefinitions.map((slotDef) => {
+        const slotParts = partsBySlot.get(slotDef.key) ?? [];
         if (slotParts.length === 0) {
           return null;
         }
         return (
-          <div key={slot} className="hub-menu-item-parts__group">
-            <p style={groupTitle}>{partSlotLabel(line, slot)}</p>
+          <div key={slotDef.key} className="hub-menu-item-parts__group">
+            <p style={groupTitle}>{partSlotLabel(line, slotDef.key, slotDefinitions)}</p>
             <ul style={optionList}>
               {slotParts.map((part) => {
                 const selected = selectedByPartId.get(part.id);

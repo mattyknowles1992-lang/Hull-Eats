@@ -24,6 +24,7 @@ import {
 } from "../../../src/lib/basket";
 import {
   computeDeliveryQuote,
+  customerFacingOptionGroupDescription,
   DELIVERY_NOT_AVAILABLE_TO_POSTCODE_MESSAGE,
   hubAllowsCollection,
   hubAllowsDelivery,
@@ -1001,7 +1002,10 @@ export function StoreMenuClient({
               </section>
             ) : null}
 
-            {visibleOptionGroups.map((group) => (
+            {visibleOptionGroups.map((group) => {
+              const groupCopy = customerFacingOptionGroupDescription(group.description);
+
+              return (
               <section key={group.id} className="customise-block">
                 <div className="customise-group-header">
                   <div>
@@ -1013,7 +1017,7 @@ export function StoreMenuClient({
                   </span>
                 </div>
 
-                {group.description ? <p className="customise-block-copy">{group.description}</p> : null}
+                {groupCopy ? <p className="customise-block-copy">{groupCopy}</p> : null}
 
                 <div className="customise-choice-stack">
                   {group.options.map((option) => {
@@ -1068,7 +1072,8 @@ export function StoreMenuClient({
                   })}
                 </div>
               </section>
-            ))}
+              );
+            })}
 
             <section className="customise-summary-card">
               <div className="glance-row">

@@ -99,7 +99,10 @@ export function HubMenuCategoryTabs({
             <button
               type="button"
               className={`hub-menu-tab hub-menu-tab--staff${selectedSectionId === extrasSection.id ? " is-active" : ""}`}
-              onClick={() => onSelectSection(extrasSection.id)}
+              onClick={(event) => {
+                event.preventDefault();
+                onSelectSection(extrasSection.id);
+              }}
             >
               <span className="hub-menu-tab-label">
                 <span className="hub-menu-tab-name">Added extras</span>
@@ -112,7 +115,10 @@ export function HubMenuCategoryTabs({
             <button
               type="button"
               className={`hub-menu-tab hub-menu-tab--parts${selectedSectionId === burgerPartsSection.id ? " is-active" : ""}`}
-              onClick={() => onSelectSection(burgerPartsSection.id)}
+              onClick={(event) => {
+                event.preventDefault();
+                onSelectSection(burgerPartsSection.id);
+              }}
             >
               <span className="hub-menu-tab-label">
                 <span className="hub-menu-tab-name">Burger parts</span>
@@ -125,7 +131,10 @@ export function HubMenuCategoryTabs({
             <button
               type="button"
               className={`hub-menu-tab hub-menu-tab--parts${selectedSectionId === kebabPartsSection.id ? " is-active" : ""}`}
-              onClick={() => onSelectSection(kebabPartsSection.id)}
+              onClick={(event) => {
+                event.preventDefault();
+                onSelectSection(kebabPartsSection.id);
+              }}
             >
               <span className="hub-menu-tab-label">
                 <span className="hub-menu-tab-name">Kebab parts</span>
@@ -138,7 +147,10 @@ export function HubMenuCategoryTabs({
             <button
               type="button"
               className={`hub-menu-tab hub-menu-tab--meal${selectedSectionId === mealSection.id ? " is-active" : ""}`}
-              onClick={() => onSelectSection(mealSection.id)}
+              onClick={(event) => {
+                event.preventDefault();
+                onSelectSection(mealSection.id);
+              }}
             >
               <span className="hub-menu-tab-label">
                 <span className="hub-menu-tab-name">Make it a meal</span>
@@ -183,7 +195,10 @@ export function HubMenuCategoryTabs({
               <button
                 type="button"
                 className={`hub-menu-tab hub-menu-tab--category${isActive ? " is-active" : ""}`}
-                onClick={() => onSelectSection(section.id)}
+                onClick={(event) => {
+                  event.preventDefault();
+                  onSelectSection(section.id);
+                }}
               >
                 <span className="hub-menu-tab-label">
                   <span className="hub-menu-tab-name-row">
