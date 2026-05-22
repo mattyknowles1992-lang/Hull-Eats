@@ -3830,7 +3830,7 @@ const sidebarButton: React.CSSProperties = {
 
 const sidebarButtonActive: React.CSSProperties = {
   ...sidebarButton,
-  borderColor: "rgba(7, 155, 200, 0.2)",
+  border: "1px solid rgba(7, 155, 200, 0.2)",
   background: "rgba(7, 155, 200, 0.1)",
   color: "#0680a6",
 };

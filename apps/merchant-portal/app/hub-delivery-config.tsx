@@ -12,6 +12,7 @@ import {
   listHullSectorsForOutward,
   hubOrderFulfillmentOptions,
   listKnownHullOutwardCodes,
+  isValidMapCoordinate,
   mergeHullPostcodeZones,
   milesToMeters,
   resolveBusinessOrigin,
@@ -224,15 +225,17 @@ export function HubDeliveryConfig({
 
   zonesRef.current = zones;
 
-  const businessOrigin = useMemo(
-    () =>
-      resolveBusinessOrigin({
-        storePostcode: settings.postcode,
-        originLatitude: settings.deliveryOriginLatitude,
-        originLongitude: settings.deliveryOriginLongitude,
-      }),
-    [settings.postcode, settings.deliveryOriginLatitude, settings.deliveryOriginLongitude],
-  );
+  const businessOrigin = useMemo(() => {
+    const origin = resolveBusinessOrigin({
+      storePostcode: settings.postcode,
+      originLatitude: settings.deliveryOriginLatitude,
+      originLongitude: settings.deliveryOriginLongitude,
+    });
+    if (!origin || !isValidMapCoordinate(origin.lat, origin.lng)) {
+      return null;
+    }
+    return origin;
+  }, [settings.postcode, settings.deliveryOriginLatitude, settings.deliveryOriginLongitude]);
 
   useEffect(() => {
     const postcode = settings.postcode.trim();
@@ -595,6 +598,19 @@ export function HubDeliveryConfig({
         L.latLng(HULL_MAP_BOUNDS.north, HULL_MAP_BOUNDS.east),
       );
 
+      const safeFlyTo = (lat: number, lng: number, zoom: number) => {
+        if (!isValidMapCoordinate(lat, lng)) {
+          return false;
+        }
+        try {
+          map.invalidateSize();
+          map.flyTo([lat, lng], zoom, MAP_CAMERA_EASE);
+          return true;
+        } catch {
+          return false;
+        }
+      };
+
       const safeFlyToBounds = (
         bounds: import("leaflet").LatLngBounds,
         padding: [number, number],
@@ -637,10 +653,8 @@ export function HubDeliveryConfig({
           businessOrigin.lng,
           settings.deliveryRadiusMiles,
         );
-        if (
-          !safeFlyToBounds(bounds, [32, 32], 13)
-        ) {
-          map.flyTo([businessOrigin.lat, businessOrigin.lng], 12, MAP_CAMERA_EASE);
+        if (!safeFlyToBounds(bounds, [32, 32], 13)) {
+          safeFlyTo(businessOrigin.lat, businessOrigin.lng, 12);
         }
         return;
       }
@@ -667,8 +681,7 @@ export function HubDeliveryConfig({
           return;
         }
         const centroid = getHullSectorCentroid(mapFocus.outward, mapFocus.sector);
-        if (centroid) {
-          map.flyTo([centroid.lat, centroid.lng], 14.5, MAP_CAMERA_EASE);
+        if (centroid && safeFlyTo(centroid.lat, centroid.lng, 14.5)) {
           return;
         }
       }
@@ -679,8 +692,7 @@ export function HubDeliveryConfig({
           return;
         }
         const center = HULL_AREA_OUTWARD_CENTROIDS[mapFocus.outward];
-        if (center) {
-          map.flyTo([center.lat, center.lng], 12.5, MAP_CAMERA_EASE);
+        if (center && safeFlyTo(center.lat, center.lng, 12.5)) {
           return;
         }
       }

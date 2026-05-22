@@ -127,6 +127,11 @@ textarea {
 
 .hub-menu-tab-row.is-draggable .hub-menu-tab-grip {
   cursor: grab;
+  touch-action: none;
+}
+
+.hub-menu-tab-row .hub-menu-tab {
+  touch-action: manipulation;
 }
 
 .hub-menu-tab-row.is-dragging {

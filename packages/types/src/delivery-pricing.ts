@@ -168,13 +168,28 @@ export const mergeHullPostcodeZones = (saved: HullPostcodeZone[] | undefined): H
   });
 };
 
+export function isValidMapCoordinate(lat: number, lng: number): boolean {
+  return (
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    lat >= -90 &&
+    lat <= 90 &&
+    lng >= -180 &&
+    lng <= 180
+  );
+}
+
 export const resolveBusinessOrigin = (args: {
   storePostcode: string;
   originLatitude?: number | null;
   originLongitude?: number | null;
 }): { lat: number; lng: number } | null => {
   if (args.originLatitude != null && args.originLongitude != null) {
-    return { lat: args.originLatitude, lng: args.originLongitude };
+    const lat = Number(args.originLatitude);
+    const lng = Number(args.originLongitude);
+    if (isValidMapCoordinate(lat, lng)) {
+      return { lat, lng };
+    }
   }
 
   const sector = parseUkPostcodeSector(args.storePostcode);

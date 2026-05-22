@@ -1,6 +1,7 @@
 "use client";
 
 import type { DragEvent } from "react";
+import { useRef } from "react";
 
 import type { HubMenuSection } from "@hull-eats/types";
 import { isHubMenuStaffLibrarySection } from "@hull-eats/types";
@@ -17,9 +18,26 @@ type HubMenuCategoryTabsProps = {
   onReorderCategory: (sectionId: string, toIndex: number) => void;
 };
 
-function TabGrip({ label }: { label: string }) {
+function TabGrip({
+  label,
+  draggable,
+  onDragStart,
+  onDragEnd,
+}: {
+  label: string;
+  draggable: boolean;
+  onDragStart?: (event: DragEvent<HTMLSpanElement>) => void;
+  onDragEnd?: (event: DragEvent<HTMLSpanElement>) => void;
+}) {
   return (
-    <span className="hub-menu-tab-grip" aria-hidden title={label}>
+    <span
+      className="hub-menu-tab-grip"
+      aria-hidden
+      title={label}
+      draggable={draggable}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+    >
       {Array.from({ length: 6 }, (_, index) => (
         <span key={index} />
       ))}
@@ -38,16 +56,18 @@ export function HubMenuCategoryTabs({
   onSelectSection,
   onReorderCategory,
 }: HubMenuCategoryTabsProps) {
+  const rowRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const dragEnabled = !readOnly && customerSections.length > 1;
 
-  const handleDragStart = (sectionId: string) => (event: DragEvent<HTMLDivElement>) => {
+  const handleDragStart = (sectionId: string, row: HTMLDivElement | null) => (event: DragEvent<HTMLSpanElement>) => {
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", sectionId);
-    event.currentTarget.classList.add("is-dragging");
+    row?.classList.add("is-dragging");
   };
 
-  const handleDragEnd = (event: DragEvent<HTMLDivElement>) => {
-    event.currentTarget.classList.remove("is-dragging");
+  const handleDragEnd = (row: HTMLDivElement | null) => (event: DragEvent<HTMLSpanElement>) => {
+    row?.classList.remove("is-dragging");
+    void event;
   };
 
   const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
@@ -145,14 +165,21 @@ export function HubMenuCategoryTabs({
           return (
             <div
               key={section.id}
+              ref={(node) => {
+                rowRefs.current[section.id] = node;
+              }}
               className={`hub-menu-tab-row${isActive ? " is-active" : ""}${dragEnabled ? " is-draggable" : ""}`}
-              draggable={dragEnabled}
-              onDragStart={dragEnabled ? handleDragStart(section.id) : undefined}
-              onDragEnd={dragEnabled ? handleDragEnd : undefined}
               onDragOver={dragEnabled ? handleDragOver : undefined}
               onDrop={dragEnabled ? handleDrop(index) : undefined}
             >
-              {dragEnabled ? <TabGrip label="Drag to reorder category" /> : null}
+              {dragEnabled ? (
+                <TabGrip
+                  label="Drag to reorder category"
+                  draggable
+                  onDragStart={handleDragStart(section.id, rowRefs.current[section.id] ?? null)}
+                  onDragEnd={handleDragEnd(rowRefs.current[section.id] ?? null)}
+                />
+              ) : null}
               <button
                 type="button"
                 className={`hub-menu-tab hub-menu-tab--category${isActive ? " is-active" : ""}`}
