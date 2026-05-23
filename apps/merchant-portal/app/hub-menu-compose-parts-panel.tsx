@@ -5,18 +5,14 @@ import { useMemo, useState } from "react";
 import type { HubMenuSection } from "@hull-eats/types";
 
 import {
-  addPartSlotDefinition,
   buildPartLibraryItem,
   getHubPartsFromSection,
   isLabelListedAsExtra,
   readPartSlotDefinitions,
-  removePartSlotDefinition,
-  renamePartSlotDefinition,
   type ComposePartSlot,
   type ComposeProductLine,
   type HubExtraTopping,
   type HubMenuPart,
-  type PartSlotDefinition,
 } from "./menu-studio-core";
 
 type Props = {
@@ -25,7 +21,7 @@ type Props = {
   extras: HubExtraTopping[];
   onAddPart: (item: ReturnType<typeof buildPartLibraryItem>) => void;
   onRemovePart: (itemId: string) => void;
-  onUpdateSection: (updater: (section: HubMenuSection) => HubMenuSection) => void;
+  onOpenGroupSettings: () => void;
   readOnly?: boolean;
 };
 
@@ -35,15 +31,10 @@ export function HubMenuComposePartsPanel({
   extras,
   onAddPart,
   onRemovePart,
-  onUpdateSection,
+  onOpenGroupSettings,
   readOnly = false,
 }: Props) {
   const title = line === "burger" ? "Burger parts" : "Kebab parts";
-  const intro =
-    line === "burger"
-      ? "Set up part groups (bun, meat, salad, or your own), then add each choice under that group. Paid add-ons like cheese belong in Added extras."
-      : "Set up part groups (bread, meat, salad, or your own), then add each choice under that group. Paid add-ons belong in Added extras.";
-
   const slotDefinitions = useMemo(() => readPartSlotDefinitions(section, line), [section, line]);
   const parts = useMemo(() => getHubPartsFromSection(section, line), [section, line]);
 
@@ -60,20 +51,28 @@ export function HubMenuComposePartsPanel({
     return groups;
   }, [parts, slotDefinitions]);
 
+  const groupSummary = slotDefinitions.map((slot) => slot.label).join(" · ");
+
   return (
     <section className="hub-menu-parts-library__line-panel">
       <div>
         <strong style={{ fontSize: "0.95rem" }}>{title}</strong>
-        <p style={{ margin: "6px 0 0", fontSize: "0.84rem", color: "#5b6470", lineHeight: 1.45 }}>{intro}</p>
+        <p style={{ margin: "6px 0 0", fontSize: "0.84rem", color: "#5b6470", lineHeight: 1.45 }}>
+          Add each choice customers can pick (brioche bun, 3oz patty, lettuce…). Paid add-ons like cheese belong in{" "}
+          <strong>Added extras</strong>.
+        </p>
       </div>
 
-      <PartSlotConfigEditor
-        line={line}
-        slotDefinitions={slotDefinitions}
-        grouped={grouped}
-        readOnly={readOnly}
-        onUpdateSection={onUpdateSection}
-      />
+      <div className="hub-menu-parts-library__toolbar">
+        <p style={{ margin: 0, fontSize: "0.82rem", color: "#5b6470" }}>
+          <strong>Groups:</strong> {groupSummary || "Not set up yet"}
+        </p>
+        {readOnly ? null : (
+          <button type="button" className="hub-menu-parts-library__settings-btn" onClick={onOpenGroupSettings}>
+            Edit option groups
+          </button>
+        )}
+      </div>
 
       {slotDefinitions.map((slotDef) => (
         <SlotBlock
@@ -90,97 +89,6 @@ export function HubMenuComposePartsPanel({
         />
       ))}
     </section>
-  );
-}
-
-function PartSlotConfigEditor({
-  line,
-  slotDefinitions,
-  grouped,
-  readOnly,
-  onUpdateSection,
-}: {
-  line: ComposeProductLine;
-  slotDefinitions: PartSlotDefinition[];
-  grouped: Map<ComposePartSlot, HubMenuPart[]>;
-  readOnly: boolean;
-  onUpdateSection: Props["onUpdateSection"];
-}) {
-  const [newGroupName, setNewGroupName] = useState("");
-
-  const handleAddGroup = () => {
-    const trimmed = newGroupName.trim();
-    if (!trimmed) {
-      return;
-    }
-    onUpdateSection((section) => addPartSlotDefinition(section, line, trimmed));
-    setNewGroupName("");
-  };
-
-  return (
-    <div className="hub-menu-parts-library__slot-config">
-      <div>
-        <strong style={{ fontSize: "0.88rem" }}>Part groups</strong>
-        <p style={{ margin: "4px 0 0", fontSize: "0.8rem", color: "#5b6470", lineHeight: 1.4 }}>
-          Name each group (what customers see). Add more groups if your menu needs them.
-        </p>
-      </div>
-
-      <ul className="hub-menu-parts-library__slot-config-list">
-        {slotDefinitions.map((slotDef) => {
-          const partCount = (grouped.get(slotDef.key) ?? []).length;
-          return (
-            <li key={slotDef.id} className="hub-menu-parts-library__slot-config-row">
-              <label className="hub-menu-extras-library__field hub-menu-parts-library__slot-config-field">
-                <span style={{ fontSize: "0.78rem", fontWeight: 800, color: "#3d4652" }}>Group name</span>
-                <input
-                  value={slotDef.label}
-                  disabled={readOnly}
-                  placeholder={line === "burger" ? "e.g. Bun" : "e.g. Bread"}
-                  onChange={(e) =>
-                    onUpdateSection((section) => renamePartSlotDefinition(section, line, slotDef.key, e.target.value))
-                  }
-                />
-              </label>
-              <span style={{ fontSize: "0.78rem", color: "#7a8491", whiteSpace: "nowrap" }}>
-                {partCount} choice{partCount === 1 ? "" : "s"}
-              </span>
-              {readOnly || slotDefinitions.length <= 1 ? null : (
-                <button
-                  type="button"
-                  className="hub-menu-parts-library__slot-config-remove"
-                  onClick={() => onUpdateSection((section) => removePartSlotDefinition(section, line, slotDef.key))}
-                >
-                  Remove group
-                </button>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-
-      {readOnly ? null : (
-        <div className="hub-menu-extras-library__add-row hub-menu-parts-library__slot-config-add">
-          <label className="hub-menu-extras-library__field">
-            <span style={{ fontSize: "0.78rem", fontWeight: 800, color: "#3d4652" }}>New group name</span>
-            <input
-              value={newGroupName}
-              onChange={(e) => setNewGroupName(e.target.value)}
-              placeholder={line === "burger" ? "e.g. Sauce" : "e.g. Sauce"}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  handleAddGroup();
-                }
-              }}
-            />
-          </label>
-          <button type="button" className="hub-menu-extras-library__add-btn" onClick={handleAddGroup}>
-            + Add part group
-          </button>
-        </div>
-      )}
-    </div>
   );
 }
 
@@ -233,7 +141,7 @@ function SlotBlock({
     <div className="hub-menu-parts-library__group">
       <p className="hub-menu-parts-library__group-title">{slotLabel}</p>
       <p style={{ margin: "0 0 8px", fontSize: "0.8rem", color: "#5b6470" }}>
-        Add each choice customers can pick for <strong>{slotLabel.toLowerCase()}</strong> (saved under this group).
+        Add each choice for <strong>{slotLabel.toLowerCase()}</strong>.
       </p>
       {!readOnly ? (
         <div className="hub-menu-extras-library__add-row hub-menu-parts-library__slot-add">

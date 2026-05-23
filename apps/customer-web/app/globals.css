@@ -3697,6 +3697,18 @@ button.filter-pill {
   border-radius: 0 0 24px 24px;
 }
 
+.menu-subgroup-block + .menu-subgroup-block {
+  margin-top: 20px;
+}
+
+.menu-subgroup-heading {
+  margin: 0 0 10px;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: rgba(15, 17, 21, 0.88);
+}
+
 .menu-item-grid {
   display: grid;
   gap: 12px;

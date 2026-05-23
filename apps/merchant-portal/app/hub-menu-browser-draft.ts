@@ -8,6 +8,11 @@ export type BrowserMenuDraft = {
   savedAt: string;
 };
 
+export type MenuWorkspaceSnapshot = {
+  settings: HubSettings;
+  menuSections: HubMenuSection[];
+};
+
 export function browserMenuDraftKey(hubId: string): string {
   return `${DRAFT_KEY_PREFIX}${hubId}`;
 }
@@ -24,7 +29,7 @@ export function saveBrowserMenuDraft(hubId: string, menuSections: HubMenuSection
     };
     window.localStorage.setItem(browserMenuDraftKey(hubId), JSON.stringify(payload));
   } catch {
-    // ignore
+    // ignore quota / private mode
   }
 }
 
@@ -41,6 +46,34 @@ export function loadBrowserMenuDraft(hubId: string): BrowserMenuDraft | null {
   } catch {
     return null;
   }
+}
+
+export function countMenuWorkspaceItems(menuSections: HubMenuSection[]): number {
+  return menuSections.reduce((total, section) => total + section.items.length, 0);
+}
+
+/** Restore local draft after refresh when it differs from what the hub last saved successfully. */
+export function browserDraftShouldAutoRestore(
+  draft: BrowserMenuDraft,
+  serverSnapshot: MenuWorkspaceSnapshot,
+  snapshotsEqual: (left: MenuWorkspaceSnapshot, right: MenuWorkspaceSnapshot) => boolean,
+): boolean {
+  const draftSnapshot: MenuWorkspaceSnapshot = {
+    settings: draft.settings,
+    menuSections: draft.menuSections,
+  };
+  if (snapshotsEqual(draftSnapshot, serverSnapshot)) {
+    return false;
+  }
+  const draftItems = countMenuWorkspaceItems(draft.menuSections);
+  const serverItems = countMenuWorkspaceItems(serverSnapshot.menuSections);
+  if (draftItems > serverItems) {
+    return true;
+  }
+  if (draftItems > 0 && serverItems === 0) {
+    return true;
+  }
+  return Number.isFinite(Date.parse(draft.savedAt));
 }
 
 export function clearBrowserMenuDraft(hubId: string): void {

@@ -8,6 +8,7 @@ export * from "./hubs";
 export * from "./hub-config-snapshots";
 export * from "./hub-access";
 export * from "./hub-menu-presets";
+export * from "./hub-menu-subgroups";
 export * from "./merchant-drivers";
 export * from "./marketplace-resale";
 export * from "./orders";

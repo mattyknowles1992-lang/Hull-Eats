@@ -6,6 +6,8 @@ import { useEffect, useMemo, useState } from "react";
 import type { HubMenuSection, HubSettings, MenuItem } from "@hull-eats/types";
 
 import { HubMenuPreviewCustomise } from "./hub-menu-preview-customise";
+import { groupMenuItemsBySubGroup } from "@hull-eats/types";
+
 import {
   buildMenuPreviewCategories,
   describeMenuAvailability,
@@ -155,52 +157,64 @@ export function HubMenuPreview({
                     {activeCategory.items.length === 0 ? (
                       <p style={emptyCategoryCopy}>No live or sold-out items in this category yet. Hidden items stay in the studio only.</p>
                     ) : (
-                    <div style={itemGrid}>
-                      {activeCategory.items.map((item) => {
-                        const mode = getMenuAvailabilityMode(item);
-                        const availability = describeMenuAvailability(mode);
+                    <div style={categoryItemsStack}>
+                      {groupMenuItemsBySubGroup(
+                        activeCategory.items,
+                        activeCategory.subGroups.map((label) => ({ id: label, label })),
+                      ).map((section) => (
+                        <div key={section.label ?? `${activeCategory.id}-main`}>
+                          {section.label ? <h4 style={subGroupHeading}>{section.label}</h4> : null}
+                          <div style={itemGrid}>
+                            {section.items.map((item) => {
+                              const mode = getMenuAvailabilityMode(item);
+                              const availability = describeMenuAvailability(mode);
 
-                        const hasChoices = item.components.length > 0 || item.optionGroups.length > 0;
-                        const canTryChoices = mode !== "sold_out" && hasChoices;
+                              const hasChoices = item.components.length > 0 || item.optionGroups.length > 0;
+                              const canTryChoices = mode !== "sold_out" && hasChoices;
 
-                        return (
-                          <article
-                            key={item.id}
-                            style={canTryChoices ? itemCardClickable : itemCard}
-                            role={canTryChoices ? "button" : undefined}
-                            tabIndex={canTryChoices ? 0 : undefined}
-                            onClick={canTryChoices ? () => setCustomiseItem(item) : undefined}
-                            onKeyDown={
-                              canTryChoices
-                                ? (event) => {
-                                    if (event.key === "Enter" || event.key === " ") {
-                                      event.preventDefault();
-                                      setCustomiseItem(item);
-                                    }
+                              return (
+                                <article
+                                  key={item.id}
+                                  style={canTryChoices ? itemCardClickable : itemCard}
+                                  role={canTryChoices ? "button" : undefined}
+                                  tabIndex={canTryChoices ? 0 : undefined}
+                                  onClick={canTryChoices ? () => setCustomiseItem(item) : undefined}
+                                  onKeyDown={
+                                    canTryChoices
+                                      ? (event) => {
+                                          if (event.key === "Enter" || event.key === " ") {
+                                            event.preventDefault();
+                                            setCustomiseItem(item);
+                                          }
+                                        }
+                                      : undefined
                                   }
-                                : undefined
-                            }
-                          >
-                            {item.imageUrl ? (
-                              <img src={item.imageUrl} alt="" style={itemImage} />
-                            ) : (
-                              <div style={itemImagePlaceholder}>{settings.name.slice(0, 2).toUpperCase() || "HE"}</div>
-                            )}
-                            <div style={itemBody}>
-                              <div style={itemTitleRow}>
-                                <strong style={itemName}>{item.name}</strong>
-                                <span style={itemPrice}>{getMenuItemPriceLabel(item)}</span>
-                              </div>
-                              {item.description ? <p style={itemDescription}>{item.description}</p> : null}
-                              {mode === "sold_out" ? (
-                                <span style={soldOutBadge}>{availability.label}</span>
-                              ) : hasChoices ? (
-                                <span style={customisableBadge}>{canTryChoices ? "Tap to try options" : "Customisable"}</span>
-                              ) : null}
-                            </div>
-                          </article>
-                        );
-                      })}
+                                >
+                                  {item.imageUrl ? (
+                                    <img src={item.imageUrl} alt="" style={itemImage} />
+                                  ) : (
+                                    <div style={itemImagePlaceholder}>{item.name.slice(0, 2).toUpperCase() || "—"}</div>
+                                  )}
+                                  <div style={itemBody}>
+                                    <div style={itemTitleRow}>
+                                      <strong style={itemName}>{item.name}</strong>
+                                      <span style={itemPrice}>{getMenuItemPriceLabel(item)}</span>
+                                    </div>
+                                    {item.description ? <p style={itemDescription}>{item.description}</p> : null}
+                                    {mode === "sold_out" ? (
+                                      <span style={soldOutBadge}>{availability.label}</span>
+                                    ) : hasChoices ? (
+                                      <span style={customisableBadge}>
+                                        {canTryChoices ? "Tap to try options" : "Customisable"}
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                </article>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                     )}
                   </div>
@@ -420,6 +434,18 @@ const categoryName: CSSProperties = {
 const categoryDescription: CSSProperties = {
   margin: 0,
   color: "rgba(15, 17, 21, 0.65)",
+};
+
+const categoryItemsStack: CSSProperties = {
+  display: "grid",
+  gap: 16,
+};
+
+const subGroupHeading: CSSProperties = {
+  margin: "0 0 8px",
+  fontSize: 16,
+  fontWeight: 800,
+  color: "#064f68",
 };
 
 const itemGrid: CSSProperties = {

@@ -7,6 +7,8 @@ import {
   customerFacingOptionGroupDescription,
   decodeHubMenuCategoryDescription,
   normaliseDeliveryPricing,
+  getCategoryCustomerDescription,
+  readMenuSubGroupsFromSection,
 } from "@hull-eats/types";
 
 import { mapStorePromotionRow } from "./store-promotion-mapper";
@@ -17,6 +19,7 @@ export type MarketplaceMenuCategory = {
   id: string;
   name: string;
   description?: string;
+  subGroups: string[];
   items: MenuItem[];
 };
 
@@ -53,7 +56,11 @@ const mapMenuItem = (item: {
 }): MenuItem => {
   const customisationConfig =
     item.customisationConfig && typeof item.customisationConfig === "object"
-      ? (item.customisationConfig as { components?: unknown; optionGroups?: unknown })
+      ? (item.customisationConfig as {
+          components?: unknown;
+          optionGroups?: unknown;
+          hubMenuSubGroup?: unknown;
+        })
       : {};
 
   return {
@@ -79,6 +86,10 @@ const mapMenuItem = (item: {
       ...group,
       description: customerFacingOptionGroupDescription(group.description),
     })),
+    menuSubGroup:
+      typeof customisationConfig.hubMenuSubGroup === "string" && customisationConfig.hubMenuSubGroup.trim()
+        ? customisationConfig.hubMenuSubGroup.trim()
+        : undefined,
   };
 };
 
@@ -209,12 +220,20 @@ export const findLiveMarketplaceMenu = async (slugOrId: string): Promise<Marketp
         decoded.presetKey !== "kebab-parts-library" &&
         decoded.presetKey !== "menu-boards-config",
     )
-    .map(({ section, decoded }) => ({
-      id: section.id,
-      name: section.name,
-      description: decoded.description || undefined,
-      items: section.menuItems.map((item) => mapMenuItem(item)),
-    }))
+    .map(({ section, decoded }) => {
+      const subGroupDefs = readMenuSubGroupsFromSection({
+        description: section.description,
+        presetKey: decoded.presetKey,
+      });
+      return {
+        id: section.id,
+        name: section.name,
+        description:
+          getCategoryCustomerDescription({ description: section.description, presetKey: decoded.presetKey }) || undefined,
+        subGroups: subGroupDefs.map((group) => group.label),
+        items: section.menuItems.map((item) => mapMenuItem(item)),
+      };
+    })
     .filter((category) => category.items.length > 0);
 
   const hubPromotions = store.promotions.map((row) => mapStorePromotionRow(row));
@@ -254,6 +273,7 @@ export const resolveMarketplaceMenu = async (slugOrId: string): Promise<Marketpl
             id: section.id,
             name: section.name,
             description: section.description,
+            subGroups: [],
             items: section.items,
           }))
         : items.length > 0
@@ -261,6 +281,7 @@ export const resolveMarketplaceMenu = async (slugOrId: string): Promise<Marketpl
               {
                 id: "cat-primary",
                 name: "Available now",
+                subGroups: [],
                 items,
               },
             ]

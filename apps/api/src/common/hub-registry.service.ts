@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from "@nestjs/common";
 
 import { geocodeUkPostcode } from "./uk-postcode-geocode";
+import { persistedMenuEntityIds, remapMenuSectionsForPersist } from "./hub-menu-persist";
 import { Prisma } from "@prisma/client";
 
 import { hashPassword, verifyPassword } from "@hull-eats/auth";
@@ -486,11 +487,13 @@ export class HubRegistryService {
     menuSections: MerchantWorkspaceUpdateInput["menuSections"],
   ) {
     if (menuSections.length === 0) {
-      throw new BadRequestException("Cannot publish an empty menu. Add at least one category first.");
+      throw new BadRequestException("Cannot save an empty menu. Add at least one category first.");
     }
 
-    const incomingSectionIds = menuSections.map((section) => section.id);
-    const incomingItemIds = menuSections.flatMap((section) => section.items.map((item) => item.id));
+    const { sections: persistedSections } = remapMenuSectionsForPersist(
+      menuSections as Parameters<typeof remapMenuSectionsForPersist>[0],
+    );
+    const { categoryIds: incomingSectionIds, itemIds: incomingItemIds } = persistedMenuEntityIds(persistedSections);
 
     await prisma.menuItem.deleteMany({
       where: {
@@ -506,7 +509,7 @@ export class HubRegistryService {
       },
     });
 
-    for (const [sectionIndex, section] of menuSections.entries()) {
+    for (const [sectionIndex, section] of persistedSections.entries()) {
       await prisma.menuCategory.upsert({
         where: { id: section.id },
         update: {
@@ -1599,11 +1602,17 @@ export class HubRegistryService {
     };
   }
 
-  private buildCustomisationConfig(item: { components?: unknown; optionGroups?: unknown }) {
-    return {
-      components: Array.isArray(item.components) ? item.components : [],
-      optionGroups: Array.isArray(item.optionGroups) ? item.optionGroups : [],
-    };
+  private buildCustomisationConfig(item: { components?: unknown; optionGroups?: unknown; menuSubGroup?: unknown }) {
+    const components = Array.isArray(item.components) ? item.components : [];
+    const optionGroups = Array.isArray(item.optionGroups) ? item.optionGroups : [];
+    if (typeof item.menuSubGroup === "string" && item.menuSubGroup.trim()) {
+      return {
+        components,
+        optionGroups,
+        hubMenuSubGroup: item.menuSubGroup.trim(),
+      };
+    }
+    return { components, optionGroups };
   }
 
   private mapStorePromotion(row: any): HubPromotion {
@@ -1787,6 +1796,10 @@ export class HubRegistryService {
       requiresIdVerification: Boolean(item.requiresIdVerification),
       components: Array.isArray(customisationConfig.components) ? customisationConfig.components : [],
       optionGroups: Array.isArray(customisationConfig.optionGroups) ? customisationConfig.optionGroups : [],
+      menuSubGroup:
+        typeof customisationConfig.hubMenuSubGroup === "string" && customisationConfig.hubMenuSubGroup.trim()
+          ? customisationConfig.hubMenuSubGroup.trim()
+          : undefined,
     };
   }
 

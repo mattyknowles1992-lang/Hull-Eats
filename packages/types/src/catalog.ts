@@ -44,6 +44,8 @@ export const menuItemSchema = z.object({
   /** When true, checkout shows ID policy and couriers/customers are told the order needs in-person ID verification. */
   requiresIdVerification: z.boolean().default(false),
   sortOrder: z.number().int().default(0),
+  /** Heading within the category on the customer menu (e.g. Cans, Milkshakes under Drinks). */
+  menuSubGroup: z.string().max(80).optional(),
   components: z
     .array(
       z.object({

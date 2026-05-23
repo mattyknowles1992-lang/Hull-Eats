@@ -90,6 +90,102 @@ textarea {
   color: var(--he-muted);
 }
 
+.hub-menu-tab-config-btn {
+  width: 100%;
+  min-height: 40px;
+  margin-top: 4px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(6, 79, 104, 0.28);
+  background: rgba(232, 248, 255, 0.9);
+  color: #064f68;
+  font-weight: 800;
+  font-size: 0.8rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.hub-menu-tab-config-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.hub-menu-parts-library__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(232, 248, 255, 0.55);
+  border: 1px solid rgba(6, 79, 104, 0.15);
+}
+
+.hub-menu-parts-library__settings-btn {
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(6, 79, 104, 0.3);
+  background: #fff;
+  color: #064f68;
+  font-weight: 800;
+  font-size: 0.8rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.hub-menu-parts-settings {
+  display: grid;
+  gap: 16px;
+}
+
+.hub-menu-parts-settings__header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.hub-menu-parts-settings__eyebrow {
+  margin: 0 0 4px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #0680a6;
+}
+
+.hub-menu-parts-settings__title {
+  margin: 0 0 6px;
+  font-size: 1.1rem;
+}
+
+.hub-menu-parts-settings__copy {
+  margin: 0;
+  max-width: 52ch;
+  font-size: 0.84rem;
+  color: #5b6470;
+  line-height: 1.45;
+}
+
+.hub-menu-parts-settings__back {
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(15, 17, 21, 0.14);
+  background: #fff;
+  font-weight: 800;
+  font-size: 0.86rem;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.hub-menu-parts-settings__panel {
+  margin: 0;
+}
+
 .hub-menu-tab-group-hint {
   margin: 0 0 4px;
   padding: 0 4px;
@@ -282,6 +378,35 @@ textarea {
 
 .hub-menu-parts-library__slot-config-add {
   margin-top: 4px;
+}
+
+.hub-menu-subgroups-panel {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px dashed rgba(6, 79, 104, 0.22);
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.hub-menu-subgroups-panel__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.hub-menu-subgroups-panel__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.hub-menu-subgroups-panel__field {
+  flex: 1;
+  min-width: 160px;
 }
 
 .hub-menu-parts-library__slot-add {

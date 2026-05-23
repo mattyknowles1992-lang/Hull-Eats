@@ -88,10 +88,35 @@ const optionalHttpUrl = z.preprocess((value) => {
   return value;
 }, z.string().url().optional());
 
+/** Menu item photos from upload (data URL) or hosted URL. */
+export const hubMenuImageUrlSchema = z.preprocess((value) => {
+  if (value == null) {
+    return undefined;
+  }
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  if (trimmed.startsWith("data:image/")) {
+    return trimmed;
+  }
+  try {
+    // eslint-disable-next-line no-new
+    new URL(trimmed);
+    return trimmed;
+  } catch {
+    return undefined;
+  }
+}, z.string().optional());
+
 /** Menu line on hub PATCH — category comes from the parent section when omitted. */
 export const hubMenuSectionItemSchema = menuItemSchema.extend({
   categoryId: menuItemSchema.shape.categoryId.optional(),
-  imageUrl: optionalHttpUrl,
+  imageUrl: hubMenuImageUrlSchema,
+  menuSubGroup: menuItemSchema.shape.menuSubGroup,
 });
 
 export const hubMenuSectionSchema = z.object({
@@ -227,10 +252,13 @@ export const prepareMerchantWorkspaceUpdateBody = (raw: unknown): unknown => {
               const line = item as Record<string, unknown>;
               const imageUrl =
                 typeof line.imageUrl === "string" && line.imageUrl.trim() === "" ? undefined : line.imageUrl;
+              const menuSubGroup =
+                typeof line.menuSubGroup === "string" && line.menuSubGroup.trim() ? line.menuSubGroup.trim() : undefined;
               return {
                 ...line,
                 categoryId: line.categoryId ?? row.id,
                 imageUrl,
+                menuSubGroup,
               };
             })
           : [],

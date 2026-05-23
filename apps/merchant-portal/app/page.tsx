@@ -28,10 +28,10 @@ import { HubConfigBackups } from "./hub-config-backups";
 import { HubDeliveryConfig } from "./hub-delivery-config";
 import { HubMenuCustomisationBuilder } from "./hub-menu-customisation";
 import {
+  browserDraftShouldAutoRestore,
   clearBrowserMenuDraft,
   loadBrowserMenuDraft,
   saveBrowserMenuDraft,
-  type BrowserMenuDraft,
 } from "./hub-menu-browser-draft";
 import { HubMenuStudio } from "./hub-menu-studio";
 import { HE_BRAND } from "./portal-brand";
@@ -152,6 +152,7 @@ type CreateItemFormState = {
   description: string;
   price: string;
   imageUrl: string;
+  menuSubGroup: string;
   requiresIdVerification: boolean;
 };
 
@@ -202,6 +203,7 @@ const initialCreateItemState: CreateItemFormState = {
   description: "",
   price: "",
   imageUrl: "",
+  menuSubGroup: "",
   requiresIdVerification: false,
 };
 
@@ -665,10 +667,10 @@ export default function MerchantPortalPage() {
   const [orderNotice, setOrderNotice] = useState("");
   const [driverNotice, setDriverNotice] = useState("");
   const [offersNotice, setOffersNotice] = useState("");
-  const [browserDraftRestore, setBrowserDraftRestore] = useState<BrowserMenuDraft | null>(null);
   const [menuHubPersistState, setMenuHubPersistState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const menuSaveInFlightRef = useRef(false);
   const menuSaveQueuedRef = useRef(false);
+  const menuWorkspaceReadyRef = useRef(false);
   const [driverTracking, setDriverTracking] = useState<MerchantDriverTracking | null>(null);
   const [activeHubSection, setActiveHubSection] = useState<HubSection>("home");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -921,7 +923,6 @@ export default function MerchantPortalPage() {
     if (activeHubId) {
       clearBrowserMenuDraft(activeHubId);
     }
-    setBrowserDraftRestore(null);
   }, [activeHubId, commitSavedHubSnapshot]);
 
   const persistWorkspaceToHub = useCallback(
@@ -1030,21 +1031,50 @@ export default function MerchantPortalPage() {
   };
 
   const applyWorkspace = (workspace: MerchantWorkspace, user: HubUser | null) => {
+    menuWorkspaceReadyRef.current = false;
     setActiveHubId(workspace.hub.id);
     setActiveHubSlug(workspace.hub.slug);
     setActiveUser(user);
     setHubUsers(workspace.users);
-    setHubSettings({
+    setPendingImports(workspace.pendingImports ?? []);
+
+    const serverSettings = {
       ...workspace.settings,
       deliveryPostcodeZones:
         workspace.settings.deliveryPostcodeZones.length > 0
           ? workspace.settings.deliveryPostcodeZones
           : createDefaultHullPostcodeZones(),
-    });
-    const sections = ensureStaffMenuSections(workspace.menuSections);
-    setMenuSections(sections);
-    setPendingImports(workspace.pendingImports ?? []);
-    const customerSections = sections.filter((section) => !isHubMenuStaffLibrarySection(section));
+    };
+    const serverSections = ensureStaffMenuSections(workspace.menuSections);
+    const serverSnapshot = { settings: serverSettings, menuSections: serverSections };
+
+    const browserDraft = loadBrowserMenuDraft(workspace.hub.id);
+    const useBrowserDraft =
+      browserDraft &&
+      browserDraftShouldAutoRestore(browserDraft, serverSnapshot, hubWorkspaceSnapshotsEqual);
+
+    if (useBrowserDraft && browserDraft) {
+      const draftSections = ensureStaffMenuSections(browserDraft.menuSections);
+      setHubSettings({
+        ...browserDraft.settings,
+        deliveryPostcodeZones:
+          browserDraft.settings.deliveryPostcodeZones.length > 0
+            ? browserDraft.settings.deliveryPostcodeZones
+            : createDefaultHullPostcodeZones(),
+      });
+      setMenuSections(draftSections);
+      commitSavedHubSnapshot(serverSettings, serverSections);
+      setMenuNotice(
+        "Restored unsaved menu work from this browser. It will save to your hub automatically — you do not need to start again after a refresh.",
+      );
+    } else {
+      setHubSettings(serverSettings);
+      setMenuSections(serverSections);
+      commitSavedHubSnapshot(serverSettings, serverSections);
+    }
+
+    const activeSections = useBrowserDraft && browserDraft ? ensureStaffMenuSections(browserDraft.menuSections) : serverSections;
+    const customerSections = activeSections.filter((section) => !isHubMenuStaffLibrarySection(section));
     const firstCustomer = customerSections[0];
     setSelectedCategoryId(firstCustomer?.id ?? "");
     setSelectedItemId(firstCustomer?.items[0]?.id ?? "");
@@ -1052,44 +1082,8 @@ export default function MerchantPortalPage() {
       ...current,
       sectionId: firstCustomer?.id ?? "",
     }));
-    commitSavedHubSnapshot(workspace.settings, sections);
 
-    const browserDraft = loadBrowserMenuDraft(workspace.hub.id);
-    if (
-      browserDraft &&
-      !hubWorkspaceSnapshotsEqual(
-        { settings: browserDraft.settings, menuSections: browserDraft.menuSections },
-        { settings: workspace.settings, menuSections: sections },
-      )
-    ) {
-      setBrowserDraftRestore(browserDraft);
-    } else {
-      setBrowserDraftRestore(null);
-    }
-  };
-
-  const restoreBrowserMenuDraft = () => {
-    if (!browserDraftRestore || !activeHubId) {
-      return;
-    }
-    const sections = ensureStaffMenuSections(browserDraftRestore.menuSections);
-    setHubSettings({
-      ...browserDraftRestore.settings,
-      deliveryPostcodeZones:
-        browserDraftRestore.settings.deliveryPostcodeZones.length > 0
-          ? browserDraftRestore.settings.deliveryPostcodeZones
-          : createDefaultHullPostcodeZones(),
-    });
-    setMenuSections(sections);
-    setBrowserDraftRestore(null);
-    setMenuNotice("Restored older work from this browser only. It will auto-save to your hub shortly.");
-  };
-
-  const discardBrowserMenuDraft = () => {
-    if (activeHubId) {
-      clearBrowserMenuDraft(activeHubId);
-    }
-    setBrowserDraftRestore(null);
+    menuWorkspaceReadyRef.current = true;
   };
 
   const loadMerchantOrders = async (token = merchantToken, options: { silent?: boolean } = {}) => {
@@ -1244,7 +1238,7 @@ export default function MerchantPortalPage() {
   };
 
   useEffect(() => {
-    if (!activeHubId || !merchantToken) {
+    if (!activeHubId || !merchantToken || !menuWorkspaceReadyRef.current) {
       return;
     }
 
@@ -1347,7 +1341,7 @@ export default function MerchantPortalPage() {
     setSelectedItemId("");
     setPasswordForm(initialPasswordFormState);
     setSavedHubSnapshot(null);
-    setBrowserDraftRestore(null);
+    menuWorkspaceReadyRef.current = false;
     setSaveNotice("");
     setUserNotice("");
     setMenuNotice("");
@@ -1709,6 +1703,7 @@ export default function MerchantPortalPage() {
       description: newItem.description,
       price,
       imageUrl: newItem.imageUrl.trim() || undefined,
+      menuSubGroup: newItem.menuSubGroup.trim() || undefined,
       requiresIdVerification: newItem.requiresIdVerification,
       components: newItemComponents.filter((component) => component.label.trim()),
       optionGroups: isPizza ? [...optionGroups, ...newItemOptionGroups] : newItemOptionGroups,
@@ -2075,26 +2070,6 @@ export default function MerchantPortalPage() {
             </div>
           </div>
         </header>
-
-        {browserDraftRestore ? (
-          <div className="he-hub-banner he-hub-banner--row" role="status">
-            <div>
-              <strong>Unsaved menu work in this browser</strong>
-              <p>
-                You have extras or menu edits from before your last save (for example after a refresh). Restore them or
-                discard to use what is saved on the hub.
-              </p>
-            </div>
-            <div className="he-btn-row" style={{ flex: "0 0 auto" }}>
-              <button type="button" className="he-portal-primary" style={saveHubButtonStyle} onClick={restoreBrowserMenuDraft}>
-                Restore
-              </button>
-              <button type="button" style={secondaryButton} onClick={discardBrowserMenuDraft}>
-                Discard
-              </button>
-            </div>
-          </div>
-        ) : null}
 
         {hasUnsavedHubChanges ? (
           <div className="he-hub-banner he-hub-banner--row he-unsaved-banner" role="status" aria-live="polite">
@@ -2536,6 +2511,14 @@ export default function MerchantPortalPage() {
                 if (selectedCategory) {
                   updateSection(selectedCategory.id, field, String(value ?? ""));
                 }
+              }}
+              onPatchSelectedCategory={(updater) => {
+                if (!selectedCategory) {
+                  return;
+                }
+                updateMenuSections((current) =>
+                  current.map((section) => (section.id === selectedCategory.id ? updater(section) : section)),
+                );
               }}
               onUpdateItem={(updater) => {
                 if (selectedCategory && selectedItem) {

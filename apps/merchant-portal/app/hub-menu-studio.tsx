@@ -8,15 +8,21 @@ import {
   HUB_MENU_CATEGORY_CUSTOM_ID,
   hubMenuCategorySelectOptions,
   isHubMenuStaffLibrarySection,
+  getCategoryCustomerDescription,
   isHubMenuMealDealsCategory,
   isHubMenuSectionPizza,
+  writeMenuSubGroupsOnSection,
+  readMenuSubGroupsFromSection,
   type HubMenuCategoryPresetChoice,
 } from "@hull-eats/types";
 
 import { HubMenuCategoryTabs, isMenuStudioStaffSection } from "./hub-menu-category-tabs";
 import { HubMenuComposePartsPanel } from "./hub-menu-compose-parts-panel";
+import { HubMenuPartsGroupSettingsPanel } from "./hub-menu-parts-group-settings";
 import { HubMenuExtrasLibrary } from "./hub-menu-extras-library";
+import { HubMenuCategorySubGroupsPanel } from "./hub-menu-category-subgroups";
 import { HubMenuItemPartsPicker } from "./hub-menu-item-parts-picker";
+import { HubMenuItemSubGroupField } from "./hub-menu-item-subgroup-field";
 import { HubMenuPublishDialog } from "./hub-menu-publish-dialog";
 import { MenuItemImageField } from "./menu-item-image-field";
 import {
@@ -25,6 +31,7 @@ import {
   describeCategoryItemBuilder,
   describeMenuAvailability,
   formatMenuMoney,
+  formatPartSlotTabMeta,
   getCategoryItemBuilderMode,
   getHubExtraToppingsFromSection,
   getHubPartsFromSection,
@@ -68,6 +75,7 @@ export type CreateItemFormState = {
   description: string;
   price: string;
   imageUrl: string;
+  menuSubGroup: string;
   requiresIdVerification: boolean;
 };
 
@@ -137,6 +145,7 @@ type HubMenuStudioProps = {
   onUpdateMenuBoardPublishMode: (boardId: string, mode: HubMenuBoardPublishMode) => void;
   onRenameMenuBoard: (boardId: string, name: string) => void;
   onUpdateSectionField: (field: "name" | "description", value: string | number | null) => void;
+  onPatchSelectedCategory: (updater: (section: HubMenuSection) => HubMenuSection) => void;
   onUpdateItem: (updater: (item: MenuItem) => MenuItem) => void;
   saveButtonStyle: CSSProperties;
   readOnly?: boolean;
@@ -210,11 +219,13 @@ export function HubMenuStudio({
   onUpdateMenuBoardPublishMode,
   onRenameMenuBoard,
   onUpdateSectionField,
+  onPatchSelectedCategory,
   onUpdateItem,
   saveButtonStyle,
   readOnly = false,
 }: HubMenuStudioProps) {
   const newItemDraftRef = useRef<HTMLElement | null>(null);
+  const [partsGroupSettingsLine, setPartsGroupSettingsLine] = useState<ComposeProductLine | null>(null);
   const availabilityModes: MenuAvailabilityMode[] = ["live", "sold_out", "hidden"];
   const studioLocked = readOnly;
   const visibleSections = customerFacingMenuSections(menuSections);
@@ -235,6 +246,7 @@ export function HubMenuStudio({
       description: newItem.description,
       price: Number(newItem.price) || 0,
       imageUrl: newItem.imageUrl.trim() || undefined,
+      menuSubGroup: newItem.menuSubGroup.trim() || undefined,
       isActive: false,
       trackStock: false,
       stockQuantity: null,
@@ -287,6 +299,35 @@ export function HubMenuStudio({
   const showExtrasPanel = Boolean(extrasSection && selectedCategory?.id === extrasSection.id);
   const showBurgerPartsPanel = Boolean(burgerPartsSection && selectedCategory?.id === burgerPartsSection.id);
   const showKebabPartsPanel = Boolean(kebabPartsSection && selectedCategory?.id === kebabPartsSection.id);
+
+  useEffect(() => {
+    if (!showBurgerPartsPanel && partsGroupSettingsLine === "burger") {
+      setPartsGroupSettingsLine(null);
+    }
+    if (!showKebabPartsPanel && partsGroupSettingsLine === "kebab") {
+      setPartsGroupSettingsLine(null);
+    }
+  }, [showBurgerPartsPanel, showKebabPartsPanel, partsGroupSettingsLine]);
+
+  const openPartsGroupSettings = () => {
+    if (showKebabPartsPanel) {
+      setPartsGroupSettingsLine("kebab");
+      return;
+    }
+    if (showBurgerPartsPanel) {
+      setPartsGroupSettingsLine("burger");
+      return;
+    }
+    if (burgerPartsSection) {
+      onSelectCategory(burgerPartsSection.id);
+      setPartsGroupSettingsLine("burger");
+      return;
+    }
+    if (kebabPartsSection) {
+      onSelectCategory(kebabPartsSection.id);
+      setPartsGroupSettingsLine("kebab");
+    }
+  };
   const showMealsPanel = Boolean(mealSection && selectedCategory?.id === mealSection.id);
   const selectedIsMealDealsCategory = isHubMenuMealDealsCategory(selectedCategory);
   const creatingIsMealDealsCategory = isHubMenuMealDealsCategory(creatingItemSection);
@@ -393,8 +434,14 @@ export function HubMenuStudio({
               mealSection={mealSection}
               selectedSectionId={selectedCategory?.id ?? null}
               readOnly={studioLocked}
-              onSelectSection={onSelectCategory}
+              onSelectSection={(sectionId) => {
+                setPartsGroupSettingsLine(null);
+                onSelectCategory(sectionId);
+              }}
               onReorderCategory={onReorderCategory}
+              burgerPartsTabMeta={formatPartSlotTabMeta(burgerPartsSection, "burger")}
+              kebabPartsTabMeta={formatPartSlotTabMeta(kebabPartsSection, "kebab")}
+              onConfigurePartsGroups={burgerPartsSection || kebabPartsSection ? openPartsGroupSettings : undefined}
             />
             <section className="hub-menu-tab-add-category" style={sidebarAddCategory}>
               <p style={sectionLabel}>New category</p>
@@ -447,29 +494,49 @@ export function HubMenuStudio({
 
               {showBurgerPartsPanel && burgerPartsSection ? (
                 <div className="hub-menu-staff-library-editor">
-                  <HubMenuComposePartsPanel
-                    line="burger"
-                    section={burgerPartsSection}
-                    extras={hubExtraToppings}
-                    onAddPart={onAddBurgerPart}
-                    onRemovePart={onRemoveBurgerPart}
-                    onUpdateSection={onUpdateBurgerPartsSection}
-                    readOnly={studioLocked}
-                  />
+                  {partsGroupSettingsLine === "burger" ? (
+                    <HubMenuPartsGroupSettingsPanel
+                      line="burger"
+                      section={burgerPartsSection}
+                      readOnly={studioLocked}
+                      onUpdateSection={onUpdateBurgerPartsSection}
+                      onClose={() => setPartsGroupSettingsLine(null)}
+                    />
+                  ) : (
+                    <HubMenuComposePartsPanel
+                      line="burger"
+                      section={burgerPartsSection}
+                      extras={hubExtraToppings}
+                      onAddPart={onAddBurgerPart}
+                      onRemovePart={onRemoveBurgerPart}
+                      onOpenGroupSettings={() => setPartsGroupSettingsLine("burger")}
+                      readOnly={studioLocked}
+                    />
+                  )}
                 </div>
               ) : null}
 
               {showKebabPartsPanel && kebabPartsSection ? (
                 <div className="hub-menu-staff-library-editor">
-                  <HubMenuComposePartsPanel
-                    line="kebab"
-                    section={kebabPartsSection}
-                    extras={hubExtraToppings}
-                    onAddPart={onAddKebabPart}
-                    onRemovePart={onRemoveKebabPart}
-                    onUpdateSection={onUpdateKebabPartsSection}
-                    readOnly={studioLocked}
-                  />
+                  {partsGroupSettingsLine === "kebab" ? (
+                    <HubMenuPartsGroupSettingsPanel
+                      line="kebab"
+                      section={kebabPartsSection}
+                      readOnly={studioLocked}
+                      onUpdateSection={onUpdateKebabPartsSection}
+                      onClose={() => setPartsGroupSettingsLine(null)}
+                    />
+                  ) : (
+                    <HubMenuComposePartsPanel
+                      line="kebab"
+                      section={kebabPartsSection}
+                      extras={hubExtraToppings}
+                      onAddPart={onAddKebabPart}
+                      onRemovePart={onRemoveKebabPart}
+                      onOpenGroupSettings={() => setPartsGroupSettingsLine("kebab")}
+                      readOnly={studioLocked}
+                    />
+                  )}
                 </div>
               ) : null}
 
@@ -533,14 +600,27 @@ export function HubMenuStudio({
                       />
                     </label>
                     <label style={field}>
-                      <span style={darkFieldLabel}>Note (optional)</span>
+                      <span style={darkFieldLabel}>Category note (optional)</span>
                       <input
                         style={lightInput}
-                        value={selectedCategory.description ?? ""}
-                        onChange={(event) => onUpdateSectionField("description", event.target.value)}
+                        value={getCategoryCustomerDescription(selectedCategory)}
+                        onChange={(event) =>
+                          onPatchSelectedCategory((section) =>
+                            writeMenuSubGroupsOnSection(
+                              section,
+                              readMenuSubGroupsFromSection(section),
+                              event.target.value,
+                            ),
+                          )
+                        }
                       />
                     </label>
                   </div>
+                  <HubMenuCategorySubGroupsPanel
+                    section={selectedCategory}
+                    readOnly={studioLocked}
+                    onUpdateSection={onPatchSelectedCategory}
+                  />
                   <div style={inlineActions}>
                     <button type="button" style={dangerButtonSmall} onClick={onDeleteCategory}>
                       Delete category
@@ -568,13 +648,30 @@ export function HubMenuStudio({
                     placeholder={
                       creatingItemIsPizza
                         ? "e.g. Margherita"
-                        : creatingItemSection?.presetKey === "chicken"
-                          ? "e.g. 6 Chicken Wings"
-                          : "e.g. Cheeseburger"
+                        : creatingItemSection?.presetKey === "drinks"
+                          ? "e.g. Coke Can"
+                          : creatingItemSection?.presetKey === "chicken"
+                            ? "e.g. 6 Chicken Wings"
+                            : "e.g. Cheeseburger"
                     }
                     autoFocus
                   />
                 </label>
+                {creatingItemSection ? (
+                  <HubMenuItemSubGroupField
+                    section={creatingItemSection}
+                    value={newItem.menuSubGroup || undefined}
+                    readOnly={studioLocked}
+                    onChange={(menuSubGroup) => onNewItemChange({ menuSubGroup: menuSubGroup ?? "" })}
+                  />
+                ) : null}
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <MenuItemImageField
+                    value={newItem.imageUrl || undefined}
+                    onChange={(imageUrl) => onNewItemChange({ imageUrl: imageUrl ?? "" })}
+                    disabled={studioLocked}
+                  />
+                </div>
                 <div style={{ gridColumn: "1 / -1" }}>
                   {creatingItemUsesParts && creatingComposeLine ? (
                     <HubMenuItemPartsPicker
@@ -617,11 +714,6 @@ export function HubMenuStudio({
                     />
                   </label>
                 )}
-                <MenuItemImageField
-                  value={newItem.imageUrl || undefined}
-                  onChange={(imageUrl) => onNewItemChange({ imageUrl: imageUrl ?? "" })}
-                  disabled={studioLocked}
-                />
               </div>
               {creatingIsMealDealsCategory ? (
                 <section style={{ ...choicesSection, gridColumn: "1 / -1" }}>
@@ -681,6 +773,21 @@ export function HubMenuStudio({
                     onChange={(event) => onUpdateItem((current) => ({ ...current, name: event.target.value }))}
                   />
                 </label>
+                {selectedCategory ? (
+                  <HubMenuItemSubGroupField
+                    section={selectedCategory}
+                    value={selectedItem.menuSubGroup}
+                    readOnly={studioLocked}
+                    onChange={(menuSubGroup) => onUpdateItem((current) => ({ ...current, menuSubGroup }))}
+                  />
+                ) : null}
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <MenuItemImageField
+                    value={selectedItem.imageUrl}
+                    onChange={(imageUrl) => onUpdateItem((current) => ({ ...current, imageUrl }))}
+                    disabled={studioLocked}
+                  />
+                </div>
                 {itemUsesSizePricing(selectedItem) ? (
                   <div className="he-hub-banner">
                     <strong>Prices are on each size</strong>
@@ -721,11 +828,6 @@ export function HubMenuStudio({
                     onChange={(event) => onUpdateItem((current) => ({ ...current, description: event.target.value }))}
                   />
                 </label>
-                <MenuItemImageField
-                  value={selectedItem.imageUrl}
-                  onChange={(imageUrl) => onUpdateItem((current) => ({ ...current, imageUrl }))}
-                  disabled={studioLocked}
-                />
               </div>
 
               {editingPizzaItem && itemUsesSizePricing(selectedItem) ? (

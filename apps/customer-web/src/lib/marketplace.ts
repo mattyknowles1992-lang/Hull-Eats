@@ -7,6 +7,7 @@ export type MarketplaceMenuCategory = {
   id: string;
   name: string;
   description?: string;
+  subGroups?: string[];
   items: MenuItem[];
 };
 

@@ -25,6 +25,7 @@ import {
 import {
   computeDeliveryQuote,
   customerFacingOptionGroupDescription,
+  groupMenuItemsBySubGroup,
   DELIVERY_NOT_AVAILABLE_TO_POSTCODE_MESSAGE,
   hubAllowsCollection,
   hubAllowsDelivery,
@@ -43,6 +44,7 @@ type MenuCategory = {
   id: string;
   name: string;
   description?: string;
+  subGroups?: string[];
   items: MenuItem[];
 };
 
@@ -115,7 +117,11 @@ const getCategoryImageUrl = (category: MenuCategory) => {
   return categoryImageRules.find((rule) => rule.pattern.test(searchableText))?.imageUrl ?? defaultCategoryImageUrl;
 };
 
-const getItemImageUrl = (item: MenuItem, category: MenuCategory) => item.imageUrl ?? getCategoryImageUrl(category);
+const defaultItemImageUrl =
+  "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80";
+
+/** Each product uses its own photo; category hero is only for the category banner. */
+const getItemImageUrl = (item: MenuItem) => item.imageUrl?.trim() || defaultItemImageUrl;
 
 const getGroupCountLabel = (group: MenuItem["optionGroups"][number]) => {
   const minimum = group.isRequired ? Math.max(group.minSelections, 1) : group.minSelections;
@@ -875,61 +881,69 @@ export function StoreMenuClient({
           </div>
 
           {isExpanded ? (
-            <div className="menu-category-items-panel">
-              <div className="menu-item-grid" id={`menu-category-items-${category.id}`}>
-              {category.items.map((item) => {
-                const listing = getMenuItemListingLine(item);
-                const fullDescription = item.description?.trim();
-                const orderable = isMenuItemOrderable(item);
-                const statusLabel = getMenuItemStatusLabel(item);
+            <div className="menu-category-items-panel" id={`menu-category-items-${category.id}`}>
+              {groupMenuItemsBySubGroup(
+                category.items,
+                (category.subGroups ?? []).map((label) => ({ id: label, label })),
+              ).map((section) => (
+                <div key={section.label ?? `${category.id}-main`} className="menu-subgroup-block">
+                  {section.label ? <h4 className="menu-subgroup-heading">{section.label}</h4> : null}
+                  <div className="menu-item-grid">
+                    {section.items.map((item) => {
+                      const listing = getMenuItemListingLine(item);
+                      const fullDescription = item.description?.trim();
+                      const orderable = isMenuItemOrderable(item);
+                      const statusLabel = getMenuItemStatusLabel(item);
 
-                return (
-                <article
-                  key={item.id}
-                  className={`menu-item-card menu-item-card-visual${orderable ? "" : " is-unavailable"}`}
-                >
-                  <div
-                    className="menu-item-image"
-                    style={{
-                      backgroundImage: `url(${getItemImageUrl(item, category)})`,
-                    }}
-                    aria-hidden="true"
-                  />
-                  <div className="menu-item-content-panel">
-                    <div className="menu-item-top">
-                      <div className="menu-item-heading-block">
-                        <h4 title={fullDescription || undefined}>{item.name}</h4>
-                        {listing ? (
-                          <p className="menu-item-summary-line" title={fullDescription || undefined}>
-                            {listing}
-                          </p>
-                        ) : null}
-                      </div>
-                      <div style={{ display: "grid", gap: 6, justifyItems: "end" }}>
-                        {statusLabel ? <span className="menu-item-status-pill">{statusLabel}</span> : null}
-                        <MenuItemPrice item={item} />
-                      </div>
-                    </div>
+                      return (
+                        <article
+                          key={item.id}
+                          className={`menu-item-card menu-item-card-visual${orderable ? "" : " is-unavailable"}`}
+                        >
+                          <div
+                            className="menu-item-image"
+                            style={{
+                              backgroundImage: `url(${getItemImageUrl(item)})`,
+                            }}
+                            aria-hidden="true"
+                          />
+                          <div className="menu-item-content-panel">
+                            <div className="menu-item-top">
+                              <div className="menu-item-heading-block">
+                                <h4 title={fullDescription || undefined}>{item.name}</h4>
+                                {listing ? (
+                                  <p className="menu-item-summary-line" title={fullDescription || undefined}>
+                                    {listing}
+                                  </p>
+                                ) : null}
+                              </div>
+                              <div style={{ display: "grid", gap: 6, justifyItems: "end" }}>
+                                {statusLabel ? <span className="menu-item-status-pill">{statusLabel}</span> : null}
+                                <MenuItemPrice item={item} />
+                              </div>
+                            </div>
 
-                    <div className="menu-item-footer">
-                      <button
-                        type="button"
-                        className={`glass-button add-item-button${addedItemId === item.id ? " is-added" : ""}`}
-                        disabled={!orderable}
-                        onClick={() => openCustomise(item)}
-                      >
-                        {!orderable
-                          ? "Unavailable"
-                          : item.components.length > 0 || item.optionGroups.length > 0
-                            ? "Customise and add"
-                            : "Add"}
-                      </button>
-                    </div>
+                            <div className="menu-item-footer">
+                              <button
+                                type="button"
+                                className={`glass-button add-item-button${addedItemId === item.id ? " is-added" : ""}`}
+                                disabled={!orderable}
+                                onClick={() => openCustomise(item)}
+                              >
+                                {!orderable
+                                  ? "Unavailable"
+                                  : item.components.length > 0 || item.optionGroups.length > 0
+                                    ? "Customise and add"
+                                    : "Add"}
+                              </button>
+                            </div>
+                          </div>
+                        </article>
+                      );
+                    })}
                   </div>
-                </article>
-                );
-              })}
-              </div>
+                </div>
+              ))}
             </div>
           ) : null}
         </section>

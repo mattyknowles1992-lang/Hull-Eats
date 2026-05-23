@@ -2,6 +2,8 @@ import type { HubMenuSection, MenuItem } from "@hull-eats/types";
 import {
   decodeHubMenuCategoryDescription,
   encodeHubMenuCategoryDescription,
+  getCategoryCustomerDescription,
+  readMenuSubGroupsFromSection,
   HUB_MENU_CATEGORY_CUSTOM_ID,
   HUB_MENU_BURGER_KEBAB_PARTS_PRESET,
   HUB_MENU_BURGER_PARTS_PRESET,
@@ -186,6 +188,7 @@ export type MenuItemDraftInput = {
   description: string;
   price: number;
   imageUrl?: string;
+  menuSubGroup?: string;
   requiresIdVerification: boolean;
   components: MenuItem["components"];
   optionGroups: MenuItem["optionGroups"];
@@ -497,6 +500,7 @@ export function buildLocalMenuItem(input: MenuItemDraftInput): MenuItem {
     description: input.description.trim(),
     price: input.price,
     imageUrl: input.imageUrl,
+    menuSubGroup: input.menuSubGroup?.trim() || undefined,
     isActive: input.isActive ?? false,
     trackStock: false,
     stockQuantity: null,
@@ -780,6 +784,14 @@ export function kebabPartSlots(section?: HubMenuSection | null): ComposePartSlot
   return readPartSlotDefinitions(section, "kebab").map((slot) => slot.key);
 }
 
+export function formatPartSlotTabMeta(section: HubMenuSection | null | undefined, line: ComposeProductLine): string {
+  const slots = readPartSlotDefinitions(section, line);
+  if (slots.length === 0) {
+    return line === "burger" ? "Buns, meat, salad" : "Bread, meat, salad";
+  }
+  return slots.map((slot) => slot.label).join(", ");
+}
+
 export function componentFromMenuPart(part: HubMenuPart, quantity = 1, removable = false): MenuComponent {
   return {
     id: part.id,
@@ -823,7 +835,7 @@ export function describeCategoryItemBuilder(section: HubMenuSection | null | und
   }
   const key = section?.presetKey ?? "";
   if (key === "drinks" || key === "milkshakes" || key === "coffee") {
-    return "Set one base price (e.g. can). Add size or flavour options below if needed.";
+    return "Add sub-categories (Cans, Milkshakes…) in category settings, then one product per drink (Coke, Fanta…) each with its own photo and price — not as option names only.";
   }
   if (key === "chicken" || key === "starters" || key === "sides") {
     return "Set the portion price (e.g. 6 wings), then add flavour options (BBQ, Spicy…) with any extra £.";
@@ -885,6 +897,7 @@ export type MenuPreviewCategory = {
   id: string;
   name: string;
   description?: string;
+  subGroups: string[];
   items: MenuItem[];
 };
 
@@ -2075,7 +2088,8 @@ export function buildMenuPreviewCategories(sections: HubMenuSection[]): MenuPrev
   return customerFacingMenuSections(sections).map((section) => ({
     id: section.id,
     name: section.name,
-    description: section.description?.trim() || undefined,
+    description: getCategoryCustomerDescription(section) || undefined,
+    subGroups: readMenuSubGroupsFromSection(section).map((group) => group.label),
     items: section.items.filter((item) => getMenuAvailabilityMode(item) !== "hidden"),
   }));
 }

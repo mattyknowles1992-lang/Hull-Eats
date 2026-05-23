@@ -74,7 +74,10 @@ export function MenuItemImageField({ value, onChange, disabled }: MenuItemImageF
   return (
     <div style={wrap}>
       <span style={label}>Product photo</span>
-      <p style={hint}>Upload a photo for this item. It is saved with your menu when you publish.</p>
+      <p style={hint}>
+        Each product needs its own photo (e.g. every pizza and every drink flavour). Category images are only for the menu
+        banner — not shared across items.
+      </p>
 
       <div style={previewRow}>
         {value ? (
