@@ -2,6 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { AppSwitcher } from "../app-switcher";
+import {
+  isAnyExtraHullProductEnabled,
+  isHullMarketplaceResaleEnabled,
+  isHullServicesEnabled,
+} from "../../src/lib/customer-product-flags";
 
 export const metadata: Metadata = {
   title: "About Hull Eats | For customers",
@@ -16,7 +21,7 @@ const customerBasics = [
   "Track your order when tracking is available for that store, so you spend less time guessing when dinner will arrive.",
 ];
 
-const alsoOnHullEats = [
+const alsoOnHullEatsAll = [
   {
     eyebrow: "Hull Marketplace",
     lead: "Local listings",
@@ -24,6 +29,7 @@ const alsoOnHullEats = [
       "A separate corner of Hull Eats for local buying and selling — think second-hand finds, homeware, and neighbourhood listings. It uses the same account and the same care for trust and safety.",
     href: "/marketplace",
     cta: "Browse marketplace",
+    enabled: isHullMarketplaceResaleEnabled,
   },
   {
     eyebrow: "Hull Services",
@@ -32,10 +38,13 @@ const alsoOnHullEats = [
       "Discover local trades and professionals — cleaners, gardeners, repairs, and more — as listings grow. Again, one Hull Eats account across food, marketplace, and services where we turn those areas on.",
     href: "/services",
     cta: "Explore Hull Services",
+    enabled: isHullServicesEnabled,
   },
-];
+] as const;
 
 export default function AboutHullEatsPage() {
+  const alsoOnHullEats = alsoOnHullEatsAll.filter((block) => block.enabled());
+  const showExtraProducts = isAnyExtraHullProductEnabled();
   return (
     <main className="marketing-page">
       <header className="marketing-nav">
@@ -51,9 +60,11 @@ export default function AboutHullEatsPage() {
           <a href="#for-you" className="glass-button">
             For you
           </a>
-          <a href="#more-hull-eats" className="glass-button">
-            Marketplace &amp; services
-          </a>
+          {showExtraProducts ? (
+            <a href="#more-hull-eats" className="glass-button">
+              Marketplace &amp; services
+            </a>
+          ) : null}
           <Link href="/contact" className="primary-button">
             Help &amp; contact
           </Link>
@@ -148,39 +159,41 @@ export default function AboutHullEatsPage() {
         </div>
       </section>
 
-      <section id="more-hull-eats" className="savings-band">
-        <div>
-          <p className="eyebrow">Beyond takeaway</p>
-          <h2>Marketplace and services use the same Hull Eats account</h2>
-          <p>
-            Food is where most people start, but Hull Eats also hosts other local experiences. Each area has its own terms
-            so you always know what you are agreeing to.
-          </p>
-        </div>
+      {showExtraProducts ? (
+        <section id="more-hull-eats" className="savings-band">
+          <div>
+            <p className="eyebrow">Beyond takeaway</p>
+            <h2>Marketplace and services use the same Hull Eats account</h2>
+            <p>
+              Food is where most people start, but Hull Eats also hosts other local experiences. Each area has its own
+              terms so you always know what you are agreeing to.
+            </p>
+          </div>
 
-        <div className="savings-metrics" aria-label="Other Hull Eats areas">
-          {alsoOnHullEats.map((block) => (
-            <article key={block.eyebrow} className="saving-metric-card">
-              <span>{block.eyebrow}</span>
-              <strong>{block.lead}</strong>
-              <p>{block.copy}</p>
-              <div className="about-band-cta">
-                <Link href={block.href} className="secondary-button">
-                  {block.cta}
-                </Link>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
+          <div className="savings-metrics" aria-label="Other Hull Eats areas">
+            {alsoOnHullEats.map((block) => (
+              <article key={block.eyebrow} className="saving-metric-card">
+                <span>{block.eyebrow}</span>
+                <strong>{block.lead}</strong>
+                <p>{block.copy}</p>
+                <div className="about-band-cta">
+                  <Link href={block.href} className="secondary-button">
+                    {block.cta}
+                  </Link>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className="contact-band">
         <div>
           <p className="eyebrow">We are here</p>
           <h2>Help with an order, your account, or a listing</h2>
           <p>
-            Pick the channel that fits: customer support, privacy requests, marketplace safety, or business onboarding —
-            all routed from one contact page.
+            Pick the channel that fits: customer support, privacy requests
+            {showExtraProducts ? ", marketplace safety," : ""} or business onboarding — all routed from one contact page.
           </p>
         </div>
 
@@ -192,7 +205,7 @@ export default function AboutHullEatsPage() {
             Legal &amp; policies
           </Link>
           <Link href="/" className="glass-button">
-            Back to marketplace
+            Back to home
           </Link>
         </div>
       </section>

@@ -19,10 +19,19 @@ type Props = {
   section: HubMenuSection;
   readOnly?: boolean;
   onUpdateSection: (updater: (section: HubMenuSection) => HubMenuSection) => void;
-  onClose: () => void;
+  onClose?: () => void;
+  /** When true, hide back navigation (used inside hub Settings). */
+  embedded?: boolean;
 };
 
-export function HubMenuPartsGroupSettingsPanel({ line, section, readOnly = false, onUpdateSection, onClose }: Props) {
+export function HubMenuPartsGroupSettingsPanel({
+  line,
+  section,
+  readOnly = false,
+  onUpdateSection,
+  onClose,
+  embedded = false,
+}: Props) {
   const title = line === "burger" ? "Burger option groups" : "Kebab option groups";
   const slotDefinitions = readPartSlotDefinitions(section, line);
   const parts = getHubPartsFromSection(section, line);
@@ -47,21 +56,25 @@ export function HubMenuPartsGroupSettingsPanel({ line, section, readOnly = false
   };
 
   return (
-    <section className="hub-menu-parts-settings">
-      <header className="hub-menu-parts-settings__header">
-        <div>
-          <p className="hub-menu-parts-settings__eyebrow">Hub setup · Settings</p>
-          <h3 className="hub-menu-parts-settings__title">{title}</h3>
-          <p className="hub-menu-parts-settings__copy">
-            Name the groups customers see when you build products (e.g. rename <strong>Buns</strong> to{" "}
-            <strong>Base</strong>, or add <strong>Sauce</strong> and <strong>Toppings</strong>). Then go back and add
-            each choice (brioche bun, cheddar, etc.) on the main screen.
-          </p>
-        </div>
-        <button type="button" className="hub-menu-parts-settings__back" onClick={onClose}>
-          Back to choices
-        </button>
-      </header>
+    <section className={`hub-menu-parts-settings${embedded ? " hub-menu-parts-settings--embedded" : ""}`}>
+      {embedded ? null : (
+        <header className="hub-menu-parts-settings__header">
+          <div>
+            <p className="hub-menu-parts-settings__eyebrow">Hub setup · Settings</p>
+            <h3 className="hub-menu-parts-settings__title">{title}</h3>
+            <p className="hub-menu-parts-settings__copy">
+              Name the groups customers see when you build products (e.g. rename <strong>Buns</strong> to{" "}
+              <strong>Base</strong>, or add <strong>Sauce</strong> and <strong>Toppings</strong>). Add each choice on the
+              Burger parts or Kebab parts tab in the menu builder.
+            </p>
+          </div>
+          {onClose ? (
+            <button type="button" className="hub-menu-parts-settings__back" onClick={onClose}>
+              Back to choices
+            </button>
+          ) : null}
+        </header>
+      )}
 
       <div className="hub-menu-parts-library__slot-config hub-menu-parts-settings__panel">
         <div>

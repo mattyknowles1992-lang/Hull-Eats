@@ -105,7 +105,7 @@ export function TrackingClient({ orderId }: TrackingClientProps) {
           <p>{order ? statusCopy[order.status] ?? "Your order is moving through Hull Eats." : "Loading the live delivery link."}</p>
         </div>
         <Link href="/" className="glass-button">
-          Back to marketplace
+          Back to home
         </Link>
       </section>
 

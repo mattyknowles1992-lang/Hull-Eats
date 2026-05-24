@@ -10,7 +10,7 @@ export default function AccountPage() {
         <AppSwitcher />
         <div className="topbar-actions">
           <Link href="/" className="primary-button service-back-button">
-            Back to Hull Eats Marketplace
+            Back to home
           </Link>
         </div>
       </header>
@@ -18,14 +18,14 @@ export default function AccountPage() {
       <section className="register-grid register-grid-simple">
         <section className="feature-panel feature-panel-contrast register-intro">
           <div className="hero-badge register-badge">Customer account</div>
-          <h1 className="register-title">Sign in or create your Hull Eats account.</h1>
+          <h1 className="register-title">Your Hull Eats account</h1>
           <p className="register-copy">
-            New customers can register with name, phone, email, password, and delivery address on{" "}
+            Sign in on any phone or computer — same login everywhere. Save addresses, see order history, and reset your
+            password anytime.{" "}
             <Link href="/register" className="ghost-link">
               Create account
-            </Link>
-            . Returning customers can sign in — your profile, default address, and marketplace safety status stay in sync
-            with the admin console.
+            </Link>{" "}
+            if you are new.
           </p>
         </section>
 

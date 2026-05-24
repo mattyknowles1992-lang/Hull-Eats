@@ -2,10 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { LegalDocument } from "../../../src/components/legal-document";
+import { isAnyExtraHullProductEnabled } from "../../../src/lib/customer-product-flags";
 
 export const metadata: Metadata = {
   title: "Cookie notice | Hull Eats",
-  description: "Cookies and similar technologies used on Hull Eats, Hull Marketplace, and Hull Services websites and apps.",
+  description: isAnyExtraHullProductEnabled()
+    ? "Cookies and similar technologies used on Hull Eats, Hull Marketplace, and Hull Services websites and apps."
+    : "Cookies and similar technologies used on Hull Eats websites and apps.",
 };
 
 export default function CookiesPage() {

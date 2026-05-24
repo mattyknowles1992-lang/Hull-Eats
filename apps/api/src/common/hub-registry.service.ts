@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, NotFoundException, UnauthorizedException } from "@nestjs/common";
+import { randomBytes } from "node:crypto";
 
 import { geocodeUkPostcode } from "./uk-postcode-geocode";
 import { persistedMenuEntityIds, remapMenuSectionsForPersist } from "./hub-menu-persist";
@@ -9,6 +10,7 @@ import { prisma } from "@hull-eats/db";
 import { loadedMunchMenuItems, loadedMunchMenuSections, loadedMunchStore } from "@hull-eats/sdk";
 import {
   addHubCourierAssignmentInputSchema,
+  createHubCourierInputSchema,
   createHubPromotionInputSchema,
   decodeHubMenuCategoryDescription,
   encodeHubMenuCategoryDescription,
@@ -25,6 +27,7 @@ import {
   type CreateHubConfigSnapshotInput,
   type RenameHubConfigSnapshotInput,
 } from "@hull-eats/types";
+import { CourierRegistryService } from "./courier-registry.service";
 import type {
   ApplyMenuImportInput,
   CreateHubInput,
@@ -219,8 +222,16 @@ function parsePastedMenuText(rawText: string, seed: string): HubMenuImportCandid
   ];
 }
 
+function generateHubCourierTempPassword(): string {
+  return `Hull${randomBytes(4).toString("hex")}!`;
+}
+
 @Injectable()
 export class HubRegistryService {
+  constructor(
+    @Inject(CourierRegistryService)
+    private readonly courierRegistry: CourierRegistryService,
+  ) {}
   private pilotEnsured = false;
 
   async listHubs(): Promise<HubSummary[]> {
@@ -973,6 +984,91 @@ export class HubRegistryService {
     }));
   }
 
+  async createHubCourier(hubId: string, body: unknown) {
+    await this.ensurePilotHub();
+    const input = createHubCourierInputSchema.parse(body);
+    const store = await this.findPrimaryStore(hubId);
+    const email = input.email.trim().toLowerCase();
+    const username = (input.username?.trim().toLowerCase() || email).slice(0, 64);
+    const password = input.password?.trim() || generateHubCourierTempPassword();
+
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
+      include: { courierProfile: true },
+    });
+    if (existingUser?.courierProfile) {
+      await prisma.storeCourierAssignment.upsert({
+        where: {
+          storeId_courierProfileId: {
+            storeId: store.id,
+            courierProfileId: existingUser.courierProfile.id,
+          },
+        },
+        create: {
+          storeId: store.id,
+          courierProfileId: existingUser.courierProfile.id,
+        },
+        update: {},
+      });
+
+      const assignments = await this.listHubCourierAssignments(hubId);
+      const account = await prisma.courierAccount.findUnique({
+        where: { courierProfileId: existingUser.courierProfile.id },
+      });
+
+      return {
+        courierProfileId: existingUser.courierProfile.id,
+        fullName: existingUser.fullName,
+        email,
+        username: account?.username ?? username,
+        alreadyExisted: true as const,
+        message: "Driver linked to your hub. They sign in with their existing Hull Eats Courier password.",
+        assignments,
+      };
+    }
+
+    if (existingUser) {
+      throw new BadRequestException("That email is already used for a non-courier account.");
+    }
+
+    const created = await this.courierRegistry.createCourier({
+      fullName: input.fullName.trim(),
+      email,
+      phone: input.phone?.trim() ?? "",
+      username,
+      password,
+      vehicleType: input.vehicleType?.trim() || "car",
+      vehicleRegistration: input.vehicleRegistration?.trim(),
+      status: "active",
+    });
+
+    await prisma.storeCourierAssignment.upsert({
+      where: {
+        storeId_courierProfileId: {
+          storeId: store.id,
+          courierProfileId: created.courierProfileId,
+        },
+      },
+      create: {
+        storeId: store.id,
+        courierProfileId: created.courierProfileId,
+      },
+      update: {},
+    });
+
+    const assignments = await this.listHubCourierAssignments(hubId);
+
+    return {
+      courierProfileId: created.courierProfileId,
+      fullName: created.fullName,
+      email: created.email,
+      username: created.username,
+      temporaryPassword: password,
+      alreadyExisted: false as const,
+      assignments,
+    };
+  }
+
   async addHubCourierAssignment(hubId: string, body: unknown) {
     await this.ensurePilotHub();
     const input = addHubCourierAssignmentInputSchema.parse(body);
@@ -988,7 +1084,7 @@ export class HubRegistryService {
 
     if (!user?.courierProfile) {
       throw new BadRequestException(
-        "No Hull Eats courier account exists for that email. Create the driver in the admin portal first, then add their email here.",
+        "No courier account exists for that email. Use Add driver below to create their Hull Eats Courier login for this hub.",
       );
     }
 

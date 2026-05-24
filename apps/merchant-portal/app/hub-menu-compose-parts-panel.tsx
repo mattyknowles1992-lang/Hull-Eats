@@ -21,7 +21,6 @@ type Props = {
   extras: HubExtraTopping[];
   onAddPart: (item: ReturnType<typeof buildPartLibraryItem>) => void;
   onRemovePart: (itemId: string) => void;
-  onOpenGroupSettings: () => void;
   readOnly?: boolean;
 };
 
@@ -31,7 +30,6 @@ export function HubMenuComposePartsPanel({
   extras,
   onAddPart,
   onRemovePart,
-  onOpenGroupSettings,
   readOnly = false,
 }: Props) {
   const title = line === "burger" ? "Burger parts" : "Kebab parts";
@@ -59,19 +57,12 @@ export function HubMenuComposePartsPanel({
         <strong style={{ fontSize: "0.95rem" }}>{title}</strong>
         <p style={{ margin: "6px 0 0", fontSize: "0.84rem", color: "#5b6470", lineHeight: 1.45 }}>
           Add each choice customers can pick (brioche bun, 3oz patty, lettuce…). Paid add-ons like cheese belong in{" "}
-          <strong>Added extras</strong>.
+          <strong>Added extras</strong>. To rename groups (buns, meat, salad…), use{" "}
+          <strong>Edit or add option groups</strong> in Settings.
         </p>
-      </div>
-
-      <div className="hub-menu-parts-library__toolbar">
-        <p style={{ margin: 0, fontSize: "0.82rem", color: "#5b6470" }}>
-          <strong>Groups:</strong> {groupSummary || "Not set up yet"}
+        <p style={{ margin: "6px 0 0", fontSize: "0.82rem", color: "#7a8491" }}>
+          <strong>Groups:</strong> {groupSummary || "Set up in Settings first"}
         </p>
-        {readOnly ? null : (
-          <button type="button" className="hub-menu-parts-library__settings-btn" onClick={onOpenGroupSettings}>
-            Edit option groups
-          </button>
-        )}
       </div>
 
       {slotDefinitions.map((slotDef) => (

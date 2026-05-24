@@ -2,14 +2,23 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { AppSwitcher } from "../app-switcher";
+import {
+  isHullMarketplaceResaleEnabled,
+  isHullServicesEnabled,
+} from "../../src/lib/customer-product-flags";
 
 export const metadata: Metadata = {
   title: "Partner with us | Hull Eats",
   description:
-    "Join Hull Eats as a restaurant or shop, list on Hull Marketplace, or promote your services through Hull Services.",
+    isHullMarketplaceResaleEnabled() || isHullServicesEnabled()
+      ? "Join Hull Eats as a restaurant or shop, list on Hull Marketplace, or promote your services through Hull Services."
+      : "Join Hull Eats as a restaurant, takeaway, café, or shop — live menus, delivery, and business software.",
 };
 
 export default function PartnerPage() {
+  const showMarketplace = isHullMarketplaceResaleEnabled();
+  const showServices = isHullServicesEnabled();
+
   return (
     <main className="shell legal-document-page">
       <header className="topbar legal-document-topbar">
@@ -28,9 +37,9 @@ export default function PartnerPage() {
         <header className="legal-document-header">
           <h1 className="legal-document-title">Partner with us</h1>
           <p className="legal-document-summary">
-            Hull Eats is built so businesses can adopt one pillar at a time — marketplace ordering, software-only hub
-            tools, courier-supported delivery, Hull Marketplace listings, or Hull Services visibility — and expand when it
-            suits them.
+            {showMarketplace || showServices
+              ? "Hull Eats is built so businesses can adopt one pillar at a time — marketplace ordering, software-only hub tools, courier-supported delivery, Hull Marketplace listings, or Hull Services visibility — and expand when it suits them."
+              : "Hull Eats helps Hull restaurants, takeaways, cafés, and shops run live menus, delivery rules, and checkout — with optional courier support and hub software as you grow."}
           </p>
         </header>
 
@@ -46,30 +55,34 @@ export default function PartnerPage() {
           </a>
         </section>
 
-        <section className="partner-page-section">
-          <h2>Hull Marketplace — sellers</h2>
-          <p>
-            Local classified-style listings for goods you want buyers to discover in Hull. Commercial terms, seller fees,
-            and dispute handling evolve as the marketplace matures; our{" "}
-            <Link href="/legal/terms-marketplace">Marketplace terms</Link> and{" "}
-            <Link href="/legal/acceptable-use">acceptable use policy</Link> set the baseline expectations today.
-          </p>
-          <a className="primary-button" href="mailto:hello@hulleats.co.uk?subject=Hull%20Marketplace%20seller%20interest">
-            Email partnerships — marketplace
-          </a>
-        </section>
+        {showMarketplace ? (
+          <section className="partner-page-section">
+            <h2>Hull Marketplace — sellers</h2>
+            <p>
+              Local classified-style listings for goods you want buyers to discover in Hull. Commercial terms, seller fees,
+              and dispute handling evolve as the marketplace matures; our{" "}
+              <Link href="/legal/terms-marketplace">Marketplace terms</Link> and{" "}
+              <Link href="/legal/acceptable-use">acceptable use policy</Link> set the baseline expectations today.
+            </p>
+            <a className="primary-button" href="mailto:hello@hulleats.co.uk?subject=Hull%20Marketplace%20seller%20interest">
+              Email partnerships — marketplace
+            </a>
+          </section>
+        ) : null}
 
-        <section className="partner-page-section">
-          <h2>Hull Services — trades & professionals</h2>
-          <p>
-            Home maintenance, vehicles, cleaning, grooming, and other local services can appear in dedicated browse
-            experiences separate from takeaway menus. Tell us your trade, coverage area, and whether you already take card
-            payments online.
-          </p>
-          <a className="primary-button" href="mailto:hello@hulleats.co.uk?subject=Hull%20Services%20provider%20interest">
-            Email partnerships — services
-          </a>
-        </section>
+        {showServices ? (
+          <section className="partner-page-section">
+            <h2>Hull Services — trades & professionals</h2>
+            <p>
+              Home maintenance, vehicles, cleaning, grooming, and other local services can appear in dedicated browse
+              experiences separate from takeaway menus. Tell us your trade, coverage area, and whether you already take card
+              payments online.
+            </p>
+            <a className="primary-button" href="mailto:hello@hulleats.co.uk?subject=Hull%20Services%20provider%20interest">
+              Email partnerships — services
+            </a>
+          </section>
+        ) : null}
 
         <section className="partner-page-section">
           <h2>Delivery & logistics</h2>

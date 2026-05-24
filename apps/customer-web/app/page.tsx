@@ -257,7 +257,7 @@ export default function CustomerHomePage() {
         </div>
       </header>
 
-      <nav className="marketplace-category-rail" aria-label="Marketplace categories">
+      <nav className="marketplace-category-rail" aria-label="Food categories">
         {marketplaceCategories.map((category) => (
           <Link key={category.slug} href={`/categories/${category.slug}`} className="marketplace-category-chip">
             <span className="marketplace-category-chip-image" style={{ backgroundImage: `url(${category.imageUrl})` }} />
@@ -328,11 +328,11 @@ export default function CustomerHomePage() {
       <section className="search-panel marketplace-panel marketplace-scene">
         <div className="search-heading">
           <div>
-            <p className="eyebrow">Hull marketplace</p>
+            <p className="eyebrow">Browse by category</p>
             <h2 className="search-title">Choose the category first.</h2>
             <p className="search-copy">
               Start with takeaways, groceries, bakery, butcher, alcohol, vapes, convenience, desserts, and local
-              essentials. Every category can grow into its own marketplace page as new businesses go live.
+              essentials. Every category grows as more Hull businesses go live on Hull Eats.
             </p>
           </div>
           <div className="search-highlight-card live-menu-card">
@@ -349,7 +349,7 @@ export default function CustomerHomePage() {
           <div className="delivery-pill">Serving Hull and surrounding areas</div>
         </div>
 
-        <div className="filter-row" aria-label="Marketplace filters">
+        <div className="filter-row" aria-label="Category filters">
           {filters.map((filter) => (
             <button
               key={filter}
@@ -428,9 +428,6 @@ export default function CustomerHomePage() {
         </div>
       </section>
 
-      <Link href="/services" className="hull-services-promo marketplace-scene" aria-label="Explore Hull Services">
-        <img src="/brand/hull-services.png" alt="Explore Hull Services" />
-      </Link>
     </main>
   );
 }

@@ -1625,6 +1625,18 @@ export function buildPartLibraryItem(input: {
   });
 }
 
+export function renamePartLibraryItem(section: HubMenuSection, itemId: string, label: string): HubMenuSection {
+  const trimmed = label.trim();
+  if (!trimmed) {
+    return section;
+  }
+
+  return {
+    ...section,
+    items: section.items.map((item) => (item.id === itemId ? { ...item, name: trimmed } : item)),
+  };
+}
+
 export function buildMealLibraryItem(input: {
   categoryId: string;
   label: string;

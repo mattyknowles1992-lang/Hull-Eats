@@ -151,6 +151,12 @@ services:
       - key: NEXT_PUBLIC_MARKETPLACE_LISTING_REQUIRES_HULL_EATS_PLUS
         value: "false"
         sync: false
+      - key: NEXT_PUBLIC_HULL_MARKETPLACE_RESALE_ENABLED
+        value: "false"
+        sync: false
+      - key: NEXT_PUBLIC_HULL_SERVICES_ENABLED
+        value: "false"
+        sync: false
       - key: DEFAULT_CURRENCY
         value: GBP
 

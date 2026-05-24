@@ -18,7 +18,6 @@ import {
 
 import { HubMenuCategoryTabs, isMenuStudioStaffSection } from "./hub-menu-category-tabs";
 import { HubMenuComposePartsPanel } from "./hub-menu-compose-parts-panel";
-import { HubMenuPartsGroupSettingsPanel } from "./hub-menu-parts-group-settings";
 import { HubMenuExtrasLibrary } from "./hub-menu-extras-library";
 import { HubMenuCategorySubGroupsPanel } from "./hub-menu-category-subgroups";
 import { HubMenuItemPartsPicker } from "./hub-menu-item-parts-picker";
@@ -147,6 +146,7 @@ type HubMenuStudioProps = {
   onUpdateSectionField: (field: "name" | "description", value: string | number | null) => void;
   onPatchSelectedCategory: (updater: (section: HubMenuSection) => HubMenuSection) => void;
   onUpdateItem: (updater: (item: MenuItem) => MenuItem) => void;
+  onOpenPartsOptionSettings?: () => void;
   saveButtonStyle: CSSProperties;
   readOnly?: boolean;
 };
@@ -221,11 +221,11 @@ export function HubMenuStudio({
   onUpdateSectionField,
   onPatchSelectedCategory,
   onUpdateItem,
+  onOpenPartsOptionSettings,
   saveButtonStyle,
   readOnly = false,
 }: HubMenuStudioProps) {
   const newItemDraftRef = useRef<HTMLElement | null>(null);
-  const [partsGroupSettingsLine, setPartsGroupSettingsLine] = useState<ComposeProductLine | null>(null);
   const availabilityModes: MenuAvailabilityMode[] = ["live", "sold_out", "hidden"];
   const studioLocked = readOnly;
   const visibleSections = customerFacingMenuSections(menuSections);
@@ -300,34 +300,6 @@ export function HubMenuStudio({
   const showBurgerPartsPanel = Boolean(burgerPartsSection && selectedCategory?.id === burgerPartsSection.id);
   const showKebabPartsPanel = Boolean(kebabPartsSection && selectedCategory?.id === kebabPartsSection.id);
 
-  useEffect(() => {
-    if (!showBurgerPartsPanel && partsGroupSettingsLine === "burger") {
-      setPartsGroupSettingsLine(null);
-    }
-    if (!showKebabPartsPanel && partsGroupSettingsLine === "kebab") {
-      setPartsGroupSettingsLine(null);
-    }
-  }, [showBurgerPartsPanel, showKebabPartsPanel, partsGroupSettingsLine]);
-
-  const openPartsGroupSettings = () => {
-    if (showKebabPartsPanel) {
-      setPartsGroupSettingsLine("kebab");
-      return;
-    }
-    if (showBurgerPartsPanel) {
-      setPartsGroupSettingsLine("burger");
-      return;
-    }
-    if (burgerPartsSection) {
-      onSelectCategory(burgerPartsSection.id);
-      setPartsGroupSettingsLine("burger");
-      return;
-    }
-    if (kebabPartsSection) {
-      onSelectCategory(kebabPartsSection.id);
-      setPartsGroupSettingsLine("kebab");
-    }
-  };
   const showMealsPanel = Boolean(mealSection && selectedCategory?.id === mealSection.id);
   const selectedIsMealDealsCategory = isHubMenuMealDealsCategory(selectedCategory);
   const creatingIsMealDealsCategory = isHubMenuMealDealsCategory(creatingItemSection);
@@ -434,17 +406,23 @@ export function HubMenuStudio({
               mealSection={mealSection}
               selectedSectionId={selectedCategory?.id ?? null}
               readOnly={studioLocked}
-              onSelectSection={(sectionId) => {
-                setPartsGroupSettingsLine(null);
-                onSelectCategory(sectionId);
-              }}
+              onSelectSection={onSelectCategory}
               onReorderCategory={onReorderCategory}
               burgerPartsTabMeta={formatPartSlotTabMeta(burgerPartsSection, "burger")}
               kebabPartsTabMeta={formatPartSlotTabMeta(kebabPartsSection, "kebab")}
-              onConfigurePartsGroups={burgerPartsSection || kebabPartsSection ? openPartsGroupSettings : undefined}
             />
             <section className="hub-menu-tab-add-category" style={sidebarAddCategory}>
               <p style={sectionLabel}>New category</p>
+              {burgerPartsSection || kebabPartsSection ? (
+                <button
+                  type="button"
+                  className="hub-menu-tab-config-btn hub-menu-tab-config-btn--category"
+                  disabled={studioLocked || !onOpenPartsOptionSettings}
+                  onClick={() => onOpenPartsOptionSettings?.()}
+                >
+                  Edit or add option groups
+                </button>
+              ) : null}
               <label style={field}>
                 <span style={darkFieldLabel}>Type</span>
                 <select
@@ -494,49 +472,27 @@ export function HubMenuStudio({
 
               {showBurgerPartsPanel && burgerPartsSection ? (
                 <div className="hub-menu-staff-library-editor">
-                  {partsGroupSettingsLine === "burger" ? (
-                    <HubMenuPartsGroupSettingsPanel
-                      line="burger"
-                      section={burgerPartsSection}
-                      readOnly={studioLocked}
-                      onUpdateSection={onUpdateBurgerPartsSection}
-                      onClose={() => setPartsGroupSettingsLine(null)}
-                    />
-                  ) : (
-                    <HubMenuComposePartsPanel
-                      line="burger"
-                      section={burgerPartsSection}
-                      extras={hubExtraToppings}
-                      onAddPart={onAddBurgerPart}
-                      onRemovePart={onRemoveBurgerPart}
-                      onOpenGroupSettings={() => setPartsGroupSettingsLine("burger")}
-                      readOnly={studioLocked}
-                    />
-                  )}
+                  <HubMenuComposePartsPanel
+                    line="burger"
+                    section={burgerPartsSection}
+                    extras={hubExtraToppings}
+                    onAddPart={onAddBurgerPart}
+                    onRemovePart={onRemoveBurgerPart}
+                    readOnly={studioLocked}
+                  />
                 </div>
               ) : null}
 
               {showKebabPartsPanel && kebabPartsSection ? (
                 <div className="hub-menu-staff-library-editor">
-                  {partsGroupSettingsLine === "kebab" ? (
-                    <HubMenuPartsGroupSettingsPanel
-                      line="kebab"
-                      section={kebabPartsSection}
-                      readOnly={studioLocked}
-                      onUpdateSection={onUpdateKebabPartsSection}
-                      onClose={() => setPartsGroupSettingsLine(null)}
-                    />
-                  ) : (
-                    <HubMenuComposePartsPanel
-                      line="kebab"
-                      section={kebabPartsSection}
-                      extras={hubExtraToppings}
-                      onAddPart={onAddKebabPart}
-                      onRemovePart={onRemoveKebabPart}
-                      onOpenGroupSettings={() => setPartsGroupSettingsLine("kebab")}
-                      readOnly={studioLocked}
-                    />
-                  )}
+                  <HubMenuComposePartsPanel
+                    line="kebab"
+                    section={kebabPartsSection}
+                    extras={hubExtraToppings}
+                    onAddPart={onAddKebabPart}
+                    onRemovePart={onRemoveKebabPart}
+                    readOnly={studioLocked}
+                  />
                 </div>
               ) : null}
 

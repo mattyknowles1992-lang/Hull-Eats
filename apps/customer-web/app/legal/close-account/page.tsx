@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { LegalDocument } from "../../../src/components/legal-document";
+import { isHullMarketplaceResaleEnabled } from "../../../src/lib/customer-product-flags";
 
 export const metadata: Metadata = {
   title: "Close your account | Hull Eats",
@@ -9,6 +10,8 @@ export const metadata: Metadata = {
 };
 
 export default function CloseAccountPage() {
+  const showMarketplace = isHullMarketplaceResaleEnabled();
+
   return (
     <LegalDocument
       title="Close your account"
@@ -49,19 +52,23 @@ export default function CloseAccountPage() {
         card numbers on Hull Eats servers when checkout uses tokenisation.
       </p>
 
-      <h2>4. Marketplace listings</h2>
-      <p>
-        If you sell on Hull Marketplace, close outstanding listings before deleting your account or tell us to remove
-        them — buyers may still need proof of purchase for returns during statutory periods.
-      </p>
+      {showMarketplace ? (
+        <>
+          <h2>4. Marketplace listings</h2>
+          <p>
+            If you sell on Hull Marketplace, close outstanding listings before deleting your account or tell us to remove
+            them — buyers may still need proof of purchase for returns during statutory periods.
+          </p>
+        </>
+      ) : null}
 
-      <h2>5. Business hub accounts</h2>
+      <h2>{showMarketplace ? "5" : "4"}. Business hub accounts</h2>
       <p>
         Merchant portal users cannot close through the customer account flow. Hub closure is arranged with Hull Eats
         operations so staff logins, printers, and financial reconciliation shut down cleanly.
       </p>
 
-      <h2>6. Questions</h2>
+      <h2>{showMarketplace ? "6" : "5"}. Questions</h2>
       <p>
         Read the <Link href="/legal/privacy">Privacy notice</Link> for wider data rights or email{" "}
         <a href="mailto:hello@hulleats.co.uk">hello@hulleats.co.uk</a> if something looks wrong after closure.

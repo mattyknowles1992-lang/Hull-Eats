@@ -67,8 +67,8 @@ export function RegisterForm() {
         throw new Error("Passwords must match before we create the account.");
       }
 
-      if (formState.password.length < 5) {
-        throw new Error("Password must be at least 5 characters.");
+      if (formState.password.length < 8) {
+        throw new Error("Password must be at least 8 characters.");
       }
 
       if (!formState.termsAccepted) {
@@ -105,7 +105,7 @@ export function RegisterForm() {
         throw error;
       }
 
-      setSuccessMessage("Account created. You can sign in straight away from My account.");
+      setSuccessMessage("Account created. Sign in from My account — no email verification required.");
       setFormState(initialState);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Something went wrong while creating your account.";
@@ -166,7 +166,7 @@ export function RegisterForm() {
             <input
               className="form-input"
               type={showPassword ? "text" : "password"}
-              placeholder="At least 5 characters"
+              placeholder="At least 8 characters"
               value={formState.password}
               onChange={(event) => updateField("password", event.target.value)}
               minLength={5}

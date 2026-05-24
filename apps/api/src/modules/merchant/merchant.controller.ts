@@ -339,6 +339,13 @@ export class MerchantController {
     return this.hubRegistry.listHubCourierAssignments(hubId);
   }
 
+  @Post("hubs/:hubId/drivers")
+  createHubCourier(@Headers("authorization") authorization: string | undefined, @Param("hubId") hubId: string, @Body() body: unknown) {
+    const session = this.internalAuth.requireMerchantToken(authorization, hubId);
+    requireHubPermission(session.role, "canOperateOrders");
+    return this.hubRegistry.createHubCourier(hubId, body);
+  }
+
   @Post("hubs/:hubId/drivers/assignments")
   addHubCourierAssignment(@Headers("authorization") authorization: string | undefined, @Param("hubId") hubId: string, @Body() body: unknown) {
     const session = this.internalAuth.requireMerchantToken(authorization, hubId);

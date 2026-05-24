@@ -413,6 +413,7 @@ These areas are not complete and should be treated as future work unless the use
 - Full live courier/location tracking
 - Hull Marketplace resale: Prisma tables `resale_*` (listings, conversations, messages, offers, purchases, reviews, resolution cases) and migrations `20260511180000_resale_marketplace`, `20260511190000_resale_reviews_resolution`; public HTTP APIs for publish, threads, offers, paid/not-sold, mandatory buyer reviews, seller trust metrics, and resolution cases are still to be built
 - Customer web: `NEXT_PUBLIC_MARKETPLACE_LISTING_REQUIRES_HULL_EATS_PLUS` (default false) gates listing copy and sell form; set `true` when Hull Eats+ listing rules go live
+- Customer web launch: `NEXT_PUBLIC_HULL_MARKETPLACE_RESALE_ENABLED` and `NEXT_PUBLIC_HULL_SERVICES_ENABLED` default false — hide resale `/marketplace` and `/services` UI until launch; customer Supabase accounts remain shared for future products
 - Merchant menu import: accepted import rows persist immediately as hidden DB items; a future improvement is pure draft imports until publish
 - Deploy menu-studio changes together: `hull-eats-api`, `hull-eats-merchant-portal`, and `hull-eats-customer-web` (sold-out UI + publish pruning)
 

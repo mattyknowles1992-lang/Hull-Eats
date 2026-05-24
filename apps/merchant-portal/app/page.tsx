@@ -33,7 +33,9 @@ import {
   loadBrowserMenuDraft,
   saveBrowserMenuDraft,
 } from "./hub-menu-browser-draft";
+import { HubMenuPartsSettingsWorkbench } from "./hub-menu-parts-settings-workbench";
 import { HubMenuStudio } from "./hub-menu-studio";
+import { HubTransientBanner } from "./hub-transient-banner";
 import { HE_BRAND } from "./portal-brand";
 import { HubDriversWorkbench } from "./hub-drivers-workbench";
 import { HubOffersWorkbench } from "./hub-offers-workbench";
@@ -62,6 +64,7 @@ import {
   switchToMainMenu,
   switchToMenuBoard,
   updateMenuBoardInConfig,
+  type ComposeProductLine,
   type HubMenuBoardKind,
   type HubMenuBoardPublishMode,
   type MenuTemplateKind,
@@ -667,6 +670,7 @@ export default function MerchantPortalPage() {
   const [orderNotice, setOrderNotice] = useState("");
   const [driverNotice, setDriverNotice] = useState("");
   const [offersNotice, setOffersNotice] = useState("");
+  const [partsOptionSettingsLine, setPartsOptionSettingsLine] = useState<ComposeProductLine | null>(null);
   const [menuHubPersistState, setMenuHubPersistState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const menuSaveInFlightRef = useRef(false);
   const menuSaveQueuedRef = useRef(false);
@@ -750,12 +754,22 @@ export default function MerchantPortalPage() {
     setPizzaSizeRows(createInitialPizzaSizeRows());
   }, [newItem.sectionId]);
 
+  const openPartsOptionSettings = useCallback(
+    (line?: ComposeProductLine) => {
+      setMobileNavOpen(false);
+      setActiveHubSection("settings");
+      setActiveHubPanel("settings");
+      setPartsOptionSettingsLine(line ?? (burgerPartsSection ? "burger" : kebabPartsSection ? "kebab" : null));
+    },
+    [burgerPartsSection, kebabPartsSection],
+  );
+
   const openHubSection = (section: HubSection) => {
     setMobileNavOpen(false);
     setActiveHubSection(section);
 
     if (section === "orders") {
-      void loadMerchantOrders();
+      void loadMerchantOrders(merchantToken, { silent: true });
       return;
     }
 
@@ -1094,11 +1108,10 @@ export default function MerchantPortalPage() {
     try {
       const orders = await fetchMerchantOrders(token);
       setMerchantOrders(orders);
+    } catch {
       if (!options.silent) {
-        setOrderNotice(`Loaded ${orders.length} orders.`);
+        setOrderNotice("Could not refresh orders. Try again.");
       }
-    } catch (error) {
-      setOrderNotice(error instanceof Error ? error.message : "Order fetch failed.");
     }
   };
 
@@ -1108,16 +1121,16 @@ export default function MerchantPortalPage() {
     }
 
     if (!hubAccess?.canOperateOrders) {
-      setOrderNotice("Your account cannot accept or reject orders.");
+      setOrderNotice("You do not have permission to manage orders.");
       return;
     }
 
     try {
       await acceptMerchantOrder(merchantToken, order.id, hubSettings.etaMinutes);
       await loadMerchantOrders(merchantToken, { silent: true });
-      setOrderNotice(`Accepted ${order.orderNumber}. Kitchen receipt queued if a printer is configured.`);
-    } catch (error) {
-      setOrderNotice(error instanceof Error ? error.message : "Accept failed.");
+      setOrderNotice("Order accepted.");
+    } catch {
+      setOrderNotice("Could not accept this order. Try again.");
     }
   };
 
@@ -1127,7 +1140,7 @@ export default function MerchantPortalPage() {
     }
 
     if (!hubAccess?.canOperateOrders) {
-      setOrderNotice("Your account cannot accept or reject orders.");
+      setOrderNotice("You do not have permission to manage orders.");
       return;
     }
 
@@ -1141,9 +1154,9 @@ export default function MerchantPortalPage() {
     try {
       await rejectMerchantOrder(merchantToken, order.id, trimmed);
       await loadMerchantOrders(merchantToken, { silent: true });
-      setOrderNotice(`Rejected ${order.orderNumber}.`);
-    } catch (error) {
-      setOrderNotice(error instanceof Error ? error.message : "Reject failed.");
+      setOrderNotice("Order rejected.");
+    } catch {
+      setOrderNotice("Could not reject this order. Try again.");
     }
   };
 
@@ -1155,11 +1168,10 @@ export default function MerchantPortalPage() {
     try {
       const tracking = await fetchMerchantDriverTracking(token);
       setDriverTracking(tracking);
+    } catch {
       if (!options.silent) {
-        setDriverNotice(`Loaded ${tracking.totals.driverCount} drivers and ${tracking.totals.orderCount} assigned delivery orders.`);
+        setDriverNotice("Could not refresh driver tracking. Try again.");
       }
-    } catch (error) {
-      setDriverNotice(error instanceof Error ? error.message : "Driver tracking fetch failed.");
     }
   };
 
@@ -1176,7 +1188,7 @@ export default function MerchantPortalPage() {
 
     try {
       const receipt = await printMerchantOrderReceipt(merchantToken, order.id);
-      setOrderNotice(receipt.message ?? "Receipt created.");
+      setOrderNotice(receipt.message?.trim() || "Receipt sent.");
 
       if (receiptWindow) {
         const qrCodeData = receipt.payload.qrCodeData;
@@ -1232,7 +1244,7 @@ export default function MerchantPortalPage() {
         receiptWindow.document.close();
       }
     } catch (error) {
-      setOrderNotice(error instanceof Error ? error.message : "Receipt print failed.");
+      setOrderNotice("Could not print receipt. Try again.");
       receiptWindow?.close();
     }
   };
@@ -1265,7 +1277,7 @@ export default function MerchantPortalPage() {
         const workspace = await fetchWorkspace(parsed.token, parsed.hubId);
         setMerchantToken(parsed.token);
         applyWorkspace(workspace, parsed.user);
-        await loadMerchantOrders(parsed.token);
+        await loadMerchantOrders(parsed.token, { silent: true });
       } catch {
         window.localStorage.removeItem(merchantSessionStorageKey);
       }
@@ -2092,13 +2104,35 @@ export default function MerchantPortalPage() {
           </p>
         ) : null}
 
-        {saveNotice ? <p className="he-hub-banner" role="status">{saveNotice}</p> : null}
-        {menuNotice ? <p className="he-hub-banner" role="status">{menuNotice}</p> : null}
-        {userNotice ? <p className="he-hub-banner" role="status">{userNotice}</p> : null}
-        {passwordNotice ? <p className="he-hub-banner" role="status">{passwordNotice}</p> : null}
-        {orderNotice ? <p className="he-hub-banner" role="status">{orderNotice}</p> : null}
-        {driverNotice ? <p className="he-hub-banner" role="status">{driverNotice}</p> : null}
-        {offersNotice ? <p className="he-hub-banner" role="status">{offersNotice}</p> : null}
+        {saveNotice ? (
+          <HubTransientBanner
+            message={saveNotice}
+            onDismiss={() => setSaveNotice("")}
+            variant={/fail|error|could not/i.test(saveNotice) ? "error" : "success"}
+          />
+        ) : null}
+        {(activeHubSection === "menu" ||
+          activeHubSection === "businessProfile" ||
+          activeHubSection === "deliveryRanges" ||
+          activeHubSection === "settings") &&
+        menuNotice ? (
+          <HubTransientBanner message={menuNotice} onDismiss={() => setMenuNotice("")} />
+        ) : null}
+        {activeHubSection === "users" && userNotice ? (
+          <HubTransientBanner message={userNotice} onDismiss={() => setUserNotice("")} />
+        ) : null}
+        {activeHubSection === "users" && passwordNotice ? (
+          <HubTransientBanner message={passwordNotice} onDismiss={() => setPasswordNotice("")} />
+        ) : null}
+        {activeHubSection === "orders" && orderNotice ? (
+          <HubTransientBanner message={orderNotice} onDismiss={() => setOrderNotice("")} />
+        ) : null}
+        {activeHubSection === "drivers" && driverNotice ? (
+          <HubTransientBanner message={driverNotice} onDismiss={() => setDriverNotice("")} />
+        ) : null}
+        {activeHubSection === "offers" && offersNotice ? (
+          <HubTransientBanner message={offersNotice} onDismiss={() => setOffersNotice("")} />
+        ) : null}
 
         {activeHubSection === "home" ? (
           <section className="he-dashboard-grid" style={dashboardGrid}>
@@ -2140,7 +2174,15 @@ export default function MerchantPortalPage() {
                 <h2 style={sectionTitle}>Incoming orders</h2>
                 <p style={panelCopyDark}>Web, app, and kiosk orders appear here. Use refresh while live notifications are being connected.</p>
               </div>
-              <button type="button" style={secondaryButton} onClick={() => void loadMerchantOrders()}>
+              <button
+                type="button"
+                style={secondaryButton}
+                onClick={() => {
+                  void loadMerchantOrders(merchantToken, { silent: true }).then(() => {
+                    setOrderNotice("Orders updated.");
+                  });
+                }}
+              >
                 Refresh orders
               </button>
             </div>
@@ -2209,6 +2251,7 @@ export default function MerchantPortalPage() {
             hubId={activeHubId}
             storeName={hubSettings.name || "Your store"}
             driverTracking={driverTracking}
+            readOnly={!hubAccess?.canOperateOrders}
             onRefreshTracking={() => void loadDriverTracking()}
             onNotice={(message) => {
               setDriverNotice(message);
@@ -2525,6 +2568,7 @@ export default function MerchantPortalPage() {
                   updateItem(selectedCategory.id, selectedItem.id, updater);
                 }
               }}
+              onOpenPartsOptionSettings={() => openPartsOptionSettings()}
               saveButtonStyle={saveHubButtonStyle}
               readOnly={!hubAccess?.canEditWorkspace}
             />
@@ -2679,7 +2723,56 @@ export default function MerchantPortalPage() {
 
           {activeHubPanel === "settings" ? (
             <section style={compactEditorCard}>
-              <div className="he-two-col" style={twoColumnGrid}>
+              {burgerPartsSection || kebabPartsSection ? (
+                <HubMenuPartsSettingsWorkbench
+                  burgerPartsSection={burgerPartsSection}
+                  kebabPartsSection={kebabPartsSection}
+                  initialLine={partsOptionSettingsLine}
+                  readOnly={!hubAccess?.canEditWorkspace}
+                  onUpdateBurgerPartsSection={(updater) => {
+                    if (!burgerPartsSection) {
+                      return;
+                    }
+                    updateMenuSections((current) =>
+                      current.map((section) => (section.id === burgerPartsSection.id ? updater(section) : section)),
+                    );
+                  }}
+                  onUpdateKebabPartsSection={(updater) => {
+                    if (!kebabPartsSection) {
+                      return;
+                    }
+                    updateMenuSections((current) =>
+                      current.map((section) => (section.id === kebabPartsSection.id ? updater(section) : section)),
+                    );
+                  }}
+                  onRemoveBurgerPart={(itemId) => {
+                    if (!burgerPartsSection) {
+                      return;
+                    }
+                    updateMenuSections((current) =>
+                      current.map((section) =>
+                        section.id === burgerPartsSection.id
+                          ? { ...section, items: section.items.filter((item) => item.id !== itemId) }
+                          : section,
+                      ),
+                    );
+                  }}
+                  onRemoveKebabPart={(itemId) => {
+                    if (!kebabPartsSection) {
+                      return;
+                    }
+                    updateMenuSections((current) =>
+                      current.map((section) =>
+                        section.id === kebabPartsSection.id
+                          ? { ...section, items: section.items.filter((item) => item.id !== itemId) }
+                          : section,
+                      ),
+                    );
+                  }}
+                />
+              ) : null}
+
+              <div className="he-two-col" style={{ ...twoColumnGrid, marginTop: burgerPartsSection || kebabPartsSection ? 28 : 0 }}>
                 <label style={field}>
                   <span style={darkFieldLabel}>Delivery ETA (minutes)</span>
                   <input type="number" min={1} style={lightInput} value={hubSettings.etaMinutes} onChange={(event) => handleHubFieldChange("etaMinutes", Math.max(1, Number(event.target.value) || 1))} />

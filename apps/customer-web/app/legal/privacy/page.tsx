@@ -2,13 +2,18 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { LegalDocument } from "../../../src/components/legal-document";
+import { isAnyExtraHullProductEnabled } from "../../../src/lib/customer-product-flags";
 
 export const metadata: Metadata = {
   title: "Privacy notice | Hull Eats",
-  description: "How Hull Eats, Hull Marketplace, and Hull Services process personal data in the United Kingdom.",
+  description: isAnyExtraHullProductEnabled()
+    ? "How Hull Eats, Hull Marketplace, and Hull Services process personal data in the United Kingdom."
+    : "How Hull Eats processes personal data for ordering and customer accounts in the United Kingdom.",
 };
 
 export default function PrivacyPage() {
+  const showExtraProducts = isAnyExtraHullProductEnabled();
+
   return (
     <LegalDocument
       title="Privacy notice"
@@ -18,7 +23,9 @@ export default function PrivacyPage() {
       <h2>1. Who is responsible for your data</h2>
       <p>
         Hull Eats (“we”, “us”) controls the data described in this notice for the platforms and brands we operate,
-        including Hull Eats ordering, Hull Marketplace, and Hull Services. When we name a legal entity on our{" "}
+        including Hull Eats ordering
+        {showExtraProducts ? ", Hull Marketplace, and Hull Services" : ""}. Your customer account may later link to
+        additional Hull products when we launch them. When we name a legal entity on our{" "}
         <Link href="/contact">Contact us</Link> page, that entity is the data controller for general customer data. Partner
         businesses remain controllers for their own staff, kitchen CCTV, and information they type into their hub portal.
       </p>

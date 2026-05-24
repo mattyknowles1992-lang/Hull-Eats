@@ -1,8 +1,16 @@
 import Link from "next/link";
 
+import {
+  isHullMarketplaceResaleEnabled,
+  isHullServicesEnabled,
+} from "../lib/customer-product-flags";
+
 const year = new Date().getFullYear();
 
 export function SiteFooter() {
+  const showMarketplace = isHullMarketplaceResaleEnabled();
+  const showServices = isHullServicesEnabled();
+
   return (
     <footer className="site-footer" aria-label="Site footer">
       <div className="site-footer-inner">
@@ -18,7 +26,9 @@ export function SiteFooter() {
           <div>
             <p className="site-footer-brand-title">Hull Eats</p>
             <p className="site-footer-brand-copy">
-              Local ordering, marketplace listings, and Hull Services — built for Hull businesses and customers.
+              {showMarketplace || showServices
+                ? "Local ordering, marketplace listings, and Hull Services — built for Hull businesses and customers."
+                : "Local food ordering for Hull — built for businesses and customers across the city."}
             </p>
           </div>
         </div>
@@ -42,32 +52,36 @@ export function SiteFooter() {
             </ul>
           </div>
 
-          <div className="site-footer-column">
-            <h2 className="site-footer-heading">Hull Marketplace</h2>
-            <ul className="site-footer-list">
-              <li>
-                <Link href="/marketplace">Browse marketplace</Link>
-              </li>
-              <li>
-                <Link href="/legal/terms-marketplace">Marketplace terms</Link>
-              </li>
-              <li>
-                <Link href="/legal/acceptable-use">Acceptable use</Link>
-              </li>
-            </ul>
-          </div>
+          {showMarketplace ? (
+            <div className="site-footer-column">
+              <h2 className="site-footer-heading">Hull Marketplace</h2>
+              <ul className="site-footer-list">
+                <li>
+                  <Link href="/marketplace">Browse marketplace</Link>
+                </li>
+                <li>
+                  <Link href="/legal/terms-marketplace">Marketplace terms</Link>
+                </li>
+                <li>
+                  <Link href="/legal/acceptable-use">Acceptable use</Link>
+                </li>
+              </ul>
+            </div>
+          ) : null}
 
-          <div className="site-footer-column">
-            <h2 className="site-footer-heading">Hull Services</h2>
-            <ul className="site-footer-list">
-              <li>
-                <Link href="/services">Explore services</Link>
-              </li>
-              <li>
-                <Link href="/legal/terms-services">Services terms</Link>
-              </li>
-            </ul>
-          </div>
+          {showServices ? (
+            <div className="site-footer-column">
+              <h2 className="site-footer-heading">Hull Services</h2>
+              <ul className="site-footer-list">
+                <li>
+                  <Link href="/services">Explore services</Link>
+                </li>
+                <li>
+                  <Link href="/legal/terms-services">Services terms</Link>
+                </li>
+              </ul>
+            </div>
+          ) : null}
 
           <div className="site-footer-column">
             <h2 className="site-footer-heading">Legal & data</h2>

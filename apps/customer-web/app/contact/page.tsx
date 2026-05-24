@@ -2,13 +2,22 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { AppSwitcher } from "../app-switcher";
+import {
+  isHullMarketplaceResaleEnabled,
+  isHullServicesEnabled,
+} from "../../src/lib/customer-product-flags";
 
 export const metadata: Metadata = {
   title: "Contact us | Hull Eats",
-  description: "Reach Hull Eats for customer support, business onboarding, marketplace queries, and Hull Services.",
+  description: isHullMarketplaceResaleEnabled() || isHullServicesEnabled()
+    ? "Reach Hull Eats for customer support, business onboarding, marketplace queries, and Hull Services."
+    : "Reach Hull Eats for customer support, business onboarding, and ordering help.",
 };
 
 export default function ContactPage() {
+  const showMarketplace = isHullMarketplaceResaleEnabled();
+  const showServices = isHullServicesEnabled();
+
   return (
     <main className="shell legal-document-page">
       <header className="topbar legal-document-topbar">
@@ -45,7 +54,9 @@ export default function ContactPage() {
           </article>
 
           <article className="contact-card">
-            <h2>Restaurants, shops & Hull Services providers</h2>
+            <h2>
+              {showServices ? "Restaurants, shops & Hull Services providers" : "Restaurants, shops & business partners"}
+            </h2>
             <p>
               Onboarding, hub login, menu publishing, delivery settings, and operational changes for businesses using Hull
               Eats software.
@@ -55,16 +66,18 @@ export default function ContactPage() {
             </a>
           </article>
 
-          <article className="contact-card">
-            <h2>Marketplace listings</h2>
-            <p>
-              Reporting a concerning listing, disputes between buyers and sellers where our acceptable use policy may
-              apply, or safety issues.
-            </p>
-            <a className="primary-button" href="mailto:hello@hulleats.co.uk?subject=Hull%20Marketplace%20report">
-              Marketplace safety
-            </a>
-          </article>
+          {showMarketplace ? (
+            <article className="contact-card">
+              <h2>Marketplace listings</h2>
+              <p>
+                Reporting a concerning listing, disputes between buyers and sellers where our acceptable use policy may
+                apply, or safety issues.
+              </p>
+              <a className="primary-button" href="mailto:hello@hulleats.co.uk?subject=Hull%20Marketplace%20report">
+                Marketplace safety
+              </a>
+            </article>
+          ) : null}
 
           <article className="contact-card">
             <h2>Privacy & data protection</h2>

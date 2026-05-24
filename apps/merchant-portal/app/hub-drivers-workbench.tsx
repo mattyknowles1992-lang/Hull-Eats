@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import type { MerchantDriverAssignment, MerchantDriverCashUpResponse } from "@hull-eats/types";
+import type {
+  CreateHubCourierResponse,
+  MerchantDriverAssignment,
+  MerchantDriverCashUpResponse,
+} from "@hull-eats/types";
 
 const formatMoney = (value: number) => `£${value.toFixed(2)}`;
 
@@ -113,6 +117,14 @@ const primaryButton: React.CSSProperties = {
   padding: "10px 16px",
   fontWeight: 800,
   cursor: "pointer",
+};
+
+const teamInputStyle: React.CSSProperties = {
+  borderRadius: 12,
+  border: "1px solid rgba(15,17,21,0.14)",
+  padding: "10px 12px",
+  fontSize: 15,
+  width: "100%",
 };
 
 const secondaryButton: React.CSSProperties = {
@@ -369,6 +381,7 @@ type Props = {
   driverTracking: TrackingPayload | null;
   onRefreshTracking: () => void;
   onNotice: (message: string) => void;
+  readOnly?: boolean;
 };
 
 async function fetchCashUp(apiBaseUrl: string, token: string, hubId: string, period: string): Promise<MerchantDriverCashUpResponse> {
@@ -394,6 +407,51 @@ async function fetchAssignments(apiBaseUrl: string, token: string, hubId: string
     throw new Error(`Assignments failed (${response.status})`);
   }
   return (await response.json()) as MerchantDriverAssignment[];
+}
+
+function suggestCourierPassword() {
+  const chunk = Math.random().toString(36).slice(2, 8);
+  return `Hull${chunk}!`;
+}
+
+async function createHubDriver(
+  apiBaseUrl: string,
+  token: string,
+  hubId: string,
+  body: {
+    fullName: string;
+    email: string;
+    phone: string;
+    password: string;
+    vehicleRegistration?: string;
+  },
+) {
+  const response = await fetch(`${apiBaseUrl}/v1/merchant/hubs/${encodeURIComponent(hubId)}/drivers`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    try {
+      const parsed = JSON.parse(text) as { message?: string | string[] };
+      const message = Array.isArray(parsed.message) ? parsed.message[0] : parsed.message;
+      if (message) {
+        throw new Error(message);
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message !== text) {
+        throw error;
+      }
+    }
+    throw new Error(text || `Create driver failed (${response.status})`);
+  }
+
+  return (await response.json()) as CreateHubCourierResponse;
 }
 
 async function postAssignment(apiBaseUrl: string, token: string, hubId: string, email: string) {
@@ -422,7 +480,16 @@ async function deleteAssignment(apiBaseUrl: string, token: string, hubId: string
   }
 }
 
-export function HubDriversWorkbench({ apiBaseUrl, token, hubId, storeName, driverTracking, onRefreshTracking, onNotice }: Props) {
+export function HubDriversWorkbench({
+  apiBaseUrl,
+  token,
+  hubId,
+  storeName,
+  driverTracking,
+  onRefreshTracking,
+  onNotice,
+  readOnly = false,
+}: Props) {
   const [tab, setTab] = useState<DriverWorkbenchTab>("dashboard");
   const [cashPeriod, setCashPeriod] = useState<string>("today");
   const [cashUp, setCashUp] = useState<MerchantDriverCashUpResponse | null>(null);
@@ -430,6 +497,18 @@ export function HubDriversWorkbench({ apiBaseUrl, token, hubId, storeName, drive
   const [assignments, setAssignments] = useState<MerchantDriverAssignment[]>([]);
   const [teamEmail, setTeamEmail] = useState("");
   const [teamError, setTeamError] = useState("");
+  const [driverFullName, setDriverFullName] = useState("");
+  const [driverEmail, setDriverEmail] = useState("");
+  const [driverPhone, setDriverPhone] = useState("");
+  const [driverPassword, setDriverPassword] = useState(() => suggestCourierPassword());
+  const [showDriverPassword, setShowDriverPassword] = useState(false);
+  const [driverVehicleReg, setDriverVehicleReg] = useState("");
+  const [creatingDriver, setCreatingDriver] = useState(false);
+  const [driverCredentials, setDriverCredentials] = useState<{
+    fullName: string;
+    email: string;
+    temporaryPassword: string;
+  } | null>(null);
 
   const loadCashUp = useCallback(async () => {
     setCashError("");
@@ -474,8 +553,8 @@ export function HubDriversWorkbench({ apiBaseUrl, token, hubId, storeName, drive
         <div>
           <h2 style={sectionTitle}>Driver dashboard</h2>
           <p style={{ ...panelCopyDark, maxWidth: 920 }}>
-            Dashboard shows live jobs scanned in the Hull Eats Courier app. Cash-up uses orders placed in the selected period where a courier is assigned. Team links courier
-            accounts (created in admin) to <strong>{storeName}</strong> so their app only lists this takeaway&apos;s jobs.
+            Dashboard shows live jobs scanned in the Hull Eats Courier app. Cash-up uses orders in the selected period. Add drivers under{" "}
+            <strong>Team</strong> so they only see delivery jobs for <strong>{storeName}</strong>.
           </p>
         </div>
         <button type="button" style={secondaryButton} onClick={() => void onRefreshTracking()}>
@@ -696,51 +775,191 @@ export function HubDriversWorkbench({ apiBaseUrl, token, hubId, storeName, drive
       ) : null}
 
       {tab === "team" ? (
-        <div style={{ display: "grid", gap: 14, maxWidth: 720 }}>
+        <div style={{ display: "grid", gap: 18, maxWidth: 760 }}>
           <p style={panelCopyDark}>
-            Add the courier&apos;s <strong>login email</strong> (same as their Hull Eats Courier app account). The driver must already exist in the{" "}
-            <strong>admin portal</strong>. Once linked, their app only shows delivery jobs for this store.
+            Add your own delivery drivers for <strong>{storeName}</strong>. They download the <strong>Hull Eats Courier</strong>{" "}
+            app and sign in with the email and temporary password you set here. They only see jobs for your store.
           </p>
-          {teamError ? <p style={{ color: "#b42318", fontWeight: 800 }}>{teamError}</p> : null}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-            <input
-              type="email"
-              placeholder="courier@example.com"
-              value={teamEmail}
-              onChange={(e) => setTeamEmail(e.target.value)}
+
+          {driverCredentials ? (
+            <div
               style={{
-                flex: "1 1 240px",
-                borderRadius: 12,
-                border: "1px solid rgba(15,17,21,0.14)",
-                padding: "10px 12px",
-                fontSize: 15,
-              }}
-            />
-            <button
-              type="button"
-              style={primaryButton}
-              onClick={async () => {
-                setTeamError("");
-                try {
-                  const next = await postAssignment(apiBaseUrl, token, hubId, teamEmail.trim());
-                  setAssignments(next);
-                  setTeamEmail("");
-                  onNotice("Courier linked to this hub.");
-                } catch (e) {
-                  setTeamError(e instanceof Error ? e.message : "Could not add courier.");
-                }
+                padding: 16,
+                borderRadius: 16,
+                border: "1px solid rgba(15,17,21,0.1)",
+                background: "rgba(244, 160, 32, 0.12)",
               }}
             >
-              Link courier
-            </button>
-            <button type="button" style={secondaryButton} onClick={() => void loadAssignments()}>
-              Reload list
-            </button>
-          </div>
+              <strong style={{ display: "block", marginBottom: 8 }}>Share these login details with your driver</strong>
+              <p style={{ margin: "0 0 10px", fontSize: 14, color: "#3d4652" }}>
+                Email: <strong>{driverCredentials.email}</strong>
+                <br />
+                Temporary password: <strong>{driverCredentials.temporaryPassword}</strong>
+              </p>
+              <p style={{ margin: 0, fontSize: 13, color: "#596271" }}>
+                They can change their password in the courier app after the first sign-in.
+              </p>
+              <button
+                type="button"
+                style={{ ...secondaryButton, marginTop: 12 }}
+                onClick={() => setDriverCredentials(null)}
+              >
+                Dismiss
+              </button>
+            </div>
+          ) : null}
+
+          {teamError ? <p style={{ color: "#b42318", fontWeight: 800 }}>{teamError}</p> : null}
+
+          {readOnly ? (
+            <p style={panelCopyDark}>View-only account — you cannot add or remove drivers.</p>
+          ) : (
+            <section style={{ display: "grid", gap: 12 }}>
+              <span style={{ fontWeight: 900, color: "#101216" }}>Add a new driver</span>
+              <label style={{ display: "grid", gap: 6 }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "#3d4652" }}>Full name</span>
+                <input
+                  value={driverFullName}
+                  onChange={(e) => setDriverFullName(e.target.value)}
+                  placeholder="e.g. Alex Driver"
+                  style={teamInputStyle}
+                />
+              </label>
+              <label style={{ display: "grid", gap: 6 }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "#3d4652" }}>Login email</span>
+                <input
+                  type="email"
+                  value={driverEmail}
+                  onChange={(e) => setDriverEmail(e.target.value)}
+                  placeholder="driver@example.com"
+                  style={teamInputStyle}
+                />
+              </label>
+              <label style={{ display: "grid", gap: 6 }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "#3d4652" }}>Phone (optional)</span>
+                <input
+                  value={driverPhone}
+                  onChange={(e) => setDriverPhone(e.target.value)}
+                  placeholder="07…"
+                  style={teamInputStyle}
+                />
+              </label>
+              <label style={{ display: "grid", gap: 6 }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "#3d4652" }}>Vehicle registration (optional)</span>
+                <input
+                  value={driverVehicleReg}
+                  onChange={(e) => setDriverVehicleReg(e.target.value.toUpperCase())}
+                  placeholder="AB12 CDE"
+                  style={teamInputStyle}
+                />
+              </label>
+              <label style={{ display: "grid", gap: 6 }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "#3d4652" }}>Temporary password</span>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <input
+                    type={showDriverPassword ? "text" : "password"}
+                    value={driverPassword}
+                    onChange={(e) => setDriverPassword(e.target.value)}
+                    style={{ ...teamInputStyle, flex: "1 1 200px" }}
+                  />
+                  <button type="button" style={secondaryButton} onClick={() => setShowDriverPassword((v) => !v)}>
+                    {showDriverPassword ? "Hide" : "Show"}
+                  </button>
+                  <button type="button" style={secondaryButton} onClick={() => setDriverPassword(suggestCourierPassword())}>
+                    New password
+                  </button>
+                </div>
+              </label>
+              <button
+                type="button"
+                style={primaryButton}
+                disabled={creatingDriver}
+                onClick={async () => {
+                  if (!driverFullName.trim() || !driverEmail.trim() || driverPassword.length < 8) {
+                    setTeamError("Enter name, email, and a password of at least 8 characters.");
+                    return;
+                  }
+                  setTeamError("");
+                  setCreatingDriver(true);
+                  try {
+                    const result = await createHubDriver(apiBaseUrl, token, hubId, {
+                      fullName: driverFullName.trim(),
+                      email: driverEmail.trim().toLowerCase(),
+                      phone: driverPhone.trim(),
+                      password: driverPassword,
+                      vehicleRegistration: driverVehicleReg.trim() || undefined,
+                    });
+                    setAssignments(result.assignments);
+                    if (result.temporaryPassword) {
+                      setDriverCredentials({
+                        fullName: result.fullName,
+                        email: result.email,
+                        temporaryPassword: result.temporaryPassword,
+                      });
+                      onNotice(`Driver added. Share the temporary password with ${result.fullName}.`);
+                    } else {
+                      onNotice(result.message ?? "Driver linked to your hub.");
+                    }
+                    setDriverFullName("");
+                    setDriverEmail("");
+                    setDriverPhone("");
+                    setDriverVehicleReg("");
+                    setDriverPassword(suggestCourierPassword());
+                  } catch (e) {
+                    setTeamError(e instanceof Error ? e.message : "Could not add driver.");
+                  } finally {
+                    setCreatingDriver(false);
+                  }
+                }}
+              >
+                {creatingDriver ? "Adding…" : "Add driver"}
+              </button>
+            </section>
+          )}
+
+          <details style={{ fontSize: 14, color: "#596271" }}>
+            <summary style={{ fontWeight: 800, color: "#101216", cursor: "pointer" }}>Link an existing Hull Eats courier</summary>
+            <p style={{ margin: "10px 0" }}>
+              Only if the driver already has a Hull Eats Courier account from another hub — enter their email to link them here.
+            </p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+              <input
+                type="email"
+                placeholder="courier@example.com"
+                value={teamEmail}
+                disabled={readOnly}
+                onChange={(e) => setTeamEmail(e.target.value)}
+                style={{ ...teamInputStyle, flex: "1 1 240px" }}
+              />
+              <button
+                type="button"
+                style={primaryButton}
+                disabled={readOnly}
+                onClick={async () => {
+                  setTeamError("");
+                  try {
+                    const next = await postAssignment(apiBaseUrl, token, hubId, teamEmail.trim());
+                    setAssignments(next);
+                    setTeamEmail("");
+                    onNotice("Driver linked to this hub.");
+                  } catch (e) {
+                    setTeamError(e instanceof Error ? e.message : "Could not link driver.");
+                  }
+                }}
+              >
+                Link existing
+              </button>
+            </div>
+          </details>
 
           <div style={{ display: "grid", gap: 8 }}>
-            <span style={{ fontWeight: 900, color: "#101216" }}>Linked couriers</span>
-            {assignments.length === 0 ? <div style={emptyStateCard}>No couriers linked yet.</div> : null}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+              <span style={{ fontWeight: 900, color: "#101216" }}>Your drivers</span>
+              <button type="button" style={secondaryButton} onClick={() => void loadAssignments()}>
+                Reload list
+              </button>
+            </div>
+            {assignments.length === 0 ? <div style={emptyStateCard}>No drivers yet — add one above.</div> : null}
             {assignments.map((row) => (
               <div
                 key={row.id}
@@ -759,21 +978,23 @@ export function HubDriversWorkbench({ apiBaseUrl, token, hubId, storeName, drive
                   <strong>{row.courierName}</strong>
                   <div style={{ fontSize: 13, color: "#596271" }}>{row.courierEmail}</div>
                 </div>
-                <button
-                  type="button"
-                  style={secondaryButton}
-                  onClick={async () => {
-                    try {
-                      await deleteAssignment(apiBaseUrl, token, hubId, row.courierProfileId);
-                      await loadAssignments();
-                      onNotice("Courier unlinked from this hub.");
-                    } catch (e) {
-                      setTeamError(e instanceof Error ? e.message : "Remove failed.");
-                    }
-                  }}
-                >
-                  Remove
-                </button>
+                {readOnly ? null : (
+                  <button
+                    type="button"
+                    style={secondaryButton}
+                    onClick={async () => {
+                      try {
+                        await deleteAssignment(apiBaseUrl, token, hubId, row.courierProfileId);
+                        await loadAssignments();
+                        onNotice("Driver removed from this hub.");
+                      } catch (e) {
+                        setTeamError(e instanceof Error ? e.message : "Remove failed.");
+                      }
+                    }}
+                  >
+                    Remove
+                  </button>
+                )}
               </div>
             ))}
           </div>

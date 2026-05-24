@@ -70,7 +70,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ categ
           </Link>
           <AppSwitcher />
           <div>
-            <p className="eyebrow">Marketplace category</p>
+            <p className="eyebrow">Food category</p>
             <p className="brand-title">{category.label}</p>
           </div>
         </div>
@@ -82,7 +82,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ categ
         </div>
       </header>
 
-      <nav className="marketplace-category-rail" aria-label="Marketplace categories">
+      <nav className="marketplace-category-rail" aria-label="Food categories">
         {marketplaceCategories.map((entry) => (
           <Link
             key={entry.slug}
@@ -115,7 +115,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ categ
           <div className="marketplace-search category-search-display" aria-label={`${category.label} search`}>
             <input className="search-input" placeholder={category.searchPlaceholder} aria-label={category.searchPlaceholder} readOnly />
             <Link href="/" className="primary-button gold-button">
-              Search marketplace
+              Search businesses
             </Link>
           </div>
         </div>

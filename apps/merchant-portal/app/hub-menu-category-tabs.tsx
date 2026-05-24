@@ -18,7 +18,6 @@ type HubMenuCategoryTabsProps = {
   onReorderCategory: (sectionId: string, toIndex: number) => void;
   burgerPartsTabMeta?: string;
   kebabPartsTabMeta?: string;
-  onConfigurePartsGroups?: () => void;
 };
 
 function TabGrip({
@@ -60,7 +59,6 @@ export function HubMenuCategoryTabs({
   onReorderCategory,
   burgerPartsTabMeta = "Buns, meat, salad",
   kebabPartsTabMeta = "Bread, meat, salad",
-  onConfigurePartsGroups,
 }: HubMenuCategoryTabsProps) {
   const rowRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const dragEnabled = !readOnly && customerSections.length > 1;
@@ -101,19 +99,6 @@ export function HubMenuCategoryTabs({
         <div className="hub-menu-tab-group hub-menu-tab-group--staff">
           <p className="hub-menu-tab-group-label">Hub setup</p>
           <p className="hub-menu-tab-group-hint">Not shown on customer menu — configure lists here, then apply per item.</p>
-          {burgerPartsSection || kebabPartsSection ? (
-            <button
-              type="button"
-              className="hub-menu-tab-config-btn"
-              disabled={readOnly || !onConfigurePartsGroups}
-              onClick={(event) => {
-                event.preventDefault();
-                onConfigurePartsGroups?.();
-              }}
-            >
-              {onConfigurePartsGroups ? "Add or edit option groups" : "Option groups"}
-            </button>
-          ) : null}
           {extrasSection ? (
             <button
               type="button"
