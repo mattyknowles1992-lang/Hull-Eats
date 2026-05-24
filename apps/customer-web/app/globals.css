@@ -173,10 +173,13 @@ textarea {
   margin-bottom: 18px;
 }
 
+/* Tablet + mobile: stacked grid (unchanged behaviour) */
 .customer-home-topbar.topbar {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  grid-template-areas: "switcher location trails";
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "switcher trails"
+    "location location";
   gap: 14px;
   align-items: center;
 }
@@ -187,7 +190,15 @@ textarea {
 
 .customer-home-topbar .topbar-location {
   grid-area: location;
+  width: fit-content;
+  max-width: 100%;
   min-width: 0;
+  justify-self: start;
+}
+
+.customer-home-topbar .location-strip {
+  width: fit-content;
+  max-width: 100%;
 }
 
 .customer-home-topbar .topbar-trailing-actions {
@@ -200,23 +211,39 @@ textarea {
   min-width: 0;
 }
 
+/* Desktop: one row — logo + compact location, actions on the right */
 @media (min-width: 1025px) {
+  .customer-home-topbar.topbar {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 12px 16px;
+  }
+
+  .customer-home-topbar .app-switcher {
+    flex: 0 0 auto;
+  }
+
   .customer-home-topbar .app-switcher-secondary {
-    margin-left: 100px;
+    margin-left: 0;
+  }
+
+  .customer-home-topbar .topbar-location {
+    flex: 0 0 auto;
+    width: auto;
+    max-width: min(100%, 420px);
+  }
+
+  .customer-home-topbar .topbar-trailing-actions {
+    flex: 0 0 auto;
+    margin-left: auto;
   }
 }
 
 @media (max-width: 1024px) {
   .customer-home-topbar.topbar {
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas:
-      "switcher trails"
-      "location location";
     align-items: start;
-  }
-
-  .customer-home-topbar .topbar-location {
-    width: 100%;
   }
 }
 
@@ -428,12 +455,14 @@ textarea {
 }
 
 .location-strip {
-  display: flex;
-  justify-content: center;
+  display: inline-flex;
+  justify-content: flex-start;
   align-items: center;
   gap: 10px;
-  min-height: 48px;
-  padding: 6px 10px;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 0;
+  padding: 8px 12px;
   border-radius: 18px;
   border: 1px solid rgba(15, 17, 21, 0.08);
   background: rgba(255, 255, 255, 0.68);
@@ -3050,6 +3079,64 @@ button.filter-pill {
   color: var(--muted);
 }
 
+.register-form article.checkout-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 0;
+  padding: 14px 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(15, 17, 21, 0.08);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.register-form .account-order-track-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 38px;
+  margin-top: 4px;
+  padding: 8px 18px;
+  text-align: center;
+  text-decoration: none;
+  line-height: 1.2;
+  font-size: 0.86rem;
+  font-weight: 800;
+  box-sizing: border-box;
+}
+
+.register-form .account-show-more-orders {
+  margin-top: 10px;
+}
+
+.account-details-form .form-input:read-only {
+  cursor: default;
+  color: var(--ink-strong);
+  background: rgba(244, 249, 252, 0.92);
+  border-color: rgba(15, 17, 21, 0.08);
+}
+
+.account-details-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+
+.account-details-primary-action {
+  width: fit-content;
+  min-height: 38px;
+  padding: 8px 18px;
+}
+
+.account-details-cancel {
+  padding: 8px 4px;
+  font-weight: 800;
+}
+
 .register-subheading {
   margin-top: 4px;
 }
@@ -5235,14 +5322,28 @@ button.filter-pill {
     --app-switcher-icon-size: clamp(44px, 11vw, 56px);
   }
 
-  .location-strip {
+  .topbar:not(.customer-home-topbar) .location-strip {
     grid-column: 1 / -1;
     justify-content: flex-start;
     width: 100%;
   }
 
+  .customer-home-topbar .topbar-location {
+    justify-self: start;
+  }
+
+  .customer-home-topbar .location-strip {
+    grid-column: auto;
+    width: fit-content;
+    max-width: 100%;
+  }
+
   .location-button {
     margin-left: auto;
+  }
+
+  .customer-home-topbar .location-button {
+    margin-left: 0;
   }
 
   .topbar-actions,

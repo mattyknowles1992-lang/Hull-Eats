@@ -40,7 +40,9 @@ export function AccountClient() {
   const [forgotEmail, setForgotEmail] = useState("");
   const [showForgotPassword, setShowForgotPassword] = useState(false);
 
+  const [isEditingDetails, setIsEditingDetails] = useState(false);
   const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
   const [editPhone, setEditPhone] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
@@ -73,7 +75,9 @@ export function AccountClient() {
     setAddresses(snapshot.addresses);
     setOrders(snapshot.orders);
     setEditName(snapshot.profile.full_name ?? "");
+    setEditEmail(snapshot.profile.email ?? "");
     setEditPhone(snapshot.profile.phone ?? "");
+    setIsEditingDetails(false);
     setAddressForm((current) => ({
       ...current,
       fullName: snapshot.profile.full_name ?? current.fullName,
@@ -178,9 +182,20 @@ export function AccountClient() {
     setNotice("");
   };
 
-  const handleSaveProfile = async (event: FormEvent<HTMLFormElement>) => {
+  const resetDetailsDraft = (source: CustomerProfileRow) => {
+    setEditName(source.full_name ?? "");
+    setEditEmail(source.email ?? "");
+    setEditPhone(source.phone ?? "");
+  };
+
+  const handleDetailsForm = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!profile) {
+      return;
+    }
+
+    if (!isEditingDetails) {
+      setIsEditingDetails(true);
       return;
     }
 
@@ -189,12 +204,21 @@ export function AccountClient() {
       await updateCustomerProfileDetails(supabase, profile.id, {
         fullName: editName,
         phone: editPhone,
+        email: editEmail,
       });
+      setIsEditingDetails(false);
       await loadAccount();
       showNotice("Profile updated.");
     } catch (error) {
       showNotice(error instanceof Error ? error.message : "Could not update profile.", true);
     }
+  };
+
+  const handleCancelEditDetails = () => {
+    if (profile) {
+      resetDetailsDraft(profile);
+    }
+    setIsEditingDetails(false);
   };
 
   const handleChangePassword = async (event: FormEvent<HTMLFormElement>) => {
@@ -362,6 +386,8 @@ export function AccountClient() {
   }
 
   const { current: currentOrders, previous: previousOrders } = splitOrders(orders);
+  const visiblePreviousOrders = previousOrders.slice(0, 1);
+  const hasMorePreviousOrders = previousOrders.length > 1;
 
   const renderOrderCard = (order: (typeof orders)[number]) => (
     <article className="checkout-summary" key={order.id}>
@@ -373,7 +399,7 @@ export function AccountClient() {
         <span>{order.order_number}</span>
         <strong>{order.status.replaceAll("_", " ")}</strong>
       </div>
-      <Link href={`/track/${order.order_number}`} className="secondary-button" style={{ width: "100%", marginTop: 12, display: "inline-flex" }}>
+      <Link href={`/track/${order.order_number}`} className="secondary-button account-order-track-link">
         Track or view order
       </Link>
     </article>
@@ -394,22 +420,57 @@ export function AccountClient() {
         </div>
       </div>
 
-      <form className="register-form-block" onSubmit={handleSaveProfile}>
+      <form className="register-form-block account-details-form" onSubmit={handleDetailsForm}>
         <div className="register-form-heading">
           <h3>Your details</h3>
-          <p>Updates apply on every device after you save.</p>
+          <p>{isEditingDetails ? "Change your details, then save." : "Tap Edit to update your name, email, or mobile."}</p>
         </div>
         <label className="form-field">
           <span>Full name</span>
-          <input className="form-input" value={editName} onChange={(e) => setEditName(e.target.value)} required />
+          <input
+            className="form-input"
+            value={editName}
+            onChange={(e) => setEditName(e.target.value)}
+            readOnly={!isEditingDetails}
+            aria-readonly={!isEditingDetails}
+            required
+          />
+        </label>
+        <label className="form-field">
+          <span>Email address</span>
+          <input
+            className="form-input"
+            type="email"
+            value={editEmail}
+            onChange={(e) => setEditEmail(e.target.value)}
+            readOnly={!isEditingDetails}
+            aria-readonly={!isEditingDetails}
+            autoComplete="email"
+            required
+          />
         </label>
         <label className="form-field">
           <span>Mobile</span>
-          <input className="form-input" type="tel" value={editPhone} onChange={(e) => setEditPhone(e.target.value)} required />
+          <input
+            className="form-input"
+            type="tel"
+            value={editPhone}
+            onChange={(e) => setEditPhone(e.target.value)}
+            readOnly={!isEditingDetails}
+            aria-readonly={!isEditingDetails}
+            required
+          />
         </label>
-        <button type="submit" className="secondary-button">
-          Save details
-        </button>
+        <div className="account-details-actions">
+          <button type="submit" className="secondary-button account-details-primary-action">
+            {isEditingDetails ? "Save details" : "Edit"}
+          </button>
+          {isEditingDetails ? (
+            <button type="button" className="ghost-link account-details-cancel" onClick={handleCancelEditDetails}>
+              Cancel
+            </button>
+          ) : null}
+        </div>
       </form>
 
       <form className="register-form-block" onSubmit={handleChangePassword}>
@@ -448,7 +509,12 @@ export function AccountClient() {
           <h3>Previous orders</h3>
           <p>Reorder from any past order by opening the store menu again.</p>
         </div>
-        {previousOrders.length > 0 ? previousOrders.map(renderOrderCard) : <p className="form-helper">No previous orders yet.</p>}
+        {visiblePreviousOrders.length > 0 ? visiblePreviousOrders.map(renderOrderCard) : <p className="form-helper">No previous orders yet.</p>}
+        {hasMorePreviousOrders ? (
+          <Link href="/account/orders" className="secondary-button account-order-track-link account-show-more-orders">
+            Show more
+          </Link>
+        ) : null}
       </div>
 
       <div className="register-form-block">

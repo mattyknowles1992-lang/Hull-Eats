@@ -107,23 +107,41 @@ export async function fetchCustomerAccount(supabase: SupabaseClient): Promise<Cu
 export async function updateCustomerProfileDetails(
   supabase: SupabaseClient,
   profileId: string,
-  patch: { fullName: string; phone: string },
+  patch: { fullName: string; phone: string; email?: string },
 ) {
   const full_name = patch.fullName.trim();
   const phone = patch.phone.trim();
+  const email = patch.email?.trim();
 
-  const { error } = await supabase
-    .from("customer_profiles")
-    .update({ full_name, phone, updated_at: new Date().toISOString() })
-    .eq("id", profileId);
+  const profilePatch: Record<string, string> = {
+    full_name,
+    phone,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (email) {
+    profilePatch.email = email;
+  }
+
+  const { error } = await supabase.from("customer_profiles").update(profilePatch).eq("id", profileId);
 
   if (error) {
     throw error;
   }
 
-  await supabase.auth.updateUser({
+  const authPatch: { email?: string; data: { full_name: string; phone: string } } = {
     data: { full_name, phone },
-  });
+  };
+
+  if (email) {
+    authPatch.email = email;
+  }
+
+  const { error: authError } = await supabase.auth.updateUser(authPatch);
+
+  if (authError) {
+    throw authError;
+  }
 }
 
 export async function requestPasswordResetEmail(supabase: SupabaseClient, email: string, redirectTo: string) {
