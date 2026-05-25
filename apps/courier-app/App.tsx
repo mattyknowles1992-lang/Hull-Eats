@@ -429,7 +429,7 @@ export default function App() {
         <StatusBar style="dark" />
         <ScrollView contentContainerStyle={styles.content}>
           <View style={styles.loginHero}>
-            <Image source={require("./assets/hull-eats-logo.jpeg")} style={styles.loginLogo} />
+            <Image source={require("./assets/hull-eats-logo.png")} style={styles.loginLogo} />
             <Text style={styles.eyebrow}>Courier sign in</Text>
             <Text style={styles.title}>Verified couriers only.</Text>
             <Text style={styles.copy}>Use the courier username or email created in the Hull Eats admin panel.</Text>
@@ -474,7 +474,7 @@ export default function App() {
       <StatusBar style="light" />
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
-          <Image source={require("./assets/hull-eats-logo.jpeg")} style={styles.logo} />
+          <Image source={require("./assets/hull-eats-logo.png")} style={styles.logo} />
           <View style={styles.headerCopy}>
             <Text style={styles.eyebrow}>Hull Eats courier</Text>
             <Text style={styles.title}>Hi, {courierAccount.fullName.split(" ")[0]}.</Text>

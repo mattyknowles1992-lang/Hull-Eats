@@ -4,7 +4,20 @@
     "slug": "hull-eats-customer",
     "version": "0.1.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "ios": {
+      "icon": "./assets/icon.png"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#000000"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
     "plugins": ["@stripe/stripe-react-native"],
     "scheme": "hulleats"
   }

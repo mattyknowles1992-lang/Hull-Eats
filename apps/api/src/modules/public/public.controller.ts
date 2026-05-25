@@ -17,6 +17,7 @@ import { customerCancelOrderWithinGrace } from "../../common/order-repository";
 @Controller("public")
 export class PublicController {
   constructor(
+    @Inject(CustomerNotificationsService)
     private readonly customerNotifications: CustomerNotificationsService,
     @Inject(ContactMessagesService)
     private readonly contactMessages: ContactMessagesService,

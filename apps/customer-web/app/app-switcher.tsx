@@ -20,7 +20,7 @@ const apps: Array<{
     key: "eats",
     href: "/",
     label: "Hull Eats",
-    image: "/brand/hull-eats-logo.jpeg",
+    image: "/brand/hull-eats-logo.png",
   },
   {
     key: "services",
