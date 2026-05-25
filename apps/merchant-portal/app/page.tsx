@@ -14,7 +14,9 @@ import type {
 import { parseMerchantWorkspaceUpdateInput } from "@hull-eats/types";
 import {
   HUB_MENU_CATEGORY_CUSTOM_ID,
+  createDefaultOpeningHours,
   createDefaultHullPostcodeZones,
+  describeStoreOpeningStatus,
   getHubAccess,
   hubMenuCategorySelectOptions,
   hubRoleLabel,
@@ -26,6 +28,7 @@ import {
 
 import { HubConfigBackups } from "./hub-config-backups";
 import { HubDeliveryConfig } from "./hub-delivery-config";
+import { HubOpeningHoursEditor } from "./hub-opening-hours-editor";
 import { HubMenuCustomisationBuilder } from "./hub-menu-customisation";
 import {
   browserDraftShouldAutoRestore,
@@ -95,6 +98,9 @@ const defaultApiBaseUrl = process.env.NODE_ENV === "production" ? "https://hull-
 const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL ?? defaultApiBaseUrl).replace(/\/$/, "");
 const customerWebBaseUrl = (process.env.NEXT_PUBLIC_CUSTOMER_WEB_URL ?? "https://hull-eats.onrender.com").replace(/\/$/, "");
 const merchantSessionStorageKey = "hull-eats-merchant-session";
+const merchantLastLoginEmailKey = "hull-eats-merchant-last-login-email";
+
+type MerchantBootStatus = "checking" | "login" | "hub";
 
 type MerchantLoginResponse = {
   token: string;
@@ -219,6 +225,7 @@ const emptyHubSettings: HubSettings = {
   etaMinutes: 25,
   deliveryFee: 0,
   minimumOrderAmount: 0,
+  acceptingOrders: true,
   isOpen: false,
   logoImageUrl: "",
   heroImageUrl: "",
@@ -231,6 +238,7 @@ const emptyHubSettings: HubSettings = {
   deliveryOriginLatitude: null,
   deliveryOriginLongitude: null,
   orderFulfillment: "delivery_and_collection",
+  openingHours: createDefaultOpeningHours(),
 };
 
 const moneyInput = (value: number) => value.toFixed(2);
@@ -245,6 +253,7 @@ const cloneHubSettings = (settings: HubSettings): HubSettings => ({
   ...settings,
   deliveryPostcodeZones: settings.deliveryPostcodeZones.map((zone) => ({ ...zone })),
   deliveryMileFees: [...settings.deliveryMileFees] as HubSettings["deliveryMileFees"],
+  openingHours: settings.openingHours.map((day) => ({ ...day })),
 });
 
 const cloneMenuSections = (sections: HubMenuSection[]): HubMenuSection[] =>
@@ -369,6 +378,27 @@ async function changeHubPassword(token: string, hubId: string, input: { currentP
   }
 
   return (await response.json()) as { changed: boolean; user: HubUser };
+}
+
+async function submitMerchantContactMessage(
+  token: string,
+  hubId: string,
+  input: { senderPhone?: string; subject: string; message: string; orderNumber?: string; sourcePath?: string },
+) {
+  const response = await fetch(`${apiBaseUrl}/v1/merchant/hubs/${hubId}/contact-messages`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Support request failed with status ${response.status}`);
+  }
+
+  return (await response.json()) as { id: string };
 }
 
 async function createBusinessUser(
@@ -661,6 +691,8 @@ export default function MerchantPortalPage() {
   const [selectedImportCandidateIds, setSelectedImportCandidateIds] = useState<string[]>([]);
   const [selectedImportImageName, setSelectedImportImageName] = useState("");
   const [pastedMenuText, setPastedMenuText] = useState("");
+  const [bootStatus, setBootStatus] = useState<MerchantBootStatus>("checking");
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState("");
   const [saveNotice, setSaveNotice] = useState("");
   const [savedHubSnapshot, setSavedHubSnapshot] = useState<HubWorkspaceSnapshot | null>(null);
@@ -670,6 +702,12 @@ export default function MerchantPortalPage() {
   const [orderNotice, setOrderNotice] = useState("");
   const [driverNotice, setDriverNotice] = useState("");
   const [offersNotice, setOffersNotice] = useState("");
+  const [supportSubject, setSupportSubject] = useState("");
+  const [supportMessage, setSupportMessage] = useState("");
+  const [supportPhone, setSupportPhone] = useState("");
+  const [supportOrderNumber, setSupportOrderNumber] = useState("");
+  const [supportNotice, setSupportNotice] = useState("");
+  const [supportSending, setSupportSending] = useState(false);
   const [partsOptionSettingsLine, setPartsOptionSettingsLine] = useState<ComposeProductLine | null>(null);
   const [menuHubPersistState, setMenuHubPersistState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const menuSaveInFlightRef = useRef(false);
@@ -1058,6 +1096,10 @@ export default function MerchantPortalPage() {
         workspace.settings.deliveryPostcodeZones.length > 0
           ? workspace.settings.deliveryPostcodeZones
           : createDefaultHullPostcodeZones(),
+      openingHours:
+        workspace.settings.openingHours?.length === 7
+          ? workspace.settings.openingHours
+          : createDefaultOpeningHours(),
     };
     const serverSections = ensureStaffMenuSections(workspace.menuSections);
     const serverSnapshot = { settings: serverSettings, menuSections: serverSections };
@@ -1075,6 +1117,10 @@ export default function MerchantPortalPage() {
           browserDraft.settings.deliveryPostcodeZones.length > 0
             ? browserDraft.settings.deliveryPostcodeZones
             : createDefaultHullPostcodeZones(),
+        openingHours:
+          browserDraft.settings.openingHours?.length === 7
+            ? browserDraft.settings.openingHours
+            : serverSettings.openingHours,
       });
       setMenuSections(draftSections);
       commitSavedHubSnapshot(serverSettings, serverSections);
@@ -1262,8 +1308,14 @@ export default function MerchantPortalPage() {
   }, [activeHubId, hubSettings, menuSections, merchantToken]);
 
   useEffect(() => {
+    const lastEmail = window.localStorage.getItem(merchantLastLoginEmailKey);
+    if (lastEmail) {
+      setLoginUsername(lastEmail);
+    }
+
     const storedSession = window.localStorage.getItem(merchantSessionStorageKey);
     if (!storedSession) {
+      setBootStatus("login");
       return;
     }
 
@@ -1274,12 +1326,19 @@ export default function MerchantPortalPage() {
           throw new Error("Stored merchant session is incomplete.");
         }
 
-        const workspace = await fetchWorkspace(parsed.token, parsed.hubId);
         setMerchantToken(parsed.token);
+        setActiveUser(parsed.user);
+        setActiveHubId(parsed.hubId);
+        setLoginUsername(parsed.user.email || parsed.user.username || lastEmail || "");
+
+        const workspace = await fetchWorkspace(parsed.token, parsed.hubId);
         applyWorkspace(workspace, parsed.user);
-        await loadMerchantOrders(parsed.token, { silent: true });
+        setBootStatus("hub");
+        void loadMerchantOrders(parsed.token, { silent: true });
       } catch {
         window.localStorage.removeItem(merchantSessionStorageKey);
+        setMerchantToken("");
+        setBootStatus("login");
       }
     })();
   }, []);
@@ -1311,10 +1370,13 @@ export default function MerchantPortalPage() {
   }, [activeHubSection, merchantToken]);
 
   const handleLogin = async () => {
+    setIsLoggingIn(true);
+    setLoginError("");
+
     try {
       const response = await loginToHub(loginUsername, loginPassword);
-      setMerchantToken(response.token);
-      applyWorkspace(response.workspace, response.user);
+      const emailForRemember = response.user.email || loginUsername.trim();
+      window.localStorage.setItem(merchantLastLoginEmailKey, emailForRemember);
       window.localStorage.setItem(
         merchantSessionStorageKey,
         JSON.stringify({
@@ -1323,7 +1385,11 @@ export default function MerchantPortalPage() {
           user: response.user,
         } satisfies StoredMerchantSession),
       );
-      setLoginError("");
+
+      setMerchantToken(response.token);
+      applyWorkspace(response.workspace, response.user);
+      setBootStatus("hub");
+      setLoginPassword("");
       setSaveNotice("");
       setUserNotice("");
       setMenuNotice("");
@@ -1333,13 +1399,15 @@ export default function MerchantPortalPage() {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Hub login failed.";
       setLoginError(message);
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
   const handleSignOut = () => {
     window.localStorage.removeItem(merchantSessionStorageKey);
+    setBootStatus("login");
     setMerchantToken("");
-    setLoginUsername("");
     setLoginPassword("");
     setActiveHubId("");
     setActiveHubSlug("");
@@ -1607,6 +1675,35 @@ export default function MerchantPortalPage() {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Business user delete failed.";
       setUserNotice(message);
+    }
+  };
+
+  const handleSubmitSupportMessage = async () => {
+    if (!merchantToken || !activeHubId) {
+      return;
+    }
+    if (!supportSubject.trim() || !supportMessage.trim()) {
+      setSupportNotice("Add a subject and message before sending support.");
+      return;
+    }
+
+    setSupportSending(true);
+    try {
+      await submitMerchantContactMessage(merchantToken, activeHubId, {
+        senderPhone: supportPhone.trim(),
+        subject: supportSubject.trim(),
+        message: supportMessage.trim(),
+        orderNumber: supportOrderNumber.trim(),
+        sourcePath: "/merchant/help",
+      });
+      setSupportSubject("");
+      setSupportMessage("");
+      setSupportOrderNumber("");
+      setSupportNotice("Your message has been sent to the Hull Eats admin inbox.");
+    } catch (error) {
+      setSupportNotice(error instanceof Error ? error.message : "Support request failed.");
+    } finally {
+      setSupportSending(false);
     }
   };
 
@@ -1887,36 +1984,61 @@ export default function MerchantPortalPage() {
     }
   };
 
-  if (!merchantToken) {
+  if (bootStatus !== "hub") {
     return (
       <main style={pageShell}>
         <section style={loginHero}>
           <section style={loginPanel}>
             <h1 style={panelTitle}>Login to your hub</h1>
-
-            <div style={{ display: "grid", gap: 14, marginTop: 18 }}>
-              <label style={field}>
-                <span style={darkFieldLabel}>Email or username</span>
-                <input style={lightInput} value={loginUsername} onChange={(event) => setLoginUsername(event.target.value)} />
-              </label>
-              <label style={field}>
-                <span style={darkFieldLabel}>Password</span>
-                <span style={passwordFieldWrap}>
-                  <input
-                    type={showLoginPassword ? "text" : "password"}
-                    style={{ ...lightInput, paddingRight: 88 }}
-                    value={loginPassword}
-                    onChange={(event) => setLoginPassword(event.target.value)}
-                  />
-                  <button type="button" style={passwordRevealButton} onClick={() => setShowLoginPassword((current) => !current)}>
-                    {showLoginPassword ? "Hide" : "Show"}
+            {bootStatus === "checking" ? (
+              <p style={{ marginTop: 18, color: "#5c6573", fontWeight: 750, lineHeight: 1.5 }}>
+                Restoring your session on this device…
+              </p>
+            ) : (
+              <>
+                <p style={{ marginTop: 12, color: "#5c6573", fontWeight: 700, lineHeight: 1.45 }}>
+                  Your sign-in stays saved on this device for 30 days. You only need your password again if you signed out or the session
+                  expired.
+                </p>
+                <div style={{ display: "grid", gap: 14, marginTop: 18 }}>
+                  <label style={field}>
+                    <span style={darkFieldLabel}>Email or username</span>
+                    <input
+                      style={lightInput}
+                      value={loginUsername}
+                      onChange={(event) => setLoginUsername(event.target.value)}
+                      autoComplete="username email"
+                      disabled={isLoggingIn}
+                    />
+                  </label>
+                  <label style={field}>
+                    <span style={darkFieldLabel}>Password</span>
+                    <span style={passwordFieldWrap}>
+                      <input
+                        type={showLoginPassword ? "text" : "password"}
+                        style={{ ...lightInput, paddingRight: 88 }}
+                        value={loginPassword}
+                        onChange={(event) => setLoginPassword(event.target.value)}
+                        autoComplete="current-password"
+                        disabled={isLoggingIn}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            void handleLogin();
+                          }
+                        }}
+                      />
+                      <button type="button" style={passwordRevealButton} onClick={() => setShowLoginPassword((current) => !current)}>
+                        {showLoginPassword ? "Hide" : "Show"}
+                      </button>
+                    </span>
+                  </label>
+                  <button type="button" style={primaryButton} onClick={() => void handleLogin()} disabled={isLoggingIn}>
+                    {isLoggingIn ? "Opening hub…" : "Open hub"}
                   </button>
-                </span>
-              </label>
-              <button type="button" style={primaryButton} onClick={handleLogin}>
-                Open hub
-              </button>
-            </div>
+                </div>
+              </>
+            )}
 
             {loginError ? <p className="he-hub-banner he-hub-banner--error">{loginError}</p> : null}
           </section>
@@ -1965,7 +2087,7 @@ export default function MerchantPortalPage() {
           <span style={sidebarMark}>HE</span>
           <span>
             <strong>{hubSettings.name || "Merchant hub"}</strong>
-            <small>{hubSettings.isOpen ? "Open" : "Setup"}</small>
+            <small>{describeStoreOpeningStatus(hubSettings.openingHours, hubSettings.isOpen, hubSettings.acceptingOrders)}</small>
           </span>
         </div>
 
@@ -2301,8 +2423,10 @@ export default function MerchantPortalPage() {
           <section className="he-dashboard-grid" style={dashboardGrid}>
             <article style={dashboardHeroCard}>
               <p style={eyebrowDark}>Help and support</p>
-              <h2 style={sectionTitle}>Keep menu work quick</h2>
-              <p style={panelCopyDark}>Paste a menu, build categories, or use the menu builder when an item needs sizes, sauces, removals, or extras.</p>
+              <h2 style={sectionTitle}>Message Hull Eats support</h2>
+              <p style={panelCopyDark}>
+                Send a real support request into the admin inbox for onboarding help, menu issues, courier setup, or order problems.
+              </p>
             </article>
             <article style={dashboardCard}>
               <span style={summaryLabel}>Menu categories</span>
@@ -2311,6 +2435,54 @@ export default function MerchantPortalPage() {
             <article style={dashboardCard}>
               <span style={summaryLabel}>Users</span>
               <strong style={summaryValue}>{hubUsers.length}</strong>
+            </article>
+            <article style={{ ...dashboardCard, gridColumn: "1 / -1", display: "grid", gap: 14 }}>
+              <label style={{ display: "grid", gap: 8 }}>
+                <span style={summaryLabel}>Reply contact</span>
+                <div style={{ color: "#dce9ff", fontWeight: 700 }}>{activeUser?.email || activeUser?.username || "Signed-in hub user"}</div>
+              </label>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 }}>
+                <label style={{ display: "grid", gap: 8 }}>
+                  <span style={summaryLabel}>Phone</span>
+                  <input style={lightInput} value={supportPhone} onChange={(event) => setSupportPhone(event.target.value)} placeholder="Optional" />
+                </label>
+                <label style={{ display: "grid", gap: 8 }}>
+                  <span style={summaryLabel}>Order number</span>
+                  <input
+                    style={lightInput}
+                    value={supportOrderNumber}
+                    onChange={(event) => setSupportOrderNumber(event.target.value)}
+                    placeholder="Optional"
+                  />
+                </label>
+              </div>
+              <label style={{ display: "grid", gap: 8 }}>
+                <span style={summaryLabel}>Subject</span>
+                <input
+                  style={lightInput}
+                  value={supportSubject}
+                  onChange={(event) => setSupportSubject(event.target.value)}
+                  placeholder="What do you need help with?"
+                />
+              </label>
+              <label style={{ display: "grid", gap: 8 }}>
+                <span style={summaryLabel}>Message</span>
+                <textarea
+                  style={{ ...lightInput, minHeight: 160, padding: 14, resize: "vertical" }}
+                  value={supportMessage}
+                  onChange={(event) => setSupportMessage(event.target.value)}
+                  placeholder="Tell us what happened and what you need from Hull Eats support."
+                />
+              </label>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+                <button type="button" style={primaryButton} disabled={supportSending} onClick={() => void handleSubmitSupportMessage()}>
+                  {supportSending ? "Sending..." : "Send support message"}
+                </button>
+                <span style={{ color: "#9fb2c9", lineHeight: 1.6 }}>
+                  This lands in the real admin inbox for {hubSettings.name || "your hub"}.
+                </span>
+              </div>
+              {supportNotice ? <p style={{ margin: 0, color: "#dce9ff", lineHeight: 1.6 }}>{supportNotice}</p> : null}
             </article>
           </section>
         ) : null}
@@ -2809,12 +2981,38 @@ export default function MerchantPortalPage() {
                     />
                   </label>
                 ) : null}
+              </div>
+
+              <HubOpeningHoursEditor
+                openingHours={hubSettings.openingHours}
+                readOnly={!hubAccess?.canEditWorkspace}
+                onChange={(openingHours) => handleHubFieldChange("openingHours", openingHours)}
+              />
+
+              <div className="he-two-col" style={{ ...twoColumnGrid, marginTop: 18 }}>
                 <label style={field}>
-                  <span style={darkFieldLabel}>Open now</span>
-                  <select style={lightInput} value={hubSettings.isOpen ? "open" : "closed"} onChange={(event) => handleHubFieldChange("isOpen", event.target.value === "open")}>
-                    <option value="open">Open</option>
-                    <option value="closed">Closed</option>
+                  <span style={darkFieldLabel}>Accepting orders</span>
+                  <select
+                    style={lightInput}
+                    value={hubSettings.acceptingOrders ? "accepting" : "paused"}
+                    onChange={(event) => handleHubFieldChange("acceptingOrders", event.target.value === "accepting")}
+                  >
+                    <option value="accepting">Accepting orders now</option>
+                    <option value="paused">Paused — hide store and stop new orders</option>
                   </select>
+                  <p style={subtleInfo}>Use this if the kitchen needs to stop orders straight away and come back later.</p>
+                </label>
+                <label style={field}>
+                  <span style={darkFieldLabel}>Listed on Hull Eats</span>
+                  <select
+                    style={lightInput}
+                    value={hubSettings.isOpen ? "open" : "closed"}
+                    onChange={(event) => handleHubFieldChange("isOpen", event.target.value === "open")}
+                  >
+                    <option value="open">Live — visible on marketplace</option>
+                    <option value="closed">Setup — hidden from customers</option>
+                  </select>
+                  <p style={subtleInfo}>Opening times above only apply while the store is live and accepting orders.</p>
                 </label>
               </div>
               {merchantToken && activeHubId ? (
@@ -3216,14 +3414,25 @@ export default function MerchantPortalPage() {
                   </label>
                 ) : null}
                 <label style={field}>
-                  <span style={darkFieldLabel}>Open now</span>
+                  <span style={darkFieldLabel}>Accepting orders</span>
+                  <select
+                    style={lightInput}
+                    value={hubSettings.acceptingOrders ? "accepting" : "paused"}
+                    onChange={(event) => handleHubFieldChange("acceptingOrders", event.target.value === "accepting")}
+                  >
+                    <option value="accepting">Accepting orders now</option>
+                    <option value="paused">Paused — hide store and stop new orders</option>
+                  </select>
+                </label>
+                <label style={field}>
+                  <span style={darkFieldLabel}>Listed on Hull Eats</span>
                   <select
                     style={lightInput}
                     value={hubSettings.isOpen ? "open" : "closed"}
                     onChange={(event) => handleHubFieldChange("isOpen", event.target.value === "open")}
                   >
-                    <option value="open">Open</option>
-                    <option value="closed">Closed</option>
+                    <option value="open">Live — visible on marketplace</option>
+                    <option value="closed">Setup — hidden from customers</option>
                   </select>
                 </label>
                 <label style={{ ...field, gridColumn: "1 / -1" }}>

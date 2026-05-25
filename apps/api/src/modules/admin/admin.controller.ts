@@ -3,11 +3,12 @@ import { Body, Controller, Delete, Get, Headers, Inject, Param, Patch, Post } fr
 import { MvpDispatchEngine } from "@hull-eats/dispatch-engine";
 import { createHubInputSchema, createHubUserInputSchema, manualDriverAssignmentSchema } from "@hull-eats/types";
 
-import { demoOrders } from "../../common/demo-data";
 import { HubRegistryService } from "../../common/hub-registry.service";
 import { InternalAuthService } from "../../common/internal-auth.service";
 import { CourierRegistryService } from "../../common/courier-registry.service";
 import { CustomerRegistryService } from "../../common/customer-registry.service";
+import { ContactMessagesService } from "../../common/contact-messages.service";
+import { listAdminOrders } from "../../common/order-repository";
 
 @Controller("admin")
 export class AdminController {
@@ -21,6 +22,8 @@ export class AdminController {
     private readonly courierRegistry: CourierRegistryService,
     @Inject(CustomerRegistryService)
     private readonly customerRegistry: CustomerRegistryService,
+    @Inject(ContactMessagesService)
+    private readonly contactMessages: ContactMessagesService,
   ) {}
 
   @Post("auth/login")
@@ -150,6 +153,26 @@ export class AdminController {
     return this.courierRegistry.listCouriers();
   }
 
+  @Post("hubs/:hubId/couriers")
+  createHubCourier(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("hubId") hubId: string,
+    @Body() body: unknown,
+  ) {
+    this.internalAuth.requireAdminToken(authorization);
+    return this.hubRegistry.createHubCourier(hubId, body);
+  }
+
+  @Delete("hubs/:hubId/couriers/:courierProfileId/assignment")
+  removeHubCourierAssignment(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("hubId") hubId: string,
+    @Param("courierProfileId") courierProfileId: string,
+  ) {
+    this.internalAuth.requireAdminToken(authorization);
+    return this.hubRegistry.removeHubCourierAssignment(hubId, courierProfileId);
+  }
+
   @Post("couriers")
   createCourier(@Headers("authorization") authorization: string | undefined, @Body() body: any) {
     this.internalAuth.requireAdminToken(authorization);
@@ -181,7 +204,23 @@ export class AdminController {
   @Get("orders")
   listOrders(@Headers("authorization") authorization?: string) {
     this.internalAuth.requireAdminToken(authorization);
-    return demoOrders;
+    return listAdminOrders();
+  }
+
+  @Get("contact-messages")
+  listContactMessages(@Headers("authorization") authorization?: string) {
+    this.internalAuth.requireAdminToken(authorization);
+    return this.contactMessages.listMessages();
+  }
+
+  @Patch("contact-messages/:messageId/status")
+  updateContactMessageStatus(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("messageId") messageId: string,
+    @Body() body: unknown,
+  ) {
+    const session = this.internalAuth.requireAdminToken(authorization);
+    return this.contactMessages.updateStatus(messageId, body, session.email);
   }
 
   @Post("orders/:orderId/assign-driver")

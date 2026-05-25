@@ -35,6 +35,7 @@ import { HubRegistryService } from "../../common/hub-registry.service";
 import { requireHubPermission } from "../../common/hub-permissions";
 import { InternalAuthService } from "../../common/internal-auth.service";
 import type { MembershipRole } from "@hull-eats/types";
+import { ContactMessagesService } from "../../common/contact-messages.service";
 import { geocodeUkPostcode } from "../../common/uk-postcode-geocode";
 import {
   buildMerchantOrderReceipt,
@@ -53,6 +54,8 @@ export class MerchantController {
     private readonly hubRegistry: HubRegistryService,
     @Inject(InternalAuthService)
     private readonly internalAuth: InternalAuthService,
+    @Inject(ContactMessagesService)
+    private readonly contactMessages: ContactMessagesService,
   ) {}
 
   @Post("auth/login")
@@ -362,6 +365,16 @@ export class MerchantController {
     const session = this.internalAuth.requireMerchantToken(authorization, hubId);
     requireHubPermission(session.role, "canOperateOrders");
     return this.hubRegistry.removeHubCourierAssignment(hubId, courierProfileId);
+  }
+
+  @Post("hubs/:hubId/contact-messages")
+  createHubContactMessage(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("hubId") hubId: string,
+    @Body() body: unknown,
+  ) {
+    const session = this.internalAuth.requireMerchantToken(authorization, hubId);
+    return this.contactMessages.createMerchantMessage(hubId, session.sub, body);
   }
 
   @Get("orders/:orderId")

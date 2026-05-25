@@ -1,12 +1,11 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 
 import { AppSwitcher } from "../../app-switcher";
 import { featuredStores, storeMenus } from "../../../src/lib/demo";
 import { fetchMarketplaceMenu, fetchMarketplaceStore } from "../../../src/lib/marketplace";
 import { parseFulfillmentPreference } from "../../../src/lib/fulfillment-preference";
 import { CheckoutClient } from "./checkout-client";
-
-const fallbackStore = featuredStores[0]!;
 
 export default async function CheckoutPage({
   params,
@@ -18,9 +17,12 @@ export default async function CheckoutPage({
   const resolvedParams = await params;
   const resolvedSearchParams = await searchParams;
   const initialFulfillment = parseFulfillmentPreference(resolvedSearchParams.fulfillment);
-  const demoStore = featuredStores.find((entry) => entry.slug === resolvedParams.slug) ?? fallbackStore;
+  const demoStore = featuredStores.find((entry) => entry.slug === resolvedParams.slug) ?? null;
   const liveStore = await fetchMarketplaceStore(resolvedParams.slug);
   const store = liveStore ?? demoStore;
+  if (!store) {
+    notFound();
+  }
 
   const liveMenu = await fetchMarketplaceMenu(resolvedParams.slug);
   const demoMenu = storeMenus[store.slug];

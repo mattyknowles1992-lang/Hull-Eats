@@ -1,4 +1,5 @@
 export * from "./catalog";
+export * from "./contact-messages";
 export * from "./checkout";
 export * from "./delivery-pricing";
 export * from "./hull-postcode-boundaries";
@@ -15,6 +16,7 @@ export * from "./orders";
 export * from "./payments";
 export * from "./promotions";
 export * from "./storefront-promotions";
+export * from "./store-opening-hours";
 export * from "./printer";
 export * from "./queues";
 export * from "./rbac";

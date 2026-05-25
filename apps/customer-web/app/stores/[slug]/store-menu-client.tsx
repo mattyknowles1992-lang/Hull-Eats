@@ -39,6 +39,7 @@ import {
   type FulfillmentPreference,
 } from "../../../src/lib/fulfillment-preference";
 import { getBrowserSupabaseClient } from "../../../src/lib/supabase-browser";
+import { fetchMarketplaceStore } from "../../../src/lib/marketplace";
 
 type MenuCategory = {
   id: string;
@@ -56,6 +57,7 @@ type StoreMenuClientProps = {
   storeAddress?: string;
   storeDeliveryFee?: number;
   storeDeliveryPricing?: StoreSummary["deliveryPricing"];
+  storeAcceptsOrders?: boolean;
   categories: MenuCategory[];
   activePromotions?: StorefrontPromotionBanner[];
 };
@@ -130,7 +132,8 @@ const getGroupCountLabel = (group: MenuItem["optionGroups"][number]) => {
 };
 
 /** Compact line under the title: lists included parts when present; otherwise a short slice of copy. Full menu description stays on title/tooltip. */
-const isMenuItemOrderable = (item: MenuItem) => item.isActive && item.stockStatus !== "out_of_stock";
+const isMenuItemOrderable = (item: MenuItem, storeAcceptsOrders: boolean) =>
+  storeAcceptsOrders && item.isActive && item.stockStatus !== "out_of_stock";
 
 const getMenuItemStatusLabel = (item: MenuItem) => {
   if (!item.isActive) {
@@ -193,6 +196,7 @@ export function StoreMenuClient({
   storeAddress,
   storeDeliveryFee,
   storeDeliveryPricing,
+  storeAcceptsOrders = true,
   categories,
   activePromotions = [],
 }: StoreMenuClientProps) {
@@ -200,6 +204,7 @@ export function StoreMenuClient({
   const [activeItem, setActiveItem] = useState<MenuItem | null>(null);
   const [selection, setSelection] = useState<BasketCustomisationSelection | null>(null);
   const [addedMessage, setAddedMessage] = useState("");
+  const [storeIsOpenNow, setStoreIsOpenNow] = useState(storeAcceptsOrders);
   const [isClient, setIsClient] = useState(false);
   const [activeCategoryId, setActiveCategoryId] = useState("all");
   const [expandedCategoryIds, setExpandedCategoryIds] = useState<string[]>([]);
@@ -218,6 +223,41 @@ export function StoreMenuClient({
   const canChooseCollection = hubAllowsCollection(deliveryPricing?.orderFulfillment);
 
   const [fulfillmentType, setFulfillmentType] = useState<FulfillmentPreference>("delivery");
+
+  useEffect(() => {
+    setStoreIsOpenNow(storeAcceptsOrders);
+  }, [storeAcceptsOrders]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const refreshStoreAvailability = async () => {
+      const latestStore = await fetchMarketplaceStore(storeSlug);
+      if (!cancelled) {
+        setStoreIsOpenNow(Boolean(latestStore?.isOpen));
+      }
+    };
+
+    void refreshStoreAvailability();
+    const intervalId = window.setInterval(() => {
+      void refreshStoreAvailability();
+    }, 30000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [storeSlug]);
+
+  useEffect(() => {
+    if (storeIsOpenNow) {
+      return;
+    }
+
+    setActiveItem(null);
+    setSelection(null);
+    setBasketExpanded(false);
+  }, [storeIsOpenNow]);
 
   useEffect(() => {
     const saved = getFulfillmentForStore(storeSlug);
@@ -429,6 +469,7 @@ export function StoreMenuClient({
     () => (activeCategoryId === "all" ? categories : categories.filter((category) => category.id === activeCategoryId)),
     [activeCategoryId, categories],
   );
+  const filteredCategoryId = activeCategoryId === "all" ? null : activeCategoryId;
 
   const activeDetails =
     activeItem && selection
@@ -451,7 +492,7 @@ export function StoreMenuClient({
   );
 
   const openCustomise = (item: MenuItem) => {
-    if (!isMenuItemOrderable(item)) {
+    if (!isMenuItemOrderable(item, storeIsOpenNow)) {
       return;
     }
 
@@ -695,6 +736,13 @@ export function StoreMenuClient({
     <div className="menu-section-stack">
       {floatingBasketPortal}
 
+      {!storeIsOpenNow ? (
+        <article className="store-closed-banner" role="status">
+          <h3>Not accepting orders right now</h3>
+          <p>The business is either paused or outside its opening hours. This updates automatically in Hull/UK local time.</p>
+        </article>
+      ) : null}
+
       {canChooseDelivery || canChooseCollection ? (
         <section className="menu-category-filter-panel" aria-label="Order type">
           <div className="menu-category-filter-header">
@@ -853,7 +901,8 @@ export function StoreMenuClient({
       </section>
 
       {visibleCategories.map((category) => {
-        const isExpanded = expandedCategoryIds.includes(category.id);
+        const isFilteredCategory = filteredCategoryId === category.id;
+        const isExpanded = isFilteredCategory || expandedCategoryIds.includes(category.id);
 
         return (
         <section key={category.id} className={`menu-section-card menu-section-card-visual${isExpanded ? " is-expanded" : ""}`}>
@@ -868,16 +917,22 @@ export function StoreMenuClient({
               <h3>{category.name}</h3>
               {category.description ? <p className="menu-section-copy">{category.description}</p> : null}
             </div>
-            <button
-              type="button"
-              className="store-tag menu-category-count menu-category-toggle"
-              aria-expanded={isExpanded}
-              aria-controls={`menu-category-items-${category.id}`}
-              onClick={() => toggleCategoryExpanded(category.id)}
-            >
-              <span>{isExpanded ? "Hide items" : `Show ${category.items.length} item${category.items.length === 1 ? "" : "s"}`}</span>
-              <MenuCategoryChevron expanded={isExpanded} />
-            </button>
+            {isFilteredCategory ? (
+              <span className="store-tag menu-category-count">
+                {category.items.length} item{category.items.length === 1 ? "" : "s"}
+              </span>
+            ) : (
+              <button
+                type="button"
+                className="store-tag menu-category-count menu-category-toggle"
+                aria-expanded={isExpanded}
+                aria-controls={`menu-category-items-${category.id}`}
+                onClick={() => toggleCategoryExpanded(category.id)}
+              >
+                <span>{isExpanded ? "Hide items" : `Show ${category.items.length} item${category.items.length === 1 ? "" : "s"}`}</span>
+                <MenuCategoryChevron expanded={isExpanded} />
+              </button>
+            )}
           </div>
 
           {isExpanded ? (
@@ -892,7 +947,7 @@ export function StoreMenuClient({
                     {section.items.map((item) => {
                       const listing = getMenuItemListingLine(item);
                       const fullDescription = item.description?.trim();
-                      const orderable = isMenuItemOrderable(item);
+                      const orderable = isMenuItemOrderable(item, storeIsOpenNow);
                       const statusLabel = getMenuItemStatusLabel(item);
 
                       return (
@@ -930,11 +985,13 @@ export function StoreMenuClient({
                                 disabled={!orderable}
                                 onClick={() => openCustomise(item)}
                               >
-                                {!orderable
-                                  ? "Unavailable"
-                                  : item.components.length > 0 || item.optionGroups.length > 0
-                                    ? "Customise and add"
-                                    : "Add"}
+                                {!storeIsOpenNow
+                                  ? "Closed"
+                                  : !orderable
+                                    ? "Unavailable"
+                                    : item.components.length > 0 || item.optionGroups.length > 0
+                                      ? "Customise and add"
+                                      : "Add"}
                               </button>
                             </div>
                           </div>

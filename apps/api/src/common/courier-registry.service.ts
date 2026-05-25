@@ -309,6 +309,12 @@ export class CourierRegistryService {
             id: true,
             name: true,
             slug: true,
+            merchantId: true,
+            merchant: {
+              select: {
+                name: true,
+              },
+            },
           },
         },
       },
@@ -337,6 +343,8 @@ export class CourierRegistryService {
         storeId: row.store.id,
         name: row.store.name,
         slug: row.store.slug,
+        hubId: row.store.merchantId,
+        hubName: row.store.merchant.name,
       })),
     };
   }

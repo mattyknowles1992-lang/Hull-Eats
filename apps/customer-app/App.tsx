@@ -153,7 +153,7 @@ export default function App() {
             <Pressable style={styles.legalLinkHit} onPress={() => openSitePath("/legal/terms-hull-eats")}>
               <Text style={styles.legalLinkText}>Terms</Text>
             </Pressable>
-            <Pressable style={styles.legalLinkHit} onPress={() => openSitePath("/contact")}>
+            <Pressable style={styles.legalLinkHit} onPress={() => openSitePath("/contact?origin=customer_app_via_web")}>
               <Text style={styles.legalLinkText}>Contact</Text>
             </Pressable>
           </View>

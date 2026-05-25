@@ -18,6 +18,13 @@ const buildCheckoutSession = async (
   input: CreateCheckoutSessionInput,
 ): Promise<SessionRecord> => {
   const store = await resolveMarketplaceStore(input.storeId);
+
+  if (!store.isOpen) {
+    throw new BadRequestException(
+      `${store.name} is not accepting orders right now. It may be paused by the business or outside opening hours (UK time, Europe/London).`,
+    );
+  }
+
   const menuItems = await resolveMarketplaceMenuItems(input.storeId);
   const menuItemLookup = new Map(menuItems.map((item) => [item.id, item]));
 
@@ -123,7 +130,8 @@ const buildCheckoutSession = async (
     input.fulfillmentType === "pickup" || Boolean(input.customerAddressId || (input.addressLine1 && input.city && input.postcode));
   const isMinimumOrderMet = subtotalAmount >= minimumOrderAmount;
   const deliveryBlocked = input.fulfillmentType === "delivery" && deliveryQuote.blocked;
-  const canPlaceOrder = addressPresent && isMinimumOrderMet && store.menuSetupComplete && !deliveryBlocked;
+  const canPlaceOrder =
+    store.isOpen && addressPresent && isMinimumOrderMet && store.menuSetupComplete && !deliveryBlocked;
 
   const checkoutSession = checkoutSessionSchema.parse({
     id: sessionId,

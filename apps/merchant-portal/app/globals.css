@@ -1211,3 +1211,153 @@ textarea {
 .he-portal-primary.is-dirty {
   animation: hub-save-pulse 1.4s ease-in-out infinite;
 }
+
+.he-opening-hours {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--he-line);
+  display: grid;
+  gap: 16px;
+}
+
+.he-opening-hours__header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.he-opening-hours__title {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--he-ink);
+}
+
+.he-opening-hours__hint {
+  margin: 6px 0 0;
+  color: var(--he-muted);
+  font-size: 0.88rem;
+  max-width: 52ch;
+}
+
+.he-opening-hours__bulk {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.he-opening-hours__bulk-btn {
+  border: 1px solid var(--he-blue-border);
+  background: var(--he-blue-wash);
+  color: var(--he-blue-dark);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-weight: 800;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.he-opening-hours__bulk-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.he-opening-hours__table {
+  display: grid;
+  gap: 8px;
+}
+
+.he-opening-hours__row {
+  display: grid;
+  grid-template-columns: minmax(96px, 1.1fr) minmax(72px, 0.7fr) minmax(120px, 1fr) minmax(120px, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+
+.he-opening-hours__row--head {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--he-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.he-opening-hours__day {
+  font-weight: 800;
+  color: var(--he-ink);
+}
+
+.he-opening-hours__open-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.he-opening-hours__time-field input {
+  width: 100%;
+  border: 1px solid rgba(16, 18, 22, 0.14);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+}
+
+.he-opening-hours__time-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.he-opening-hours__copy-btn {
+  border: 1px solid rgba(16, 18, 22, 0.12);
+  background: #fff;
+  color: var(--he-ink);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-weight: 800;
+  font-size: 0.8rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.he-opening-hours__copy-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+@media (max-width: 640px) {
+  .he-opening-hours__row {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "day day"
+      "open open"
+      "opens closes";
+  }
+
+  .he-opening-hours__row .he-opening-hours__day {
+    grid-area: day;
+  }
+
+  .he-opening-hours__row .he-opening-hours__open-toggle {
+    grid-area: open;
+  }
+
+  .he-opening-hours__row .he-opening-hours__time-field:first-of-type {
+    grid-area: opens;
+  }
+
+  .he-opening-hours__row .he-opening-hours__time-field:last-of-type {
+    grid-area: closes;
+  }
+
+  .he-opening-hours__row--head {
+    display: none;
+  }
+
+  .he-opening-hours__time-control {
+    grid-template-columns: 1fr;
+  }
+}

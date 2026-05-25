@@ -695,6 +695,54 @@ export const listMerchantOrders = async (hubId: string): Promise<OrderSummary[]>
   return orders.map((row) => buildOrderSummaryForClient(row));
 };
 
+export const listAdminOrders = async () => {
+  const orders = await prisma.order.findMany({
+    include: {
+      store: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          merchantId: true,
+          merchant: {
+            select: {
+              name: true,
+            },
+          },
+          autoAcceptOrders: true,
+        },
+      },
+      delivery: {
+        include: {
+          courierProfile: {
+            include: {
+              user: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: { placedAt: "desc" },
+    take: 250,
+  });
+
+  return orders.map((row) => {
+    const summary = buildOrderSummaryForClient(row);
+    return {
+      ...summary,
+      hubId: row.store.merchantId,
+      hubName: row.store.merchant.name,
+      hubSlug: row.store.slug,
+      storeName: row.store.name,
+      customerName: row.customerName,
+      customerPhone: row.customerPhone,
+      customerEmail: row.customerEmail ?? null,
+      courierProfileId: row.delivery?.courierProfileId ?? null,
+      courierName: row.delivery?.courierProfile?.user?.fullName ?? null,
+    };
+  });
+};
+
 async function merchantCashUpPeriodBounds(
   period: MerchantDriverCashUpPeriod,
 ): Promise<{ start: Date; end: Date; label: string }> {

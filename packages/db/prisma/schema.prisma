@@ -212,6 +212,22 @@ enum PaymentMethodType {
   @@map("payment_method_type")
 }
 
+enum ContactMessageOrigin {
+  MERCHANT_HUB         @map("merchant_hub")
+  CUSTOMER_WEB         @map("customer_web")
+  CUSTOMER_APP_VIA_WEB @map("customer_app_via_web")
+
+  @@map("contact_message_origin")
+}
+
+enum ContactMessageStatus {
+  NEW         @map("new")
+  IN_PROGRESS @map("in_progress")
+  RESOLVED    @map("resolved")
+
+  @@map("contact_message_status")
+}
+
 enum OrderPaymentMethod {
   DOJO_CARD        @map("dojo_card")
   CASH_ON_DELIVERY @map("cash_on_delivery")
@@ -263,6 +279,7 @@ model CustomerProfile {
   addresses          CustomerAddress[]
   orders             Order[]
   payments           Payment[]
+  contactMessages    ContactMessage[]
   resaleListings     ResaleListing[]    @relation("ResaleListingSeller")
   resaleConversationsAsBuyer ResaleConversation[] @relation("ResaleConversationBuyer")
   resaleConversationsAsSeller ResaleConversation[] @relation("ResaleConversationSeller")
@@ -306,6 +323,7 @@ model Merchant {
   memberships  MerchantMembership[]
   mediaAssets  MediaAsset[]
   hubUsers     HubUser[]
+  contactMessages ContactMessage[]
 
   @@map("businesses")
 }
@@ -783,6 +801,33 @@ model Payment {
   order                 Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
   customerProfile       CustomerProfile?    @relation(fields: [customerProfileId], references: [id], onDelete: SetNull)
   events                PaymentEvent[]
+}
+
+model ContactMessage {
+  id                String               @id @default(cuid())
+  origin            ContactMessageOrigin
+  status            ContactMessageStatus @default(NEW)
+  senderName        String               @map("sender_name")
+  senderEmail       String               @map("sender_email")
+  senderPhone       String?              @map("sender_phone")
+  subject           String
+  message           String
+  orderNumber       String?              @map("order_number")
+  sourcePath        String?              @map("source_path")
+  hubId             String?              @map("hub_id") @db.Uuid
+  customerProfileId String?              @map("customer_profile_id")
+  resolvedAt        DateTime?            @map("resolved_at")
+  resolvedByEmail   String?              @map("resolved_by_email")
+  createdAt         DateTime             @default(now()) @map("created_at")
+  updatedAt         DateTime             @updatedAt @map("updated_at")
+  hub               Merchant?            @relation(fields: [hubId], references: [id], onDelete: SetNull)
+  customerProfile   CustomerProfile?     @relation(fields: [customerProfileId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([origin, createdAt])
+  @@index([hubId])
+  @@index([customerProfileId])
+  @@map("contact_messages")
 }
 
 model PaymentEvent {

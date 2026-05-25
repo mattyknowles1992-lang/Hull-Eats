@@ -10,6 +10,7 @@ import {
 
 import { menuItemSchema, storeTypeSchema, storefrontStatusSchema } from "./catalog";
 import { membershipRoleSchema } from "./rbac";
+import { normalizeOpeningHours, storeOpeningHoursSchema, type StoreOpeningHours } from "./store-opening-hours";
 
 export const hubUserStatusSchema = z.enum(["active", "invited"]);
 
@@ -57,6 +58,7 @@ export const hubSettingsSchema = z.object({
   etaMinutes: z.number().int().positive(),
   deliveryFee: z.number().nonnegative(),
   minimumOrderAmount: z.number().nonnegative(),
+  acceptingOrders: z.boolean().default(true),
   isOpen: z.boolean(),
   logoImageUrl: z.string().default(""),
   heroImageUrl: z.string().default(""),
@@ -76,6 +78,8 @@ export const hubSettingsSchema = z.object({
   deliveryOriginLongitude: z.number().min(-180).max(180).nullable().optional(),
   /** Whether customers can order for delivery, collection, or both. */
   orderFulfillment: hubOrderFulfillmentSchema.default("delivery_and_collection"),
+  /** Weekly open/close times in Europe/London (Hull, UK). */
+  openingHours: storeOpeningHoursSchema,
 });
 
 const optionalHttpUrl = z.preprocess((value) => {
@@ -235,6 +239,7 @@ export const prepareMerchantWorkspaceUpdateBody = (raw: unknown): unknown => {
             settings.deliveryOriginLongitude == null || settings.deliveryOriginLongitude === ""
               ? null
               : Number(settings.deliveryOriginLongitude),
+          openingHours: normalizeOpeningHours(settings.openingHours) as StoreOpeningHours,
         }
       : settings,
     menuSections: menuSections.map((section) => {

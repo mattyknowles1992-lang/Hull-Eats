@@ -1,16 +1,26 @@
-import { Body, Controller, Get, Param, Post } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Param, Post } from "@nestjs/common";
 
-import { createOrderInputSchema, customerCancelOrderInputSchema, orderSummarySchema } from "@hull-eats/types";
+import {
+  createOrderInputSchema,
+  customerCancelOrderInputSchema,
+  orderSummarySchema,
+  publicContactMessageInputSchema,
+} from "@hull-eats/types";
 
 import { createStoredCheckoutSession } from "../../common/checkout-engine";
 import { CustomerNotificationsService } from "../../common/customer-notifications.service";
+import { ContactMessagesService } from "../../common/contact-messages.service";
 import { findTrackedOrder } from "../../common/courier-delivery-store";
 import { listLiveMarketplaceStores, resolveMarketplaceMenu, resolveMarketplaceStore } from "../../common/marketplace-catalog";
 import { customerCancelOrderWithinGrace } from "../../common/order-repository";
 
 @Controller("public")
 export class PublicController {
-  constructor(private readonly customerNotifications: CustomerNotificationsService) {}
+  constructor(
+    private readonly customerNotifications: CustomerNotificationsService,
+    @Inject(ContactMessagesService)
+    private readonly contactMessages: ContactMessagesService,
+  ) {}
 
   @Get("stores")
   async listStores() {
@@ -141,5 +151,11 @@ export class PublicController {
     };
 
     return this.customerNotifications.registerPushToken(input);
+  }
+
+  @Post("contact-messages")
+  createContactMessage(@Body() body: unknown) {
+    const input = publicContactMessageInputSchema.parse(body);
+    return this.contactMessages.createPublicMessage(input);
   }
 }

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 
 import { deliveryFeeFromForStorefront } from "@hull-eats/types";
 
@@ -9,27 +10,32 @@ import { formatStoreAddress } from "../../../src/lib/store-address";
 import { BasketButton } from "./basket-button";
 import { StoreMenuClient } from "./store-menu-client";
 
-const fallbackStore = featuredStores[0]!;
-const fallbackMenu = storeMenus["loaded-munch-hull"]!;
-
 export default async function StorePage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = await params;
-  const demoStore = featuredStores.find((entry) => entry.slug === resolvedParams.slug) ?? fallbackStore;
+  const demoStore = featuredStores.find((entry) => entry.slug === resolvedParams.slug) ?? null;
   const liveStore = await fetchMarketplaceStore(resolvedParams.slug);
   const store = liveStore ?? demoStore;
+  if (!store) {
+    notFound();
+  }
 
   const liveMenu = await fetchMarketplaceMenu(resolvedParams.slug);
-  const demoMenu = storeMenus[store.slug] ?? fallbackMenu;
+  const demoMenu = storeMenus[store.slug];
   const activePromotions = liveMenu?.activePromotions ?? [];
   const menu = liveMenu
     ? {
-        headline: liveMenu.onboardingMessage || demoMenu.headline,
+        headline: liveMenu.onboardingMessage || demoMenu?.headline || "",
         categories: liveMenu.categories,
         items: liveMenu.categories.flatMap((category) => category.items),
       }
-    : demoMenu;
+    : demoMenu ?? {
+        headline: "",
+        categories: [],
+        items: [],
+      };
   const hasLiveMenu = menu.categories.length > 0 && menu.items.length > 0;
   const storeAddress = formatStoreAddress(store);
+  const storeAcceptsOrders = store.isOpen;
 
   return (
     <main className="shell">
@@ -83,6 +89,13 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
               </div>
             </div>
 
+            {!storeAcceptsOrders ? (
+              <article className="store-closed-banner" role="status">
+                <h3>Closed right now</h3>
+                <p>This business is outside its opening hours (UK time). You can browse the menu, but ordering is paused until they open.</p>
+              </article>
+            ) : null}
+
             {hasLiveMenu ? (
               <StoreMenuClient
                 storeId={store.id}
@@ -92,6 +105,7 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
                 storeAddress={storeAddress}
                 storeDeliveryFee={store.deliveryFee}
                 storeDeliveryPricing={store.deliveryPricing}
+                storeAcceptsOrders={storeAcceptsOrders}
                 categories={menu.categories}
                 activePromotions={activePromotions}
               />

@@ -17,7 +17,9 @@ import {
   hubRolesCreatableBy,
   hullZoneHasCoverage,
   normaliseDeliveryPricing,
+  normalizeOpeningHours,
   type MembershipRole,
+  type StoreOpeningHours,
   updateHubPromotionInputSchema,
 } from "@hull-eats/types";
 import {
@@ -478,7 +480,7 @@ export class HubRegistryService {
             deliveryFee: settings.deliveryFee,
             deliveryConfig: this.deliveryJsonFromHubSettings(settings),
             minimumOrderAmount: settings.minimumOrderAmount,
-            isActive: true,
+            isActive: settings.acceptingOrders,
             storefrontStatus: settings.isOpen ? "LIVE" : "ONBOARDING",
             autoAcceptOrders: settings.autoAcceptOrders,
             autoAcceptMaxPrepMinutes: settings.autoAcceptMaxPrepMinutes,
@@ -489,6 +491,7 @@ export class HubRegistryService {
     );
 
     await this.persistHubMenuSections(store.id, input.menuSections);
+    await this.persistStoreOpeningHours(store.id, settings.openingHours);
 
     return this.getWorkspaceById(hubId);
   }
@@ -1287,6 +1290,13 @@ export class HubRegistryService {
       return;
     }
 
+    this.pilotEnsured = true;
+
+    const seedPilotHub = process.env.ENABLE_PILOT_HUB_SEED === "true" || process.env.NODE_ENV !== "production";
+    if (!seedPilotHub) {
+      return;
+    }
+
     await prisma.$executeRawUnsafe("alter table public.menu_categories add column if not exists default_price numeric(10,2)");
 
     const merchantSlug = "loaded-munch";
@@ -1439,7 +1449,6 @@ export class HubRegistryService {
     });
 
     if (existingPilotMenuItemCount >= pilotMenuSeedTargetCount) {
-      this.pilotEnsured = true;
       return;
     }
 
@@ -1500,7 +1509,6 @@ export class HubRegistryService {
       }
     }
 
-    this.pilotEnsured = true;
   }
 
   private async fetchMerchantWorkspaceRecord(hubId: string) {
@@ -1509,6 +1517,9 @@ export class HubRegistryService {
       include: {
         stores: {
           include: {
+            storeHours: {
+              orderBy: { dayOfWeek: "asc" },
+            },
             menuCategories: {
               include: {
                 menuItems: {
@@ -1557,6 +1568,80 @@ export class HubRegistryService {
   }
 
   private async buildHubSummary(merchant: any, store: any, users: any[]): Promise<HubSummary> {
+    const boundsRows = await prisma.$queryRaw<Array<{ today_start: Date; week_start: Date }>>`
+      SELECT
+        ((CURRENT_TIMESTAMP AT TIME ZONE 'Europe/London')::date)::timestamp AT TIME ZONE 'Europe/London' AS today_start,
+        (((CURRENT_TIMESTAMP AT TIME ZONE 'Europe/London')::date - 6))::timestamp AT TIME ZONE 'Europe/London' AS week_start
+    `;
+    const todayStart = boundsRows[0]?.today_start ?? new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const weekStart = boundsRows[0]?.week_start ?? new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    const recentOrders = await prisma.order.findMany({
+      where: {
+        storeId: store.id,
+        placedAt: {
+          gte: weekStart,
+        },
+      },
+      orderBy: { placedAt: "desc" },
+      take: 100,
+    });
+
+    const activeStatuses = new Set([
+      "PENDING",
+      "ACCEPTED",
+      "PREPARING",
+      "READY_FOR_DISPATCH",
+      "ASSIGNED",
+      "COURIER_ACCEPTED",
+      "PICKED_UP",
+    ]);
+    const completedStatuses = new Set(["PENDING", "ACCEPTED", "PREPARING", "READY_FOR_DISPATCH", "ASSIGNED", "COURIER_ACCEPTED", "PICKED_UP", "DELIVERED"]);
+    const weekOrders = recentOrders.filter((order) => completedStatuses.has(String(order.status).toUpperCase()));
+    const todayOrders = weekOrders.filter((order) => order.placedAt >= todayStart);
+    const grossSalesWeekValue = weekOrders.reduce((sum, order) => sum + Number(order.totalAmount), 0);
+    const averageOrderValue = weekOrders.length > 0 ? grossSalesWeekValue / weekOrders.length : 0;
+    const formatMoney = (value: number) =>
+      new Intl.NumberFormat("en-GB", {
+        style: "currency",
+        currency: "GBP",
+        minimumFractionDigits: value >= 1000 ? 0 : 2,
+        maximumFractionDigits: 2,
+      }).format(value);
+    const formatPlacedAgo = (placedAt: Date) => {
+      const diffMs = Math.max(0, Date.now() - placedAt.getTime());
+      const diffMinutes = Math.floor(diffMs / 60000);
+      if (diffMinutes < 1) {
+        return "Just now";
+      }
+      if (diffMinutes < 60) {
+        return `${diffMinutes} min ago`;
+      }
+      const diffHours = Math.floor(diffMinutes / 60);
+      if (diffHours < 24) {
+        return `${diffHours} hr${diffHours === 1 ? "" : "s"} ago`;
+      }
+      const diffDays = Math.floor(diffHours / 24);
+      return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
+    };
+
+    const activeOrders = recentOrders
+      .filter((order) => activeStatuses.has(String(order.status).toUpperCase()))
+      .slice(0, 5)
+      .map((order) => ({
+        id: order.orderNumber,
+        customerName: order.customerName,
+        status: String(order.status).toLowerCase(),
+        total: formatMoney(Number(order.totalAmount)),
+        placedAgo: formatPlacedAgo(order.placedAt),
+      }));
+
+    const notes = [
+      store.storefrontStatus === "LIVE" ? "Store is currently visible on Hull Eats." : "Store is still in setup and hidden from customers.",
+      store.isActive ? "Orders are currently enabled for this hub." : "Orders are currently paused for this hub.",
+      `${users.length} active hub user${users.length === 1 ? "" : "s"} provisioned.`,
+    ];
+
     return {
       id: merchant.id,
       businessName: merchant.name,
@@ -1566,15 +1651,12 @@ export class HubRegistryService {
       deliveryLeadTime: `${store.etaMinutes ?? 25} min`,
       status: this.mapStorefrontStatusToApi(store.storefrontStatus),
       ownerName: users.find((user) => user.role === "OWNER")?.fullName ?? `${merchant.name} Owner`,
-      orderVolumeToday: 0,
-      orderVolumeWeek: 0,
-      grossSalesWeek: "£0",
-      averageOrderValue: "£0.00",
-      activeOrders: [],
-      notes: [
-        "This hub is now persisted in the database and survives API restarts.",
-        "Admin can provision the hub, then the merchant portal controls the live menu and users.",
-      ],
+      orderVolumeToday: todayOrders.length,
+      orderVolumeWeek: weekOrders.length,
+      grossSalesWeek: formatMoney(grossSalesWeekValue),
+      averageOrderValue: formatMoney(averageOrderValue),
+      activeOrders,
+      notes,
     };
   }
 
@@ -1620,11 +1702,13 @@ export class HubRegistryService {
       etaMinutes: store.etaMinutes ?? 25,
       deliveryFee: Number(store.deliveryFee ?? 0),
       minimumOrderAmount: Number(store.minimumOrderAmount ?? 0),
+      acceptingOrders: Boolean(store.isActive),
       isOpen: store.storefrontStatus === "LIVE",
       logoImageUrl: store.logoAssetId ?? "",
       heroImageUrl: store.heroImageUrl ?? "",
       autoAcceptOrders: Boolean(store.autoAcceptOrders),
       autoAcceptMaxPrepMinutes: store.autoAcceptMaxPrepMinutes ?? 60,
+      openingHours: this.mapStoreOpeningHours(store.storeHours ?? []),
       ...this.mapDeliveryFromStore(store),
     };
   }
@@ -1672,6 +1756,45 @@ export class HubRegistryService {
       deliveryOriginLongitude: cfg.originLongitude ?? null,
       orderFulfillment: cfg.orderFulfillment,
     };
+  }
+
+  private mapStoreOpeningHours(rows: Array<{ dayOfWeek: number; openTime: string; closeTime: string; isClosed: boolean }>): StoreOpeningHours {
+    if (!rows.length) {
+      return normalizeOpeningHours(undefined);
+    }
+
+    return normalizeOpeningHours(
+      rows.map((row) => ({
+        dayOfWeek: row.dayOfWeek,
+        isOpen: !row.isClosed,
+        openTime: row.openTime,
+        closeTime: row.closeTime,
+      })),
+    );
+  }
+
+  private async persistStoreOpeningHours(storeId: string, openingHours: StoreOpeningHours) {
+    const normalized = normalizeOpeningHours(openingHours);
+
+    try {
+      await prisma.storeHour.deleteMany({ where: { storeId } });
+      await prisma.storeHour.createMany({
+        data: normalized.map((day) => ({
+          storeId,
+          dayOfWeek: day.dayOfWeek,
+          openTime: day.openTime,
+          closeTime: day.closeTime,
+          isClosed: !day.isOpen,
+        })),
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2021") {
+        throw new BadRequestException(
+          "Opening hours table is not available yet. Run the latest database migration (store_hours) before saving a schedule.",
+        );
+      }
+      throw error;
+    }
   }
 
   private mapHubUser(user: any): HubUser {

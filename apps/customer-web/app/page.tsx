@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import Link from "next/link";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { deliveryFeeFromForStorefront } from "@hull-eats/types";
 
@@ -11,6 +11,7 @@ import { playOrderSuccessDelight } from "../src/lib/customer-experience";
 import { AppSwitcher } from "./app-switcher";
 import { MarketplaceAuthButtons } from "./marketplace-auth-buttons";
 import { featuredStores, storeMenus } from "../src/lib/demo";
+import { fetchMarketplaceStores } from "../src/lib/marketplace";
 import { marketplaceCategories } from "../src/lib/marketplace-categories";
 
 const filters = ["All", "Restaurants", "Takeaways", "Groceries", "Desserts", "Late night"] as const;
@@ -35,7 +36,11 @@ function getStoreStatus(storefrontStatus: string, isOpen: boolean) {
     return "Onboarding";
   }
 
-  return isOpen ? "Open now" : "Opening soon";
+  if (!isOpen) {
+    return "Closed";
+  }
+
+  return "Open now";
 }
 
 function getDistanceKm(from: Coordinates, to: Coordinates) {
@@ -62,9 +67,31 @@ export default function CustomerHomePage() {
   const [activeFilter, setActiveFilter] = useState<FilterLabel>("All");
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [stores, setStores] = useState(featuredStores);
   const [customerCoordinates, setCustomerCoordinates] = useState<Coordinates | null>(null);
   const [locationStatus, setLocationStatus] = useState<LocationStatus>("idle");
   const resultsRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const refreshStores = async () => {
+      const latestStores = await fetchMarketplaceStores();
+      if (!cancelled && latestStores !== null) {
+        setStores(latestStores);
+      }
+    };
+
+    void refreshStores();
+    const intervalId = window.setInterval(() => {
+      void refreshStores();
+    }, 30000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, []);
 
   function focusResults() {
     window.setTimeout(() => {
@@ -116,14 +143,14 @@ export default function CustomerHomePage() {
     }
 
     return new Map(
-      featuredStores
+      stores
         .map((store) => {
           const storeLocation = storeCoordinates[store.slug];
           return storeLocation ? ([store.slug, getDistanceKm(customerCoordinates, storeLocation)] as const) : null;
         })
         .filter((entry): entry is readonly [string, number] => Boolean(entry)),
     );
-  }, [customerCoordinates]);
+  }, [customerCoordinates, stores]);
 
   const visibleStores = useMemo(() => {
     const queryWords = searchQuery
@@ -132,7 +159,7 @@ export default function CustomerHomePage() {
       .map((word) => word.trim())
       .filter(Boolean);
 
-    return featuredStores.filter((store) => {
+    return stores.filter((store) => {
       const categoryMatch = (() => {
         if (activeFilter === "All" || activeFilter === "Late night") {
           return true;
@@ -191,7 +218,7 @@ export default function CustomerHomePage() {
 
       return firstDistance - secondDistance;
     });
-  }, [activeFilter, customerCoordinates, searchQuery, storeDistances]);
+  }, [activeFilter, customerCoordinates, searchQuery, storeDistances, stores]);
 
   const locationStatusCopy = (() => {
     if (locationStatus === "locating") {
@@ -417,9 +444,9 @@ export default function CustomerHomePage() {
             {visibleStores.length === 0 ? (
               <article className="store-card empty-filter-card">
                 <div className="store-card-body">
-                  <h3>{activeFilter} coming soon</h3>
+                  <h3>No stores available right now</h3>
                   <p className="store-copy">
-                    This category is part of the Hull Eats plan. New local businesses will appear here as they go live.
+                    Businesses appear here only while they are live, accepting orders, and inside their opening hours.
                   </p>
                 </div>
               </article>

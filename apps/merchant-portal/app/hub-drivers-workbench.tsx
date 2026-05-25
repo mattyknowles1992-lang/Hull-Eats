@@ -1,12 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type {
   CreateHubCourierResponse,
   MerchantDriverAssignment,
   MerchantDriverCashUpResponse,
 } from "@hull-eats/types";
+
+import "leaflet/dist/leaflet.css";
 
 const formatMoney = (value: number) => `£${value.toFixed(2)}`;
 
@@ -17,12 +19,11 @@ const hullTrackingBounds = {
   maxLongitude: -0.18,
 };
 
-const clampPercentage = (value: number) => Math.min(96, Math.max(4, value));
-
-const mapHullPosition = (latitude: number, longitude: number) => ({
-  left: `${clampPercentage(((longitude - hullTrackingBounds.minLongitude) / (hullTrackingBounds.maxLongitude - hullTrackingBounds.minLongitude)) * 100)}%`,
-  top: `${clampPercentage((1 - (latitude - hullTrackingBounds.minLatitude) / (hullTrackingBounds.maxLatitude - hullTrackingBounds.minLatitude)) * 100)}%`,
-});
+const leafletIconAssets = {
+  iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png",
+  iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png",
+  shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png",
+};
 
 const formatTrackingTime = (value?: string | null) =>
   value
@@ -175,39 +176,6 @@ const driverMapCanvas: React.CSSProperties = {
   background:
     "linear-gradient(90deg, rgba(13,138,168,0.08) 1px, transparent 1px), linear-gradient(0deg, rgba(13,138,168,0.08) 1px, transparent 1px), radial-gradient(circle at 55% 44%, rgba(35,205,255,0.24), transparent 30%), linear-gradient(135deg, #f8fcfd, #dff4f6)",
   backgroundSize: "56px 56px, 56px 56px, auto, auto",
-};
-
-const driverMapAreaLabel: React.CSSProperties = {
-  position: "absolute",
-  transform: "translate(-50%, -50%)",
-  color: "rgba(15, 17, 21, 0.42)",
-  fontSize: 12,
-  fontWeight: 900,
-  textTransform: "uppercase",
-  letterSpacing: "0.08em",
-};
-
-const driverMapMarker: React.CSSProperties = {
-  position: "absolute",
-  width: 42,
-  height: 54,
-  display: "grid",
-  placeItems: "center",
-  transformOrigin: "50% 100%",
-};
-
-const driverMarkerLogo: React.CSSProperties = {
-  width: 38,
-  height: 38,
-  display: "grid",
-  placeItems: "center",
-  borderRadius: "50%",
-  border: "3px solid #fff",
-  background: "linear-gradient(135deg, #0f1115, #0d8aa8)",
-  color: "#fff",
-  fontSize: 16,
-  fontWeight: 950,
-  boxShadow: "0 16px 28px rgba(15, 17, 21, 0.22)",
 };
 
 const driverMapEmpty: React.CSSProperties = {
@@ -509,6 +477,10 @@ export function HubDriversWorkbench({
     email: string;
     temporaryPassword: string;
   } | null>(null);
+  const driverMapHostRef = useRef<HTMLDivElement | null>(null);
+  const driverMapRef = useRef<import("leaflet").Map | null>(null);
+  const driverMapLayerRef = useRef<import("leaflet").LayerGroup | null>(null);
+  const [driverMapReady, setDriverMapReady] = useState(false);
 
   const loadCashUp = useCallback(async () => {
     setCashError("");
@@ -545,6 +517,144 @@ export function HubDriversWorkbench({
 
   const liveAllowed = driverTracking?.liveMapAllowed !== false;
   const liveMessage = driverTracking?.liveMapMessage;
+
+  useEffect(() => {
+    if (tab !== "dashboard") {
+      return;
+    }
+
+    let disposed = false;
+    let map: import("leaflet").Map | null = null;
+
+    void (async () => {
+      const host = driverMapHostRef.current;
+      if (!host) {
+        return;
+      }
+
+      const L = (await import("leaflet")).default;
+      if (disposed) {
+        return;
+      }
+
+      L.Icon.Default.mergeOptions(leafletIconAssets);
+
+      map = L.map(host, { zoomControl: true, scrollWheelZoom: true });
+      const hullBounds = L.latLngBounds(
+        L.latLng(hullTrackingBounds.minLatitude, hullTrackingBounds.minLongitude),
+        L.latLng(hullTrackingBounds.maxLatitude, hullTrackingBounds.maxLongitude),
+      );
+      map.fitBounds(hullBounds, { padding: [24, 24] });
+      map.setMaxBounds(
+        L.latLngBounds(
+          L.latLng(hullTrackingBounds.minLatitude - 0.02, hullTrackingBounds.minLongitude - 0.04),
+          L.latLng(hullTrackingBounds.maxLatitude + 0.02, hullTrackingBounds.maxLongitude + 0.04),
+        ),
+      );
+
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        maxZoom: 18,
+      }).addTo(map);
+
+      driverMapRef.current = map;
+      driverMapLayerRef.current = L.layerGroup().addTo(map);
+      setDriverMapReady(true);
+    })();
+
+    return () => {
+      disposed = true;
+      if (map) {
+        map.remove();
+      }
+      driverMapRef.current = null;
+      driverMapLayerRef.current = null;
+      setDriverMapReady(false);
+    };
+  }, [tab]);
+
+  useEffect(() => {
+    if (tab !== "dashboard" || !driverMapReady) {
+      return;
+    }
+
+    const map = driverMapRef.current;
+    const layers = driverMapLayerRef.current;
+    if (!map || !layers) {
+      return;
+    }
+
+    let cancelled = false;
+
+    void (async () => {
+      const L = (await import("leaflet")).default;
+      if (cancelled) {
+        return;
+      }
+
+      const hullBounds = L.latLngBounds(
+        L.latLng(hullTrackingBounds.minLatitude, hullTrackingBounds.minLongitude),
+        L.latLng(hullTrackingBounds.maxLatitude, hullTrackingBounds.maxLongitude),
+      );
+
+      layers.clearLayers();
+
+      if (!liveAllowed) {
+        map.fitBounds(hullBounds, { padding: [24, 24], maxZoom: 12 });
+        return;
+      }
+
+      const locationBounds = L.latLngBounds([]);
+      const driversWithLocations = (driverTracking?.drivers ?? []).filter((driver) => driver.latestLocation);
+
+      driversWithLocations.forEach((driver, index) => {
+        const latestLocation = driver.latestLocation;
+        if (!latestLocation) {
+          return;
+        }
+
+        const marker = L.marker([latestLocation.latitude, latestLocation.longitude], {
+          title: driver.courierName,
+          icon: L.divIcon({
+            className: "he-driver-live-marker",
+            html: `<span style="
+              width:38px;
+              height:38px;
+              display:grid;
+              place-items:center;
+              border-radius:999px;
+              border:3px solid #fff;
+              background:linear-gradient(135deg, #0f1115, #0d8aa8);
+              color:#fff;
+              font:900 16px/1 system-ui;
+              box-shadow:0 16px 28px rgba(15,17,21,0.22);
+            ">${driver.courierName.slice(0, 1).toUpperCase() || String(index + 1)}</span>`,
+            iconSize: [38, 38],
+            iconAnchor: [19, 19],
+          }),
+        });
+
+        marker
+          .bindTooltip(`${driver.courierName} • ${formatTrackingTime(latestLocation.updatedAt)}`, {
+            direction: "top",
+            opacity: 0.92,
+          })
+          .addTo(layers);
+
+        locationBounds.extend([latestLocation.latitude, latestLocation.longitude]);
+      });
+
+      if (driversWithLocations.length > 0 && locationBounds.isValid()) {
+        map.fitBounds(locationBounds.pad(0.3), { padding: [28, 28], maxZoom: 14 });
+      } else {
+        map.fitBounds(hullBounds, { padding: [24, 24], maxZoom: 12 });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tab, driverMapReady, driverTracking, liveAllowed]);
 
   return (
     <section style={shell}>
@@ -610,30 +720,8 @@ export function HubDriversWorkbench({
                 </div>
                 <span style={darkBadge}>Hull only</span>
               </div>
-              <div style={{ ...driverMapCanvas, opacity: liveAllowed ? 1 : 0.35 }} aria-label="Live driver map preview">
-                <span style={{ ...driverMapAreaLabel, left: "12%", top: "18%" }}>Beverley Rd</span>
-                <span style={{ ...driverMapAreaLabel, left: "52%", top: "28%" }}>City centre</span>
-                <span style={{ ...driverMapAreaLabel, left: "66%", top: "62%" }}>Holderness Rd</span>
-                <span style={{ ...driverMapAreaLabel, left: "22%", top: "74%" }}>Hessle Rd</span>
-                {liveAllowed
-                  ? (driverTracking?.drivers ?? []).map((driver, index) =>
-                      driver.latestLocation ? (
-                        <span
-                          key={driver.courierProfileId}
-                          title={`${driver.courierName} / ${formatTrackingTime(driver.latestLocation.updatedAt)}`}
-                          style={{
-                            ...driverMapMarker,
-                            ...mapHullPosition(driver.latestLocation.latitude, driver.latestLocation.longitude),
-                            transform: `translate(-50%, -100%) rotate(${driver.latestLocation.heading ?? 0}deg)`,
-                          }}
-                        >
-                          <span style={{ ...driverMarkerLogo, transform: `rotate(-${driver.latestLocation.heading ?? 0}deg)` }}>
-                            {driver.courierName.slice(0, 1).toUpperCase() || index + 1}
-                          </span>
-                        </span>
-                      ) : null,
-                    )
-                  : null}
+              <div style={{ ...driverMapCanvas, opacity: liveAllowed ? 1 : 0.35 }} aria-label="Live driver map">
+                <div ref={driverMapHostRef} style={{ position: "absolute", inset: 0 }} />
                 {liveAllowed && (driverTracking?.drivers ?? []).every((d) => !d.latestLocation) ? (
                   <div style={driverMapEmpty}>Driver locations appear here after couriers send a GPS ping from the app.</div>
                 ) : null}

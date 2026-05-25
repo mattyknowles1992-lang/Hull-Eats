@@ -8,7 +8,10 @@ import {
   decodeHubMenuCategoryDescription,
   normaliseDeliveryPricing,
   getCategoryCustomerDescription,
+  isStoreTakingOrdersNow,
+  normalizeOpeningHours,
   readMenuSubGroupsFromSection,
+  type StoreOpeningHours,
 } from "@hull-eats/types";
 
 import { mapStorePromotionRow } from "./store-promotion-mapper";
@@ -93,45 +96,70 @@ const mapMenuItem = (item: {
   };
 };
 
-const mapStoreRow = (store: {
-  id: string;
-  merchantId: string;
-  slug: string;
-  name: string;
-  type: string;
-  storefrontStatus: string;
-  addressLine1: string;
-  city: string;
-  postcode: string;
-  cuisineLabel: string | null;
-  heroImageUrl: string | null;
-  deliveryFee: unknown;
-  minimumOrderAmount: unknown;
-  etaMinutes: number | null;
-  menuSetupComplete: boolean;
-  onboardingMessage: string | null;
-  deliveryConfig: unknown;
-  isActive: boolean;
-}): StoreSummary => ({
-  id: store.id,
-  merchantId: store.merchantId,
-  slug: store.slug,
-  name: store.name,
-  type: mapStoreType(store.type),
-  storefrontStatus: mapStorefrontStatus(store.storefrontStatus),
-  addressLine1: store.addressLine1,
-  city: store.city,
-  postcode: store.postcode,
-  isOpen: store.isActive && store.storefrontStatus === "LIVE",
-  cuisineLabel: store.cuisineLabel ?? undefined,
-  heroImageUrl: store.heroImageUrl ?? undefined,
-  etaMinutes: store.etaMinutes ?? undefined,
-  deliveryFee: Number(store.deliveryFee ?? 0),
-  minimumOrderAmount: Number(store.minimumOrderAmount ?? 0),
-  deliveryPricing: normaliseDeliveryPricing(store.deliveryConfig ?? {}),
-  menuSetupComplete: store.menuSetupComplete,
-  onboardingMessage: store.onboardingMessage ?? undefined,
-});
+const mapStoreRow = (
+  store: {
+    id: string;
+    merchantId: string;
+    slug: string;
+    name: string;
+    type: string;
+    storefrontStatus: string;
+    addressLine1: string;
+    city: string;
+    postcode: string;
+    cuisineLabel: string | null;
+    heroImageUrl: string | null;
+    deliveryFee: unknown;
+    minimumOrderAmount: unknown;
+    etaMinutes: number | null;
+    menuSetupComplete: boolean;
+    onboardingMessage: string | null;
+    deliveryConfig: unknown;
+    isActive: boolean;
+  },
+  openingHours?: StoreOpeningHours,
+): StoreSummary => {
+  const marketplaceLive = store.isActive && store.storefrontStatus === "LIVE";
+  const takingOrdersNow = isStoreTakingOrdersNow(openingHours, store.storefrontStatus === "LIVE", store.isActive);
+
+  return {
+    id: store.id,
+    merchantId: store.merchantId,
+    slug: store.slug,
+    name: store.name,
+    type: mapStoreType(store.type),
+    storefrontStatus: mapStorefrontStatus(store.storefrontStatus),
+    addressLine1: store.addressLine1,
+    city: store.city,
+    postcode: store.postcode,
+    isOpen: marketplaceLive && takingOrdersNow,
+    cuisineLabel: store.cuisineLabel ?? undefined,
+    heroImageUrl: store.heroImageUrl ?? undefined,
+    etaMinutes: store.etaMinutes ?? undefined,
+    deliveryFee: Number(store.deliveryFee ?? 0),
+    minimumOrderAmount: Number(store.minimumOrderAmount ?? 0),
+    deliveryPricing: normaliseDeliveryPricing(store.deliveryConfig ?? {}),
+    menuSetupComplete: store.menuSetupComplete,
+    onboardingMessage: store.onboardingMessage ?? undefined,
+  };
+};
+
+const mapStoreOpeningHoursFromRows = (
+  rows: Array<{ dayOfWeek: number; openTime: string; closeTime: string; isClosed: boolean }>,
+): StoreOpeningHours | undefined => {
+  if (!rows.length) {
+    return undefined;
+  }
+
+  return normalizeOpeningHours(
+    rows.map((row) => ({
+      dayOfWeek: row.dayOfWeek,
+      isOpen: !row.isClosed,
+      openTime: row.openTime,
+      closeTime: row.closeTime,
+    })),
+  );
+};
 
 const findDemoStore = (slugOrId: string) =>
   demoStores.find((entry) => entry.id === slugOrId || entry.slug === slugOrId) ?? null;
@@ -141,11 +169,20 @@ export const findLiveMarketplaceStore = async (slugOrId: string): Promise<StoreS
     where: {
       OR: [{ slug: slugOrId }, { id: slugOrId }],
       storefrontStatus: "LIVE",
-      isActive: true,
+    },
+    include: {
+      storeHours: {
+        orderBy: { dayOfWeek: "asc" },
+      },
     },
   });
 
-  return store ? mapStoreRow(store) : null;
+  if (!store) {
+    return null;
+  }
+
+  const mapped = mapStoreRow(store, mapStoreOpeningHoursFromRows(store.storeHours));
+  return mapped.isOpen ? mapped : null;
 };
 
 export const resolveMarketplaceStore = async (slugOrId: string): Promise<StoreSummary> => {
@@ -166,7 +203,11 @@ export const listLiveMarketplaceStores = async (): Promise<StoreSummary[]> => {
   const stores = await prisma.store.findMany({
     where: {
       storefrontStatus: "LIVE",
-      isActive: true,
+    },
+    include: {
+      storeHours: {
+        orderBy: { dayOfWeek: "asc" },
+      },
     },
     orderBy: { name: "asc" },
   });
@@ -175,7 +216,9 @@ export const listLiveMarketplaceStores = async (): Promise<StoreSummary[]> => {
     return demoStores;
   }
 
-  return stores.map((store) => mapStoreRow(store));
+  return stores
+    .map((store) => mapStoreRow(store, mapStoreOpeningHoursFromRows(store.storeHours)))
+    .filter((store) => store.isOpen);
 };
 
 export const findLiveMarketplaceMenu = async (slugOrId: string): Promise<MarketplaceMenu | null> => {
@@ -183,9 +226,11 @@ export const findLiveMarketplaceMenu = async (slugOrId: string): Promise<Marketp
     where: {
       OR: [{ slug: slugOrId }, { id: slugOrId }],
       storefrontStatus: "LIVE",
-      isActive: true,
     },
     include: {
+      storeHours: {
+        orderBy: { dayOfWeek: "asc" },
+      },
       menuCategories: {
         orderBy: { sortOrder: "asc" },
         include: {
@@ -203,6 +248,11 @@ export const findLiveMarketplaceMenu = async (slugOrId: string): Promise<Marketp
   });
 
   if (!store) {
+    return null;
+  }
+
+  const mappedStore = mapStoreRow(store, mapStoreOpeningHoursFromRows(store.storeHours));
+  if (!mappedStore.isOpen) {
     return null;
   }
 

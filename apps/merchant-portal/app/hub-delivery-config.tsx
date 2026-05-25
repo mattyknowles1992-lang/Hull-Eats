@@ -872,6 +872,9 @@ export function HubDeliveryConfig({
                     onClick={() => {
                       if (expanded) {
                         setExpandedOutward(null);
+                        setActiveZoneCode(null);
+                        setMapFocus(null);
+                        requestOverviewRef.current = true;
                       } else {
                         focusOutward(code);
                       }
