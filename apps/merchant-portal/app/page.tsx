@@ -92,6 +92,7 @@ type HubSection =
   | "menu"
   | "offers"
   | "businessProfile"
+  | "availability"
   | "deliveryRanges"
   | "users"
   | "settings"
@@ -792,7 +793,7 @@ export default function MerchantPortalPage() {
   const [activeHubSection, setActiveHubSection] = useState<HubSection>("home");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [activeHubPanel, setActiveHubPanel] = useState<
-    "menu" | "import" | "businessProfile" | "deliveryRanges" | "settings" | "account"
+    "menu" | "import" | "businessProfile" | "availability" | "deliveryRanges" | "settings" | "account"
   >("menu");
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
   const [selectedItemId, setSelectedItemId] = useState("");
@@ -898,6 +899,11 @@ export default function MerchantPortalPage() {
 
     if (section === "businessProfile") {
       setActiveHubPanel("businessProfile");
+      return;
+    }
+
+    if (section === "availability") {
+      setActiveHubPanel("availability");
       return;
     }
 
@@ -2412,6 +2418,9 @@ export default function MerchantPortalPage() {
             <button type="button" style={activeHubSection === "businessProfile" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("businessProfile")}>
               Business profile
             </button>
+            <button type="button" style={activeHubSection === "availability" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("availability")}>
+              Opening times
+            </button>
             <button type="button" style={activeHubSection === "deliveryRanges" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("deliveryRanges")}>
               Delivery ranges
             </button>
@@ -2500,6 +2509,7 @@ export default function MerchantPortalPage() {
         ) : null}
         {(activeHubSection === "menu" ||
           activeHubSection === "businessProfile" ||
+          activeHubSection === "availability" ||
           activeHubSection === "deliveryRanges" ||
           activeHubSection === "settings") &&
         menuNotice ? (
@@ -2754,6 +2764,7 @@ export default function MerchantPortalPage() {
 
         {activeHubSection === "menu" ||
         activeHubSection === "businessProfile" ||
+        activeHubSection === "availability" ||
         activeHubSection === "deliveryRanges" ||
         activeHubSection === "settings" ||
         activeHubSection === "users" ? (
@@ -2773,6 +2784,12 @@ export default function MerchantPortalPage() {
             {activeHubSection === "businessProfile" ? (
               <button type="button" style={activeHubPanel === "businessProfile" ? workbenchTabActive : workbenchTab} onClick={() => setActiveHubPanel("businessProfile")}>
                 Business profile
+              </button>
+            ) : null}
+
+            {activeHubSection === "availability" ? (
+              <button type="button" style={activeHubPanel === "availability" ? workbenchTabActive : workbenchTab} onClick={() => setActiveHubPanel("availability")}>
+                Opening times
               </button>
             ) : null}
 
@@ -3158,6 +3175,51 @@ export default function MerchantPortalPage() {
             </section>
           ) : null}
 
+          {activeHubPanel === "availability" ? (
+            <section style={compactEditorCard}>
+              <div style={panelHeader}>
+                <p style={eyebrowDark}>Opening times</p>
+                <h2 style={sectionTitle}>Storefront availability</h2>
+                <p style={panelCopyDark}>
+                  Customers see open or closed on Hull Eats using these times in UK local time (Europe/London, GMT/BST).
+                </p>
+              </div>
+
+              <HubOpeningHoursEditor
+                openingHours={hubSettings.openingHours}
+                readOnly={!hubAccess?.canEditWorkspace}
+                onChange={(openingHours) => handleHubFieldChange("openingHours", openingHours)}
+              />
+
+              <div className="he-two-col" style={{ ...twoColumnGrid, marginTop: 18 }}>
+                <label style={field}>
+                  <span style={darkFieldLabel}>Accepting orders</span>
+                  <select
+                    style={lightInput}
+                    value={hubSettings.acceptingOrders ? "accepting" : "paused"}
+                    onChange={(event) => handleHubFieldChange("acceptingOrders", event.target.value === "accepting")}
+                  >
+                    <option value="accepting">Accepting orders now</option>
+                    <option value="paused">Paused - hide store and stop new orders</option>
+                  </select>
+                  <p style={subtleInfo}>Use this if the kitchen needs to stop orders straight away and come back later.</p>
+                </label>
+                <label style={field}>
+                  <span style={darkFieldLabel}>Listed on Hull Eats</span>
+                  <select
+                    style={lightInput}
+                    value={hubSettings.isOpen ? "open" : "closed"}
+                    onChange={(event) => handleHubFieldChange("isOpen", event.target.value === "open")}
+                  >
+                    <option value="open">Live - visible on marketplace</option>
+                    <option value="closed">Setup - hidden from customers</option>
+                  </select>
+                  <p style={subtleInfo}>Opening times above only apply while the store is live and accepting orders.</p>
+                </label>
+              </div>
+            </section>
+          ) : null}
+
           {activeHubPanel === "settings" ? (
             <section style={compactEditorCard}>
               {burgerPartsSection || kebabPartsSection ? (
@@ -3246,39 +3308,6 @@ export default function MerchantPortalPage() {
                     />
                   </label>
                 ) : null}
-              </div>
-
-              <HubOpeningHoursEditor
-                openingHours={hubSettings.openingHours}
-                readOnly={!hubAccess?.canEditWorkspace}
-                onChange={(openingHours) => handleHubFieldChange("openingHours", openingHours)}
-              />
-
-              <div className="he-two-col" style={{ ...twoColumnGrid, marginTop: 18 }}>
-                <label style={field}>
-                  <span style={darkFieldLabel}>Accepting orders</span>
-                  <select
-                    style={lightInput}
-                    value={hubSettings.acceptingOrders ? "accepting" : "paused"}
-                    onChange={(event) => handleHubFieldChange("acceptingOrders", event.target.value === "accepting")}
-                  >
-                    <option value="accepting">Accepting orders now</option>
-                    <option value="paused">Paused — hide store and stop new orders</option>
-                  </select>
-                  <p style={subtleInfo}>Use this if the kitchen needs to stop orders straight away and come back later.</p>
-                </label>
-                <label style={field}>
-                  <span style={darkFieldLabel}>Listed on Hull Eats</span>
-                  <select
-                    style={lightInput}
-                    value={hubSettings.isOpen ? "open" : "closed"}
-                    onChange={(event) => handleHubFieldChange("isOpen", event.target.value === "open")}
-                  >
-                    <option value="open">Live — visible on marketplace</option>
-                    <option value="closed">Setup — hidden from customers</option>
-                  </select>
-                  <p style={subtleInfo}>Opening times above only apply while the store is live and accepting orders.</p>
-                </label>
               </div>
               {merchantToken && activeHubId ? (
                 <HubConfigBackups

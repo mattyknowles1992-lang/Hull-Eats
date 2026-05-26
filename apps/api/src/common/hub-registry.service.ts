@@ -7,7 +7,6 @@ import { Prisma } from "@prisma/client";
 
 import { hashPassword, verifyPassword } from "@hull-eats/auth";
 import { prisma } from "@hull-eats/db";
-import { loadedMunchMenuItems, loadedMunchMenuSections, loadedMunchStore } from "@hull-eats/sdk";
 import {
   addHubCourierAssignmentInputSchema,
   createHubCourierInputSchema,
@@ -236,7 +235,6 @@ export class HubRegistryService {
     @Inject(CourierRegistryService)
     private readonly courierRegistry: CourierRegistryService,
   ) {}
-  private pilotEnsured = false;
 
   async listHubs(): Promise<AdminHubSummary[]> {
     await this.ensurePilotHub();
@@ -255,7 +253,9 @@ export class HubRegistryService {
     });
 
     const hubs = await Promise.all(
-      merchants.map((merchant) => this.buildAdminHubSummary(merchant, merchant.stores[0] ?? null, merchant.hubUsers)),
+      merchants.map((merchant) =>
+        this.buildAdminHubSummary(merchant, this.selectPrimaryStore(merchant.slug, merchant.stores), merchant.hubUsers),
+      ),
     );
 
     return hubs;
@@ -423,7 +423,7 @@ export class HubRegistryService {
     await this.ensurePilotHub();
 
     const record = await this.fetchAdminHubRecord(hubId);
-    const store = record.stores[0] ?? null;
+    const store = this.selectPrimaryStore(record.slug, record.stores);
 
     if (!store) {
       if (input.listedOnMarketplace || input.acceptingOrders) {
@@ -490,7 +490,7 @@ export class HubRegistryService {
     await this.ensurePilotHub();
 
     const record = await this.fetchMerchantWorkspaceRecord(hubId);
-    const store = record.stores[0];
+    const store = this.selectPrimaryStore(record.slug, record.stores);
 
     if (!store) {
       throw new NotFoundException(`Hub ${hubId} does not have a store configured yet.`);
@@ -1339,229 +1339,7 @@ export class HubRegistryService {
   }
 
   private async ensurePilotHub() {
-    if (this.pilotEnsured) {
-      return;
-    }
-
-    this.pilotEnsured = true;
-
-    const seedPilotHub = process.env.ENABLE_PILOT_HUB_SEED === "true" || process.env.NODE_ENV !== "production";
-    if (!seedPilotHub) {
-      return;
-    }
-
-    await prisma.$executeRawUnsafe("alter table public.menu_categories add column if not exists default_price numeric(10,2)");
-
-    const merchantSlug = "loaded-munch";
-    const storeSlug = loadedMunchStore.slug;
-    const merchant = await prisma.merchant.upsert({
-      where: { slug: merchantSlug },
-      update: {
-        name: loadedMunchStore.name,
-        isActive: true,
-      },
-      create: {
-        slug: merchantSlug,
-        name: loadedMunchStore.name,
-        isActive: true,
-      },
-    });
-
-    const store = await prisma.store.upsert({
-      where: { slug: storeSlug },
-      update: {
-        merchantId: merchant.id,
-        name: loadedMunchStore.name,
-        type: this.mapStoreTypeToDb(loadedMunchStore.type),
-        storefrontStatus: "LIVE",
-        menuSetupComplete: true,
-        addressLine1: loadedMunchStore.addressLine1 ?? loadedMunchStore.name,
-        city: loadedMunchStore.city,
-        postcode: loadedMunchStore.postcode,
-        timezone: "Europe/London",
-        shortDescription: loadedMunchStore.cuisineLabel,
-        cuisineLabel: loadedMunchStore.cuisineLabel,
-        onboardingMessage: loadedMunchStore.onboardingMessage,
-        heroImageUrl: loadedMunchStore.heroImageUrl,
-        deliveryFee: loadedMunchStore.deliveryFee ?? 0,
-        minimumOrderAmount: loadedMunchStore.minimumOrderAmount ?? 0,
-        etaMinutes: loadedMunchStore.etaMinutes ?? 25,
-        isActive: loadedMunchStore.isOpen,
-        autoAcceptOrders: false,
-        autoAcceptMaxPrepMinutes: 60,
-        deliveryConfig: loadedMunchStore.deliveryPricing ?? {
-          radiusMiles: 6,
-          postcodeDistricts: [
-            "HU1",
-            "HU2",
-            "HU3",
-            "HU4",
-            "HU5",
-            "HU6",
-            "HU7",
-            "HU8",
-            "HU9",
-            "HU10",
-            "HU11",
-            "HU12",
-            "HU13",
-            "HU14",
-            "HU15",
-            "HU16",
-          ],
-          mileFees: [2.5, 3.0, 3.5, 3.99, 4.49],
-          originLatitude: null,
-          originLongitude: null,
-        },
-      },
-      create: {
-        merchantId: merchant.id,
-        slug: storeSlug,
-        name: loadedMunchStore.name,
-        type: this.mapStoreTypeToDb(loadedMunchStore.type),
-        storefrontStatus: "LIVE",
-        menuSetupComplete: true,
-        addressLine1: loadedMunchStore.addressLine1 ?? loadedMunchStore.name,
-        city: loadedMunchStore.city,
-        postcode: loadedMunchStore.postcode,
-        timezone: "Europe/London",
-        shortDescription: loadedMunchStore.cuisineLabel,
-        cuisineLabel: loadedMunchStore.cuisineLabel,
-        onboardingMessage: loadedMunchStore.onboardingMessage,
-        heroImageUrl: loadedMunchStore.heroImageUrl,
-        deliveryFee: loadedMunchStore.deliveryFee ?? 0,
-        minimumOrderAmount: loadedMunchStore.minimumOrderAmount ?? 0,
-        etaMinutes: loadedMunchStore.etaMinutes ?? 25,
-        isActive: loadedMunchStore.isOpen,
-        autoAcceptOrders: false,
-        autoAcceptMaxPrepMinutes: 60,
-        deliveryConfig: loadedMunchStore.deliveryPricing ?? {
-          radiusMiles: 6,
-          postcodeDistricts: [
-            "HU1",
-            "HU2",
-            "HU3",
-            "HU4",
-            "HU5",
-            "HU6",
-            "HU7",
-            "HU8",
-            "HU9",
-            "HU10",
-            "HU11",
-            "HU12",
-            "HU13",
-            "HU14",
-            "HU15",
-            "HU16",
-          ],
-          mileFees: [2.5, 3.0, 3.5, 3.99, 4.49],
-          originLatitude: null,
-          originLongitude: null,
-        },
-      },
-    });
-
-    const loadedMunchUser = await prisma.hubUser.findUnique({
-      where: { username: "loaded-munch-admin" },
-    });
-
-    if (loadedMunchUser) {
-      const needsDefaultCredentialBootstrap = loadedMunchUser.email.toLowerCase() !== "kai-lo@hotmail.com";
-
-      await prisma.hubUser.update({
-        where: { id: loadedMunchUser.id },
-        data: {
-          merchantId: merchant.id,
-          fullName: "Loaded Munch Owner",
-          email: "kai-lo@hotmail.com",
-          ...(needsDefaultCredentialBootstrap ? { passwordHash: hashPassword("letmein") } : {}),
-          role: "OWNER",
-          status: "ACTIVE",
-          isActive: true,
-        },
-      });
-    } else {
-      await prisma.hubUser.create({
-        data: {
-          merchantId: merchant.id,
-          fullName: "Loaded Munch Owner",
-          email: "kai-lo@hotmail.com",
-          username: "loaded-munch-admin",
-          passwordHash: hashPassword("letmein"),
-          role: "OWNER",
-          status: "ACTIVE",
-          isActive: true,
-        },
-      });
-    }
-
-    const pilotMenuSeedTargetCount = loadedMunchMenuItems.length;
-    const existingPilotMenuItemCount = await prisma.menuItem.count({
-      where: { category: { storeId: store.id } },
-    });
-
-    if (existingPilotMenuItemCount >= pilotMenuSeedTargetCount) {
-      return;
-    }
-
-    for (const [sectionIndex, section] of loadedMunchMenuSections.entries()) {
-      let category = await prisma.menuCategory.findFirst({
-        where: {
-          storeId: store.id,
-          name: section.name,
-        },
-      });
-
-      if (!category) {
-        category = await prisma.menuCategory.create({
-          data: {
-            storeId: store.id,
-            name: section.name,
-            description: section.description,
-            defaultPrice: null,
-            sortOrder: sectionIndex,
-            isActive: true,
-          },
-        });
-      }
-
-      for (const [itemIndex, item] of section.items.entries()) {
-        const existingItem = await prisma.menuItem.findFirst({
-          where: {
-            categoryId: category.id,
-            name: item.name,
-          },
-        });
-
-        if (!existingItem) {
-          await prisma.menuItem.create({
-            data: {
-              categoryId: category.id,
-              name: item.name,
-              description: item.description,
-              price: item.price,
-              imageUrl: item.imageUrl ?? null,
-              customisationConfig: this.buildCustomisationConfig(item),
-              isActive: item.isActive,
-              trackStock: item.trackStock,
-              stockQuantity: item.stockQuantity,
-              stockStatus: this.mapStockStatusToDb(item.stockStatus),
-              allowBackorder: item.allowBackorder,
-              maxPerOrder: item.maxPerOrder,
-              requiresIdVerification: item.requiresIdVerification ?? false,
-              sortOrder: itemIndex,
-            },
-          });
-        } else if (!existingItem.imageUrl && item.imageUrl) {
-          await prisma.menuItem.update({
-            where: { id: existingItem.id },
-            data: { imageUrl: item.imageUrl },
-          });
-        }
-      }
-    }
-
+    return;
   }
 
   private async fetchMerchantWorkspaceRecord(hubId: string) {
@@ -1628,16 +1406,25 @@ export class HubRegistryService {
     return merchant;
   }
 
+  private selectPrimaryStore(merchantSlug: string, stores: any[]): any | null {
+    return stores.find((store: any) => store.slug === merchantSlug) ?? stores[0] ?? null;
+  }
+
   private async getAdminHubSummary(hubId: string) {
     const merchant = await this.fetchAdminHubRecord(hubId);
-    return this.buildAdminHubSummary(merchant, merchant.stores[0] ?? null, merchant.hubUsers);
+    return this.buildAdminHubSummary(merchant, this.selectPrimaryStore(merchant.slug, merchant.stores), merchant.hubUsers);
   }
 
   private async findPrimaryStore(hubId: string) {
-    const store = await prisma.store.findFirst({
+    const stores = await prisma.store.findMany({
       where: { merchantId: hubId },
       orderBy: { createdAt: "asc" },
     });
+    const merchant = await prisma.merchant.findUnique({
+      where: { id: hubId },
+      select: { slug: true },
+    });
+    const store = this.selectPrimaryStore(merchant?.slug ?? "", stores);
 
     if (!store) {
       throw new NotFoundException(`Hub ${hubId} does not have a store configured yet.`);
@@ -1782,7 +1569,7 @@ export class HubRegistryService {
   }
 
   private mapMerchantWorkspace(record: any): MerchantWorkspace {
-    const store = record.stores[0];
+    const store = this.selectPrimaryStore(record.slug, record.stores);
     if (!store) {
       throw new NotFoundException(`Hub ${record.id} does not have a store configured yet.`);
     }

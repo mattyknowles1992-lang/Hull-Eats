@@ -1,15 +1,17 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 
-import { featuredStores, storeMenus } from "../../../../src/lib/demo";
+import { fetchMarketplaceMenu, fetchMarketplaceStore } from "../../../../src/lib/marketplace";
 import { KioskMenuClient } from "./kiosk-client";
-
-const fallbackStore = featuredStores[0]!;
-const fallbackMenu = storeMenus["loaded-munch-hull"]!;
 
 export default async function StoreKioskPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = await params;
-  const store = featuredStores.find((entry) => entry.slug === resolvedParams.slug) ?? fallbackStore;
-  const menu = storeMenus[store.slug] ?? fallbackMenu;
+  const store = await fetchMarketplaceStore(resolvedParams.slug);
+  if (!store) {
+    notFound();
+  }
+
+  const menu = await fetchMarketplaceMenu(resolvedParams.slug);
 
   return (
     <main className="kiosk-shell">
@@ -26,7 +28,7 @@ export default async function StoreKioskPage({ params }: { params: Promise<{ slu
         </Link>
       </header>
 
-      <KioskMenuClient storeId={store.id} storeSlug={store.slug} storeName={store.name} categories={menu.categories} />
+      <KioskMenuClient storeId={store.id} storeSlug={store.slug} storeName={store.name} categories={menu?.categories ?? []} />
     </main>
   );
 }

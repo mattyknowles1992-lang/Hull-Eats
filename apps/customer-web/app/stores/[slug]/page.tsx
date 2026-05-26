@@ -4,7 +4,6 @@ import { notFound } from "next/navigation";
 import { deliveryFeeFromForStorefront } from "@hull-eats/types";
 
 import { AppSwitcher } from "../../app-switcher";
-import { featuredStores, storeMenus } from "../../../src/lib/demo";
 import { fetchMarketplaceMenu, fetchMarketplaceStore } from "../../../src/lib/marketplace";
 import { formatStoreAddress } from "../../../src/lib/store-address";
 import { BasketButton } from "./basket-button";
@@ -12,27 +11,19 @@ import { StoreMenuClient } from "./store-menu-client";
 
 export default async function StorePage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = await params;
-  const demoStore = featuredStores.find((entry) => entry.slug === resolvedParams.slug) ?? null;
   const liveStore = await fetchMarketplaceStore(resolvedParams.slug);
-  const store = liveStore ?? demoStore;
+  const store = liveStore;
   if (!store) {
     notFound();
   }
 
   const liveMenu = await fetchMarketplaceMenu(resolvedParams.slug);
-  const demoMenu = storeMenus[store.slug];
   const activePromotions = liveMenu?.activePromotions ?? [];
-  const menu = liveMenu
-    ? {
-        headline: liveMenu.onboardingMessage || demoMenu?.headline || "",
-        categories: liveMenu.categories,
-        items: liveMenu.categories.flatMap((category) => category.items),
-      }
-    : demoMenu ?? {
-        headline: "",
-        categories: [],
-        items: [],
-      };
+  const menu = {
+    headline: liveMenu?.onboardingMessage || store.onboardingMessage || "",
+    categories: liveMenu?.categories ?? [],
+    items: liveMenu?.categories.flatMap((category) => category.items) ?? [],
+  };
   const hasLiveMenu = menu.categories.length > 0 && menu.items.length > 0;
   const storeAddress = formatStoreAddress(store);
   const storeAcceptsOrders = store.isOpen;
@@ -85,7 +76,7 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
             <div className="section-heading">
               <div>
                 <h2>{hasLiveMenu ? "Menu" : "Catalog placeholder"}</h2>
-                <p>{hasLiveMenu ? "Seeded categories and prices for the launch takeaway hub." : "For now this page sells the brand and the store, not the products."}</p>
+                <p>{hasLiveMenu ? "Live categories and prices from this business hub." : "This storefront is live, but no menu items have been published yet."}</p>
               </div>
             </div>
 

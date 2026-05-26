@@ -18,7 +18,6 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@hull-eats/db";
 
 import { customerNotifications } from "./customer-notifications.service";
-import { demoStores } from "./demo-data";
 
 const toDbEnum = (value: string) => value.toUpperCase() as any;
 
@@ -98,9 +97,8 @@ export const buildOrderSummaryForClient = (order: {
 const buildOrderNumber = () => `HE-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 90) + 10}`;
 
 const resolveCheckoutStore = async (session: CheckoutSession) => {
-  const demoStore = demoStores.find((store) => store.id === session.storeId || store.slug === session.storeId);
   const store = await prisma.store.findFirst({
-    where: demoStore ? { slug: demoStore.slug } : { id: session.storeId },
+    where: uuidPattern.test(session.storeId) ? { id: session.storeId } : { slug: session.storeId },
   });
 
   if (!store) {

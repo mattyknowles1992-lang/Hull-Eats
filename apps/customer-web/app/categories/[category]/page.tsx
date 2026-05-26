@@ -5,7 +5,6 @@ import type { StoreSummary } from "@hull-eats/types";
 import { deliveryFeeFromForStorefront } from "@hull-eats/types";
 
 import { AppSwitcher } from "../../app-switcher";
-import { featuredStores, storeMenus } from "../../../src/lib/demo";
 import { fetchMarketplaceStores } from "../../../src/lib/marketplace";
 import {
   getMarketplaceCategory,
@@ -20,31 +19,20 @@ export function generateStaticParams() {
 }
 
 function getSearchableStoreText(store: StoreSummary) {
-  const menu = storeMenus[store.slug];
-
   return [
     store.name,
     store.type,
     store.city,
     store.cuisineLabel,
     store.onboardingMessage,
-    menu?.headline,
-    ...(menu?.categories.map((category) => `${category.name} ${category.description ?? ""}`) ?? []),
-    ...(menu?.items.map((item) => `${item.name} ${item.description ?? ""}`) ?? []),
   ]
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
 }
 
-function getSubcategoryMatchCount(categorySlug: string, subcategory: MarketplaceSubcategory) {
-  const menu = storeMenus[categorySlug];
-
-  if (!menu) {
-    return 0;
-  }
-
-  return menu.items.filter((item) => textMatchesMarketplaceSubcategory(`${item.name} ${item.description}`.toLowerCase(), subcategory)).length;
+function getSubcategoryMatchCount(stores: StoreSummary[], subcategory: MarketplaceSubcategory) {
+  return stores.filter((store) => textMatchesMarketplaceSubcategory(getSearchableStoreText(store), subcategory)).length;
 }
 
 function getStoreStatus(storefrontStatus: string, isOpen: boolean) {
@@ -71,7 +59,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ categ
     notFound();
   }
 
-  const liveStores = (await fetchMarketplaceStores()) ?? featuredStores;
+  const liveStores = (await fetchMarketplaceStores()) ?? [];
   const matchingStores = liveStores.filter((store) => storeMatchesMarketplaceCategory(store, category, getSearchableStoreText(store)));
   const visibleSubcategories = category.subcategories.slice(0, 4);
   const extraSubcategories = category.subcategories.slice(4);
@@ -153,7 +141,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ categ
               style={{ backgroundImage: `url(${subcategory.imageUrl})` }}
             >
               <strong>{subcategory.label}</strong>
-              <span>{matchingStores.reduce((sum, store) => sum + getSubcategoryMatchCount(store.slug, subcategory), 0)} live matches</span>
+              <span>{getSubcategoryMatchCount(matchingStores, subcategory)} live matches</span>
             </a>
           ))}
           {extraSubcategories.length > 0 ? (
@@ -169,7 +157,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ categ
                   >
                     <strong>{subcategory.label}</strong>
                     <span>
-                      {matchingStores.reduce((sum, store) => sum + getSubcategoryMatchCount(store.slug, subcategory), 0)} live matches
+                      {getSubcategoryMatchCount(matchingStores, subcategory)} live matches
                     </span>
                   </a>
                 ))}

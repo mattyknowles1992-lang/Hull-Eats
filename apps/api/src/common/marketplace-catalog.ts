@@ -16,8 +16,6 @@ import {
 
 import { mapStorePromotionRow } from "./store-promotion-mapper";
 
-import { demoMenuByStore, demoMenuSectionsByStore, demoStores } from "./demo-data";
-
 export type MarketplaceMenuCategory = {
   id: string;
   name: string;
@@ -39,6 +37,17 @@ const mapStoreType = (type: string): StoreSummary["type"] => type.toLowerCase() 
 
 const mapStorefrontStatus = (status: string): StoreSummary["storefrontStatus"] =>
   status.toLowerCase() as StoreSummary["storefrontStatus"];
+
+const UUID_LIKE_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const buildStoreLookupWhere = (slugOrId: string) =>
+  UUID_LIKE_PATTERN.test(slugOrId)
+    ? {
+        OR: [{ slug: slugOrId }, { id: slugOrId }],
+      }
+    : {
+        slug: slugOrId,
+      };
 
 const mapMenuItem = (item: {
   id: string;
@@ -160,16 +169,19 @@ const mapStoreOpeningHoursFromRows = (
   );
 };
 
-const findDemoStore = (slugOrId: string) =>
-  demoStores.find((entry) => entry.id === slugOrId || entry.slug === slugOrId) ?? null;
+const selectPrimaryMarketplaceStore = <T extends { slug: string; merchant: { slug: string } }>(stores: T[]): T | null =>
+  stores.find((store) => store.slug === store.merchant.slug) ?? stores[0] ?? null;
 
 export const findLiveMarketplaceStore = async (slugOrId: string): Promise<StoreSummary | null> => {
-  const store = await prisma.store.findFirst({
+  let store = await prisma.store.findFirst({
     where: {
-      OR: [{ slug: slugOrId }, { id: slugOrId }],
+      ...buildStoreLookupWhere(slugOrId),
       storefrontStatus: "LIVE",
     },
     include: {
+      merchant: {
+        select: { slug: true },
+      },
       storeHours: {
         orderBy: { dayOfWeek: "asc" },
       },
@@ -178,6 +190,27 @@ export const findLiveMarketplaceStore = async (slugOrId: string): Promise<StoreS
 
   if (!store) {
     return null;
+  }
+
+  if (store.slug !== store.merchant.slug) {
+    const primaryStore = await prisma.store.findFirst({
+      where: {
+        merchantId: store.merchantId,
+        storefrontStatus: "LIVE",
+        slug: store.merchant.slug,
+      },
+      include: {
+        merchant: {
+          select: { slug: true },
+        },
+        storeHours: {
+          orderBy: { dayOfWeek: "asc" },
+        },
+      },
+    });
+    if (primaryStore) {
+      store = primaryStore;
+    }
   }
 
   const mapped = mapStoreRow(store, mapStoreOpeningHoursFromRows(store.storeHours));
@@ -190,11 +223,6 @@ export const resolveMarketplaceStore = async (slugOrId: string): Promise<StoreSu
     return live;
   }
 
-  const demo = findDemoStore(slugOrId);
-  if (demo) {
-    return demo;
-  }
-
   throw new NotFoundException(`Store ${slugOrId} was not found.`);
 };
 
@@ -204,27 +232,43 @@ export const listLiveMarketplaceStores = async (): Promise<StoreSummary[]> => {
       storefrontStatus: "LIVE",
     },
     include: {
+      merchant: {
+        select: { slug: true },
+      },
       storeHours: {
         orderBy: { dayOfWeek: "asc" },
       },
     },
-    orderBy: { name: "asc" },
+    orderBy: [{ name: "asc" }, { createdAt: "asc" }],
   });
 
-  if (stores.length === 0) {
-    return demoStores;
+  const storesByMerchant = new Map<string, typeof stores>();
+  for (const store of stores) {
+    const merchantStores = storesByMerchant.get(store.merchantId);
+    if (merchantStores) {
+      merchantStores.push(store);
+      continue;
+    }
+    storesByMerchant.set(store.merchantId, [store]);
   }
 
-  return stores.map((store) => mapStoreRow(store, mapStoreOpeningHoursFromRows(store.storeHours)));
+  return Array.from(storesByMerchant.values())
+    .map((merchantStores) => selectPrimaryMarketplaceStore(merchantStores))
+    .filter((store): store is (typeof stores)[number] => Boolean(store))
+    .map((store) => mapStoreRow(store, mapStoreOpeningHoursFromRows(store.storeHours)))
+    .sort((firstStore, secondStore) => firstStore.name.localeCompare(secondStore.name, "en-GB"));
 };
 
 export const findLiveMarketplaceMenu = async (slugOrId: string): Promise<MarketplaceMenu | null> => {
-  const store = await prisma.store.findFirst({
+  let store = await prisma.store.findFirst({
     where: {
-      OR: [{ slug: slugOrId }, { id: slugOrId }],
+      ...buildStoreLookupWhere(slugOrId),
       storefrontStatus: "LIVE",
     },
     include: {
+      merchant: {
+        select: { slug: true },
+      },
       storeHours: {
         orderBy: { dayOfWeek: "asc" },
       },
@@ -246,6 +290,40 @@ export const findLiveMarketplaceMenu = async (slugOrId: string): Promise<Marketp
 
   if (!store) {
     return null;
+  }
+
+  if (store.slug !== store.merchant.slug) {
+    const primaryStore = await prisma.store.findFirst({
+      where: {
+        merchantId: store.merchantId,
+        storefrontStatus: "LIVE",
+        slug: store.merchant.slug,
+      },
+      include: {
+        merchant: {
+          select: { slug: true },
+        },
+        storeHours: {
+          orderBy: { dayOfWeek: "asc" },
+        },
+        menuCategories: {
+          orderBy: { sortOrder: "asc" },
+          include: {
+            menuItems: {
+              where: { isActive: true },
+              orderBy: { sortOrder: "asc" },
+            },
+          },
+        },
+        promotions: {
+          where: { isActive: true },
+          orderBy: { createdAt: "desc" },
+        },
+      },
+    });
+    if (primaryStore) {
+      store = primaryStore;
+    }
   }
 
   const categories = store.menuCategories
@@ -296,38 +374,18 @@ export const findLiveMarketplaceMenu = async (slugOrId: string): Promise<Marketp
 
 export const resolveMarketplaceMenu = async (slugOrId: string): Promise<MarketplaceMenu> => {
   const live = await findLiveMarketplaceMenu(slugOrId);
-  if (live && live.categories.length > 0) {
+  if (live) {
     return live;
   }
 
   const store = await resolveMarketplaceStore(slugOrId);
-  const sections = demoMenuSectionsByStore[store.slug] ?? [];
-  const items = demoMenuByStore[store.slug] ?? [];
 
   return {
     storeId: store.id,
     storeSlug: store.slug,
     menuSetupComplete: store.menuSetupComplete,
     onboardingMessage: store.onboardingMessage,
-    categories:
-      sections.length > 0
-        ? sections.map((section) => ({
-            id: section.id,
-            name: section.name,
-            description: section.description,
-            subGroups: [],
-            items: section.items,
-          }))
-        : items.length > 0
-          ? [
-              {
-                id: "cat-primary",
-                name: "Available now",
-                subGroups: [],
-                items,
-              },
-            ]
-          : [],
+    categories: [],
     activePromotions: [],
   };
 };

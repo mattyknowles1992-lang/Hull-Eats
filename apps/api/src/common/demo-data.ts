@@ -1,23 +1,14 @@
-import type { MenuItem, OrderSummary, StoreSummary } from "@hull-eats/types";
-import { loadedMunchMenuItems, loadedMunchMenuSections, loadedMunchStore, type DemoMenuSection } from "@hull-eats/sdk";
+import type { OrderSummary, StoreSummary } from "@hull-eats/types";
 
-export const demoStores: StoreSummary[] = [
-  loadedMunchStore,
-];
+const retiredDemoStoreId = "store_demo_retired";
 
-export const demoMenuByStore: Record<string, MenuItem[]> = {
-  "loaded-munch-hull": loadedMunchMenuItems,
-};
-
-export const demoMenuSectionsByStore: Record<string, DemoMenuSection[]> = {
-  "loaded-munch-hull": loadedMunchMenuSections,
-};
+export const demoStores: StoreSummary[] = [];
 
 export const demoOrders: OrderSummary[] = [
   {
     id: "order_HE_0998",
     orderNumber: "HE-0998",
-    storeId: loadedMunchStore.id,
+    storeId: retiredDemoStoreId,
     status: "preparing",
     paymentStatus: "paid",
     paymentMethod: "dojo_card",
@@ -31,7 +22,7 @@ export const demoOrders: OrderSummary[] = [
   {
     id: "order_HE_1001",
     orderNumber: "HE-1001",
-    storeId: loadedMunchStore.id,
+    storeId: retiredDemoStoreId,
     status: "pending",
     paymentStatus: "paid",
     paymentMethod: "dojo_card",
@@ -45,7 +36,7 @@ export const demoOrders: OrderSummary[] = [
   {
     id: "order_HE_1002",
     orderNumber: "HE-1002",
-    storeId: loadedMunchStore.id,
+    storeId: retiredDemoStoreId,
     status: "assigned",
     paymentStatus: "paid",
     paymentMethod: "dojo_card",

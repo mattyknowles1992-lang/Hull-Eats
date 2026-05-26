@@ -33,7 +33,6 @@ import {
   renameHubConfigSnapshotInputSchema,
 } from "@hull-eats/types";
 
-import { demoMenuByStore } from "../../common/demo-data";
 import { HubRegistryService } from "../../common/hub-registry.service";
 import { requireHubPermission } from "../../common/hub-permissions";
 import { InternalAuthService } from "../../common/internal-auth.service";
@@ -422,8 +421,9 @@ export class MerchantController {
 
   @Get("catalog/items")
   async listCatalogItems(@Headers("authorization") authorization?: string) {
-    await this.internalAuth.requireMerchantToken(authorization);
-    return Object.values(demoMenuByStore).flat();
+    const session = await this.internalAuth.requireMerchantToken(authorization);
+    const workspace = await this.hubRegistry.getWorkspaceById(session.hubId!);
+    return workspace.menuSections.flatMap((section) => section.items);
   }
 
   @Patch("catalog/items/:itemId")

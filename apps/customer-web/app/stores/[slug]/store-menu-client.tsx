@@ -474,6 +474,7 @@ export function StoreMenuClient({
 
   useEffect(() => {
     if (!filteredCategoryId) {
+      setExpandedCategoryIds([]);
       return;
     }
 

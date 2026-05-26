@@ -3,14 +3,13 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { deliveryFeeFromForStorefront } from "@hull-eats/types";
+import { deliveryFeeFromForStorefront, type StoreSummary } from "@hull-eats/types";
 
 import { HullMicrocopy } from "../src/components/hull-microcopy";
 import { YouAreHereWidget } from "../src/components/you-are-here-widget";
 import { playOrderSuccessDelight } from "../src/lib/customer-experience";
 import { AppSwitcher } from "./app-switcher";
 import { MarketplaceAuthButtons } from "./marketplace-auth-buttons";
-import { featuredStores, storeMenus } from "../src/lib/demo";
 import { fetchMarketplaceStores } from "../src/lib/marketplace";
 import { marketplaceCategories } from "../src/lib/marketplace-categories";
 
@@ -24,12 +23,7 @@ type Coordinates = {
 
 type LocationStatus = "idle" | "locating" | "ready" | "denied" | "unsupported";
 
-const storeCoordinates: Record<string, Coordinates> = {
-  "loaded-munch-hull": {
-    latitude: 53.753013,
-    longitude: -0.402771,
-  },
-};
+const storeCoordinates: Record<string, Coordinates> = {};
 
 function getStoreStatus(storefrontStatus: string, isOpen: boolean) {
   if (storefrontStatus === "onboarding") {
@@ -75,7 +69,7 @@ export default function CustomerHomePage() {
   const [activeFilter, setActiveFilter] = useState<FilterLabel>("All");
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [stores, setStores] = useState(featuredStores);
+  const [stores, setStores] = useState<StoreSummary[]>([]);
   const [customerCoordinates, setCustomerCoordinates] = useState<Coordinates | null>(null);
   const [locationStatus, setLocationStatus] = useState<LocationStatus>("idle");
   const resultsRef = useRef<HTMLElement | null>(null);
@@ -200,16 +194,12 @@ export default function CustomerHomePage() {
         return true;
       }
 
-      const menu = storeMenus[store.slug];
       const searchableText = [
         store.name,
         store.type,
         store.city,
         store.cuisineLabel,
         store.onboardingMessage,
-        menu?.headline,
-        ...(menu?.categories.map((category) => `${category.name} ${category.description ?? ""}`) ?? []),
-        ...(menu?.items.map((item) => `${item.name} ${item.description ?? ""}`) ?? []),
       ]
         .filter(Boolean)
         .join(" ")
