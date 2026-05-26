@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 
 import { AppSwitcher } from "../app-switcher";
 import { ContactForm } from "./contact-form";
@@ -63,7 +64,9 @@ export default function ContactPage() {
           </article>
         </div>
 
-        <ContactForm />
+        <Suspense fallback={<div className="contact-submit-card">Loading contact form...</div>}>
+          <ContactForm />
+        </Suspense>
 
         <p className="form-helper" style={{ marginTop: 28, maxWidth: "72ch" }}>
           Registered office and telephone contact points will be listed here once published for the Hull Eats operating entity.
