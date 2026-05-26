@@ -218,6 +218,21 @@ export default function CustomerHomePage() {
     });
   }, [activeFilter, customerCoordinates, searchQuery, storeDistances, stores]);
 
+  const featuredStores = useMemo(
+    () =>
+      stores
+        .filter((store) => store.homepageFeatured)
+        .sort((firstStore, secondStore) => {
+          const firstOrder = firstStore.homepageFeatureOrder ?? Number.MAX_SAFE_INTEGER;
+          const secondOrder = secondStore.homepageFeatureOrder ?? Number.MAX_SAFE_INTEGER;
+          if (firstOrder !== secondOrder) {
+            return firstOrder - secondOrder;
+          }
+          return firstStore.name.localeCompare(secondStore.name, "en-GB");
+        }),
+    [stores],
+  );
+
   const locationStatusCopy = (() => {
     if (locationStatus === "locating") {
       return "Finding your location...";
@@ -239,6 +254,48 @@ export default function CustomerHomePage() {
   })();
 
   const portraitHeroCycleSeconds = marketplaceCategories.length * 5;
+
+  const renderStoreCard = (store: StoreSummary, className = "store-card") => (
+    <Link href={`/stores/${store.slug}`} className={className} key={store.id}>
+      <div
+        className="store-card-media"
+        style={{
+          backgroundImage: `linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0) 42%, rgba(8, 14, 24, 0.28)), url(${store.heroImageUrl})`,
+        }}
+      >
+        <div className="store-card-overlay">
+          <span className={`status-chip ${getStoreStatusTone(store.storefrontStatus, store.isOpen)}`}>
+            {getStoreStatus(store.storefrontStatus, store.isOpen)}
+          </span>
+        </div>
+      </div>
+
+      <div className="store-card-body">
+        <div className="store-card-top">
+          <div>
+            <h3>{store.name}</h3>
+            <p className="store-meta">{store.cuisineLabel}</p>
+          </div>
+        </div>
+
+        <div className="store-tags">
+          <span className="store-tag">{store.etaMinutes} min</span>
+          <span className="store-tag">Min £{store.minimumOrderAmount?.toFixed(2)}</span>
+          <span className="store-tag">
+            Delivery from £{deliveryFeeFromForStorefront({ legacyDeliveryFee: store.deliveryFee, pricing: store.deliveryPricing }).toFixed(2)}
+          </span>
+          {storeDistances.has(store.slug) ? <span className="store-tag">{formatDistance(storeDistances.get(store.slug)!)} away</span> : null}
+        </div>
+
+        {store.onboardingMessage?.trim() ? <p className="store-copy">{store.onboardingMessage}</p> : null}
+
+        <div className="store-card-footer">
+          <span className="card-cta">{store.menuSetupComplete ? "Start order" : "Preview menu"}</span>
+          <span className="ghost-link">Track after checkout</span>
+        </div>
+      </div>
+    </Link>
+  );
 
   return (
     <main className="shell customer-marketplace">
@@ -360,11 +417,6 @@ export default function CustomerHomePage() {
               essentials. Every category grows as more Hull businesses go live on Hull Eats.
             </p>
           </div>
-          <div className="search-highlight-card live-menu-card">
-            <span className="search-highlight-label">Live hub data</span>
-            <strong>One live listing per store</strong>
-            <p>Stores now appear here from the real hub setup, live status, order toggle, and opening hours.</p>
-          </div>
         </div>
 
         <div className="search-meta-row">
@@ -386,6 +438,23 @@ export default function CustomerHomePage() {
 
       </section>
 
+      {featuredStores.length > 0 ? (
+        <section className="feature-panel feature-panel-contrast marketplace-scene featured-store-section">
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">Featured businesses</p>
+              <h2>Featured on Hull Eats</h2>
+              <p>Swipe through the live businesses currently highlighted on the homepage.</p>
+            </div>
+            <span className="store-tag">{featuredStores.length} featured</span>
+          </div>
+
+          <div className="featured-store-rail" aria-label="Featured businesses">
+            {featuredStores.map((store) => renderStoreCard(store, "store-card featured-store-card"))}
+          </div>
+        </section>
+      ) : null}
+
       <section className="content-grid marketplace-scene" ref={resultsRef}>
         <div className="content-stack">
           <div className="section-heading">
@@ -397,47 +466,7 @@ export default function CustomerHomePage() {
           </div>
 
           <div className="store-grid">
-            {visibleStores.map((store) => (
-              <Link href={`/stores/${store.slug}`} className="store-card" key={store.id}>
-                <div
-                  className="store-card-media"
-                  style={{
-                    backgroundImage: `linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0) 42%, rgba(8, 14, 24, 0.28)), url(${store.heroImageUrl})`,
-                  }}
-                >
-                  <div className="store-card-overlay">
-                    <span className={`status-chip ${getStoreStatusTone(store.storefrontStatus, store.isOpen)}`}>
-                      {getStoreStatus(store.storefrontStatus, store.isOpen)}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="store-card-body">
-                  <div className="store-card-top">
-                    <div>
-                      <h3>{store.name}</h3>
-                      <p className="store-meta">{store.cuisineLabel}</p>
-                    </div>
-                  </div>
-
-                  <div className="store-tags">
-                    <span className="store-tag">{store.etaMinutes} min</span>
-                    <span className="store-tag">Min £{store.minimumOrderAmount?.toFixed(2)}</span>
-                    <span className="store-tag">
-                      Delivery from £{deliveryFeeFromForStorefront({ legacyDeliveryFee: store.deliveryFee, pricing: store.deliveryPricing }).toFixed(2)}
-                    </span>
-                    {storeDistances.has(store.slug) ? <span className="store-tag">{formatDistance(storeDistances.get(store.slug)!)} away</span> : null}
-                  </div>
-
-                  {store.onboardingMessage?.trim() ? <p className="store-copy">{store.onboardingMessage}</p> : null}
-
-                  <div className="store-card-footer">
-                    <span className="card-cta">{store.menuSetupComplete ? "Start order" : "Preview menu"}</span>
-                    <span className="ghost-link">Track after checkout</span>
-                  </div>
-                </div>
-              </Link>
-            ))}
+            {visibleStores.map((store) => renderStoreCard(store))}
             {visibleStores.length === 0 ? (
               <article className="store-card empty-filter-card">
                 <div className="store-card-body">

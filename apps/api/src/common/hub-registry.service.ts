@@ -426,12 +426,46 @@ export class HubRegistryService {
     const store = this.selectPrimaryStore(record.slug, record.stores);
 
     if (!store) {
-      if (input.listedOnMarketplace || input.acceptingOrders) {
+      if (
+        input.listedOnMarketplace !== undefined ||
+        input.acceptingOrders !== undefined ||
+        input.homepageFeatured !== undefined ||
+        input.homepageFeatureOrder !== undefined
+      ) {
         throw new BadRequestException("This hub cannot go live until a store profile has been configured.");
       }
       return {
         hub: await this.buildAdminHubSummary(record, null, record.hubUsers),
       };
+    }
+
+    const nextListedOnMarketplace = input.listedOnMarketplace ?? (store.storefrontStatus === "LIVE");
+    const nextAcceptingOrders = input.acceptingOrders ?? Boolean(store.isActive);
+    const featureEligible = nextListedOnMarketplace && nextAcceptingOrders;
+
+    if (input.homepageFeatured === true && !featureEligible) {
+      throw new BadRequestException("Only live businesses that are accepting orders can be featured on the homepage.");
+    }
+
+    if (input.homepageFeatureOrder !== undefined && input.homepageFeatured === false) {
+      throw new BadRequestException("Feature order can only be changed while the business is featured on the homepage.");
+    }
+
+    if (input.homepageFeatureOrder !== undefined && !featureEligible) {
+      throw new BadRequestException("Only live businesses that are accepting orders can be featured on the homepage.");
+    }
+
+    const nextHomepageFeatured = !featureEligible
+      ? false
+      : input.homepageFeatured === undefined
+        ? Boolean(store.homepageFeatured)
+        : input.homepageFeatured;
+    const nextHomepageFeatureOrder = !nextHomepageFeatured
+      ? null
+      : input.homepageFeatureOrder ?? store.homepageFeatureOrder ?? null;
+
+    if (nextHomepageFeatured && nextHomepageFeatureOrder == null) {
+      throw new BadRequestException("Featured businesses need a homepage feature order.");
     }
 
     await prisma.store.update({
@@ -440,6 +474,8 @@ export class HubRegistryService {
         storefrontStatus:
           input.listedOnMarketplace === undefined ? undefined : input.listedOnMarketplace ? "LIVE" : "ONBOARDING",
         isActive: input.acceptingOrders,
+        homepageFeatured: nextHomepageFeatured,
+        homepageFeatureOrder: nextHomepageFeatureOrder,
       },
     });
 
@@ -1459,6 +1495,8 @@ export class HubRegistryService {
         status: "setup",
         listedOnMarketplace: false,
         acceptingOrders: false,
+        homepageFeatured: false,
+        homepageFeatureOrder: null,
         setupComplete: false,
         ownerName,
         orderVolumeToday: 0,
@@ -1537,10 +1575,15 @@ export class HubRegistryService {
 
     const listedOnMarketplace = store.storefrontStatus === "LIVE";
     const acceptingOrders = Boolean(store.isActive);
+    const homepageFeatured = Boolean(store.homepageFeatured) && this.canFeatureStoreOnHomepage(store);
+    const homepageFeatureOrder = homepageFeatured ? store.homepageFeatureOrder ?? null : null;
     const status = this.deriveAdminHubStatus(store);
     const notes = [
       listedOnMarketplace ? "Store is currently visible on Hull Eats." : "Store is still in setup and hidden from customers.",
       acceptingOrders ? "Orders are currently enabled for this hub." : "Orders are currently paused for this hub.",
+      homepageFeatured
+        ? `Homepage featured in slot ${homepageFeatureOrder}.`
+        : "Not currently featured on the customer homepage.",
       `${users.length} active hub user${users.length === 1 ? "" : "s"} provisioned.`,
     ];
 
@@ -1557,6 +1600,8 @@ export class HubRegistryService {
       status,
       listedOnMarketplace,
       acceptingOrders,
+      homepageFeatured,
+      homepageFeatureOrder,
       setupComplete: Boolean(store.menuSetupComplete),
       ownerName,
       orderVolumeToday: todayOrders.length,
@@ -1963,6 +2008,10 @@ export class HubRegistryService {
       return "paused";
     }
     return "live";
+  }
+
+  private canFeatureStoreOnHomepage(store: { storefrontStatus: string; isActive: boolean }) {
+    return store.storefrontStatus === "LIVE" && Boolean(store.isActive);
   }
 
   private mapStorefrontStatusToApi(status: string) {

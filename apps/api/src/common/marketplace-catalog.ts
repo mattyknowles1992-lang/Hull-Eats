@@ -124,11 +124,14 @@ const mapStoreRow = (
     menuSetupComplete: boolean;
     onboardingMessage: string | null;
     deliveryConfig: unknown;
+    homepageFeatured: boolean;
+    homepageFeatureOrder: number | null;
     isActive: boolean;
   },
   openingHours?: StoreOpeningHours,
 ): StoreSummary => {
   const takingOrdersNow = isStoreTakingOrdersNow(openingHours, store.storefrontStatus === "LIVE", store.isActive);
+  const homepageFeatured = Boolean(store.homepageFeatured && store.storefrontStatus === "LIVE" && store.isActive);
 
   return {
     id: store.id,
@@ -147,6 +150,8 @@ const mapStoreRow = (
     deliveryFee: Number(store.deliveryFee ?? 0),
     minimumOrderAmount: Number(store.minimumOrderAmount ?? 0),
     deliveryPricing: normaliseDeliveryPricing(store.deliveryConfig ?? {}),
+    homepageFeatured,
+    homepageFeatureOrder: homepageFeatured ? store.homepageFeatureOrder ?? null : null,
     menuSetupComplete: store.menuSetupComplete,
     onboardingMessage: store.onboardingMessage ?? undefined,
   };

@@ -50,11 +50,13 @@ export function HubOpeningHoursEditor({ openingHours, onChange, readOnly = false
           <span role="columnheader">Closes</span>
         </div>
 
-        {OPENING_HOURS_UI_DAYS.map(({ dayOfWeek, label }) => {
+        {OPENING_HOURS_UI_DAYS.map(({ dayOfWeek, label }, index) => {
           const day = openingHours.find((entry) => entry.dayOfWeek === dayOfWeek);
           if (!day) {
             return null;
           }
+
+          const showBulkCopyButtons = index === 0;
 
           return (
             <div key={dayOfWeek} className="he-opening-hours__row" role="row">
@@ -78,14 +80,16 @@ export function HubOpeningHoursEditor({ openingHours, onChange, readOnly = false
                     disabled={readOnly || !day.isOpen}
                     onChange={(event) => onChange(patchDay(openingHours, dayOfWeek, { openTime: event.target.value }))}
                   />
-                  <button
-                    type="button"
-                    className="he-opening-hours__copy-btn"
-                    disabled={readOnly || !day.isOpen}
-                    onClick={() => copyOpenTimeToAllOpenDays(day.openTime)}
-                  >
-                    Copy to all
-                  </button>
+                  {showBulkCopyButtons ? (
+                    <button
+                      type="button"
+                      className="he-opening-hours__copy-btn"
+                      disabled={readOnly || !day.isOpen}
+                      onClick={() => copyOpenTimeToAllOpenDays(day.openTime)}
+                    >
+                      Copy to all
+                    </button>
+                  ) : null}
                 </div>
               </label>
               <label className="he-opening-hours__time-field">
@@ -96,14 +100,16 @@ export function HubOpeningHoursEditor({ openingHours, onChange, readOnly = false
                     disabled={readOnly || !day.isOpen}
                     onChange={(event) => onChange(patchDay(openingHours, dayOfWeek, { closeTime: event.target.value }))}
                   />
-                  <button
-                    type="button"
-                    className="he-opening-hours__copy-btn"
-                    disabled={readOnly || !day.isOpen}
-                    onClick={() => copyCloseTimeToAllOpenDays(day.closeTime)}
-                  >
-                    Copy to all
-                  </button>
+                  {showBulkCopyButtons ? (
+                    <button
+                      type="button"
+                      className="he-opening-hours__copy-btn"
+                      disabled={readOnly || !day.isOpen}
+                      onClick={() => copyCloseTimeToAllOpenDays(day.closeTime)}
+                    >
+                      Copy to all
+                    </button>
+                  ) : null}
                 </div>
               </label>
             </div>

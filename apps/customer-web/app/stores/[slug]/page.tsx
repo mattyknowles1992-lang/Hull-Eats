@@ -83,7 +83,7 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
             {!storeAcceptsOrders ? (
               <article className="store-closed-banner" role="status">
                 <h3>Closed right now</h3>
-                <p>This business is outside its opening hours (UK time). You can browse the menu, but ordering is paused until they open.</p>
+                <p>This business is outside its opening hours. You can browse the menu, but ordering is paused until they open.</p>
               </article>
             ) : null}
 

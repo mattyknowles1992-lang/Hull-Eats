@@ -749,7 +749,7 @@ export function StoreMenuClient({
       {!storeIsOpenNow ? (
         <article className="store-closed-banner" role="status">
           <h3>Not accepting orders right now</h3>
-          <p>The business is either paused or outside its opening hours. This updates automatically in Hull/UK local time.</p>
+          <p>The business is either paused or outside its opening hours.</p>
         </article>
       ) : null}
 

@@ -102,6 +102,8 @@ export const storeSummarySchema = z.object({
   deliveryFee: z.number().nonnegative().optional(),
   /** Hub-configured mile bands, radius, and postcode districts (optional on older records). */
   deliveryPricing: storeDeliveryPricingSchema.optional(),
+  homepageFeatured: z.boolean().default(false),
+  homepageFeatureOrder: z.number().int().positive().nullable().default(null),
   menuSetupComplete: z.boolean().default(false),
   onboardingMessage: z.string().optional(),
 });

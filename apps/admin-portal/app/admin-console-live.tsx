@@ -7,6 +7,7 @@ import type { ContactMessageRecord } from "@hull-eats/types";
 
 import {
   adminSessionStorageKey,
+  adminSessionEmailStorageKey,
   createAdminHub,
   createAdminHubCourier,
   createAdminHubUser,
@@ -197,6 +198,8 @@ function describeHubSubtitle(hub: AdminHubSummary) {
   return `${typeLabel} / ${loginLabel} / ${leadTimeLabel}`;
 }
 
+const ultraAdminEmail = "hulleats@admin.com";
+
 function mapApiUserToRecord(user: AdminHubUserSummary): PlatformUserRecord {
   return {
     id: user.id,
@@ -217,6 +220,7 @@ function mapApiUserToRecord(user: AdminHubUserSummary): PlatformUserRecord {
 export function AdminConsoleLive() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [authToken, setAuthToken] = useState("");
+  const [adminEmail, setAdminEmail] = useState("");
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
@@ -240,6 +244,9 @@ export function AdminConsoleLive() {
   const [businessCuisineLabel, setBusinessCuisineLabel] = useState("");
   const [businessType, setBusinessType] = useState<"restaurant" | "takeaway" | "shop">("takeaway");
   const [hubNotice, setHubNotice] = useState("");
+  const [featuredOrderDrafts, setFeaturedOrderDrafts] = useState<Record<string, string>>({});
+  const [hubSearchQuery, setHubSearchQuery] = useState("");
+  const [expandedHubIds, setExpandedHubIds] = useState<string[]>([]);
 
   const [selectedHubId, setSelectedHubId] = useState("");
   const [newUserName, setNewUserName] = useState("");
@@ -265,6 +272,7 @@ export function AdminConsoleLive() {
   const [inboxNotice, setInboxNotice] = useState("");
 
   const platformUsers = useMemo(() => users.map(mapApiUserToRecord), [users]);
+  const isUltraAdmin = adminEmail.trim().toLowerCase() === ultraAdminEmail;
 
   const refreshAdminData = useCallback(
     async (token = authToken, options: { silent?: boolean } = {}) => {
@@ -315,11 +323,13 @@ export function AdminConsoleLive() {
     }
 
     const stored = window.sessionStorage.getItem(adminSessionStorageKey);
+    const storedEmail = window.sessionStorage.getItem(adminSessionEmailStorageKey);
     if (!stored) {
       return;
     }
 
     setAuthToken(stored);
+    setAdminEmail(storedEmail ?? "");
     setIsLoggedIn(true);
   }, []);
 
@@ -336,6 +346,29 @@ export function AdminConsoleLive() {
       setSelectedHubId(hubs[0].id);
     }
   }, [hubs, selectedHubId]);
+
+  useEffect(() => {
+    const nextDrafts: Record<string, string> = {};
+    hubs.forEach((hub) => {
+      nextDrafts[hub.id] = hub.homepageFeatureOrder ? String(hub.homepageFeatureOrder) : "";
+    });
+    setFeaturedOrderDrafts(nextDrafts);
+  }, [hubs]);
+
+  const visibleHubs = useMemo(() => {
+    const query = hubSearchQuery.trim().toLowerCase();
+    if (!query) {
+      return hubs;
+    }
+
+    return hubs.filter((hub) =>
+      [hub.businessName, hub.slug, hub.storeSlug, hub.hubUsername, hub.ownerName, hub.type]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(query),
+    );
+  }, [hubSearchQuery, hubs]);
 
   const metrics = useMemo(
     () => [
@@ -376,10 +409,12 @@ export function AdminConsoleLive() {
     try {
       const response = await loginToAdmin(loginEmail.trim(), loginPassword);
       setAuthToken(response.token);
+      setAdminEmail(response.admin.email);
       setIsLoggedIn(true);
       setLoginError("");
       if (typeof window !== "undefined") {
         window.sessionStorage.setItem(adminSessionStorageKey, response.token);
+        window.sessionStorage.setItem(adminSessionEmailStorageKey, response.admin.email);
       }
     } catch (error) {
       setLoginError(error instanceof Error ? error.message : "Admin sign-in failed.");
@@ -389,6 +424,7 @@ export function AdminConsoleLive() {
   const handleSignOut = () => {
     setIsLoggedIn(false);
     setAuthToken("");
+    setAdminEmail("");
     setLoginPassword("");
     setDataError("");
     setLoadState("idle");
@@ -400,6 +436,7 @@ export function AdminConsoleLive() {
     setContactMessages([]);
     if (typeof window !== "undefined") {
       window.sessionStorage.removeItem(adminSessionStorageKey);
+      window.sessionStorage.removeItem(adminSessionEmailStorageKey);
     }
   };
 
@@ -497,6 +534,79 @@ export function AdminConsoleLive() {
     } catch (error) {
       setHubNotice(error instanceof Error ? error.message : "Hub service update failed.");
     }
+  };
+
+  const getSuggestedHomepageFeatureOrder = (hub: AdminHubSummary) => {
+    const draft = Number(featuredOrderDrafts[hub.id] ?? "");
+    if (Number.isInteger(draft) && draft > 0) {
+      return draft;
+    }
+
+    if (hub.homepageFeatureOrder && hub.homepageFeatureOrder > 0) {
+      return hub.homepageFeatureOrder;
+    }
+
+    const currentMax = hubs.reduce((max, entry) => Math.max(max, entry.homepageFeatureOrder ?? 0), 0);
+    return currentMax + 1;
+  };
+
+  const handleToggleHomepageFeature = async (hub: AdminHubSummary, homepageFeatured: boolean) => {
+    if (!authToken) {
+      return;
+    }
+
+    if (homepageFeatured && (!hub.hasStore || !hub.listedOnMarketplace || !hub.acceptingOrders)) {
+      setHubNotice("Only live businesses that are accepting orders can be featured on the homepage.");
+      return;
+    }
+
+    try {
+      const nextOrder = homepageFeatured ? getSuggestedHomepageFeatureOrder(hub) : undefined;
+      await updateAdminHubLifecycle(authToken, hub.id, {
+        homepageFeatured,
+        ...(homepageFeatured ? { homepageFeatureOrder: nextOrder } : {}),
+      });
+      await refreshAdminData(authToken, { silent: true });
+      setHubNotice(
+        homepageFeatured
+          ? `${hub.businessName} is now featured on the homepage in slot ${nextOrder}.`
+          : `${hub.businessName} has been removed from the homepage featured carousel.`,
+      );
+    } catch (error) {
+      setHubNotice(error instanceof Error ? error.message : "Homepage featured update failed.");
+    }
+  };
+
+  const handleSaveHomepageFeatureOrder = async (hub: AdminHubSummary) => {
+    if (!authToken) {
+      return;
+    }
+
+    const nextOrder = Number(featuredOrderDrafts[hub.id] ?? "");
+    if (!Number.isInteger(nextOrder) || nextOrder < 1) {
+      setHubNotice("Enter a homepage feature order of 1 or more.");
+      return;
+    }
+
+    try {
+      await updateAdminHubLifecycle(authToken, hub.id, {
+        homepageFeatureOrder: nextOrder,
+      });
+      await refreshAdminData(authToken, { silent: true });
+      setHubNotice(`${hub.businessName} featured order saved as slot ${nextOrder}.`);
+    } catch (error) {
+      setHubNotice(error instanceof Error ? error.message : "Homepage feature order update failed.");
+    }
+  };
+
+  const toggleHubExpanded = (hubId: string) => {
+    setExpandedHubIds((current) => {
+      const isExpanded = current.includes(hubId);
+      if (isExpanded && expandedCourierHubId === hubId) {
+        setExpandedCourierHubId(null);
+      }
+      return isExpanded ? current.filter((id) => id !== hubId) : [...current, hubId];
+    });
   };
 
   const handleCreateUser = async () => {
@@ -703,7 +813,7 @@ export function AdminConsoleLive() {
               <section style={{ ...styles.card, padding: 28 }}>
                 <div>
                   <p style={{ margin: 0, color: "#9ae8ff", fontSize: 12, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase" }}>
-                    Admin sign-in
+                    Ultra admin sign-in
                   </p>
                   <h2 style={{ margin: "10px 0 0", fontSize: 34, lineHeight: 1.02, fontFamily: "Georgia, serif" }}>Access Hull Eats HQ</h2>
                   <p style={{ margin: "12px 0 0", color: "#9fb2c9", lineHeight: 1.7 }}>
@@ -726,7 +836,7 @@ export function AdminConsoleLive() {
                   </div>
                   <div style={{ display: "grid", gap: 12, marginTop: 20 }}>
                     <button type="button" style={{ ...styles.buttonPrimary, width: "100%" }} onClick={handleLogin}>
-                      Sign in to admin
+                      Sign in as ultra admin
                     </button>
                     <div
                       style={{
@@ -743,7 +853,7 @@ export function AdminConsoleLive() {
                         lineHeight: 1.6,
                       }}
                     >
-                      Internal admin access uses the Render bootstrap email and password.
+                      Use the master account {ultraAdminEmail} for ultra admin access. Future audit logs can trace changes back to this email.
                     </div>
                   </div>
                   {loginError ? (
@@ -805,6 +915,42 @@ export function AdminConsoleLive() {
             <p style={{ margin: "14px 0 0", color: "#9fb2c9", lineHeight: 1.7, maxWidth: 760 }}>
               Real operational view for live hubs, grouped couriers, per-hub orders, customers, and inbound support inbox.
             </p>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}>
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  minHeight: 38,
+                  padding: "0 14px",
+                  borderRadius: 999,
+                  border: "1px solid rgba(154,232,255,0.18)",
+                  background: "rgba(154,232,255,0.1)",
+                  color: "#dce9ff",
+                  fontSize: 13,
+                  fontWeight: 800,
+                }}
+              >
+                {isUltraAdmin ? "Ultra admin" : "Admin session"}
+              </span>
+              {adminEmail ? (
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    minHeight: 38,
+                    padding: "0 14px",
+                    borderRadius: 999,
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    background: "rgba(255,255,255,0.05)",
+                    color: "#dce9ff",
+                    fontSize: 13,
+                    fontWeight: 700,
+                  }}
+                >
+                  {adminEmail}
+                </span>
+              ) : null}
+            </div>
           </div>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             <button type="button" style={styles.buttonGlass} onClick={() => void refreshAdminData()}>
@@ -973,17 +1119,41 @@ export function AdminConsoleLive() {
             copy="Each hub card brings together its real status, assigned couriers, recent orders, and support volume."
           />
 
-          {hubs.length === 0 ? (
+          <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
+            <label style={{ display: "grid", gap: 8 }}>
+              <span style={{ fontWeight: 800, color: "#dce9ff" }}>Find a hub fast</span>
+              <input
+                style={styles.input}
+                value={hubSearchQuery}
+                onChange={(event) => setHubSearchQuery(event.target.value)}
+                placeholder="Search by business, slug, owner login, owner name, or type"
+              />
+            </label>
+            <p style={{ margin: 0, color: "#9fb2c9", lineHeight: 1.6 }}>
+              Showing {visibleHubs.length} of {hubs.length} hubs.
+            </p>
+          </div>
+
+          {visibleHubs.length === 0 ? (
             <div style={{ marginTop: 16 }}>
-              <EmptyState title="No hubs available yet" copy="Create a hub above or check the admin API/database connection." />
+              <EmptyState
+                title={hubs.length === 0 ? "No hubs available yet" : "No hubs match that search"}
+                copy={
+                  hubs.length === 0
+                    ? "Create a hub above or check the admin API/database connection."
+                    : "Try another business name, slug, owner login, or store type."
+                }
+              />
             </div>
           ) : (
             <div className="hub-grid" style={{ marginTop: 16 }}>
-              {hubs.map((hub) => {
+              {visibleHubs.map((hub) => {
                 const hubUsers = users.filter((user) => user.hubId === hub.id);
                 const hubOrders = orders.filter((order) => order.hubId === hub.id);
                 const hubCouriers = couriers.filter((courier) => courier.assignedStores.some((store) => store.hubId === hub.id));
                 const hubMessages = contactMessages.filter((message) => message.hubId === hub.id);
+                const canFeatureOnHomepage = hub.hasStore && hub.listedOnMarketplace && hub.acceptingOrders;
+                const hubExpanded = expandedHubIds.includes(hub.id);
 
                 return (
                   <article key={hub.id} style={{ ...styles.sectionCard, display: "grid", gap: 16 }}>
@@ -1012,9 +1182,9 @@ export function AdminConsoleLive() {
                           type="button"
                           disabled={!hub.hasStore}
                           style={{ ...styles.buttonGlass, ...(hub.hasStore ? null : { opacity: 0.55, cursor: "not-allowed" }) }}
-                          onClick={() => setExpandedCourierHubId((current) => (current === hub.id ? null : hub.id))}
+                          onClick={() => toggleHubExpanded(hub.id)}
                         >
-                          {hub.hasStore ? (expandedCourierHubId === hub.id ? "Hide add courier" : "Show more") : "Store setup needed"}
+                          {hub.hasStore ? (hubExpanded ? "Hide more" : "Show more") : "Store setup needed"}
                         </button>
                         {hub.hasStore ? (
                           <button
@@ -1034,12 +1204,25 @@ export function AdminConsoleLive() {
                             {hub.acceptingOrders ? "Stop service" : "Start service"}
                           </button>
                         ) : null}
+                        <button
+                          type="button"
+                          disabled={!canFeatureOnHomepage && !hub.homepageFeatured}
+                          style={{
+                            ...styles.buttonGlass,
+                            ...(canFeatureOnHomepage || hub.homepageFeatured ? null : { opacity: 0.55, cursor: "not-allowed" }),
+                          }}
+                          onClick={() => void handleToggleHomepageFeature(hub, !hub.homepageFeatured)}
+                        >
+                          {hub.homepageFeatured ? "Remove featured" : "Feature on homepage"}
+                        </button>
                         <button type="button" style={{ ...styles.buttonGlass, color: "#ffb7b7" }} onClick={() => void handleDeleteHub(hub.id, hub.businessName)}>
                           Delete hub
                         </button>
                       </div>
                     </div>
 
+                    {hubExpanded ? (
+                      <>
                     <div className="hub-meta-grid">
                       {[
                         { label: "Today", value: String(hub.orderVolumeToday) },
@@ -1048,6 +1231,7 @@ export function AdminConsoleLive() {
                         { label: "AOV", value: hub.averageOrderValue },
                           { label: "Listed", value: hub.listedOnMarketplace ? "Yes" : "No" },
                           { label: "Service", value: hub.acceptingOrders ? "On" : "Off" },
+                          { label: "Featured", value: hub.homepageFeatured ? `#${hub.homepageFeatureOrder ?? "?"}` : "No" },
                         { label: "Hub users", value: String(hubUsers.length) },
                         { label: "Inbox", value: String(hubMessages.length) },
                       ].map((metric) => (
@@ -1065,6 +1249,56 @@ export function AdminConsoleLive() {
                         </div>
                       ))}
                     </div>
+
+                    <section
+                      style={{
+                        borderRadius: 18,
+                        border: "1px solid rgba(255,255,255,0.1)",
+                        background: "rgba(255,255,255,0.04)",
+                        padding: 16,
+                        display: "grid",
+                        gap: 12,
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+                        <div>
+                          <strong style={{ display: "block", fontSize: 16 }}>Homepage featured carousel</strong>
+                          <p style={{ margin: "8px 0 0", color: "#9fb2c9", lineHeight: 1.6 }}>
+                            Select which live businesses appear in the swipeable featured section on the customer homepage.
+                          </p>
+                        </div>
+                        {hub.homepageFeatured ? <StatusPill value="live" /> : null}
+                      </div>
+
+                      {hub.homepageFeatured ? (
+                        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "end" }}>
+                          <label style={{ display: "grid", gap: 8, minWidth: 170 }}>
+                            <span style={{ fontWeight: 800, color: "#dce9ff" }}>Feature order</span>
+                            <input
+                              type="number"
+                              min={1}
+                              style={styles.input}
+                              value={featuredOrderDrafts[hub.id] ?? ""}
+                              onChange={(event) =>
+                                setFeaturedOrderDrafts((current) => ({
+                                  ...current,
+                                  [hub.id]: event.target.value,
+                                }))
+                              }
+                            />
+                          </label>
+                          <button type="button" style={styles.buttonPrimary} onClick={() => void handleSaveHomepageFeatureOrder(hub)}>
+                            Save order
+                          </button>
+                        </div>
+                      ) : null}
+
+                      {!canFeatureOnHomepage ? (
+                        <p style={{ margin: 0, color: "#9fb2c9", lineHeight: 1.6 }}>
+                          Only businesses that are live and accepting orders can be added to the homepage featured carousel.
+                        </p>
+                      ) : null}
+                    </section>
 
                     {hub.notes.length > 0 ? (
                       <div style={{ display: "grid", gap: 8 }}>
@@ -1246,6 +1480,8 @@ export function AdminConsoleLive() {
                         ))
                       )}
                     </section>
+                      </>
+                    ) : null}
                   </article>
                 );
               })}

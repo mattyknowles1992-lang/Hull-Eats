@@ -54,6 +54,8 @@ export const adminHubSummarySchema = z.object({
   status: adminHubStatusSchema,
   listedOnMarketplace: z.boolean().default(false),
   acceptingOrders: z.boolean().default(false),
+  homepageFeatured: z.boolean().default(false),
+  homepageFeatureOrder: z.number().int().positive().nullable().default(null),
   setupComplete: z.boolean().default(false),
   ownerName: z.string().min(1),
   orderVolumeToday: z.number().int().nonnegative(),
@@ -212,10 +214,19 @@ export const updateAdminHubLifecycleInputSchema = z
   .object({
     listedOnMarketplace: z.boolean().optional(),
     acceptingOrders: z.boolean().optional(),
+    homepageFeatured: z.boolean().optional(),
+    homepageFeatureOrder: z.number().int().positive().optional(),
   })
-  .refine((value) => value.listedOnMarketplace !== undefined || value.acceptingOrders !== undefined, {
-    message: "Provide at least one lifecycle change.",
-  });
+  .refine(
+    (value) =>
+      value.listedOnMarketplace !== undefined ||
+      value.acceptingOrders !== undefined ||
+      value.homepageFeatured !== undefined ||
+      value.homepageFeatureOrder !== undefined,
+    {
+      message: "Provide at least one lifecycle change.",
+    },
+  );
 
 export const merchantLoginInputSchema = z.object({
   username: z.string().min(1),

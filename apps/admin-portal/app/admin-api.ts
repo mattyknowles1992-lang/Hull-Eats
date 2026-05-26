@@ -5,6 +5,7 @@ export type { AdminHubSummary } from "@hull-eats/types";
 const defaultApiBaseUrl = process.env.NODE_ENV === "production" ? "https://hull-eats-api.onrender.com" : "http://localhost:4000";
 export const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL ?? defaultApiBaseUrl).replace(/\/$/, "");
 export const adminSessionStorageKey = "hull-eats-admin-session";
+export const adminSessionEmailStorageKey = "hull-eats-admin-email";
 
 export type BusinessType = "restaurant" | "takeaway" | "shop";
 export type CourierStatus = "active" | "offline" | "break" | "invited" | "disabled";
@@ -255,6 +256,8 @@ export async function updateAdminHubLifecycle(
   input: {
     listedOnMarketplace?: boolean;
     acceptingOrders?: boolean;
+    homepageFeatured?: boolean;
+    homepageFeatureOrder?: number;
   },
 ): Promise<{ hub: AdminHubSummary }> {
   const response = await authedFetch(`/v1/admin/hubs/${encodeURIComponent(hubId)}/lifecycle`, token, {

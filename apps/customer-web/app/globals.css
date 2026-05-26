@@ -2836,6 +2836,30 @@ button.filter-pill {
   gap: 16px;
 }
 
+.featured-store-section {
+  margin-top: 18px;
+}
+
+.featured-store-rail {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  padding: 4px 4px 8px;
+  scrollbar-width: none;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: 4px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.featured-store-rail::-webkit-scrollbar {
+  display: none;
+}
+
+.featured-store-card {
+  flex: 0 0 min(360px, calc(100vw - 48px));
+  scroll-snap-align: start;
+}
+
 .store-card {
   overflow: hidden;
   border-radius: 30px;
