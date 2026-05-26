@@ -41,7 +41,7 @@ export class CustomerRegistryService {
         s.free_delivery_active,
         coalesce(s.admin_override, false) as admin_override,
         coalesce(cp.manual_review_required, false) as manual_review_required,
-        count(cae.id) as moderation_note_count
+        coalesce(notes.moderation_note_count, 0) as moderation_note_count
       from public.customer_profiles cp
       left join public.customer_addresses ca on ca.id = cp.default_address_id
       left join lateral (
@@ -51,8 +51,11 @@ export class CustomerRegistryService {
         order by s.created_at desc
         limit 1
       ) s on true
-      left join public.customer_account_events cae on cae.customer_profile_id = cp.id
-      group by cp.id, ca.id, s.id
+      left join lateral (
+        select count(*)::bigint as moderation_note_count
+        from public.customer_account_events cae
+        where cae.customer_profile_id = cp.id
+      ) notes on true
       order by cp.created_at desc
       limit 500
     `;

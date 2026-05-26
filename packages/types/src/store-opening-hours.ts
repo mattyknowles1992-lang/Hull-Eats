@@ -128,15 +128,19 @@ const isWithinDayWindow = (nowMinutes: number, openMinutes: number, closeMinutes
 
 const isOvernightWindow = (openMinutes: number, closeMinutes: number) => closeMinutes <= openMinutes;
 
-/** When no hours are saved yet, treat schedule as permissive (marketplace LIVE flag still applies). */
+/** Customer-facing availability should only show open when a real schedule is configured. */
 export const isStoreOpenInEuropeLondon = (
   openingHours: StoreOpeningHours | undefined,
   at?: Date,
 ): boolean => {
+  if (!openingHours || openingHours.length === 0) {
+    return false;
+  }
+
   const hours = normalizeOpeningHours(openingHours ?? []);
   const configured = hours.filter((day) => day.isOpen);
   if (configured.length === 0) {
-    return true;
+    return false;
   }
 
   const { dayOfWeek, minutes } = getEuropeLondonNow(at);

@@ -43,6 +43,14 @@ function getStoreStatus(storefrontStatus: string, isOpen: boolean) {
   return "Open now";
 }
 
+function getStoreStatusTone(storefrontStatus: string, isOpen: boolean) {
+  if (storefrontStatus === "onboarding") {
+    return "pending";
+  }
+
+  return isOpen ? "accepted" : "rejected";
+}
+
 function getDistanceKm(from: Coordinates, to: Coordinates) {
   const earthRadiusKm = 6371;
   const toRadians = (value: number) => (value * Math.PI) / 180;
@@ -363,12 +371,9 @@ export default function CustomerHomePage() {
             </p>
           </div>
           <div className="search-highlight-card live-menu-card">
-            <span className="search-highlight-label">Featured kitchen</span>
-            <strong>Loaded Munch</strong>
-            <p>A live example of how every local business can show its menu, options, delivery, and checkout.</p>
-            <Link href="/stores/loaded-munch-hull" className="primary-button gold-button" style={{ width: "100%" }}>
-              View the menu
-            </Link>
+            <span className="search-highlight-label">Live hub data</span>
+            <strong>One live listing per store</strong>
+            <p>Stores now appear here from the real hub setup, live status, order toggle, and opening hours.</p>
           </div>
         </div>
 
@@ -411,7 +416,9 @@ export default function CustomerHomePage() {
                   }}
                 >
                   <div className="store-card-overlay">
-                    <span className="status-chip pending">{getStoreStatus(store.storefrontStatus, store.isOpen)}</span>
+                    <span className={`status-chip ${getStoreStatusTone(store.storefrontStatus, store.isOpen)}`}>
+                      {getStoreStatus(store.storefrontStatus, store.isOpen)}
+                    </span>
                   </div>
                 </div>
 
@@ -446,7 +453,8 @@ export default function CustomerHomePage() {
                 <div className="store-card-body">
                   <h3>No stores available right now</h3>
                   <p className="store-copy">
-                    Businesses appear here only while they are live, accepting orders, and inside their opening hours.
+                    Businesses appear here once they are live on Hull Eats. Closed stores stay visible with their current
+                    status until they reopen.
                   </p>
                 </div>
               </article>

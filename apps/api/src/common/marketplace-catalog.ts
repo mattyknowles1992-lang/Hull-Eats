@@ -119,7 +119,6 @@ const mapStoreRow = (
   },
   openingHours?: StoreOpeningHours,
 ): StoreSummary => {
-  const marketplaceLive = store.isActive && store.storefrontStatus === "LIVE";
   const takingOrdersNow = isStoreTakingOrdersNow(openingHours, store.storefrontStatus === "LIVE", store.isActive);
 
   return {
@@ -132,7 +131,7 @@ const mapStoreRow = (
     addressLine1: store.addressLine1,
     city: store.city,
     postcode: store.postcode,
-    isOpen: marketplaceLive && takingOrdersNow,
+    isOpen: takingOrdersNow,
     cuisineLabel: store.cuisineLabel ?? undefined,
     heroImageUrl: store.heroImageUrl ?? undefined,
     etaMinutes: store.etaMinutes ?? undefined,
@@ -182,7 +181,7 @@ export const findLiveMarketplaceStore = async (slugOrId: string): Promise<StoreS
   }
 
   const mapped = mapStoreRow(store, mapStoreOpeningHoursFromRows(store.storeHours));
-  return mapped.isOpen ? mapped : null;
+  return mapped;
 };
 
 export const resolveMarketplaceStore = async (slugOrId: string): Promise<StoreSummary> => {
@@ -216,9 +215,7 @@ export const listLiveMarketplaceStores = async (): Promise<StoreSummary[]> => {
     return demoStores;
   }
 
-  return stores
-    .map((store) => mapStoreRow(store, mapStoreOpeningHoursFromRows(store.storeHours)))
-    .filter((store) => store.isOpen);
+  return stores.map((store) => mapStoreRow(store, mapStoreOpeningHoursFromRows(store.storeHours)));
 };
 
 export const findLiveMarketplaceMenu = async (slugOrId: string): Promise<MarketplaceMenu | null> => {
@@ -248,11 +245,6 @@ export const findLiveMarketplaceMenu = async (slugOrId: string): Promise<Marketp
   });
 
   if (!store) {
-    return null;
-  }
-
-  const mappedStore = mapStoreRow(store, mapStoreOpeningHoursFromRows(store.storeHours));
-  if (!mappedStore.isOpen) {
     return null;
   }
 

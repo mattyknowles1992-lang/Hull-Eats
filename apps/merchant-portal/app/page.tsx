@@ -1326,7 +1326,7 @@ export default function MerchantPortalPage() {
         const qrCodeImage = qrCodeData
           ? `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=8&data=${encodeURIComponent(qrCodeData)}`
           : "";
-        const logoUrl = `${customerWebBaseUrl}/brand/hull-eats-logo.png`;
+        const logoUrl = `${customerWebBaseUrl}/brand/hull-eats-logo.jpeg`;
         receiptWindow.document.open();
         receiptWindow.document.write(`
           <html>

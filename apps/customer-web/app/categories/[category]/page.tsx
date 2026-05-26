@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import type { StoreSummary } from "@hull-eats/types";
 import { deliveryFeeFromForStorefront } from "@hull-eats/types";
 
 import { AppSwitcher } from "../../app-switcher";
 import { featuredStores, storeMenus } from "../../../src/lib/demo";
+import { fetchMarketplaceStores } from "../../../src/lib/marketplace";
 import {
   getMarketplaceCategory,
   marketplaceCategories,
@@ -17,16 +19,15 @@ export function generateStaticParams() {
   return marketplaceCategories.map((category) => ({ category: category.slug }));
 }
 
-function getSearchableStoreText(storeSlug: string) {
-  const store = featuredStores.find((entry) => entry.slug === storeSlug);
-  const menu = storeMenus[storeSlug];
+function getSearchableStoreText(store: StoreSummary) {
+  const menu = storeMenus[store.slug];
 
   return [
-    store?.name,
-    store?.type,
-    store?.city,
-    store?.cuisineLabel,
-    store?.onboardingMessage,
+    store.name,
+    store.type,
+    store.city,
+    store.cuisineLabel,
+    store.onboardingMessage,
     menu?.headline,
     ...(menu?.categories.map((category) => `${category.name} ${category.description ?? ""}`) ?? []),
     ...(menu?.items.map((item) => `${item.name} ${item.description ?? ""}`) ?? []),
@@ -46,6 +47,22 @@ function getSubcategoryMatchCount(categorySlug: string, subcategory: Marketplace
   return menu.items.filter((item) => textMatchesMarketplaceSubcategory(`${item.name} ${item.description}`.toLowerCase(), subcategory)).length;
 }
 
+function getStoreStatus(storefrontStatus: string, isOpen: boolean) {
+  if (storefrontStatus === "onboarding") {
+    return "Onboarding";
+  }
+
+  return isOpen ? "Open now" : "Closed";
+}
+
+function getStoreStatusTone(storefrontStatus: string, isOpen: boolean) {
+  if (storefrontStatus === "onboarding") {
+    return "pending";
+  }
+
+  return isOpen ? "accepted" : "rejected";
+}
+
 export default async function CategoryPage({ params }: { params: Promise<{ category: string }> }) {
   const resolvedParams = await params;
   const category = getMarketplaceCategory(resolvedParams.category);
@@ -54,9 +71,8 @@ export default async function CategoryPage({ params }: { params: Promise<{ categ
     notFound();
   }
 
-  const matchingStores = featuredStores.filter((store) =>
-    storeMatchesMarketplaceCategory(store, category, getSearchableStoreText(store.slug)),
-  );
+  const liveStores = (await fetchMarketplaceStores()) ?? featuredStores;
+  const matchingStores = liveStores.filter((store) => storeMatchesMarketplaceCategory(store, category, getSearchableStoreText(store)));
   const visibleSubcategories = category.subcategories.slice(0, 4);
   const extraSubcategories = category.subcategories.slice(4);
   const categoryHeading = category.slug === "takeaways" ? "Takeaway categories" : `${category.label} categories`;
@@ -190,7 +206,9 @@ export default async function CategoryPage({ params }: { params: Promise<{ categ
                   }}
                 >
                   <div className="store-card-overlay">
-                    <span className="status-chip pending">{store.isOpen ? "Open" : "Opening soon"}</span>
+                    <span className={`status-chip ${getStoreStatusTone(store.storefrontStatus, store.isOpen)}`}>
+                      {getStoreStatus(store.storefrontStatus, store.isOpen)}
+                    </span>
                   </div>
                 </div>
                 <div className="store-card-body">

@@ -16,7 +16,7 @@ export function SiteFooter() {
       <div className="site-footer-inner">
         <div className="site-footer-brand">
           <img
-            src="/brand/hull-eats-logo.png"
+            src="/brand/hull-eats-logo.jpeg"
             alt="Hull Eats"
             width={48}
             height={48}
