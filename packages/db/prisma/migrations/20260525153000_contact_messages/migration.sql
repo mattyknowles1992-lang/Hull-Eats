@@ -53,9 +53,16 @@ DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint WHERE conname = 'contact_messages_customer_profile_id_fkey'
+  ) AND EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'customer_profiles'
+      AND column_name = 'id'
+      AND data_type = 'text'
   ) THEN
     ALTER TABLE "contact_messages"
       ADD CONSTRAINT "contact_messages_customer_profile_id_fkey"
-      FOREIGN KEY ("customer_profile_id") REFERENCES "CustomerProfile"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+      FOREIGN KEY ("customer_profile_id") REFERENCES public.customer_profiles("id") ON DELETE SET NULL ON UPDATE CASCADE;
   END IF;
 END $$;

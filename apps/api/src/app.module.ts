@@ -17,6 +17,8 @@ import { CourierRegistryService } from "./common/courier-registry.service";
 import { CustomerNotificationsService } from "./common/customer-notifications.service";
 import { CustomerRegistryService } from "./common/customer-registry.service";
 import { ContactMessagesService } from "./common/contact-messages.service";
+import { MerchantPasswordResetDeliveryService } from "./common/merchant-password-reset-delivery.service";
+import { MerchantPasswordResetService } from "./common/merchant-password-reset.service";
 import { OrderLifecycleService } from "./common/order-lifecycle.service";
 
 @Module({
@@ -40,6 +42,8 @@ import { OrderLifecycleService } from "./common/order-lifecycle.service";
     CustomerNotificationsService,
     CustomerRegistryService,
     ContactMessagesService,
+    MerchantPasswordResetDeliveryService,
+    MerchantPasswordResetService,
     OrderLifecycleService,
   ],
 })

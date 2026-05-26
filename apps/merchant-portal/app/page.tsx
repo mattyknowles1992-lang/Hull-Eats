@@ -7,6 +7,9 @@ import type {
   HubSettings,
   HubUser,
   MembershipRole,
+  MerchantPasswordResetCompleteResult,
+  MerchantPasswordResetRequestResult,
+  MerchantPasswordResetVerifyResult,
   MerchantWorkspace,
   MenuItem,
   OrderSummary,
@@ -101,6 +104,7 @@ const merchantSessionStorageKey = "hull-eats-merchant-session";
 const merchantLastLoginEmailKey = "hull-eats-merchant-last-login-email";
 
 type MerchantBootStatus = "checking" | "login" | "hub";
+type MerchantLoginView = "sign_in" | "forgot_password";
 
 type MerchantLoginResponse = {
   token: string;
@@ -299,6 +303,70 @@ async function loginToHub(usernameOrEmail: string, password: string): Promise<Me
   }
 
   return (await response.json()) as MerchantLoginResponse;
+}
+
+async function readMerchantError(response: Response, fallback: string) {
+  try {
+    const body = (await response.json()) as { message?: string | string[] };
+    if (Array.isArray(body.message)) {
+      return body.message.join(", ");
+    }
+    if (typeof body.message === "string" && body.message.trim()) {
+      return body.message;
+    }
+  } catch {
+    // Ignore JSON parsing problems and fall back to the status-based message.
+  }
+
+  return `${fallback} (${response.status})`;
+}
+
+async function requestHubPasswordReset(email: string): Promise<MerchantPasswordResetRequestResult> {
+  const response = await fetch(`${apiBaseUrl}/v1/merchant/auth/password-reset/request`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ email }),
+  });
+
+  if (!response.ok) {
+    throw new Error(await readMerchantError(response, "Password reset request failed"));
+  }
+
+  return (await response.json()) as MerchantPasswordResetRequestResult;
+}
+
+async function verifyHubPasswordReset(email: string, code: string): Promise<MerchantPasswordResetVerifyResult> {
+  const response = await fetch(`${apiBaseUrl}/v1/merchant/auth/password-reset/verify`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ email, code }),
+  });
+
+  if (!response.ok) {
+    throw new Error(await readMerchantError(response, "Code verification failed"));
+  }
+
+  return (await response.json()) as MerchantPasswordResetVerifyResult;
+}
+
+async function completeHubPasswordReset(email: string, code: string): Promise<MerchantPasswordResetCompleteResult> {
+  const response = await fetch(`${apiBaseUrl}/v1/merchant/auth/password-reset/complete`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ email, code }),
+  });
+
+  if (!response.ok) {
+    throw new Error(await readMerchantError(response, "Password reset completion failed"));
+  }
+
+  return (await response.json()) as MerchantPasswordResetCompleteResult;
 }
 
 async function fetchWorkspace(token: string, hubId: string) {
@@ -692,8 +760,15 @@ export default function MerchantPortalPage() {
   const [selectedImportImageName, setSelectedImportImageName] = useState("");
   const [pastedMenuText, setPastedMenuText] = useState("");
   const [bootStatus, setBootStatus] = useState<MerchantBootStatus>("checking");
+  const [loginView, setLoginView] = useState<MerchantLoginView>("sign_in");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState("");
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetCode, setResetCode] = useState("");
+  const [resetNotice, setResetNotice] = useState("");
+  const [resetCodePreview, setResetCodePreview] = useState("");
+  const [resetCodeVerified, setResetCodeVerified] = useState(false);
+  const [isSubmittingReset, setIsSubmittingReset] = useState(false);
   const [saveNotice, setSaveNotice] = useState("");
   const [savedHubSnapshot, setSavedHubSnapshot] = useState<HubWorkspaceSnapshot | null>(null);
   const [userNotice, setUserNotice] = useState("");
@@ -1143,6 +1218,16 @@ export default function MerchantPortalPage() {
       sectionId: firstCustomer?.id ?? "",
     }));
 
+    if (user?.mustChangePassword) {
+      setActiveHubSection("users");
+      setActiveHubPanel("account");
+      setPasswordForm((current) => ({
+        ...current,
+        currentPassword: current.currentPassword || "letmein",
+      }));
+      setPasswordNotice("Your login was reset to a temporary password. Change it now to keep this hub secure.");
+    }
+
     menuWorkspaceReadyRef.current = true;
   };
 
@@ -1311,6 +1396,7 @@ export default function MerchantPortalPage() {
     const lastEmail = window.localStorage.getItem(merchantLastLoginEmailKey);
     if (lastEmail) {
       setLoginUsername(lastEmail);
+      setResetEmail(lastEmail);
     }
 
     const storedSession = window.localStorage.getItem(merchantSessionStorageKey);
@@ -1389,7 +1475,11 @@ export default function MerchantPortalPage() {
       setMerchantToken(response.token);
       applyWorkspace(response.workspace, response.user);
       setBootStatus("hub");
+      setLoginView("sign_in");
       setLoginPassword("");
+      setResetNotice("");
+      setResetCodePreview("");
+      setResetCodeVerified(false);
       setSaveNotice("");
       setUserNotice("");
       setMenuNotice("");
@@ -1404,9 +1494,84 @@ export default function MerchantPortalPage() {
     }
   };
 
+  const handleRequestPasswordReset = async () => {
+    if (!resetEmail.trim()) {
+      setResetNotice("Enter the hub login email first.");
+      return;
+    }
+
+    setIsSubmittingReset(true);
+    setResetNotice("");
+
+    try {
+      const response = await requestHubPasswordReset(resetEmail.trim().toLowerCase());
+      setResetCode("");
+      setResetCodeVerified(false);
+      setResetCodePreview(response.debugCode ?? "");
+      setResetNotice(
+        response.deliveryMode === "preview"
+          ? "Reset code generated. Use the preview code below while email delivery is still being wired."
+          : "If that email belongs to a hub user, a reset code has been prepared.",
+      );
+    } catch (error) {
+      setResetNotice(error instanceof Error ? error.message : "Could not request a password reset.");
+    } finally {
+      setIsSubmittingReset(false);
+    }
+  };
+
+  const handleVerifyPasswordReset = async () => {
+    if (!resetEmail.trim() || !resetCode.trim()) {
+      setResetNotice("Enter both the hub email and the 6-digit code.");
+      return;
+    }
+
+    setIsSubmittingReset(true);
+    setResetNotice("");
+
+    try {
+      await verifyHubPasswordReset(resetEmail.trim().toLowerCase(), resetCode.trim());
+      setResetCodeVerified(true);
+      setResetNotice("Code verified. You can now reset this hub login to the temporary password.");
+    } catch (error) {
+      setResetCodeVerified(false);
+      setResetNotice(error instanceof Error ? error.message : "Code verification failed.");
+    } finally {
+      setIsSubmittingReset(false);
+    }
+  };
+
+  const handleCompletePasswordReset = async () => {
+    if (!resetCodeVerified) {
+      setResetNotice("Verify the code before resetting this login.");
+      return;
+    }
+
+    setIsSubmittingReset(true);
+    setResetNotice("");
+
+    try {
+      const response = await completeHubPasswordReset(resetEmail.trim().toLowerCase(), resetCode.trim());
+      setLoginView("sign_in");
+      setLoginUsername(response.loginEmail);
+      setResetEmail(response.loginEmail);
+      setLoginPassword(response.temporaryPassword);
+      setResetCode("");
+      setResetCodeVerified(false);
+      setResetCodePreview("");
+      setLoginError("");
+      setResetNotice(`Login reset complete. Sign in with ${response.loginEmail} and temporary password ${response.temporaryPassword}.`);
+    } catch (error) {
+      setResetNotice(error instanceof Error ? error.message : "Password reset failed.");
+    } finally {
+      setIsSubmittingReset(false);
+    }
+  };
+
   const handleSignOut = () => {
     window.localStorage.removeItem(merchantSessionStorageKey);
     setBootStatus("login");
+    setLoginView("sign_in");
     setMerchantToken("");
     setLoginPassword("");
     setActiveHubId("");
@@ -1427,6 +1592,10 @@ export default function MerchantPortalPage() {
     setMenuNotice("");
     setPasswordNotice("");
     setOrderNotice("");
+    setResetCode("");
+    setResetCodePreview("");
+    setResetCodeVerified(false);
+    setResetNotice("");
   };
 
   const handleChangePassword = async () => {
@@ -1445,10 +1614,27 @@ export default function MerchantPortalPage() {
     }
 
     try {
-      await changeHubPassword(merchantToken, activeHubId, {
+      const response = await changeHubPassword(merchantToken, activeHubId, {
         currentPassword: passwordForm.currentPassword,
         newPassword: passwordForm.newPassword,
       });
+      setActiveUser(response.user);
+      setHubUsers((current) => current.map((user) => (user.id === response.user.id ? response.user : user)));
+      const storedSession = window.localStorage.getItem(merchantSessionStorageKey);
+      if (storedSession) {
+        try {
+          const parsed = JSON.parse(storedSession) as StoredMerchantSession;
+          window.localStorage.setItem(
+            merchantSessionStorageKey,
+            JSON.stringify({
+              ...parsed,
+              user: response.user,
+            } satisfies StoredMerchantSession),
+          );
+        } catch {
+          // Ignore stale local session parsing problems.
+        }
+      }
       setPasswordForm(initialPasswordFormState);
       setPasswordNotice("Password changed. This browser will stay signed in until you sign out or the session expires.");
     } catch (error) {
@@ -1996,51 +2182,130 @@ export default function MerchantPortalPage() {
               </p>
             ) : (
               <>
-                <p style={{ marginTop: 12, color: "#5c6573", fontWeight: 700, lineHeight: 1.45 }}>
-                  Your sign-in stays saved on this device for 30 days. You only need your password again if you signed out or the session
-                  expired.
-                </p>
-                <div style={{ display: "grid", gap: 14, marginTop: 18 }}>
-                  <label style={field}>
-                    <span style={darkFieldLabel}>Email or username</span>
-                    <input
-                      style={lightInput}
-                      value={loginUsername}
-                      onChange={(event) => setLoginUsername(event.target.value)}
-                      autoComplete="username email"
-                      disabled={isLoggingIn}
-                    />
-                  </label>
-                  <label style={field}>
-                    <span style={darkFieldLabel}>Password</span>
-                    <span style={passwordFieldWrap}>
-                      <input
-                        type={showLoginPassword ? "text" : "password"}
-                        style={{ ...lightInput, paddingRight: 88 }}
-                        value={loginPassword}
-                        onChange={(event) => setLoginPassword(event.target.value)}
-                        autoComplete="current-password"
-                        disabled={isLoggingIn}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            event.preventDefault();
-                            void handleLogin();
-                          }
-                        }}
-                      />
-                      <button type="button" style={passwordRevealButton} onClick={() => setShowLoginPassword((current) => !current)}>
-                        {showLoginPassword ? "Hide" : "Show"}
+                {loginView === "sign_in" ? (
+                  <>
+                    <p style={{ marginTop: 12, color: "#5c6573", fontWeight: 700, lineHeight: 1.45 }}>
+                      Your sign-in stays saved on this device for 30 days. You only need your password again if you signed out or the session
+                      expired.
+                    </p>
+                    <div style={{ display: "grid", gap: 14, marginTop: 18 }}>
+                      <label style={field}>
+                        <span style={darkFieldLabel}>Email or username</span>
+                        <input
+                          style={lightInput}
+                          value={loginUsername}
+                          onChange={(event) => setLoginUsername(event.target.value)}
+                          autoComplete="username email"
+                          disabled={isLoggingIn}
+                        />
+                      </label>
+                      <label style={field}>
+                        <span style={darkFieldLabel}>Password</span>
+                        <span style={passwordFieldWrap}>
+                          <input
+                            type={showLoginPassword ? "text" : "password"}
+                            style={{ ...lightInput, paddingRight: 88 }}
+                            value={loginPassword}
+                            onChange={(event) => setLoginPassword(event.target.value)}
+                            autoComplete="current-password"
+                            disabled={isLoggingIn}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                void handleLogin();
+                              }
+                            }}
+                          />
+                          <button type="button" style={passwordRevealButton} onClick={() => setShowLoginPassword((current) => !current)}>
+                            {showLoginPassword ? "Hide" : "Show"}
+                          </button>
+                        </span>
+                      </label>
+                      <button type="button" style={primaryButton} onClick={() => void handleLogin()} disabled={isLoggingIn}>
+                        {isLoggingIn ? "Opening hub…" : "Open hub"}
                       </button>
-                    </span>
-                  </label>
-                  <button type="button" style={primaryButton} onClick={() => void handleLogin()} disabled={isLoggingIn}>
-                    {isLoggingIn ? "Opening hub…" : "Open hub"}
-                  </button>
-                </div>
+                      <button
+                        type="button"
+                        style={{ ...secondaryButton, justifyContent: "center" }}
+                        onClick={() => {
+                          setLoginView("forgot_password");
+                          setResetEmail((current) => current || loginUsername.trim());
+                          setResetNotice("");
+                          setResetCode("");
+                          setResetCodePreview("");
+                          setResetCodeVerified(false);
+                        }}
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p style={{ marginTop: 12, color: "#5c6573", fontWeight: 700, lineHeight: 1.45 }}>
+                      Verify the hub email with a 6-digit code, then reset the login back to the temporary password so the owner can sign in
+                      and change it straight away.
+                    </p>
+                    <div style={{ display: "grid", gap: 14, marginTop: 18 }}>
+                      <label style={field}>
+                        <span style={darkFieldLabel}>Hub login email</span>
+                        <input
+                          style={lightInput}
+                          type="email"
+                          value={resetEmail}
+                          onChange={(event) => setResetEmail(event.target.value)}
+                          autoComplete="email"
+                          disabled={isSubmittingReset}
+                        />
+                      </label>
+                      <button type="button" style={primaryButton} onClick={() => void handleRequestPasswordReset()} disabled={isSubmittingReset}>
+                        {isSubmittingReset ? "Requesting code…" : "Send reset code"}
+                      </button>
+                      <label style={field}>
+                        <span style={darkFieldLabel}>6-digit code</span>
+                        <input
+                          style={lightInput}
+                          inputMode="numeric"
+                          maxLength={6}
+                          value={resetCode}
+                          onChange={(event) => setResetCode(event.target.value.replace(/\D+/g, "").slice(0, 6))}
+                          disabled={isSubmittingReset}
+                        />
+                      </label>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
+                        <button type="button" style={secondaryButton} onClick={() => void handleVerifyPasswordReset()} disabled={isSubmittingReset}>
+                          Verify code
+                        </button>
+                        <button
+                          type="button"
+                          style={primaryButton}
+                          onClick={() => void handleCompletePasswordReset()}
+                          disabled={isSubmittingReset || !resetCodeVerified}
+                        >
+                          Reset login to letmein
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        style={{ ...secondaryButton, justifyContent: "center" }}
+                        onClick={() => {
+                          setLoginView("sign_in");
+                          setResetNotice("");
+                        }}
+                      >
+                        Back to sign in
+                      </button>
+                    </div>
+                  </>
+                )}
               </>
             )}
 
             {loginError ? <p className="he-hub-banner he-hub-banner--error">{loginError}</p> : null}
+            {resetNotice ? <p className="he-hub-banner">{resetNotice}</p> : null}
+            {resetCodePreview && loginView === "forgot_password" ? (
+              <p className="he-hub-banner">Preview code: {resetCodePreview}</p>
+            ) : null}
           </section>
         </section>
       </main>

@@ -12,7 +12,7 @@ import { menuItemSchema, storeTypeSchema, storefrontStatusSchema } from "./catal
 import { membershipRoleSchema } from "./rbac";
 import { normalizeOpeningHours, storeOpeningHoursSchema, type StoreOpeningHours } from "./store-opening-hours";
 
-export const hubUserStatusSchema = z.enum(["active", "invited"]);
+export const hubUserStatusSchema = z.enum(["active", "invited", "disabled"]);
 
 export const hubActiveOrderSchema = z.object({
   id: z.string().min(1),
@@ -39,6 +39,31 @@ export const hubSummarySchema = z.object({
   notes: z.array(z.string().min(1)).default([]),
 });
 
+export const adminHubStatusSchema = z.enum(["setup", "live", "paused"]);
+
+export const adminHubSummarySchema = z.object({
+  id: z.string().min(1),
+  businessName: z.string().min(1),
+  slug: z.string().min(1),
+  hasStore: z.boolean().default(false),
+  primaryStoreId: z.string().min(1).nullable().default(null),
+  type: storeTypeSchema.nullable().default(null),
+  storeSlug: z.string().min(1).nullable().default(null),
+  hubUsername: z.string().default(""),
+  deliveryLeadTime: z.string().nullable().default(null),
+  status: adminHubStatusSchema,
+  listedOnMarketplace: z.boolean().default(false),
+  acceptingOrders: z.boolean().default(false),
+  setupComplete: z.boolean().default(false),
+  ownerName: z.string().min(1),
+  orderVolumeToday: z.number().int().nonnegative(),
+  orderVolumeWeek: z.number().int().nonnegative(),
+  grossSalesWeek: z.string().min(1),
+  averageOrderValue: z.string().min(1),
+  activeOrders: z.array(hubActiveOrderSchema).default([]),
+  notes: z.array(z.string().min(1)).default([]),
+});
+
 export const hubUserSchema = z.object({
   id: z.string().min(1),
   hubId: z.string().min(1),
@@ -47,6 +72,7 @@ export const hubUserSchema = z.object({
   username: z.string().min(1),
   role: membershipRoleSchema,
   status: hubUserStatusSchema.default("active"),
+  mustChangePassword: z.boolean().default(false),
 });
 
 export const hubSettingsSchema = z.object({
@@ -166,6 +192,12 @@ export const createHubInputSchema = z.object({
   businessName: z.string().min(1),
   ownerEmail: z.string().email(),
   hubPassword: z.string().min(1),
+  businessPhone: z.string().default(""),
+  addressLine1: z.string().default(""),
+  city: z.string().default("Hull"),
+  postcode: z.string().default(""),
+  cuisineLabel: z.string().default(""),
+  storeType: storeTypeSchema.default("takeaway"),
 });
 
 export const createHubUserInputSchema = z.object({
@@ -176,9 +208,50 @@ export const createHubUserInputSchema = z.object({
   role: membershipRoleSchema,
 });
 
+export const updateAdminHubLifecycleInputSchema = z
+  .object({
+    listedOnMarketplace: z.boolean().optional(),
+    acceptingOrders: z.boolean().optional(),
+  })
+  .refine((value) => value.listedOnMarketplace !== undefined || value.acceptingOrders !== undefined, {
+    message: "Provide at least one lifecycle change.",
+  });
+
 export const merchantLoginInputSchema = z.object({
   username: z.string().min(1),
   password: z.string().min(1),
+});
+
+export const merchantPasswordResetCodeSchema = z.string().regex(/^\d{6}$/, "Enter the 6-digit code.");
+
+export const merchantPasswordResetRequestInputSchema = z.object({
+  email: z.string().email(),
+});
+
+export const merchantPasswordResetVerifyInputSchema = z.object({
+  email: z.string().email(),
+  code: merchantPasswordResetCodeSchema,
+});
+
+export const merchantPasswordResetCompleteInputSchema = z.object({
+  email: z.string().email(),
+  code: merchantPasswordResetCodeSchema,
+});
+
+export const merchantPasswordResetRequestResultSchema = z.object({
+  accepted: z.boolean(),
+  deliveryMode: z.enum(["stub", "preview", "email"]).default("stub"),
+  debugCode: z.string().optional(),
+});
+
+export const merchantPasswordResetVerifyResultSchema = z.object({
+  verified: z.boolean(),
+});
+
+export const merchantPasswordResetCompleteResultSchema = z.object({
+  reset: z.boolean(),
+  loginEmail: z.string().email(),
+  temporaryPassword: z.string().min(1),
 });
 
 export const changeHubPasswordInputSchema = z.object({
@@ -319,6 +392,8 @@ export const applyMenuImportInputSchema = z.object({
 
 export type HubActiveOrder = z.infer<typeof hubActiveOrderSchema>;
 export type HubSummary = z.infer<typeof hubSummarySchema>;
+export type AdminHubStatus = z.infer<typeof adminHubStatusSchema>;
+export type AdminHubSummary = z.infer<typeof adminHubSummarySchema>;
 export type HubUser = z.infer<typeof hubUserSchema>;
 export type HubSettings = z.infer<typeof hubSettingsSchema>;
 export type HubMenuSection = z.infer<typeof hubMenuSectionSchema>;
@@ -327,7 +402,14 @@ export type HubMenuImportBatch = z.infer<typeof hubMenuImportBatchSchema>;
 export type MerchantWorkspace = z.infer<typeof merchantWorkspaceSchema>;
 export type CreateHubInput = z.infer<typeof createHubInputSchema>;
 export type CreateHubUserInput = z.infer<typeof createHubUserInputSchema>;
+export type UpdateAdminHubLifecycleInput = z.infer<typeof updateAdminHubLifecycleInputSchema>;
 export type MerchantLoginInput = z.infer<typeof merchantLoginInputSchema>;
+export type MerchantPasswordResetRequestInput = z.infer<typeof merchantPasswordResetRequestInputSchema>;
+export type MerchantPasswordResetVerifyInput = z.infer<typeof merchantPasswordResetVerifyInputSchema>;
+export type MerchantPasswordResetCompleteInput = z.infer<typeof merchantPasswordResetCompleteInputSchema>;
+export type MerchantPasswordResetRequestResult = z.infer<typeof merchantPasswordResetRequestResultSchema>;
+export type MerchantPasswordResetVerifyResult = z.infer<typeof merchantPasswordResetVerifyResultSchema>;
+export type MerchantPasswordResetCompleteResult = z.infer<typeof merchantPasswordResetCompleteResultSchema>;
 export type ChangeHubPasswordInput = z.infer<typeof changeHubPasswordInputSchema>;
 export type CreateHubMenuSectionInput = z.infer<typeof createHubMenuSectionInputSchema>;
 export type CreateHubMenuItemInput = z.infer<typeof createHubMenuItemInputSchema>;

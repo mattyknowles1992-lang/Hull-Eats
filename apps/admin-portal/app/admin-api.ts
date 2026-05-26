@@ -1,4 +1,6 @@
-import type { ContactMessageRecord, OrderSummary } from "@hull-eats/types";
+import type { AdminHubSummary, ContactMessageRecord, OrderSummary } from "@hull-eats/types";
+
+export type { AdminHubSummary } from "@hull-eats/types";
 
 const defaultApiBaseUrl = process.env.NODE_ENV === "production" ? "https://hull-eats-api.onrender.com" : "http://localhost:4000";
 export const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL ?? defaultApiBaseUrl).replace(/\/$/, "");
@@ -7,33 +9,6 @@ export const adminSessionStorageKey = "hull-eats-admin-session";
 export type BusinessType = "restaurant" | "takeaway" | "shop";
 export type CourierStatus = "active" | "offline" | "break" | "invited" | "disabled";
 export type PlatformRole = "platform_admin" | "platform_staff" | "business_owner" | "business_manager";
-
-type ApiAdminHubSummary = {
-  id: string;
-  businessName: string;
-  slug: string;
-  type: BusinessType;
-  hubUsername: string;
-  deliveryLeadTime: string;
-  status: "live" | "onboarding" | "paused";
-  ownerName: string;
-  orderVolumeToday: number;
-  orderVolumeWeek: number;
-  grossSalesWeek: string;
-  averageOrderValue: string;
-  activeOrders: Array<{
-    id: string;
-    customerName: string;
-    status: string;
-    total: string;
-    placedAgo: string;
-  }>;
-  notes: string[];
-};
-
-export type AdminHubSummary = Omit<ApiAdminHubSummary, "status"> & {
-  status: "live" | "setup" | "paused";
-};
 
 export type AdminHubUserSummary = {
   id: string;
@@ -73,7 +48,7 @@ export type AdminLoginResponse = {
 };
 
 export type AdminCreateHubResponse = {
-  hub: ApiAdminHubSummary;
+  hub: AdminHubSummary;
   ownerUser: {
     id: string;
     fullName: string;
@@ -142,13 +117,6 @@ export type AdminCreateHubCourierResponse = {
   }>;
 };
 
-function mapApiHubToRecord(hub: ApiAdminHubSummary): AdminHubSummary {
-  return {
-    ...hub,
-    status: hub.status === "onboarding" ? "setup" : hub.status,
-  };
-}
-
 async function parseJson<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
@@ -201,8 +169,7 @@ export async function fetchAdminHubs(token: string): Promise<AdminHubSummary[]> 
   if (!response.ok) {
     throw new Error(await readErrorMessage(response, "Admin hub fetch failed"));
   }
-  const hubs = await parseJson<ApiAdminHubSummary[]>(response);
-  return hubs.map(mapApiHubToRecord);
+  return parseJson<AdminHubSummary[]>(response);
 }
 
 export async function fetchAdminUsers(token: string): Promise<AdminHubUserSummary[]> {
@@ -241,6 +208,12 @@ export async function createAdminHub(
     businessName: string;
     ownerEmail: string;
     hubPassword: string;
+    businessPhone?: string;
+    addressLine1?: string;
+    city?: string;
+    postcode?: string;
+    cuisineLabel?: string;
+    storeType?: BusinessType;
   },
 ): Promise<AdminCreateHubResponse> {
   const response = await authedFetch("/v1/admin/hubs", token, {
@@ -273,7 +246,28 @@ export async function publishAdminHub(token: string, hubId: string) {
   if (!response.ok) {
     throw new Error(await readErrorMessage(response, "Admin hub publish failed"));
   }
-  return parseJson<{ hub: ApiAdminHubSummary }>(response);
+  return parseJson<{ hub: AdminHubSummary }>(response);
+}
+
+export async function updateAdminHubLifecycle(
+  token: string,
+  hubId: string,
+  input: {
+    listedOnMarketplace?: boolean;
+    acceptingOrders?: boolean;
+  },
+): Promise<{ hub: AdminHubSummary }> {
+  const response = await authedFetch(`/v1/admin/hubs/${encodeURIComponent(hubId)}/lifecycle`, token, {
+    method: "PATCH",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Admin hub lifecycle update failed"));
+  }
+  return parseJson<{ hub: AdminHubSummary }>(response);
 }
 
 export async function createAdminHubUser(

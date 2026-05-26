@@ -31,6 +31,7 @@ import {
 } from "@hull-eats/types";
 import { CourierRegistryService } from "./courier-registry.service";
 import type {
+  AdminHubSummary,
   ApplyMenuImportInput,
   CreateHubInput,
   CreateHubMenuItemInput,
@@ -49,6 +50,7 @@ import type {
   MerchantWorkspaceUpdateInput,
   PreviewMenuImportInput,
   PreviewMenuTextImportInput,
+  UpdateAdminHubLifecycleInput,
   UpdateHubPromotionInput,
 } from "@hull-eats/types";
 
@@ -236,7 +238,7 @@ export class HubRegistryService {
   ) {}
   private pilotEnsured = false;
 
-  async listHubs(): Promise<HubSummary[]> {
+  async listHubs(): Promise<AdminHubSummary[]> {
     await this.ensurePilotHub();
 
     const merchants = await prisma.merchant.findMany({
@@ -253,9 +255,7 @@ export class HubRegistryService {
     });
 
     const hubs = await Promise.all(
-      merchants
-        .filter((merchant) => merchant.stores.length > 0)
-        .map((merchant) => this.buildHubSummary(merchant, merchant.stores[0]!, merchant.hubUsers)),
+      merchants.map((merchant) => this.buildAdminHubSummary(merchant, merchant.stores[0] ?? null, merchant.hubUsers)),
     );
 
     return hubs;
@@ -291,6 +291,11 @@ export class HubRegistryService {
     const ownerName = `${input.businessName.trim()} Owner`;
     const ownerEmail = input.ownerEmail.trim().toLowerCase();
     const hubUsername = ownerEmail;
+    const businessPhone = input.businessPhone.trim();
+    const addressLine1 = input.addressLine1.trim();
+    const city = input.city.trim() || "Hull";
+    const postcode = input.postcode.trim().toUpperCase();
+    const cuisineLabel = input.cuisineLabel.trim();
 
     const [usernameExists, emailExists, slugExists] = await Promise.all([
       prisma.hubUser.findUnique({ where: { username: hubUsername } }),
@@ -311,6 +316,8 @@ export class HubRegistryService {
         data: {
           slug,
           name: input.businessName,
+          supportEmail: ownerEmail,
+          supportPhone: businessPhone || null,
           isActive: true,
         },
       });
@@ -320,18 +327,19 @@ export class HubRegistryService {
           merchantId: merchant.id,
           slug,
           name: input.businessName,
-          type: "TAKEAWAY",
+          type: this.mapStoreTypeToDb(input.storeType),
           storefrontStatus: "ONBOARDING",
           menuSetupComplete: false,
-          addressLine1: "",
-          city: "Hull",
-          postcode: "",
+          addressLine1,
+          city,
+          postcode,
           timezone: "Europe/London",
-          onboardingMessage: "New hub created from the admin panel. Add categories, items, pricing, and images here.",
+          cuisineLabel: cuisineLabel || null,
+          onboardingMessage: "New hub created from the admin panel. Finish setup before making this business live.",
           deliveryFee: 0,
           minimumOrderAmount: 0,
           etaMinutes: 25,
-          isActive: true,
+          isActive: false,
         },
       });
 
@@ -352,7 +360,7 @@ export class HubRegistryService {
     });
 
     return {
-      hub: await this.buildHubSummary(created.merchant, created.store, [created.ownerUser]),
+      hub: await this.buildAdminHubSummary(created.merchant, created.store, [created.ownerUser]),
       ownerUser: this.mapHubUser(created.ownerUser),
       temporaryPassword: input.hubPassword,
     };
@@ -406,16 +414,48 @@ export class HubRegistryService {
       },
     });
 
-    return this.getWorkspaceById(hubId);
+    return {
+      hub: await this.getAdminHubSummary(hubId),
+    };
+  }
+
+  async updateAdminHubLifecycle(hubId: string, input: UpdateAdminHubLifecycleInput) {
+    await this.ensurePilotHub();
+
+    const record = await this.fetchAdminHubRecord(hubId);
+    const store = record.stores[0] ?? null;
+
+    if (!store) {
+      if (input.listedOnMarketplace || input.acceptingOrders) {
+        throw new BadRequestException("This hub cannot go live until a store profile has been configured.");
+      }
+      return {
+        hub: await this.buildAdminHubSummary(record, null, record.hubUsers),
+      };
+    }
+
+    await prisma.store.update({
+      where: { id: store.id },
+      data: {
+        storefrontStatus:
+          input.listedOnMarketplace === undefined ? undefined : input.listedOnMarketplace ? "LIVE" : "ONBOARDING",
+        isActive: input.acceptingOrders,
+      },
+    });
+
+    return {
+      hub: await this.getAdminHubSummary(hubId),
+    };
   }
 
   async authenticate(usernameOrEmail: string, password: string) {
     await this.ensurePilotHub();
 
     const login = usernameOrEmail.trim();
+    const normalizedLogin = login.toLowerCase();
     const hubUser = await prisma.hubUser.findFirst({
       where: {
-        OR: [{ username: login }, { email: login.toLowerCase() }],
+        OR: [{ username: normalizedLogin }, { email: normalizedLogin }],
       },
     });
 
@@ -429,6 +469,13 @@ export class HubRegistryService {
     return {
       user: activeUser,
       workspace,
+      session: {
+        id: hubUser.id,
+        hubId: hubUser.merchantId,
+        username: hubUser.username,
+        role: hubUser.role.toLowerCase(),
+        sessionVersion: hubUser.sessionVersion ?? 0,
+      },
     };
   }
 
@@ -697,9 +744,12 @@ export class HubRegistryService {
       throw new NotFoundException(`Hub ${hubId} was not found.`);
     }
 
+    const email = input.email.trim().toLowerCase();
+    const username = input.username.trim().toLowerCase();
+
     const duplicate = await prisma.hubUser.findFirst({
       where: {
-        OR: [{ username: input.username.trim() }, { email: input.email.trim() }],
+        OR: [{ username }, { email }],
       },
     });
 
@@ -711,12 +761,13 @@ export class HubRegistryService {
       data: {
         merchantId: hubId,
         fullName: input.fullName.trim(),
-        email: input.email.trim(),
-        username: input.username.trim(),
+        email,
+        username,
         passwordHash: hashPassword(input.password),
         role: this.mapMembershipRoleToDb(input.role),
         status: "ACTIVE",
         isActive: true,
+        mustChangePassword: false,
       },
     });
 
@@ -742,12 +793,14 @@ export class HubRegistryService {
       where: { id: user.id },
       data: {
         passwordHash: hashPassword(input.newPassword),
+        mustChangePassword: false,
+        sessionVersion: { increment: 1 },
       },
     });
 
     return {
       changed: true,
-      user: this.mapHubUser(user),
+      user: this.mapHubUser({ ...user, mustChangePassword: false }),
     };
   }
 
@@ -1554,6 +1607,32 @@ export class HubRegistryService {
     return merchant;
   }
 
+  private async fetchAdminHubRecord(hubId: string) {
+    const merchant = await prisma.merchant.findUnique({
+      where: { id: hubId },
+      include: {
+        stores: {
+          orderBy: { createdAt: "asc" },
+        },
+        hubUsers: {
+          where: { isActive: true },
+          orderBy: { createdAt: "asc" },
+        },
+      },
+    });
+
+    if (!merchant) {
+      throw new NotFoundException(`Hub ${hubId} was not found.`);
+    }
+
+    return merchant;
+  }
+
+  private async getAdminHubSummary(hubId: string) {
+    const merchant = await this.fetchAdminHubRecord(hubId);
+    return this.buildAdminHubSummary(merchant, merchant.stores[0] ?? null, merchant.hubUsers);
+  }
+
   private async findPrimaryStore(hubId: string) {
     const store = await prisma.store.findFirst({
       where: { merchantId: hubId },
@@ -1567,7 +1646,47 @@ export class HubRegistryService {
     return store;
   }
 
-  private async buildHubSummary(merchant: any, store: any, users: any[]): Promise<HubSummary> {
+  private async buildAdminHubSummary(merchant: any, store: any | null, users: any[]): Promise<AdminHubSummary> {
+    const ownerUser = users.find((user) => user.role === "OWNER") ?? users[0] ?? null;
+    const ownerName = ownerUser?.fullName ?? `${merchant.name} Owner`;
+    const hubUsername = ownerUser?.username ?? "";
+    const formatMoney = (value: number) =>
+      new Intl.NumberFormat("en-GB", {
+        style: "currency",
+        currency: "GBP",
+        minimumFractionDigits: value >= 1000 ? 0 : 2,
+        maximumFractionDigits: 2,
+      }).format(value);
+
+    if (!store) {
+      return {
+        id: merchant.id,
+        businessName: merchant.name,
+        slug: merchant.slug,
+        hasStore: false,
+        primaryStoreId: null,
+        type: null,
+        storeSlug: null,
+        hubUsername,
+        deliveryLeadTime: null,
+        status: "setup",
+        listedOnMarketplace: false,
+        acceptingOrders: false,
+        setupComplete: false,
+        ownerName,
+        orderVolumeToday: 0,
+        orderVolumeWeek: 0,
+        grossSalesWeek: formatMoney(0),
+        averageOrderValue: formatMoney(0),
+        activeOrders: [],
+        notes: [
+          "This hub exists, but no store profile has been configured yet.",
+          "Complete the store setup before making this business live on Hull Eats.",
+          `${users.length} active hub user${users.length === 1 ? "" : "s"} provisioned.`,
+        ],
+      };
+    }
+
     const boundsRows = await prisma.$queryRaw<Array<{ today_start: Date; week_start: Date }>>`
       SELECT
         ((CURRENT_TIMESTAMP AT TIME ZONE 'Europe/London')::date)::timestamp AT TIME ZONE 'Europe/London' AS today_start,
@@ -1601,13 +1720,6 @@ export class HubRegistryService {
     const todayOrders = weekOrders.filter((order) => order.placedAt >= todayStart);
     const grossSalesWeekValue = weekOrders.reduce((sum, order) => sum + Number(order.totalAmount), 0);
     const averageOrderValue = weekOrders.length > 0 ? grossSalesWeekValue / weekOrders.length : 0;
-    const formatMoney = (value: number) =>
-      new Intl.NumberFormat("en-GB", {
-        style: "currency",
-        currency: "GBP",
-        minimumFractionDigits: value >= 1000 ? 0 : 2,
-        maximumFractionDigits: 2,
-      }).format(value);
     const formatPlacedAgo = (placedAt: Date) => {
       const diffMs = Math.max(0, Date.now() - placedAt.getTime());
       const diffMinutes = Math.floor(diffMs / 60000);
@@ -1636,21 +1748,30 @@ export class HubRegistryService {
         placedAgo: formatPlacedAgo(order.placedAt),
       }));
 
+    const listedOnMarketplace = store.storefrontStatus === "LIVE";
+    const acceptingOrders = Boolean(store.isActive);
+    const status = this.deriveAdminHubStatus(store);
     const notes = [
-      store.storefrontStatus === "LIVE" ? "Store is currently visible on Hull Eats." : "Store is still in setup and hidden from customers.",
-      store.isActive ? "Orders are currently enabled for this hub." : "Orders are currently paused for this hub.",
+      listedOnMarketplace ? "Store is currently visible on Hull Eats." : "Store is still in setup and hidden from customers.",
+      acceptingOrders ? "Orders are currently enabled for this hub." : "Orders are currently paused for this hub.",
       `${users.length} active hub user${users.length === 1 ? "" : "s"} provisioned.`,
     ];
 
     return {
       id: merchant.id,
       businessName: merchant.name,
-      slug: store.slug,
+      slug: store.slug || merchant.slug,
+      hasStore: true,
+      primaryStoreId: store.id,
       type: this.mapStoreTypeToApi(store.type),
+      storeSlug: store.slug,
       hubUsername: users.find((user) => user.role === "OWNER")?.username ?? users[0]?.username ?? "",
       deliveryLeadTime: `${store.etaMinutes ?? 25} min`,
-      status: this.mapStorefrontStatusToApi(store.storefrontStatus),
-      ownerName: users.find((user) => user.role === "OWNER")?.fullName ?? `${merchant.name} Owner`,
+      status,
+      listedOnMarketplace,
+      acceptingOrders,
+      setupComplete: Boolean(store.menuSetupComplete),
+      ownerName,
       orderVolumeToday: todayOrders.length,
       orderVolumeWeek: weekOrders.length,
       grossSalesWeek: formatMoney(grossSalesWeekValue),
@@ -1806,6 +1927,7 @@ export class HubRegistryService {
       username: user.username,
       role: user.role.toLowerCase(),
       status: user.status.toLowerCase(),
+      mustChangePassword: Boolean(user.mustChangePassword),
     };
   }
 
@@ -2044,6 +2166,16 @@ export class HubRegistryService {
 
   private mapStoreTypeToApi(type: string) {
     return type.toLowerCase() as HubSummary["type"];
+  }
+
+  private deriveAdminHubStatus(store: { storefrontStatus: string; isActive: boolean } | null): AdminHubSummary["status"] {
+    if (!store || store.storefrontStatus !== "LIVE") {
+      return "setup";
+    }
+    if (!store.isActive) {
+      return "paused";
+    }
+    return "live";
   }
 
   private mapStorefrontStatusToApi(status: string) {

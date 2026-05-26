@@ -2,7 +2,7 @@ import { Injectable, UnauthorizedException } from "@nestjs/common";
 
 import { safeEqual, signSessionToken, verifySessionToken } from "@hull-eats/auth";
 import { loadEnv } from "@hull-eats/config";
-import type { HubUser } from "@hull-eats/types";
+import { prisma } from "@hull-eats/db";
 
 type InternalSessionScope = "admin" | "merchant" | "courier";
 
@@ -13,10 +13,19 @@ type InternalSessionPayload = {
   hubId?: string;
   username?: string;
   role?: string;
+  sessionVersion?: number;
   courierProfileId?: string;
   courierSessionId?: string;
   iat: number;
   exp: number;
+};
+
+type MerchantTokenUser = {
+  id: string;
+  hubId: string;
+  username: string;
+  role: string;
+  sessionVersion: number;
 };
 
 @Injectable()
@@ -45,13 +54,14 @@ export class InternalAuthService {
     };
   }
 
-  issueMerchantToken(user: HubUser) {
+  issueMerchantToken(user: MerchantTokenUser) {
     return this.issueToken({
       sub: user.id,
       scope: "merchant",
       hubId: user.hubId,
       username: user.username,
       role: user.role,
+      sessionVersion: user.sessionVersion,
     });
   }
 
@@ -75,17 +85,49 @@ export class InternalAuthService {
     return payload;
   }
 
-  requireMerchantToken(authorization?: string, hubId?: string) {
+  async requireMerchantToken(authorization?: string, hubId?: string) {
     const payload = this.requireToken(authorization);
     if (payload.scope !== "merchant") {
       throw new UnauthorizedException("Merchant token required.");
     }
 
-    if (hubId && payload.hubId !== hubId) {
+    if (!payload.sub) {
+      throw new UnauthorizedException("Merchant token was invalid.");
+    }
+
+    const user = await prisma.hubUser.findFirst({
+      where: {
+        id: payload.sub,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        merchantId: true,
+        username: true,
+        role: true,
+        status: true,
+        sessionVersion: true,
+      },
+    });
+
+    if (!user || user.status === "DISABLED") {
+      throw new UnauthorizedException("Merchant session is no longer valid.");
+    }
+
+    if (hubId && user.merchantId !== hubId) {
       throw new UnauthorizedException("Merchant token does not belong to this hub.");
     }
 
-    return payload;
+    if ((payload.sessionVersion ?? -1) !== user.sessionVersion) {
+      throw new UnauthorizedException("Merchant session has been refreshed. Please sign in again.");
+    }
+
+    return {
+      ...payload,
+      hubId: user.merchantId,
+      username: user.username,
+      role: user.role.toLowerCase(),
+    };
   }
 
   requireCourierToken(authorization?: string) {

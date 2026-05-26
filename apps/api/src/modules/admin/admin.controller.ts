@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, Headers, Inject, Param, Patch, Post } from "@nestjs/common";
 
 import { MvpDispatchEngine } from "@hull-eats/dispatch-engine";
-import { createHubInputSchema, createHubUserInputSchema, manualDriverAssignmentSchema } from "@hull-eats/types";
+import { createHubInputSchema, createHubUserInputSchema, manualDriverAssignmentSchema, updateAdminHubLifecycleInputSchema } from "@hull-eats/types";
 
 import { HubRegistryService } from "../../common/hub-registry.service";
 import { InternalAuthService } from "../../common/internal-auth.service";
@@ -76,6 +76,17 @@ export class AdminController {
   publishHub(@Headers("authorization") authorization: string | undefined, @Param("hubId") hubId: string) {
     this.internalAuth.requireAdminToken(authorization);
     return this.hubRegistry.publishHub(hubId);
+  }
+
+  @Patch("hubs/:hubId/lifecycle")
+  updateHubLifecycle(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("hubId") hubId: string,
+    @Body() body: unknown,
+  ) {
+    this.internalAuth.requireAdminToken(authorization);
+    const input = updateAdminHubLifecycleInputSchema.parse(body);
+    return this.hubRegistry.updateAdminHubLifecycle(hubId, input);
   }
 
   @Post("hubs/:hubId/users")

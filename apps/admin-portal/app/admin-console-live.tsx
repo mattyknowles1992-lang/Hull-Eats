@@ -21,6 +21,7 @@ import {
   loginToAdmin,
   publishAdminHub,
   removeAdminHubCourierAssignment,
+  updateAdminHubLifecycle,
   updateAdminContactMessageStatus,
   updateAdminCourier,
   updateAdminCustomer,
@@ -189,6 +190,13 @@ function roleLabel(role: AdminHubUserSummary["role"]) {
   return role.replaceAll("_", " ");
 }
 
+function describeHubSubtitle(hub: AdminHubSummary) {
+  const typeLabel = hub.type ? hub.type : "store setup pending";
+  const loginLabel = hub.hubUsername ? `owner login ${hub.hubUsername}` : "owner login not set";
+  const leadTimeLabel = hub.deliveryLeadTime ?? "delivery lead time not set";
+  return `${typeLabel} / ${loginLabel} / ${leadTimeLabel}`;
+}
+
 function mapApiUserToRecord(user: AdminHubUserSummary): PlatformUserRecord {
   return {
     id: user.id,
@@ -225,6 +233,12 @@ export function AdminConsoleLive() {
   const [businessName, setBusinessName] = useState("");
   const [ownerEmail, setOwnerEmail] = useState("");
   const [hubPassword, setHubPassword] = useState("");
+  const [businessPhone, setBusinessPhone] = useState("");
+  const [businessAddressLine1, setBusinessAddressLine1] = useState("");
+  const [businessCity, setBusinessCity] = useState("Hull");
+  const [businessPostcode, setBusinessPostcode] = useState("");
+  const [businessCuisineLabel, setBusinessCuisineLabel] = useState("");
+  const [businessType, setBusinessType] = useState<"restaurant" | "takeaway" | "shop">("takeaway");
   const [hubNotice, setHubNotice] = useState("");
 
   const [selectedHubId, setSelectedHubId] = useState("");
@@ -399,14 +413,26 @@ export function AdminConsoleLive() {
         businessName: businessName.trim(),
         ownerEmail: ownerEmail.trim().toLowerCase(),
         hubPassword,
+        businessPhone: businessPhone.trim(),
+        addressLine1: businessAddressLine1.trim(),
+        city: businessCity.trim(),
+        postcode: businessPostcode.trim().toUpperCase(),
+        cuisineLabel: businessCuisineLabel.trim(),
+        storeType: businessType,
       });
       await refreshAdminData(authToken, { silent: true });
       setSelectedHubId(created.hub.id);
       setBusinessName("");
       setOwnerEmail("");
       setHubPassword("");
+      setBusinessPhone("");
+      setBusinessAddressLine1("");
+      setBusinessCity("Hull");
+      setBusinessPostcode("");
+      setBusinessCuisineLabel("");
+      setBusinessType("takeaway");
       setHubNotice(
-        `${created.hub.businessName} created. Owner login: ${created.ownerUser.email}. Temporary password: ${created.temporaryPassword}`,
+        `${created.hub.businessName} created in setup. Owner login: ${created.ownerUser.email}. Temporary password: ${created.temporaryPassword}`,
       );
     } catch (error) {
       setHubNotice(error instanceof Error ? error.message : "Hub creation failed.");
@@ -436,6 +462,40 @@ export function AdminConsoleLive() {
       setHubNotice(`${businessNameToPublish} is now live on Hull Eats.`);
     } catch (error) {
       setHubNotice(error instanceof Error ? error.message : "Hub publish failed.");
+    }
+  };
+
+  const handleToggleHubListing = async (hub: AdminHubSummary, listedOnMarketplace: boolean) => {
+    if (!authToken) {
+      return;
+    }
+    try {
+      await updateAdminHubLifecycle(authToken, hub.id, { listedOnMarketplace });
+      await refreshAdminData(authToken, { silent: true });
+      setHubNotice(
+        listedOnMarketplace
+          ? `${hub.businessName} is now listed on Hull Eats.`
+          : `${hub.businessName} has been hidden from Hull Eats.`,
+      );
+    } catch (error) {
+      setHubNotice(error instanceof Error ? error.message : "Hub listing update failed.");
+    }
+  };
+
+  const handleToggleHubService = async (hub: AdminHubSummary, acceptingOrders: boolean) => {
+    if (!authToken) {
+      return;
+    }
+    try {
+      await updateAdminHubLifecycle(authToken, hub.id, { acceptingOrders });
+      await refreshAdminData(authToken, { silent: true });
+      setHubNotice(
+        acceptingOrders
+          ? `${hub.businessName} is now accepting orders again.`
+          : `${hub.businessName} service has been paused.`,
+      );
+    } catch (error) {
+      setHubNotice(error instanceof Error ? error.message : "Hub service update failed.");
     }
   };
 
@@ -804,6 +864,50 @@ export function AdminConsoleLive() {
                 <span style={{ fontWeight: 800, color: "#dce9ff" }}>Temporary password</span>
                 <input style={styles.input} type="password" value={hubPassword} onChange={(event) => setHubPassword(event.target.value)} />
               </label>
+              <label style={{ display: "grid", gap: 8 }}>
+                <span style={{ fontWeight: 800, color: "#dce9ff" }}>Business phone (optional)</span>
+                <input style={styles.input} value={businessPhone} onChange={(event) => setBusinessPhone(event.target.value)} />
+              </label>
+              <label style={{ display: "grid", gap: 8 }}>
+                <span style={{ fontWeight: 800, color: "#dce9ff" }}>Address line 1 (optional)</span>
+                <input
+                  style={styles.input}
+                  value={businessAddressLine1}
+                  onChange={(event) => setBusinessAddressLine1(event.target.value)}
+                />
+              </label>
+              <label style={{ display: "grid", gap: 8 }}>
+                <span style={{ fontWeight: 800, color: "#dce9ff" }}>City</span>
+                <input style={styles.input} value={businessCity} onChange={(event) => setBusinessCity(event.target.value)} />
+              </label>
+              <label style={{ display: "grid", gap: 8 }}>
+                <span style={{ fontWeight: 800, color: "#dce9ff" }}>Postcode (optional)</span>
+                <input
+                  style={styles.input}
+                  value={businessPostcode}
+                  onChange={(event) => setBusinessPostcode(event.target.value.toUpperCase())}
+                />
+              </label>
+              <label style={{ display: "grid", gap: 8 }}>
+                <span style={{ fontWeight: 800, color: "#dce9ff" }}>Cuisine label (optional)</span>
+                <input
+                  style={styles.input}
+                  value={businessCuisineLabel}
+                  onChange={(event) => setBusinessCuisineLabel(event.target.value)}
+                />
+              </label>
+              <label style={{ display: "grid", gap: 8 }}>
+                <span style={{ fontWeight: 800, color: "#dce9ff" }}>Business type</span>
+                <select
+                  style={{ ...styles.input, appearance: "none" }}
+                  value={businessType}
+                  onChange={(event) => setBusinessType(event.target.value as "restaurant" | "takeaway" | "shop")}
+                >
+                  <option value="takeaway">Takeaway</option>
+                  <option value="restaurant">Restaurant</option>
+                  <option value="shop">Shop</option>
+                </select>
+              </label>
             </div>
             <button type="button" style={{ ...styles.buttonPrimary, marginTop: 18 }} onClick={handleCreateHub}>
               Create hub
@@ -889,19 +993,47 @@ export function AdminConsoleLive() {
                           <strong style={{ fontSize: 24 }}>{hub.businessName}</strong>
                         </Link>
                         <p style={{ margin: "8px 0 0", color: "#9fb2c9", lineHeight: 1.6 }}>
-                          {hub.type} / owner login {hub.hubUsername} / {hub.deliveryLeadTime}
+                          {describeHubSubtitle(hub)}
                         </p>
                       </div>
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
                         <StatusPill value={hub.status} />
-                        {hub.status !== "live" ? (
-                          <button type="button" style={styles.buttonPrimary} onClick={() => void handlePublishHub(hub.id, hub.businessName)}>
-                            Make live
+                        {!hub.listedOnMarketplace ? (
+                          <button
+                            type="button"
+                            disabled={!hub.hasStore}
+                            style={{ ...styles.buttonPrimary, ...(hub.hasStore ? null : { opacity: 0.55, cursor: "not-allowed" }) }}
+                            onClick={() => void handlePublishHub(hub.id, hub.businessName)}
+                          >
+                            {hub.hasStore ? "Make live" : "Setup needed"}
                           </button>
                         ) : null}
-                        <button type="button" style={styles.buttonGlass} onClick={() => setExpandedCourierHubId((current) => (current === hub.id ? null : hub.id))}>
-                          {expandedCourierHubId === hub.id ? "Hide add courier" : "Show more"}
+                        <button
+                          type="button"
+                          disabled={!hub.hasStore}
+                          style={{ ...styles.buttonGlass, ...(hub.hasStore ? null : { opacity: 0.55, cursor: "not-allowed" }) }}
+                          onClick={() => setExpandedCourierHubId((current) => (current === hub.id ? null : hub.id))}
+                        >
+                          {hub.hasStore ? (expandedCourierHubId === hub.id ? "Hide add courier" : "Show more") : "Store setup needed"}
                         </button>
+                        {hub.hasStore ? (
+                          <button
+                            type="button"
+                            style={styles.buttonGlass}
+                            onClick={() => void handleToggleHubListing(hub, !hub.listedOnMarketplace)}
+                          >
+                            {hub.listedOnMarketplace ? "Hide from Hull Eats" : "List on Hull Eats"}
+                          </button>
+                        ) : null}
+                        {hub.hasStore ? (
+                          <button
+                            type="button"
+                            style={styles.buttonGlass}
+                            onClick={() => void handleToggleHubService(hub, !hub.acceptingOrders)}
+                          >
+                            {hub.acceptingOrders ? "Stop service" : "Start service"}
+                          </button>
+                        ) : null}
                         <button type="button" style={{ ...styles.buttonGlass, color: "#ffb7b7" }} onClick={() => void handleDeleteHub(hub.id, hub.businessName)}>
                           Delete hub
                         </button>
@@ -914,6 +1046,8 @@ export function AdminConsoleLive() {
                         { label: "Week orders", value: String(hub.orderVolumeWeek) },
                         { label: "Week sales", value: hub.grossSalesWeek },
                         { label: "AOV", value: hub.averageOrderValue },
+                          { label: "Listed", value: hub.listedOnMarketplace ? "Yes" : "No" },
+                          { label: "Service", value: hub.acceptingOrders ? "On" : "Off" },
                         { label: "Hub users", value: String(hubUsers.length) },
                         { label: "Inbox", value: String(hubMessages.length) },
                       ].map((metric) => (
@@ -934,7 +1068,7 @@ export function AdminConsoleLive() {
 
                     {hub.notes.length > 0 ? (
                       <div style={{ display: "grid", gap: 8 }}>
-                        {hub.notes.map((note) => (
+                        {hub.notes.map((note: string) => (
                           <div
                             key={note}
                             style={{

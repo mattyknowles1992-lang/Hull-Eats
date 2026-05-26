@@ -470,6 +470,15 @@ export function StoreMenuClient({
     [activeCategoryId, categories],
   );
   const filteredCategoryId = activeCategoryId === "all" ? null : activeCategoryId;
+  const hasSingleCategoryFilter = filteredCategoryId !== null && visibleCategories.length === 1;
+
+  useEffect(() => {
+    if (!filteredCategoryId) {
+      return;
+    }
+
+    setExpandedCategoryIds((current) => (current.includes(filteredCategoryId) ? current : [...current, filteredCategoryId]));
+  }, [filteredCategoryId]);
 
   const activeDetails =
     activeItem && selection
@@ -901,8 +910,8 @@ export function StoreMenuClient({
       </section>
 
       {visibleCategories.map((category) => {
-        const isFilteredCategory = filteredCategoryId === category.id;
-        const isExpanded = isFilteredCategory || expandedCategoryIds.includes(category.id);
+        const isFilteredCategory = hasSingleCategoryFilter;
+        const isExpanded = hasSingleCategoryFilter || expandedCategoryIds.includes(category.id);
 
         return (
         <section key={category.id} className={`menu-section-card menu-section-card-visual${isExpanded ? " is-expanded" : ""}`}>
