@@ -26,6 +26,8 @@ import {
 } from "@hull-eats/types";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { useHubPortalI18n } from "@hull-eats/i18n";
+
 import "leaflet/dist/leaflet.css";
 
 const HULL_MAP_BOUNDS = {
@@ -219,6 +221,7 @@ export function HubDeliveryConfig({
   styles,
   readOnly = false,
 }: HubDeliveryConfigProps) {
+  const { t } = useHubPortalI18n();
   const mapHostRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<import("leaflet").Map | null>(null);
   const layerGroupRef = useRef<import("leaflet").LayerGroup | null>(null);
@@ -814,7 +817,7 @@ export function HubDeliveryConfig({
   return (
     <div style={{ display: "grid", gap: 18 }}>
       <label style={styles.field}>
-        <span style={styles.darkFieldLabel}>Customer order options</span>
+        <span style={styles.darkFieldLabel}>{t("delivery.customerOrderOptions")}</span>
         <select
           style={styles.lightInput}
           value={settings.orderFulfillment}
@@ -828,17 +831,14 @@ export function HubDeliveryConfig({
           ))}
         </select>
         <p style={{ ...styles.subtleInfo, margin: "8px 0 0" }}>
-          Controls whether buyers see delivery, collection, or both on your storefront.
+          {t("delivery.customerOrderOptionsHint")}
         </p>
       </label>
 
       <div>
-        <p style={styles.eyebrow}>Delivery area</p>
-        <h2 style={{ ...styles.sectionTitle, marginTop: 6, marginBottom: 8 }}>Map your delivery coverage</h2>
-        <p style={{ ...styles.panelCopy, margin: 0, maxWidth: 720 }}>
-          Choose one method: radius delivery with one flat fee plus optional custom distance ranges, or Hull postcode
-          blocks with a fee on each selected outward area.
-        </p>
+        <p style={styles.eyebrow}>{t("delivery.deliveryArea")}</p>
+        <h2 style={{ ...styles.sectionTitle, marginTop: 6, marginBottom: 8 }}>{t("delivery.deliveryCoverageTitle")}</h2>
+        <p style={{ ...styles.panelCopy, margin: 0, maxWidth: 720 }}>{t("delivery.deliveryCoverageCopy")}</p>
       </div>
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
@@ -848,7 +848,7 @@ export function HubDeliveryConfig({
           disabled={readOnly}
           onClick={() => setMode("business_radius")}
         >
-          Radius from business
+          {t("delivery.radiusFromBusiness")}
         </button>
         <button
           type="button"
@@ -866,13 +866,10 @@ export function HubDeliveryConfig({
             }
           }}
         >
-          Hull postcode areas
+          {t("delivery.hullPostcodeAreas")}
         </button>
       </div>
-      <p style={{ ...styles.subtleInfo, margin: "0 0 4px" }}>
-        Only the selected method is used for customer checkout and delivery fees. Other settings stay saved here so
-        you can switch methods without starting again.
-      </p>
+      <p style={{ ...styles.subtleInfo, margin: "0 0 4px" }}>{t("delivery.deliveryModeLockHint")}</p>
 
       <div
         style={{

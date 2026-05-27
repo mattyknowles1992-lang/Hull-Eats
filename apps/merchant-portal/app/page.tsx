@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { useHubPortalI18n } from "@hull-eats/i18n";
 import type {
   HubMenuSection,
   HubSettings,
@@ -24,6 +25,8 @@ import {
   hubMenuCategorySelectOptions,
   hubRoleLabel,
   hubRolesCreatableBy,
+  HUB_PORTAL_LOCALE_OPTIONS,
+  type HubPortalLocale,
   isHubMenuMealDealsCategory,
   isHubMenuSectionPizza,
   isHubMenuStaffLibrarySection,
@@ -754,6 +757,28 @@ async function rejectMerchantOrder(token: string, orderId: string, reason: strin
   return (await response.json()) as OrderSummary;
 }
 
+const updateMerchantPreferredLocale = async (
+  token: string,
+  hubId: string,
+  preferredLocale: HubPortalLocale,
+): Promise<HubUser> => {
+  const response = await fetch(`${apiBaseUrl}/v1/merchant/hubs/${hubId}/me/locale`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ preferredLocale }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Update locale failed with status ${response.status}`);
+  }
+
+  const payload = (await response.json()) as { user: HubUser };
+  return payload.user;
+};
+
 const escapeHtml = (value: string) =>
   value
     .replaceAll("&", "&amp;")
@@ -763,6 +788,7 @@ const escapeHtml = (value: string) =>
     .replaceAll("'", "&#039;");
 
 export default function MerchantPortalPage() {
+  const { t, locale, setLocale } = useHubPortalI18n();
   const [merchantToken, setMerchantToken] = useState("");
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -835,6 +861,13 @@ export default function MerchantPortalPage() {
   const [showHubPasswordNew, setShowHubPasswordNew] = useState(false);
   const [showHubPasswordConfirm, setShowHubPasswordConfirm] = useState(false);
   const [showCreateUserPassword, setShowCreateUserPassword] = useState(false);
+  const [localeSaving, setLocaleSaving] = useState(false);
+
+  useEffect(() => {
+    if (activeUser?.preferredLocale) {
+      setLocale(activeUser.preferredLocale);
+    }
+  }, [activeUser?.preferredLocale, setLocale]);
 
   const extrasSection = useMemo(() => findExtrasLibrarySection(menuSections), [menuSections]);
   const burgerPartsSection = useMemo(() => findBurgerPartsSection(menuSections), [menuSections]);
@@ -1630,6 +1663,25 @@ export default function MerchantPortalPage() {
     }
   };
 
+  const handlePreferredLocaleChange = async (preferredLocale: HubPortalLocale) => {
+    setLocale(preferredLocale);
+    if (!merchantToken || !activeHubId) {
+      return;
+    }
+
+    setLocaleSaving(true);
+    try {
+      const user = await updateMerchantPreferredLocale(merchantToken, activeHubId, preferredLocale);
+      setActiveUser(user);
+      setHubUsers((current) => current.map((entry) => (entry.id === user.id ? user : entry)));
+      setUserNotice(t("common.portalLanguageSaved"));
+    } catch {
+      setUserNotice(t("common.portalLanguageSaveFailed"));
+    } finally {
+      setLocaleSaving(false);
+    }
+  };
+
   const handleSignOut = () => {
     window.localStorage.removeItem(merchantSessionStorageKey);
     setBootStatus("login");
@@ -2238,22 +2290,17 @@ export default function MerchantPortalPage() {
       <main style={pageShell}>
         <section style={loginHero}>
           <section style={loginPanel}>
-            <h1 style={panelTitle}>Login to your hub</h1>
+            <h1 style={panelTitle}>{t("auth.loginTitle")}</h1>
             {bootStatus === "checking" ? (
-              <p style={{ marginTop: 18, color: "#5c6573", fontWeight: 750, lineHeight: 1.5 }}>
-                Restoring your session on this device…
-              </p>
+              <p style={{ marginTop: 18, color: "#5c6573", fontWeight: 750, lineHeight: 1.5 }}>{t("auth.restoringSession")}</p>
             ) : (
               <>
                 {loginView === "sign_in" ? (
                   <>
-                    <p style={{ marginTop: 12, color: "#5c6573", fontWeight: 700, lineHeight: 1.45 }}>
-                      Your sign-in stays saved on this device for 30 days. You only need your password again if you signed out or the session
-                      expired.
-                    </p>
+                    <p style={{ marginTop: 12, color: "#5c6573", fontWeight: 700, lineHeight: 1.45 }}>{t("auth.signInPersistCopy")}</p>
                     <div style={{ display: "grid", gap: 14, marginTop: 18 }}>
                       <label style={field}>
-                        <span style={darkFieldLabel}>Email or username</span>
+                        <span style={darkFieldLabel}>{t("auth.emailOrUsername")}</span>
                         <input
                           style={lightInput}
                           value={loginUsername}
@@ -2263,7 +2310,7 @@ export default function MerchantPortalPage() {
                         />
                       </label>
                       <label style={field}>
-                        <span style={darkFieldLabel}>Password</span>
+                        <span style={darkFieldLabel}>{t("auth.password")}</span>
                         <span style={passwordFieldWrap}>
                           <input
                             type={showLoginPassword ? "text" : "password"}
@@ -2280,12 +2327,12 @@ export default function MerchantPortalPage() {
                             }}
                           />
                           <button type="button" style={passwordRevealButton} onClick={() => setShowLoginPassword((current) => !current)}>
-                            {showLoginPassword ? "Hide" : "Show"}
+                            {showLoginPassword ? t("auth.hide") : t("auth.show")}
                           </button>
                         </span>
                       </label>
                       <button type="button" style={primaryButton} onClick={() => void handleLogin()} disabled={isLoggingIn}>
-                        {isLoggingIn ? "Opening hub…" : "Open hub"}
+                        {isLoggingIn ? t("auth.openingHub") : t("auth.openHub")}
                       </button>
                       <button
                         type="button"
@@ -2299,19 +2346,16 @@ export default function MerchantPortalPage() {
                           setResetCodeVerified(false);
                         }}
                       >
-                        Forgot password?
+                        {t("auth.forgotPassword")}
                       </button>
                     </div>
                   </>
                 ) : (
                   <>
-                    <p style={{ marginTop: 12, color: "#5c6573", fontWeight: 700, lineHeight: 1.45 }}>
-                      Verify the hub email with a 6-digit code, then reset the login back to the temporary password so the owner can sign in
-                      and change it straight away.
-                    </p>
+                    <p style={{ marginTop: 12, color: "#5c6573", fontWeight: 700, lineHeight: 1.45 }}>{t("auth.resetFlowCopy")}</p>
                     <div style={{ display: "grid", gap: 14, marginTop: 18 }}>
                       <label style={field}>
-                        <span style={darkFieldLabel}>Hub login email</span>
+                        <span style={darkFieldLabel}>{t("auth.hubLoginEmail")}</span>
                         <input
                           style={lightInput}
                           type="email"
@@ -2322,10 +2366,10 @@ export default function MerchantPortalPage() {
                         />
                       </label>
                       <button type="button" style={primaryButton} onClick={() => void handleRequestPasswordReset()} disabled={isSubmittingReset}>
-                        {isSubmittingReset ? "Requesting code…" : "Send reset code"}
+                        {isSubmittingReset ? t("auth.requestingCode") : t("auth.sendResetCode")}
                       </button>
                       <label style={field}>
-                        <span style={darkFieldLabel}>6-digit code</span>
+                        <span style={darkFieldLabel}>{t("auth.sixDigitCode")}</span>
                         <input
                           style={lightInput}
                           inputMode="numeric"
@@ -2337,7 +2381,7 @@ export default function MerchantPortalPage() {
                       </label>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
                         <button type="button" style={secondaryButton} onClick={() => void handleVerifyPasswordReset()} disabled={isSubmittingReset}>
-                          Verify code
+                          {t("auth.verifyCode")}
                         </button>
                         <button
                           type="button"
@@ -2345,7 +2389,7 @@ export default function MerchantPortalPage() {
                           onClick={() => void handleCompletePasswordReset()}
                           disabled={isSubmittingReset || !resetCodeVerified}
                         >
-                          Reset login to letmein
+                          {t("auth.resetLogin")}
                         </button>
                       </div>
                       <button
@@ -2356,7 +2400,7 @@ export default function MerchantPortalPage() {
                           setResetNotice("");
                         }}
                       >
-                        Back to sign in
+                        {t("auth.backToSignIn")}
                       </button>
                     </div>
                   </>
@@ -2382,7 +2426,6 @@ export default function MerchantPortalPage() {
   const showHeaderSaveButton = activeHubSection === "home";
   const showUnsavedBanner = activeHubSection === "home" && hasUnsavedHubChanges;
   const showSectionFooterSave =
-    hasUnsavedHubChanges &&
     hubAccess?.canEditWorkspace &&
     (activeHubSection === "businessProfile" ||
       activeHubSection === "availability" ||
@@ -2415,10 +2458,24 @@ export default function MerchantPortalPage() {
         />
       ) : null}
       <div className="hub-mobile-bar">
-        <strong>{hubSettings.name || "Merchant hub"}</strong>
-        <button type="button" className="hub-nav-toggle" onClick={() => setMobileNavOpen(true)}>
-          Menu
+        <button
+          type="button"
+          className="hub-mobile-home-btn"
+          onClick={() => {
+            setMobileNavOpen(false);
+            openHubSection("home");
+          }}
+        >
+          {hubSettings.name || t("common.merchantHubFallback")}
         </button>
+        <div className="hub-mobile-bar-actions">
+          <button type="button" className="hub-mobile-sign-out" style={secondaryButtonCompact} onClick={handleSignOut}>
+            {t("common.signOut")}
+          </button>
+          <button type="button" className="hub-nav-toggle" onClick={() => setMobileNavOpen(true)}>
+            {t("common.menu")}
+          </button>
+        </div>
       </div>
       <aside className={`hub-sidebar${mobileNavOpen ? " is-open" : ""}`}>
         <div style={sidebarBrand}>
@@ -2429,41 +2486,41 @@ export default function MerchantPortalPage() {
           </span>
         </div>
 
-        <nav style={sidebarNav} aria-label="Hub navigation">
+        <nav style={sidebarNav} aria-label={t("nav.hubNavigation")}>
           <div style={sidebarGroup}>
-            <span style={sidebarGroupTitle}>Home</span>
+            <span style={sidebarGroupTitle}>{t("nav.groupHome")}</span>
             <button type="button" style={activeHubSection === "home" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("home")}>
-              Dashboard
+              {t("nav.dashboard")}
             </button>
           </div>
 
           <div style={sidebarGroup}>
-            <span style={sidebarGroupTitle}>Orders</span>
+            <span style={sidebarGroupTitle}>{t("nav.groupOrders")}</span>
             <button type="button" style={activeHubSection === "orders" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("orders")}>
-              Live orders
+              {t("nav.liveOrders")}
             </button>
             <button type="button" style={activeHubSection === "drivers" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("drivers")}>
-              Drivers & cash-up
+              {t("nav.driversCashUp")}
             </button>
             <button type="button" style={activeHubSection === "orderHistory" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("orderHistory")}>
-              Order history
+              {t("nav.orderHistory")}
             </button>
           </div>
 
           <div style={sidebarGroup}>
-            <span style={sidebarGroupTitle}>Performance</span>
+            <span style={sidebarGroupTitle}>{t("nav.groupPerformance")}</span>
             <button type="button" style={activeHubSection === "earnings" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("earnings")}>
-              Earnings
+              {t("nav.earnings")}
             </button>
             <button type="button" style={activeHubSection === "reports" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("reports")}>
-              Reports
+              {t("nav.reports")}
             </button>
           </div>
 
           <div style={sidebarGroup}>
-            <span style={sidebarGroupTitle}>Menu management</span>
+            <span style={sidebarGroupTitle}>{t("nav.groupMenuManagement")}</span>
             <button type="button" style={activeHubSection === "menu" && activeHubPanel === "menu" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("menu")}>
-              Menu builder
+              {t("nav.menuBuilder")}
             </button>
             <button
               type="button"
@@ -2474,44 +2531,74 @@ export default function MerchantPortalPage() {
                 setActiveHubPanel("import");
               }}
             >
-              Paste menu
+              {t("nav.pasteMenu")}
             </button>
             <button type="button" style={activeHubSection === "offers" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("offers")}>
-              Offers &amp; deals
+              {t("nav.offersDeals")}
             </button>
           </div>
 
           <div style={sidebarGroup}>
-            <span style={sidebarGroupTitle}>Business</span>
+            <span style={sidebarGroupTitle}>{t("nav.groupBusiness")}</span>
             <button type="button" style={activeHubSection === "businessProfile" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("businessProfile")}>
-              Business profile
+              {t("nav.businessProfile")}
             </button>
             <button type="button" style={activeHubSection === "availability" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("availability")}>
-              Opening times
+              {t("nav.openingTimes")}
             </button>
             <button type="button" style={activeHubSection === "deliveryRanges" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("deliveryRanges")}>
-              Delivery ranges
+              {t("nav.deliveryRanges")}
             </button>
             <button type="button" style={activeHubSection === "settings" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("settings")}>
-              Settings
+              {t("nav.settings")}
             </button>
             <button type="button" style={activeHubSection === "users" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("users")}>
-              Users
+              {t("nav.users")}
             </button>
           </div>
 
+          {activeHubSlug ? (
+            <div style={sidebarGroup}>
+              <span style={sidebarGroupTitle}>{t("nav.groupKiosk")}</span>
+              <a
+                href={`${customerWebBaseUrl}/stores/${activeHubSlug}/kiosk`}
+                target="_blank"
+                rel="noreferrer"
+                style={sidebarLink}
+                onClick={() => setMobileNavOpen(false)}
+              >
+                {t("nav.selfServiceKiosk")}
+              </a>
+              <a
+                href={`${customerWebBaseUrl}/stores/${activeHubSlug}/kiosk?launch=1`}
+                target="_blank"
+                rel="noreferrer"
+                style={sidebarLink}
+                onClick={() => setMobileNavOpen(false)}
+              >
+                {t("nav.launchKiosk")}
+              </a>
+            </div>
+          ) : null}
+
           <button type="button" style={activeHubSection === "help" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("help")}>
-            Help and support
+            {t("nav.helpSupport")}
           </button>
         </nav>
       </aside>
 
       <section className="hub-main-area">
-        <header className="hub-main-header" style={hubMainHeader}>
-          <div style={{ display: "grid", gap: 6 }}>
-            <strong style={{ color: "#101216", fontSize: "1rem" }}>{hubSettings.name || "Merchant hub"}</strong>
-            <span style={subtleInfo}>{describeStoreOpeningStatus(hubSettings.openingHours, hubSettings.isOpen, hubSettings.acceptingOrders)}</span>
-          </div>
+        <header className={`hub-main-header${showWorkspaceHero ? " is-home" : ""}`} style={hubMainHeader}>
+          {!showWorkspaceHero ? (
+            <div style={{ display: "grid", gap: 6 }}>
+              <strong style={{ color: "#101216", fontSize: "1rem" }}>{hubSettings.name || "Merchant hub"}</strong>
+              <span style={subtleInfo}>
+                {describeStoreOpeningStatus(hubSettings.openingHours, hubSettings.isOpen, hubSettings.acceptingOrders)}
+              </span>
+            </div>
+          ) : (
+            <div aria-hidden="true" />
+          )}
 
           <div className="hub-main-header-actions" style={{ display: "grid", gap: 12, justifyItems: "start" }}>
             {activeUser ? (
@@ -2519,30 +2606,18 @@ export default function MerchantPortalPage() {
                 {activeUser.fullName} / {hubRoleLabel(activeUser.role)}
               </span>
             ) : null}
-            <div className="he-btn-row" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              {activeHubSlug ? (
-                <>
-                  <a href={`${customerWebBaseUrl}/stores/${activeHubSlug}/kiosk`} target="_blank" rel="noreferrer" style={secondaryButtonLink}>
-                    Self service kiosk
-                  </a>
-                  <a href={`${customerWebBaseUrl}/stores/${activeHubSlug}/kiosk?launch=1`} target="_blank" rel="noreferrer" style={secondaryButtonLink}>
-                    Launch kiosk
-                  </a>
-                </>
-              ) : null}
-              <button type="button" style={secondaryButton} onClick={handleSignOut}>
-                Sign out
-              </button>
-            </div>
+            <button type="button" className="hub-desktop-sign-out" style={secondaryButton} onClick={handleSignOut}>
+              {t("common.signOut")}
+            </button>
           </div>
         </header>
 
         {showWorkspaceHero ? (
           <section style={workspaceHeroCard}>
             <div style={{ display: "grid", gap: 8 }}>
-              <p style={eyebrow}>Hub workspace</p>
-              <h1 style={hubTitle}>{hubSettings.name || "Merchant hub"}</h1>
-              <p style={heroCopy}>Run orders, menu changes, earnings, users, and store setup from one clear workspace.</p>
+              <p style={eyebrow}>{t("common.hubWorkspace")}</p>
+              <h1 style={hubTitle}>{hubSettings.name || t("common.merchantHubFallback")}</h1>
+              <p style={heroCopy}>{t("common.heroCopy")}</p>
             </div>
             {showHeaderSaveButton ? (
               <div style={{ display: "grid", gap: 12, justifyItems: "start" }}>
@@ -2553,9 +2628,9 @@ export default function MerchantPortalPage() {
                   onClick={handleSaveHub}
                   disabled={!hubAccess?.canEditWorkspace}
                 >
-                  {hasUnsavedHubChanges ? "Save hub changes *" : "Save hub changes"}
+                  {hasUnsavedHubChanges ? t("common.saveHubChangesDirty") : t("common.saveHubChanges")}
                 </button>
-                <span style={subtleInfo}>Dashboard save keeps all current hub changes together in one workspace save.</span>
+                <span style={subtleInfo}>{t("dashboard.dashboardSaveHint")}</span>
               </div>
             ) : null}
           </section>
@@ -2564,21 +2639,18 @@ export default function MerchantPortalPage() {
         {showUnsavedBanner ? (
           <div className="he-hub-banner he-hub-banner--row he-unsaved-banner" role="status" aria-live="polite">
             <div>
-              <strong>Unsaved changes</strong>
-              <p>
-                Delivery, business, and menu edits are not live for customers until you save. Use{" "}
-                <strong>Save hub changes</strong> (or <strong>Publish changes</strong> on the menu screen).
-              </p>
+              <strong>{t("common.unsavedChanges")}</strong>
+              <p>{t("common.unsavedBannerCopy")}</p>
             </div>
             <button type="button" style={saveHubButtonStyle} onClick={handleSaveHub} disabled={!hubAccess?.canEditWorkspace}>
-              Save now
+              {t("common.saveNow")}
             </button>
           </div>
         ) : null}
 
         {hubAccess && !hubAccess.canEditWorkspace ? (
           <p className="he-hub-banner" role="status">
-            View-only access: you can browse this hub but cannot save menu, delivery, or offer changes.
+            {t("common.viewOnlyHub")}
           </p>
         ) : null}
 
@@ -2616,30 +2688,30 @@ export default function MerchantPortalPage() {
         {activeHubSection === "home" ? (
           <section className="he-dashboard-grid" style={dashboardGrid}>
             <article style={dashboardHeroCard}>
-              <p style={eyebrowDark}>Today</p>
-              <h2 style={sectionTitle}>Ready for service</h2>
+              <p style={eyebrowDark}>{t("dashboard.today")}</p>
+              <h2 style={sectionTitle}>{t("dashboard.readyForService")}</h2>
               <p style={panelCopyDark}>
-                Your menu has {menuStats.activeItems} live items across {menuStats.categories} categories.
+                {t("dashboard.readyCopy", { activeItems: menuStats.activeItems, categories: menuStats.categories })}
               </p>
               <div className="he-section-actions" style={sectionActionRow}>
                 <button type="button" style={primaryButton} onClick={() => openHubSection("menu")}>
-                  Edit menu
+                  {t("dashboard.editMenu")}
                 </button>
                 <button type="button" style={secondaryButton} onClick={() => openHubSection("orders")}>
-                  View orders
+                  {t("dashboard.viewOrders")}
                 </button>
               </div>
             </article>
             <article style={dashboardCard}>
-              <span style={summaryLabel}>Live menu items</span>
+              <span style={summaryLabel}>{t("dashboard.liveMenuItems")}</span>
               <strong style={summaryValue}>{menuStats.activeItems}</strong>
             </article>
             <article style={dashboardCard}>
-              <span style={summaryLabel}>Total menu items</span>
+              <span style={summaryLabel}>{t("dashboard.totalMenuItems")}</span>
               <strong style={summaryValue}>{menuStats.totalItems}</strong>
             </article>
             <article style={dashboardCard}>
-              <span style={summaryLabel}>Customisable items</span>
+              <span style={summaryLabel}>{t("dashboard.customisableItems")}</span>
               <strong style={summaryValue}>{menuStats.customisableItems}</strong>
             </article>
           </section>
@@ -3404,23 +3476,44 @@ export default function MerchantPortalPage() {
           {activeHubPanel === "account" ? (
             <section style={compactEditorCard}>
               <div style={panelHeader}>
-                <p style={eyebrowDark}>Users</p>
-                <h2 style={sectionTitle}>Users and password</h2>
-                <p style={panelCopyDark}>Manage the signed-in password and review who currently has access to this hub.</p>
+                <p style={eyebrowDark}>{t("nav.users")}</p>
+                <h2 style={sectionTitle}>{t("users.usersPasswordTitle")}</h2>
+                <p style={panelCopyDark}>{t("users.usersPasswordCopy")}</p>
               </div>
               <div style={quickAddGrid}>
                 <div style={quickAddCard}>
-                  <h3 style={quickAddTitle}>Change password</h3>
-                  <button type="button" style={secondaryButtonSmall} onClick={() => setShowAccountPasswords((current) => !current)}>
-                    {showAccountPasswords ? "Hide passwords" : "Show passwords"}
-                  </button>
-                  <input type={showAccountPasswords ? "text" : "password"} style={lightInput} value={passwordForm.currentPassword} onChange={(event) => setPasswordForm((current) => ({ ...current, currentPassword: event.target.value }))} placeholder="Current password" />
-                  <input type={showAccountPasswords ? "text" : "password"} style={lightInput} value={passwordForm.newPassword} onChange={(event) => setPasswordForm((current) => ({ ...current, newPassword: event.target.value }))} placeholder="New password" />
-                  <input type={showAccountPasswords ? "text" : "password"} style={lightInput} value={passwordForm.confirmPassword} onChange={(event) => setPasswordForm((current) => ({ ...current, confirmPassword: event.target.value }))} placeholder="Confirm password" />
-                  <button type="button" onClick={handleChangePassword} style={primaryButton}>Change password</button>
+                  <h3 style={quickAddTitle}>{t("users.accountSettings")}</h3>
+                  <label style={field}>
+                    <span style={darkFieldLabel}>{t("common.portalLanguage")}</span>
+                    <select
+                      style={lightInput}
+                      value={locale}
+                      disabled={localeSaving}
+                      onChange={(event) => void handlePreferredLocaleChange(event.target.value as HubPortalLocale)}
+                    >
+                      {HUB_PORTAL_LOCALE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.nativeLabel}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <p style={subtleInfo}>{t("common.portalLanguageHint")}</p>
                 </div>
                 <div style={quickAddCard}>
-                  <h3 style={quickAddTitle}>Hub users</h3>
+                  <h3 style={quickAddTitle}>{t("users.changePassword")}</h3>
+                  <button type="button" style={secondaryButtonSmall} onClick={() => setShowAccountPasswords((current) => !current)}>
+                    {showAccountPasswords ? t("common.hidePasswords") : t("common.showPasswords")}
+                  </button>
+                  <input type={showAccountPasswords ? "text" : "password"} style={lightInput} value={passwordForm.currentPassword} onChange={(event) => setPasswordForm((current) => ({ ...current, currentPassword: event.target.value }))} placeholder={t("users.currentPassword")} />
+                  <input type={showAccountPasswords ? "text" : "password"} style={lightInput} value={passwordForm.newPassword} onChange={(event) => setPasswordForm((current) => ({ ...current, newPassword: event.target.value }))} placeholder={t("users.newPassword")} />
+                  <input type={showAccountPasswords ? "text" : "password"} style={lightInput} value={passwordForm.confirmPassword} onChange={(event) => setPasswordForm((current) => ({ ...current, confirmPassword: event.target.value }))} placeholder={t("users.confirmPassword")} />
+                  <button type="button" onClick={handleChangePassword} style={primaryButton}>
+                    {t("users.changePassword")}
+                  </button>
+                </div>
+                <div style={quickAddCard}>
+                  <h3 style={quickAddTitle}>{t("users.hubUsers")}</h3>
                   {hubUsers.map((user) => (
                     <div key={user.id} style={listRow}>
                       <span style={{ color: "#101216", fontWeight: 800 }}>{user.fullName}</span>
@@ -3434,11 +3527,11 @@ export default function MerchantPortalPage() {
           {showSectionFooterSave ? (
             <div style={sectionFooterSave}>
               <div style={{ display: "grid", gap: 4 }}>
-                <strong style={{ color: "#101216" }}>Save these hub changes</strong>
-                <span style={subtleInfo}>This saves the current business, availability, delivery, and settings edits to the hub.</span>
+                <strong style={{ color: "#101216" }}>{t("common.saveTheseHubChanges")}</strong>
+                <span style={subtleInfo}>{t("common.saveTheseHubChangesHint")}</span>
               </div>
               <button type="button" style={saveHubButtonStyle} onClick={handleSaveHub} disabled={!hubAccess?.canEditWorkspace}>
-                {hasUnsavedHubChanges ? "Save hub changes *" : "Save hub changes"}
+                {hasUnsavedHubChanges ? t("common.saveHubChangesDirty") : t("common.saveHubChanges")}
               </button>
             </div>
           ) : null}
@@ -4524,6 +4617,13 @@ const sidebarButtonActive: React.CSSProperties = {
   color: "#0680a6",
 };
 
+const sidebarLink: React.CSSProperties = {
+  ...sidebarButton,
+  textDecoration: "none",
+  display: "flex",
+  alignItems: "center",
+};
+
 const hubMainHeader: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
@@ -4750,6 +4850,13 @@ const secondaryButtonSmall: React.CSSProperties = {
   fontWeight: 800,
   background: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(247,241,234,0.96))",
   cursor: "pointer",
+};
+
+const secondaryButtonCompact: React.CSSProperties = {
+  ...secondaryButtonSmall,
+  minHeight: 44,
+  padding: "0 12px",
+  fontSize: "0.92rem",
 };
 
 const saveHubButtonDirtyStyle: React.CSSProperties = {

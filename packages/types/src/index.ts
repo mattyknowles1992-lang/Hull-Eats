@@ -8,6 +8,7 @@ export * from "./events";
 export * from "./hubs";
 export * from "./hub-config-snapshots";
 export * from "./hub-access";
+export * from "./hub-portal-locale";
 export * from "./hub-menu-presets";
 export * from "./hub-menu-subgroups";
 export * from "./merchant-drivers";

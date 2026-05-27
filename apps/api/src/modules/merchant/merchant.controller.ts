@@ -31,6 +31,7 @@ import {
   previewMenuImportInputSchema,
   previewMenuTextImportInputSchema,
   renameHubConfigSnapshotInputSchema,
+  updateHubUserLocaleInputSchema,
 } from "@hull-eats/types";
 
 import { HubRegistryService } from "../../common/hub-registry.service";
@@ -205,6 +206,17 @@ export class MerchantController {
     const session = await this.internalAuth.requireMerchantToken(authorization, hubId);
     const input = changeHubPasswordInputSchema.parse(body);
     return this.hubRegistry.changeHubUserPassword(hubId, session.sub, input);
+  }
+
+  @Patch("hubs/:hubId/me/locale")
+  async updateMyLocale(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("hubId") hubId: string,
+    @Body() body: unknown,
+  ) {
+    const session = await this.internalAuth.requireMerchantToken(authorization, hubId);
+    const input = updateHubUserLocaleInputSchema.parse(body);
+    return this.hubRegistry.updateHubUserPreferredLocale(hubId, session.sub, input.preferredLocale);
   }
 
   @Delete("hubs/:hubId/users/:userId")

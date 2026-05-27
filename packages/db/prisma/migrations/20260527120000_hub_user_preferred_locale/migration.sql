@@ -1,0 +1,2 @@
+ALTER TABLE "hub_users"
+ADD COLUMN IF NOT EXISTS "preferred_locale" TEXT NOT NULL DEFAULT 'en-GB';

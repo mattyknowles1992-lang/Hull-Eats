@@ -844,6 +844,43 @@ textarea {
   display: none;
 }
 
+.hub-mobile-home-btn {
+  border: none;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  color: var(--he-ink);
+  font-size: 1rem;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+
+.hub-mobile-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.hub-mobile-sign-out {
+  display: none;
+}
+
+.hub-desktop-sign-out {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hub-main-header.is-home {
+  justify-content: flex-end;
+}
+
+.hub-main-header.is-home > div:first-child {
+  display: none;
+}
+
 .hub-nav-toggle {
   display: none;
   align-items: center;
@@ -880,8 +917,26 @@ textarea {
     z-index: 35;
   }
 
+  .hub-mobile-home-btn {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 50vw;
+  }
+
   .hub-nav-toggle {
     display: inline-flex;
+  }
+
+  .hub-mobile-sign-out {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .hub-desktop-sign-out {
+    display: none !important;
   }
 
   .hub-sidebar {
@@ -950,6 +1005,53 @@ textarea {
     width: 100%;
     justify-content: center;
     text-align: center;
+  }
+
+  .hub-main-header.is-home {
+    display: none !important;
+  }
+}
+
+.hub-offers-list-meta {
+  word-break: break-word;
+  line-height: 1.5;
+}
+
+@media (max-width: 960px) {
+  .hub-offers-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .hub-offers-actions {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    width: 100%;
+  }
+
+  .hub-offers-actions > button {
+    width: 100%;
+  }
+
+  .hub-offers-time-window {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    width: 100%;
+  }
+
+  .hub-offers-time-window > * {
+    width: 100%;
+  }
+
+  .hub-offers-preview-row {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    width: 100%;
+  }
+
+  .hub-offers-preview-text {
+    width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
 }
 

@@ -16,6 +16,7 @@ import {
   hubRolesCreatableBy,
   hullZoneHasCoverage,
   normaliseDeliveryPricing,
+  normalizeHubPortalLocale,
   normalizeOpeningHours,
   type MembershipRole,
   type StoreOpeningHours,
@@ -1753,6 +1754,31 @@ export class HubRegistryService {
     }
   }
 
+  async updateHubUserPreferredLocale(hubId: string, userId: string, preferredLocale: HubUser["preferredLocale"]) {
+    await this.ensurePilotHub();
+
+    const user = await prisma.hubUser.findFirst({
+      where: {
+        id: userId,
+        merchantId: hubId,
+        isActive: true,
+      },
+    });
+
+    if (!user || user.status === "DISABLED") {
+      throw new UnauthorizedException("Hub account not found.");
+    }
+
+    const updated = await prisma.hubUser.update({
+      where: { id: user.id },
+      data: { preferredLocale },
+    });
+
+    return {
+      user: this.mapHubUser(updated),
+    };
+  }
+
   private mapHubUser(user: any): HubUser {
     return {
       id: user.id,
@@ -1763,6 +1789,7 @@ export class HubRegistryService {
       role: user.role.toLowerCase(),
       status: user.status.toLowerCase(),
       mustChangePassword: Boolean(user.mustChangePassword),
+      preferredLocale: normalizeHubPortalLocale(user.preferredLocale),
     };
   }
 

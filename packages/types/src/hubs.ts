@@ -13,6 +13,7 @@ import {
 import { menuItemSchema, storeTypeSchema, storefrontStatusSchema } from "./catalog";
 import { membershipRoleSchema } from "./rbac";
 import { normalizeOpeningHours, storeOpeningHoursSchema, type StoreOpeningHours } from "./store-opening-hours";
+import { hubPortalLocaleSchema } from "./hub-portal-locale";
 
 export const hubUserStatusSchema = z.enum(["active", "invited", "disabled"]);
 
@@ -77,6 +78,11 @@ export const hubUserSchema = z.object({
   role: membershipRoleSchema,
   status: hubUserStatusSchema.default("active"),
   mustChangePassword: z.boolean().default(false),
+  preferredLocale: hubPortalLocaleSchema.default("en-GB"),
+});
+
+export const updateHubUserLocaleInputSchema = z.object({
+  preferredLocale: hubPortalLocaleSchema,
 });
 
 export const hubSettingsSchema = z.object({
@@ -411,6 +417,7 @@ export type HubSummary = z.infer<typeof hubSummarySchema>;
 export type AdminHubStatus = z.infer<typeof adminHubStatusSchema>;
 export type AdminHubSummary = z.infer<typeof adminHubSummarySchema>;
 export type HubUser = z.infer<typeof hubUserSchema>;
+export type UpdateHubUserLocaleInput = z.infer<typeof updateHubUserLocaleInputSchema>;
 export type HubSettings = z.infer<typeof hubSettingsSchema>;
 export type HubMenuSection = z.infer<typeof hubMenuSectionSchema>;
 export type HubMenuImportCandidate = z.infer<typeof hubMenuImportCandidateSchema>;

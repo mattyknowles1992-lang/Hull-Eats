@@ -229,6 +229,9 @@ importers:
 
   apps/merchant-portal:
     dependencies:
+      '@hull-eats/i18n':
+        specifier: workspace:*
+        version: link:../../packages/i18n
       '@hull-eats/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
@@ -315,6 +318,19 @@ importers:
       '@hull-eats/types':
         specifier: workspace:*
         version: link:../types
+
+  packages/i18n:
+    dependencies:
+      '@hull-eats/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      '@types/react':
+        specifier: ^19.1.2
+        version: 19.1.17
+      react:
+        specifier: 19.1.0
+        version: 19.1.0
 
   packages/printer:
     dependencies:

@@ -5,6 +5,8 @@ import { Manrope } from "next/font/google";
 
 import "./globals.css";
 
+import { HubPortalI18nShell } from "./hub-portal-i18n-shell";
+
 const manrope = Manrope({
   subsets: ["latin"],
   variable: "--font-manrope",
@@ -25,7 +27,9 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: PropsWithChildren) {
   return (
     <html lang="en" className={manrope.variable}>
-      <body>{children}</body>
+      <body>
+        <HubPortalI18nShell>{children}</HubPortalI18nShell>
+      </body>
     </html>
   );
 }

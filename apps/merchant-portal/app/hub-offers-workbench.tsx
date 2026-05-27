@@ -407,13 +407,14 @@ export function HubOffersWorkbench({ apiBaseUrl, token, hubId, menuSections, onN
       ) : null}
 
       <div
+        className="hub-offers-grid"
         style={{
           ...grid2,
           gridTemplateColumns: "minmax(0, 1.1fr) minmax(260px, 340px)",
         }}
       >
         <div style={{ display: "grid", gap: 14 }}>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+          <div className="hub-offers-actions" style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
             <button type="button" style={primaryBtn} onClick={startNew}>
               New offer
             </button>
@@ -675,7 +676,7 @@ export function HubOffersWorkbench({ apiBaseUrl, token, hubId, menuSections, onN
 
           <div style={{ display: "grid", gap: 8 }}>
             <span style={label}>Optional daily time window (leave empty for all day)</span>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <div className="hub-offers-time-window" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               <input
                 type="time"
                 style={input}
@@ -773,11 +774,11 @@ export function HubOffersWorkbench({ apiBaseUrl, token, hubId, menuSections, onN
             </div>
           ))}
 
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          <div className="hub-offers-preview-row" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             <button type="button" style={primaryBtn} onClick={confirmPreviewDates}>
               Confirm dates into offer
             </button>
-            <span style={{ fontSize: 13, color: "#596271", alignSelf: "center" }}>
+            <span className="hub-offers-preview-text" style={{ fontSize: 13, color: "#596271", alignSelf: "center" }}>
               Preview: {previewDates.length ? previewDates.join(", ") : "—"}
             </span>
           </div>
@@ -800,7 +801,7 @@ export function HubOffersWorkbench({ apiBaseUrl, token, hubId, menuSections, onN
               onClick={() => applyFormFromPromotion(p)}
             >
               <strong>{p.title}</strong>
-              <span style={{ fontSize: 13, color: "#596271" }}>
+              <span className="hub-offers-list-meta" style={{ fontSize: 13, color: "#596271" }}>
                 {kindLabel[p.kind]} · {p.validDates.length} day(s)
                 {!p.isActive ? " · paused" : ""}
               </span>
