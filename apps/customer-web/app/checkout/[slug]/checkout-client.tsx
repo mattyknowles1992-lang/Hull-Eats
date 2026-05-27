@@ -8,7 +8,7 @@ import {
   computeDeliveryQuote,
   hubAllowsCollection,
   hubAllowsDelivery,
-  normaliseDeliveryPricing,
+  normaliseDeliveryPricingForServe,
 } from "@hull-eats/types";
 
 import { cancelCustomerOrderWithinGrace, createCheckoutSession, placeCheckoutOrder } from "../../../src/lib/api";
@@ -106,7 +106,7 @@ export function CheckoutClient({ store, menuItems, initialFulfillment = "deliver
   const [isCancellingOrder, setIsCancellingOrder] = useState(false);
   const [cancelOrderError, setCancelOrderError] = useState<string | null>(null);
   const deliveryPricing = useMemo(
-    () => (store.deliveryPricing ? normaliseDeliveryPricing(store.deliveryPricing) : null),
+    () => (store.deliveryPricing ? normaliseDeliveryPricingForServe(store.deliveryPricing) : null),
     [store.deliveryPricing],
   );
   const canChooseDelivery = hubAllowsDelivery(deliveryPricing?.orderFulfillment);

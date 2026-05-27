@@ -5,6 +5,7 @@ import type { HubSettings } from "@hull-eats/types";
 import {
   HULL_AREA_OUTWARD_CENTROIDS,
   createDefaultHullPostcodeZones,
+  type DeliveryDistanceRange,
   formatHullSectorLabel,
   getHullZoneEnabledSectors,
   getHullSectorCentroid,
@@ -166,6 +167,24 @@ const outwardRowExpandedStyle: CSSProperties = {
   transition: "box-shadow 0.28s ease",
 };
 
+const postcodeFeeRowStyle: CSSProperties = {
+  display: "grid",
+  gap: 8,
+  padding: "0 14px 14px",
+};
+
+const distanceRangeListStyle: CSSProperties = {
+  display: "grid",
+  gap: 12,
+};
+
+const distanceRangeRowStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr) auto",
+  gap: 10,
+  alignItems: "end",
+};
+
 type HubDeliveryConfigProps = {
   settings: HubSettings;
   onChange: (patch: Partial<HubSettings>) => void;
@@ -188,6 +207,7 @@ type HubDeliveryConfigProps = {
     zoneChipActive: CSSProperties;
     zoneList: CSSProperties;
   };
+  readOnly?: boolean;
 };
 
 export function HubDeliveryConfig({
@@ -197,12 +217,12 @@ export function HubDeliveryConfig({
   hubId,
   merchantToken,
   styles,
+  readOnly = false,
 }: HubDeliveryConfigProps) {
   const mapHostRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<import("leaflet").Map | null>(null);
   const layerGroupRef = useRef<import("leaflet").LayerGroup | null>(null);
   const zonesRef = useRef<HullPostcodeZone[]>([]);
-  const outwardRowRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const initialCameraDoneRef = useRef(false);
   const requestOverviewRef = useRef(false);
   const onChangeRef = useRef(onChange);
@@ -222,6 +242,7 @@ export function HubDeliveryConfig({
         : createDefaultHullPostcodeZones(),
     [settings.deliveryPostcodeZones],
   );
+  const radiusRanges = settings.deliveryDistanceRanges;
 
   zonesRef.current = zones;
 
@@ -321,12 +342,78 @@ export function HubDeliveryConfig({
   }, []);
 
   const setMode = (deliveryMode: DeliveryMode) => {
+    if (readOnly) {
+      return;
+    }
     onChange({ deliveryMode });
   };
 
   const patchZones = (nextZones: HullPostcodeZone[]) => {
     onChange({ deliveryPostcodeZones: nextZones });
   };
+
+  const setZoneFee = useCallback(
+    (outwardCode: string, nextFee: string) => {
+      if (readOnly) {
+        return;
+      }
+      const upper = outwardCode.toUpperCase();
+      const parsed = nextFee.trim() === "" ? null : Math.max(0, Number(nextFee) || 0);
+      patchZones(
+        zonesRef.current.map((zone) =>
+          zone.code !== upper
+            ? zone
+            : {
+                ...zone,
+                fee: parsed == null ? null : Number(parsed.toFixed(2)),
+              },
+        ),
+      );
+    },
+    [readOnly],
+  );
+
+  const addDistanceRange = useCallback(() => {
+    if (readOnly) {
+      return;
+    }
+    const lastRange = radiusRanges[radiusRanges.length - 1];
+    const nextMaxMiles = Math.min(40, Number(((lastRange?.maxMiles ?? 0) + 1).toFixed(1)));
+    onChange({
+      deliveryDistanceRanges: [...radiusRanges, { maxMiles: Math.max(0.5, nextMaxMiles), fee: settings.deliveryFee }],
+    });
+  }, [onChange, radiusRanges, readOnly, settings.deliveryFee]);
+
+  const updateDistanceRange = useCallback(
+    (index: number, patch: Partial<DeliveryDistanceRange>) => {
+      if (readOnly) {
+        return;
+      }
+      onChange({
+        deliveryDistanceRanges: radiusRanges.map((range, rangeIndex) =>
+          rangeIndex === index
+            ? {
+                ...range,
+                ...patch,
+              }
+            : range,
+        ),
+      });
+    },
+    [onChange, radiusRanges, readOnly],
+  );
+
+  const removeDistanceRange = useCallback(
+    (index: number) => {
+      if (readOnly) {
+        return;
+      }
+      onChange({
+        deliveryDistanceRanges: radiusRanges.filter((_, rangeIndex) => rangeIndex !== index),
+      });
+    },
+    [onChange, radiusRanges, readOnly],
+  );
 
   const focusMap = useCallback((focus: MapFocus) => {
     const upper = focus.outward.toUpperCase();
@@ -343,15 +430,10 @@ export function HubDeliveryConfig({
     [focusMap],
   );
 
-  useEffect(() => {
-    if (!expandedOutward) {
+  const setOutwardSectorsAll = useCallback((outwardCode: string, selectAll: boolean) => {
+    if (readOnly) {
       return;
     }
-    const row = outwardRowRefs.current[expandedOutward];
-    row?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }, [expandedOutward]);
-
-  const setOutwardSectorsAll = useCallback((outwardCode: string, selectAll: boolean) => {
     const upper = outwardCode.toUpperCase();
     setExpandedOutward(upper);
     focusMap({ outward: upper });
@@ -370,9 +452,12 @@ export function HubDeliveryConfig({
         };
       }),
     );
-  }, [focusMap]);
+  }, [focusMap, readOnly]);
 
   const toggleSector = useCallback((outwardCode: string, sector: HullSectorDigit) => {
+    if (readOnly) {
+      return;
+    }
     const upper = outwardCode.toUpperCase();
     setExpandedOutward(upper);
     focusMap({ outward: upper, sector });
@@ -399,7 +484,7 @@ export function HubDeliveryConfig({
         };
       }),
     );
-  }, [focusMap]);
+  }, [focusMap, readOnly]);
 
   const hasAnySectorSelected = useMemo(
     () => zones.some((zone) => getHullZoneEnabledSectors(zone).length > 0),
@@ -407,6 +492,9 @@ export function HubDeliveryConfig({
   );
 
   const deselectAllSectors = useCallback(() => {
+    if (readOnly) {
+      return;
+    }
     const current = zonesRef.current;
     const anySelected = current.some((zone) => getHullZoneEnabledSectors(zone).length > 0);
     if (!anySelected) {
@@ -430,7 +518,7 @@ export function HubDeliveryConfig({
     setMapFocus(null);
     requestOverviewRef.current = true;
     initialCameraDoneRef.current = false;
-  }, [onChange]);
+  }, [onChange, readOnly]);
 
   useEffect(() => {
     let disposed = false;
@@ -730,6 +818,7 @@ export function HubDeliveryConfig({
         <select
           style={styles.lightInput}
           value={settings.orderFulfillment}
+          disabled={readOnly}
           onChange={(event) => onChange({ orderFulfillment: event.target.value as HubOrderFulfillment })}
         >
           {hubOrderFulfillmentOptions.map((option) => (
@@ -747,8 +836,8 @@ export function HubDeliveryConfig({
         <p style={styles.eyebrow}>Delivery area</p>
         <h2 style={{ ...styles.sectionTitle, marginTop: 6, marginBottom: 8 }}>Map your delivery coverage</h2>
         <p style={{ ...styles.panelCopy, margin: 0, maxWidth: 720 }}>
-          Choose one method: a single radius from your business, or Hull postcode areas (HU1–HU16) with sector-level
-          tick boxes (e.g. HU7 1, HU7 2). Mile band fees below still set what customers pay by distance from your shop.
+          Choose one method: radius delivery with one flat fee plus optional custom distance ranges, or Hull postcode
+          blocks with a fee on each selected outward area.
         </p>
       </div>
 
@@ -756,6 +845,7 @@ export function HubDeliveryConfig({
         <button
           type="button"
           style={settings.deliveryMode === "business_radius" ? styles.modeButtonActive : styles.modeButton}
+          disabled={readOnly}
           onClick={() => setMode("business_radius")}
         >
           Radius from business
@@ -763,6 +853,7 @@ export function HubDeliveryConfig({
         <button
           type="button"
           style={settings.deliveryMode === "postcode_zones" ? styles.modeButtonActive : styles.modeButton}
+          disabled={readOnly}
           onClick={() => {
             setMode("postcode_zones");
             setExpandedOutward(null);
@@ -778,6 +869,10 @@ export function HubDeliveryConfig({
           Hull postcode areas
         </button>
       </div>
+      <p style={{ ...styles.subtleInfo, margin: "0 0 4px" }}>
+        Only the selected method is used for customer checkout and delivery fees. Other settings stay saved here so
+        you can switch methods without starting again.
+      </p>
 
       <div
         style={{
@@ -796,32 +891,118 @@ export function HubDeliveryConfig({
       </div>
 
       {settings.deliveryMode === "business_radius" ? (
-        <label style={styles.field}>
-          <span style={styles.darkFieldLabel}>Delivery radius from your business (miles)</span>
-          <input
-            type="number"
-            min={0.1}
-            max={40}
-            step={0.1}
-            style={styles.lightInput}
-            value={settings.deliveryRadiusMiles}
-            onChange={(event) =>
-              onChange({
-                deliveryRadiusMiles: Math.min(40, Math.max(0.1, Number(event.target.value) || 5)),
-              })
-            }
-          />
-          <p style={styles.subtleInfo}>
-            Orange circle shows your delivery radius. The shop pin is placed from your hub postcode using UK postcode
-            lookup (postcodes.io) when you save or update the postcode.
-          </p>
-        </label>
+        <div style={{ display: "grid", gap: 14 }}>
+          <label style={styles.field}>
+            <span style={styles.darkFieldLabel}>Delivery radius from your business (miles)</span>
+            <input
+              type="number"
+              min={0.1}
+              max={40}
+              step={0.1}
+              style={styles.lightInput}
+              value={settings.deliveryRadiusMiles}
+              disabled={readOnly}
+              onChange={(event) =>
+                onChange({
+                  deliveryRadiusMiles: Math.min(40, Math.max(0.1, Number(event.target.value) || 5)),
+                })
+              }
+            />
+            <p style={styles.subtleInfo}>
+              Orange circle shows your delivery radius. The shop pin is placed from your hub postcode using UK postcode
+              lookup (postcodes.io) when you save or update the postcode.
+            </p>
+          </label>
+
+          <label style={styles.field}>
+            <span style={styles.darkFieldLabel}>Flat delivery fee (£)</span>
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              style={styles.lightInput}
+              value={settings.deliveryFee}
+              disabled={readOnly}
+              onChange={(event) => onChange({ deliveryFee: Math.max(0, Number(event.target.value) || 0) })}
+            />
+            <p style={styles.subtleInfo}>Used across the radius unless one of the custom distance ranges below matches first.</p>
+          </label>
+
+          <div style={{ display: "grid", gap: 12 }}>
+            <div>
+              <span style={styles.darkFieldLabel}>Custom distance ranges (£)</span>
+              <p style={{ ...styles.subtleInfo, margin: "6px 0 0" }}>
+                Add as many radius price blocks as you need. Hull Eats will use the first range that covers the customer.
+              </p>
+            </div>
+            <div style={distanceRangeListStyle}>
+              {radiusRanges.map((range, index) => (
+                <div key={`${range.maxMiles}-${index}`} style={distanceRangeRowStyle}>
+                  <label style={styles.field}>
+                    <span style={styles.darkFieldLabel}>Up to miles</span>
+                    <input
+                      type="number"
+                      min={0.1}
+                      max={40}
+                      step={0.1}
+                      style={styles.lightInput}
+                      value={range.maxMiles}
+                      disabled={readOnly}
+                      onChange={(event) =>
+                        updateDistanceRange(index, {
+                          maxMiles: Math.min(40, Math.max(0.1, Number(event.target.value) || 0.1)),
+                        })
+                      }
+                    />
+                  </label>
+                  <label style={styles.field}>
+                    <span style={styles.darkFieldLabel}>Fee (£)</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      style={styles.lightInput}
+                      value={range.fee}
+                      disabled={readOnly}
+                      onChange={(event) =>
+                        updateDistanceRange(index, {
+                          fee: Math.max(0, Number(event.target.value) || 0),
+                        })
+                      }
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    style={readOnly ? { ...styles.modeButton, opacity: 0.5, cursor: "not-allowed" } : styles.modeButton}
+                    disabled={readOnly}
+                    onClick={() => removeDistanceRange(index)}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+              {radiusRanges.length === 0 ? (
+                <p style={{ ...styles.subtleInfo, margin: 0 }}>No custom ranges yet. Customers will use the flat delivery fee above.</p>
+              ) : null}
+            </div>
+            <div>
+              <button
+                type="button"
+                style={readOnly ? { ...styles.modeButton, opacity: 0.5, cursor: "not-allowed" } : styles.modeButton}
+                disabled={readOnly}
+                onClick={addDistanceRange}
+              >
+                Add custom range
+              </button>
+            </div>
+          </div>
+        </div>
       ) : (
         <div style={{ display: "grid", gap: 14 }}>
           <p style={styles.subtleInfo}>
             The map uses official open UK postcode sector boundaries (ONS / Royal Mail, via postcodes-mapit). Tick a sector
-            to deliver there — the blue shape is that postcode area on the ground, not a radius. Set a full hub postcode
-            under shop postcode above (e.g. HU3 1AB) for an exact shop pin; save hub settings to store coordinates.
+            to deliver there, then set the price for that outward block. Clicking the map now keeps focus on the map instead
+            of jumping the page down the postcode list.
           </p>
           {boundariesError ? (
             <p style={{ ...styles.subtleInfo, color: "#9b1c1c", margin: 0 }}>
@@ -834,7 +1015,7 @@ export function HubDeliveryConfig({
             <button
               type="button"
               style={hasAnySectorSelected ? styles.modeButton : { ...styles.modeButton, opacity: 0.45, cursor: "not-allowed" }}
-              disabled={!hasAnySectorSelected}
+              disabled={!hasAnySectorSelected || readOnly}
               onClick={deselectAllSectors}
             >
               Deselect all sectors
@@ -854,9 +1035,6 @@ export function HubDeliveryConfig({
               return (
                 <div
                   key={code}
-                  ref={(element) => {
-                    outwardRowRefs.current[code] = element;
-                  }}
                   style={{
                     ...outwardRowStyle,
                     ...(expanded || isActive ? outwardRowExpandedStyle : {}),
@@ -883,11 +1061,30 @@ export function HubDeliveryConfig({
                     <span>{code}</span>
                     <span style={{ fontSize: "0.78rem", fontWeight: 800, color: "#5d6775" }}>
                       {selectedCount > 0 ? `${selectedCount} sector${selectedCount === 1 ? "" : "s"} on` : "None selected"}
+                      {zone.fee != null ? ` / £${zone.fee.toFixed(2)}` : " / flat fee"}
                       {expanded ? " ▲" : " ▼"}
                     </span>
                   </button>
                   {expanded ? (
                     <>
+                      <div style={postcodeFeeRowStyle}>
+                        <label style={styles.field}>
+                          <span style={styles.darkFieldLabel}>Price for {code} (£)</span>
+                          <input
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            style={styles.lightInput}
+                            value={zone.fee ?? ""}
+                            disabled={readOnly}
+                            placeholder={settings.deliveryFee > 0 ? settings.deliveryFee.toFixed(2) : "Uses flat fee"}
+                            onChange={(event) => setZoneFee(code, event.target.value)}
+                          />
+                          <p style={styles.subtleInfo}>
+                            Leave blank to fall back to the hub flat delivery fee. Enter `0` if this postcode block should be free.
+                          </p>
+                        </label>
+                      </div>
                       <div style={sectorToolbarStyle}>
                         <span style={{ fontSize: "0.78rem", fontWeight: 800, color: "#5d6775" }}>
                           Sectors for {code}
@@ -895,6 +1092,7 @@ export function HubDeliveryConfig({
                         <button
                           type="button"
                           style={sectorToolbarButtonStyle}
+                          disabled={readOnly}
                           onClick={(event) => {
                             event.stopPropagation();
                             const allOn = availableSectors.length > 0 && selectedCount === availableSectors.length;
@@ -922,6 +1120,7 @@ export function HubDeliveryConfig({
                             <input
                               type="checkbox"
                               checked={checked}
+                              disabled={readOnly}
                               onChange={() => toggleSector(code, digit)}
                             />
                             {formatHullSectorLabel(code, digit)}

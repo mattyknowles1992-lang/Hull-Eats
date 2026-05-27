@@ -74,6 +74,7 @@ export function HubOpeningHoursEditor({ openingHours, onChange, readOnly = false
               </label>
               <label className="he-opening-hours__time-field">
                 <div className="he-opening-hours__time-control">
+                  <span className="he-opening-hours__mobile-label">Opens</span>
                   <input
                     type="time"
                     value={day.openTime}
@@ -94,6 +95,7 @@ export function HubOpeningHoursEditor({ openingHours, onChange, readOnly = false
               </label>
               <label className="he-opening-hours__time-field">
                 <div className="he-opening-hours__time-control">
+                  <span className="he-opening-hours__mobile-label">Closes</span>
                   <input
                     type="time"
                     value={day.closeTime}

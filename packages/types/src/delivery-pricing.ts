@@ -12,6 +12,12 @@ export const DELIVERY_NOT_AVAILABLE_TO_POSTCODE_MESSAGE = "Delivery is not avail
 export const deliveryModeSchema = z.enum(["business_radius", "postcode_zones"]);
 export type DeliveryMode = z.infer<typeof deliveryModeSchema>;
 
+export const deliveryDistanceRangeSchema = z.object({
+  maxMiles: z.number().min(0.1).max(40),
+  fee: z.number().nonnegative(),
+});
+export type DeliveryDistanceRange = z.infer<typeof deliveryDistanceRangeSchema>;
+
 /** What customers can choose at checkout for this hub. */
 export const hubOrderFulfillmentSchema = z.enum([
   "delivery_only",
@@ -39,6 +45,7 @@ export type HullSectorDigit = (typeof HULL_SECTOR_DIGITS)[number];
 export const hullPostcodeZoneSchema = z.object({
   code: z.string().min(2).max(8),
   radiusMiles: z.number().min(0.1).max(40),
+  fee: z.number().nonnegative().nullable().default(null),
   /** Legacy whole-area flag; kept in sync with enabledSectors on read/write. */
   enabled: z.boolean(),
   /** Sector digits enabled for this outward (HU7 0, HU7 1, …). Empty + enabled=true means all sectors. */
@@ -60,10 +67,13 @@ export const storeDeliveryPricingSchema = z.object({
   mode: deliveryModeSchema.default("business_radius"),
   /** Business-radius mode: max miles from the shop origin. */
   radiusMiles: z.number().min(1).max(40).default(5),
+  /** Radius mode: optional custom pricing blocks priced by maximum distance from the shop. */
+  distanceRanges: z.array(deliveryDistanceRangeSchema).default([]),
   /** Postcode-zone mode: per outward district (HU1, HU2, …) with its own radius from centroid. */
   postcodeZones: z.array(hullPostcodeZoneSchema).default([]),
   /** Legacy outward list; migrated into postcodeZones on read. */
   postcodeDistricts: z.array(z.string().min(2).max(8)).default([]),
+  /** Legacy distance pricing; retained for older saved hubs. */
   mileFees: z.array(z.number().nonnegative()).length(5).default([0, 0, 0, 0, 0]),
   /** Optional override for distance origin; otherwise the hub base postcode outward centroid is used. */
   originLatitude: z.number().min(-90).max(90).nullable().optional(),
@@ -107,9 +117,63 @@ export const createDefaultHullPostcodeZones = (): HullPostcodeZone[] =>
   listKnownHullOutwardCodes().map((code) => ({
     code,
     radiusMiles: 1.5,
+    fee: null,
     enabled: false,
     enabledSectors: [],
   }));
+
+export const normalizeDeliveryDistanceRanges = (
+  value: unknown,
+  legacyFees?: number[] | null,
+): DeliveryDistanceRange[] => {
+  const fromValue = Array.isArray(value)
+    ? value
+        .map((entry) => {
+          if (!entry || typeof entry !== "object") {
+            return null;
+          }
+          const row = entry as { maxMiles?: unknown; fee?: unknown };
+          const maxMiles = Number(row.maxMiles);
+          const fee = Number(row.fee);
+          if (!Number.isFinite(maxMiles) || !Number.isFinite(fee) || fee < 0) {
+            return null;
+          }
+          return {
+            maxMiles: Math.min(40, Math.max(0.1, Number(maxMiles.toFixed(2)))),
+            fee: Number(fee.toFixed(2)),
+          } satisfies DeliveryDistanceRange;
+        })
+        .filter((entry): entry is DeliveryDistanceRange => entry !== null)
+    : [];
+
+  const fromLegacy =
+    fromValue.length > 0
+      ? fromValue
+      : (legacyFees ?? [])
+          .map((fee, index) => {
+            const amount = Number(fee);
+            if (!Number.isFinite(amount) || amount <= 0) {
+              return null;
+            }
+            return {
+              maxMiles: index + 1,
+              fee: Number(amount.toFixed(2)),
+            } satisfies DeliveryDistanceRange;
+          })
+          .filter((entry): entry is DeliveryDistanceRange => entry !== null);
+
+  const sorted = [...fromLegacy].sort((left, right) => left.maxMiles - right.maxMiles);
+  const deduped: DeliveryDistanceRange[] = [];
+  sorted.forEach((range) => {
+    const previous = deduped[deduped.length - 1];
+    if (previous && Math.abs(previous.maxMiles - range.maxMiles) < 0.001) {
+      deduped[deduped.length - 1] = range;
+      return;
+    }
+    deduped.push(range);
+  });
+  return deduped;
+};
 
 const normalizeSectorDigits = (sectors: string[] | undefined, outwardCode?: string): HullSectorDigit[] => {
   const allowed = new Set<string>(HULL_SECTOR_DIGITS);
@@ -150,18 +214,20 @@ export const mergeHullPostcodeZones = (saved: HullPostcodeZone[] | undefined): H
   return listKnownHullOutwardCodes().map((code) => {
     const existing = byCode.get(code);
     if (!existing) {
-      return { code, radiusMiles: 1.5, enabled: false, enabledSectors: [] };
+      return { code, radiusMiles: 1.5, fee: null, enabled: false, enabledSectors: [] };
     }
 
     const enabledSectors = getHullZoneEnabledSectors({
       ...existing,
       code,
       radiusMiles: existing.radiusMiles,
+      fee: existing.fee == null ? null : Number.isFinite(Number(existing.fee)) ? Number(Number(existing.fee).toFixed(2)) : null,
     });
 
     return {
       code,
       radiusMiles: Math.min(40, Math.max(0.1, existing.radiusMiles)),
+      fee: existing.fee == null ? null : Number.isFinite(Number(existing.fee)) ? Number(Number(existing.fee).toFixed(2)) : null,
       enabledSectors,
       enabled: enabledSectors.length > 0,
     };
@@ -220,13 +286,19 @@ export const normaliseDeliveryPricing = (raw: unknown): StoreDeliveryPricing => 
   let mode: DeliveryMode = base.mode;
   let postcodeZones = mergeHullPostcodeZones(base.postcodeZones);
 
-  if (base.postcodeZones.length === 0 && legacyDistricts.length > 0 && !legacyIsFullHull) {
+  if (
+    base.mode !== "business_radius" &&
+    base.postcodeZones.length === 0 &&
+    legacyDistricts.length > 0 &&
+    !legacyIsFullHull
+  ) {
     mode = "postcode_zones";
     const legacySet = new Set(legacyDistricts);
     postcodeZones = mergeHullPostcodeZones(
       knownHull.map((code) => ({
         code,
         radiusMiles: base.radiusMiles,
+        fee: null,
         enabled: legacySet.has(code),
         enabledSectors: [],
       })),
@@ -237,13 +309,41 @@ export const normaliseDeliveryPricing = (raw: unknown): StoreDeliveryPricing => 
     postcodeZones = mergeHullPostcodeZones(base.postcodeZones);
   }
 
+  const distanceRanges = normalizeDeliveryDistanceRanges(base.distanceRanges, base.mileFees);
+
   return {
     ...base,
     mode,
     postcodeZones,
+    distanceRanges,
     radiusMiles: base.radiusMiles,
   };
 };
+
+/** Strip inactive delivery-mode settings so checkout/storefront only use the selected mode. */
+export const lockDeliveryPricingForActiveMode = (pricing: StoreDeliveryPricing): StoreDeliveryPricing => {
+  if (pricing.mode === "postcode_zones") {
+    return {
+      ...pricing,
+      distanceRanges: [],
+      mileFees: [0, 0, 0, 0, 0],
+    };
+  }
+
+  return {
+    ...pricing,
+    postcodeZones: pricing.postcodeZones.map((zone) => ({
+      ...zone,
+      enabled: false,
+      enabledSectors: [],
+      fee: null,
+    })),
+  };
+};
+
+/** Normalise hub delivery JSON for customer-facing catalog, checkout, and fee previews. */
+export const normaliseDeliveryPricingForServe = (raw: unknown): StoreDeliveryPricing =>
+  lockDeliveryPricingForActiveMode(normaliseDeliveryPricing(raw));
 
 /** Outward district centroids from postcodes.io (see hull-sector-geocodes.generated.ts). */
 export const HULL_AREA_OUTWARD_CENTROIDS: Record<string, { lat: number; lng: number }> = Object.fromEntries(
@@ -367,7 +467,27 @@ const pickMileBandFee = (miles: number, fees: number[]): number => {
   return fees[4] ?? 0;
 };
 
+const pickDistanceRangeFee = (miles: number, ranges: DeliveryDistanceRange[]): number | null => {
+  const match = ranges.find((range) => miles <= range.maxMiles + 0.0001);
+  return match ? Number(match.fee.toFixed(2)) : null;
+};
+
 const hasAnyMileFee = (fees: number[]) => fees.some((value) => value > 0);
+
+const minDistanceRangeFee = (ranges: DeliveryDistanceRange[]): number | null => {
+  if (ranges.length === 0) {
+    return null;
+  }
+  return Math.min(...ranges.map((range) => range.fee));
+};
+
+const minConfiguredZoneFee = (zones: HullPostcodeZone[]): number | null => {
+  const fees = zones.filter((zone) => zone.fee != null).map((zone) => Number(zone.fee));
+  if (fees.length === 0) {
+    return null;
+  }
+  return Math.min(...fees);
+};
 
 const minPositiveMileFee = (fees: number[]): number | null => {
   const positives = fees.filter((value) => value > 0);
@@ -391,8 +511,18 @@ export const deliveryFeeFromForStorefront = (args: {
   legacyDeliveryFee?: number;
   pricing?: StoreDeliveryPricing | null;
 }): number => {
-  const pricing = args.pricing ? normaliseDeliveryPricing(args.pricing) : null;
-  if (pricing && hasAnyMileFee(pricing.mileFees)) {
+  const pricing = args.pricing ? normaliseDeliveryPricingForServe(args.pricing) : null;
+  if (pricing?.mode === "postcode_zones") {
+    const zoneFee = minConfiguredZoneFee(pricing.postcodeZones);
+    if (zoneFee !== null) {
+      return Number(zoneFee.toFixed(2));
+    }
+  } else if (pricing?.distanceRanges.length) {
+    const rangeFee = minDistanceRangeFee(pricing.distanceRanges);
+    if (rangeFee !== null) {
+      return Number(rangeFee.toFixed(2));
+    }
+  } else if (pricing && hasAnyMileFee(pricing.mileFees)) {
     const minTier = minPositiveMileFee(pricing.mileFees);
     if (minTier !== null) {
       return Number(minTier.toFixed(2));
@@ -415,19 +545,34 @@ export const computeDeliveryQuote = (args: {
     return { fee: 0, needsPostcode: false, isDefaultPricing: true, blocked: false };
   }
 
-  const pricing = args.pricing ? normaliseDeliveryPricing(args.pricing) : null;
+  const pricing = args.pricing ? normaliseDeliveryPricingForServe(args.pricing) : null;
   const legacy = args.legacyDeliveryFee ?? 0;
+  const rangeConfigured = Boolean(pricing && pricing.distanceRanges.length > 0);
   const tiersConfigured = Boolean(pricing && hasAnyMileFee(pricing.mileFees));
-  const coverageConfigured = Boolean(
-    pricing &&
-      (pricing.mode === "business_radius" ||
-        (pricing.mode === "postcode_zones" && pricing.postcodeZones.some((zone) => hullZoneHasCoverage(zone)))),
+  const zoneFeesConfigured = Boolean(pricing && pricing.postcodeZones.some((zone) => zone.fee != null));
+  const postcodeCoverageConfigured = Boolean(
+    pricing?.mode === "postcode_zones" && pricing.postcodeZones.some((zone) => hullZoneHasCoverage(zone)),
   );
-  const enforceCoverage = tiersConfigured || coverageConfigured;
+  const radiusCoverageConfigured = Boolean(
+    pricing?.mode === "business_radius" && (pricing.radiusMiles > 0 || rangeConfigured || tiersConfigured),
+  );
+  const enforceCoverage = postcodeCoverageConfigured || radiusCoverageConfigured || legacy > 0;
+
+  const usesConfiguredPricing =
+    pricing?.mode === "postcode_zones"
+      ? zoneFeesConfigured
+      : rangeConfigured || tiersConfigured;
 
   const customerOutward = parseUkOutwardCode(args.customerPostcode ?? "");
   if (!customerOutward) {
-    const preview = tiersConfigured ? minPositiveMileFee(pricing!.mileFees) : null;
+    const preview =
+      pricing?.mode === "postcode_zones"
+        ? minConfiguredZoneFee(pricing.postcodeZones)
+        : pricing && rangeConfigured
+          ? minDistanceRangeFee(pricing.distanceRanges)
+          : pricing && tiersConfigured
+            ? minPositiveMileFee(pricing.mileFees)
+            : null;
     const fee =
       preview != null
         ? Number(preview.toFixed(2))
@@ -437,7 +582,7 @@ export const computeDeliveryQuote = (args: {
     return {
       fee,
       needsPostcode: true,
-      isDefaultPricing: !tiersConfigured,
+      isDefaultPricing: !usesConfiguredPricing,
       blocked: false,
     };
   }
@@ -475,8 +620,9 @@ export const computeDeliveryQuote = (args: {
     };
   }
 
+  let zone: HullPostcodeZone | undefined;
   if (cfg.mode === "postcode_zones") {
-    const zone = cfg.postcodeZones.find((entry) => entry.code === customerOutward);
+    zone = cfg.postcodeZones.find((entry) => entry.code === customerOutward);
     if (!zone || !hullZoneHasCoverage(zone)) {
       return {
         fee: 0,
@@ -513,15 +659,26 @@ export const computeDeliveryQuote = (args: {
   }
 
   const milesForFee = haversineMiles(originPoint, destPoint);
-  const fee = tiersConfigured
-    ? Number(pickMileBandFee(milesForFee, cfg.mileFees).toFixed(2))
-    : legacy > 0
-      ? Number(legacy.toFixed(2))
-      : PLATFORM_DEFAULT_DELIVERY_GBP;
+  const configuredFee =
+    cfg.mode === "postcode_zones"
+      ? zone?.fee != null
+        ? Number(zone.fee.toFixed(2))
+        : null
+      : rangeConfigured
+        ? pickDistanceRangeFee(milesForFee, cfg.distanceRanges)
+        : tiersConfigured
+          ? Number(pickMileBandFee(milesForFee, cfg.mileFees).toFixed(2))
+          : null;
+  const fee =
+    configuredFee != null
+      ? configuredFee
+      : legacy > 0
+        ? Number(legacy.toFixed(2))
+        : PLATFORM_DEFAULT_DELIVERY_GBP;
   return {
     fee,
     needsPostcode: false,
-    isDefaultPricing: !tiersConfigured,
+    isDefaultPricing: configuredFee == null,
     blocked: false,
   };
 };

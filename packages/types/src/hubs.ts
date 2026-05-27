@@ -1,10 +1,12 @@
 import { z } from "zod";
 
 import {
+  deliveryDistanceRangeSchema,
   deliveryModeSchema,
   hubOrderFulfillmentSchema,
   hullPostcodeZoneSchema,
   mergeHullPostcodeZones,
+  normalizeDeliveryDistanceRanges,
   type HullPostcodeZone,
 } from "./delivery-pricing";
 
@@ -98,9 +100,11 @@ export const hubSettingsSchema = z.object({
   deliveryMode: deliveryModeSchema.default("business_radius"),
   /** Max road distance (miles) from the store origin (business-radius mode). */
   deliveryRadiusMiles: z.number().min(0.1).max(40).default(5),
+  /** Radius mode: optional custom pricing blocks by maximum distance. */
+  deliveryDistanceRanges: z.array(deliveryDistanceRangeSchema).default([]),
   /** Hull outward districts with per-zone radius (postcode-zone mode). */
   deliveryPostcodeZones: z.array(hullPostcodeZoneSchema).default([]),
-  /** Five bands: under 1, 2, 3, 4, and 5 miles. Zeros mean “not set” for that band. */
+  /** Legacy five bands: under 1, 2, 3, 4, and 5 miles. Retained for old hubs and hidden editor fallback. */
   deliveryMileFees: z.array(z.number().nonnegative()).length(5).default([0, 0, 0, 0, 0]),
   deliveryOriginLatitude: z.number().min(-90).max(90).nullable().optional(),
   deliveryOriginLongitude: z.number().min(-180).max(180).nullable().optional(),
@@ -312,6 +316,7 @@ export const prepareMerchantWorkspaceUpdateBody = (raw: unknown): unknown => {
           deliveryFee: coerceNonNegative(settings.deliveryFee, 0),
           minimumOrderAmount: coerceNonNegative(settings.minimumOrderAmount, 0),
           deliveryRadiusMiles: Math.min(40, Math.max(0.1, coerceNonNegative(settings.deliveryRadiusMiles, 5) || 5)),
+          deliveryDistanceRanges: normalizeDeliveryDistanceRanges(settings.deliveryDistanceRanges, settings.deliveryMileFees as number[] | undefined),
           autoAcceptMaxPrepMinutes: Math.min(180, Math.max(5, coerceInt(settings.autoAcceptMaxPrepMinutes, 60))),
           deliveryMileFees: normalizeMileFees(settings.deliveryMileFees),
           deliveryPostcodeZones: mergeHullPostcodeZones(settings.deliveryPostcodeZones as HullPostcodeZone[] | undefined),

@@ -32,6 +32,7 @@ import {
 import { HubConfigBackups } from "./hub-config-backups";
 import { HubDeliveryConfig } from "./hub-delivery-config";
 import { HubOpeningHoursEditor } from "./hub-opening-hours-editor";
+import { HubStorefrontImageField } from "./hub-storefront-image-field";
 import { HubMenuCustomisationBuilder } from "./hub-menu-customisation";
 import {
   browserDraftShouldAutoRestore,
@@ -238,6 +239,7 @@ const emptyHubSettings: HubSettings = {
   autoAcceptMaxPrepMinutes: 60,
   deliveryMode: "business_radius",
   deliveryRadiusMiles: 5,
+  deliveryDistanceRanges: [],
   deliveryPostcodeZones: createDefaultHullPostcodeZones(),
   deliveryMileFees: [0, 0, 0, 0, 0],
   deliveryOriginLatitude: null,
@@ -248,6 +250,13 @@ const emptyHubSettings: HubSettings = {
 
 const moneyInput = (value: number) => value.toFixed(2);
 const formatMoney = (value: number) => `£${value.toFixed(2)}`;
+const formatOrderPlacedAt = (value: string) =>
+  new Date(value).toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
 type HubWorkspaceSnapshot = {
   settings: HubSettings;
@@ -256,6 +265,7 @@ type HubWorkspaceSnapshot = {
 
 const cloneHubSettings = (settings: HubSettings): HubSettings => ({
   ...settings,
+  deliveryDistanceRanges: settings.deliveryDistanceRanges.map((range) => ({ ...range })),
   deliveryPostcodeZones: settings.deliveryPostcodeZones.map((zone) => ({ ...zone })),
   deliveryMileFees: [...settings.deliveryMileFees] as HubSettings["deliveryMileFees"],
   openingHours: settings.openingHours.map((day) => ({ ...day })),
@@ -655,6 +665,21 @@ async function fetchMerchantOrders(token: string): Promise<OrderSummary[]> {
   return (await response.json()) as OrderSummary[];
 }
 
+async function fetchMerchantOrderHistory(token: string): Promise<OrderSummary[]> {
+  const response = await fetch(`${apiBaseUrl}/v1/merchant/orders/history`, {
+    cache: "no-store",
+    headers: {
+      authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Merchant order history fetch failed with status ${response.status}`);
+  }
+
+  return (await response.json()) as OrderSummary[];
+}
+
 async function fetchMerchantDriverTracking(token: string): Promise<MerchantDriverTracking> {
   const response = await fetch(`${apiBaseUrl}/v1/merchant/drivers/tracking`, {
     cache: "no-store",
@@ -749,6 +774,7 @@ export default function MerchantPortalPage() {
   const [menuSections, setMenuSections] = useState<HubMenuSection[]>([]);
   const [pendingImports, setPendingImports] = useState<MerchantWorkspace["pendingImports"]>([]);
   const [merchantOrders, setMerchantOrders] = useState<OrderSummary[]>([]);
+  const [merchantOrderHistory, setMerchantOrderHistory] = useState<OrderSummary[]>([]);
   const [ordersClockTick, setOrdersClockTick] = useState(0);
   const [newUser, setNewUser] = useState<CreateUserFormState>(initialCreateUserState);
   const [passwordForm, setPasswordForm] = useState<PasswordFormState>(initialPasswordFormState);
@@ -889,6 +915,11 @@ export default function MerchantPortalPage() {
 
     if (section === "drivers") {
       void loadDriverTracking();
+      return;
+    }
+
+    if (section === "orderHistory") {
+      void loadMerchantOrderHistory(merchantToken, { silent: true });
       return;
     }
 
@@ -1252,6 +1283,21 @@ export default function MerchantPortalPage() {
     }
   };
 
+  const loadMerchantOrderHistory = async (token = merchantToken, options: { silent?: boolean } = {}) => {
+    if (!token) {
+      return;
+    }
+
+    try {
+      const orders = await fetchMerchantOrderHistory(token);
+      setMerchantOrderHistory(orders);
+    } catch {
+      if (!options.silent) {
+        setOrderNotice("Could not refresh order history. Try again.");
+      }
+    }
+  };
+
   const handleAcceptMerchantOrder = async (order: OrderSummary) => {
     if (!merchantToken) {
       return;
@@ -1265,6 +1311,7 @@ export default function MerchantPortalPage() {
     try {
       await acceptMerchantOrder(merchantToken, order.id, hubSettings.etaMinutes);
       await loadMerchantOrders(merchantToken, { silent: true });
+      await loadMerchantOrderHistory(merchantToken, { silent: true });
       setOrderNotice("Order accepted.");
     } catch {
       setOrderNotice("Could not accept this order. Try again.");
@@ -1291,6 +1338,7 @@ export default function MerchantPortalPage() {
     try {
       await rejectMerchantOrder(merchantToken, order.id, trimmed);
       await loadMerchantOrders(merchantToken, { silent: true });
+      await loadMerchantOrderHistory(merchantToken, { silent: true });
       setOrderNotice("Order rejected.");
     } catch {
       setOrderNotice("Could not reject this order. Try again.");
@@ -1449,6 +1497,14 @@ export default function MerchantPortalPage() {
   }, [activeHubSection, merchantToken]);
 
   useEffect(() => {
+    if (activeHubSection !== "orderHistory" || !merchantToken) {
+      return;
+    }
+
+    void loadMerchantOrderHistory(merchantToken, { silent: true });
+  }, [activeHubSection, merchantToken]);
+
+  useEffect(() => {
     if (activeHubSection !== "drivers" || !merchantToken) {
       return;
     }
@@ -1588,6 +1644,7 @@ export default function MerchantPortalPage() {
     setMenuSections([]);
     setPendingImports([]);
     setMerchantOrders([]);
+    setMerchantOrderHistory([]);
     setSelectedCategoryId("");
     setSelectedItemId("");
     setPasswordForm(initialPasswordFormState);
@@ -2321,6 +2378,16 @@ export default function MerchantPortalPage() {
   const saveHubButtonStyle = hasUnsavedHubChanges
     ? { ...primaryButton, ...saveHubButtonDirtyStyle }
     : primaryButton;
+  const showWorkspaceHero = activeHubSection === "home";
+  const showHeaderSaveButton = activeHubSection === "home";
+  const showUnsavedBanner = activeHubSection === "home" && hasUnsavedHubChanges;
+  const showSectionFooterSave =
+    hasUnsavedHubChanges &&
+    hubAccess?.canEditWorkspace &&
+    (activeHubSection === "businessProfile" ||
+      activeHubSection === "availability" ||
+      activeHubSection === "deliveryRanges" ||
+      activeHubSection === "settings");
 
   const handleRestoreConfigBackup = (workspace: { settings: HubSettings; menuSections: HubMenuSection[] }) => {
     const settings = {
@@ -2402,6 +2469,7 @@ export default function MerchantPortalPage() {
               type="button"
               style={activeHubSection === "menu" && activeHubPanel === "import" ? sidebarButtonActive : sidebarButton}
               onClick={() => {
+                setMobileNavOpen(false);
                 setActiveHubSection("menu");
                 setActiveHubPanel("import");
               }}
@@ -2440,10 +2508,9 @@ export default function MerchantPortalPage() {
 
       <section className="hub-main-area">
         <header className="hub-main-header" style={hubMainHeader}>
-          <div style={{ display: "grid", gap: 8 }}>
-            <p style={eyebrow}>Hub workspace</p>
-            <h1 style={hubTitle}>{hubSettings.name || "Merchant hub"}</h1>
-            <p style={heroCopy}>Run orders, menu changes, earnings, users, and store setup from one clear workspace.</p>
+          <div style={{ display: "grid", gap: 6 }}>
+            <strong style={{ color: "#101216", fontSize: "1rem" }}>{hubSettings.name || "Merchant hub"}</strong>
+            <span style={subtleInfo}>{describeStoreOpeningStatus(hubSettings.openingHours, hubSettings.isOpen, hubSettings.acceptingOrders)}</span>
           </div>
 
           <div className="hub-main-header-actions" style={{ display: "grid", gap: 12, justifyItems: "start" }}>
@@ -2453,15 +2520,6 @@ export default function MerchantPortalPage() {
               </span>
             ) : null}
             <div className="he-btn-row" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <button
-                type="button"
-                className={hasUnsavedHubChanges ? "he-portal-primary is-dirty" : "he-portal-primary"}
-                style={saveHubButtonStyle}
-                onClick={handleSaveHub}
-                disabled={!hubAccess?.canEditWorkspace}
-              >
-                {hasUnsavedHubChanges ? "Save hub changes *" : "Save hub changes"}
-              </button>
               {activeHubSlug ? (
                 <>
                   <a href={`${customerWebBaseUrl}/stores/${activeHubSlug}/kiosk`} target="_blank" rel="noreferrer" style={secondaryButtonLink}>
@@ -2479,7 +2537,31 @@ export default function MerchantPortalPage() {
           </div>
         </header>
 
-        {hasUnsavedHubChanges ? (
+        {showWorkspaceHero ? (
+          <section style={workspaceHeroCard}>
+            <div style={{ display: "grid", gap: 8 }}>
+              <p style={eyebrow}>Hub workspace</p>
+              <h1 style={hubTitle}>{hubSettings.name || "Merchant hub"}</h1>
+              <p style={heroCopy}>Run orders, menu changes, earnings, users, and store setup from one clear workspace.</p>
+            </div>
+            {showHeaderSaveButton ? (
+              <div style={{ display: "grid", gap: 12, justifyItems: "start" }}>
+                <button
+                  type="button"
+                  className={hasUnsavedHubChanges ? "he-portal-primary is-dirty" : "he-portal-primary"}
+                  style={saveHubButtonStyle}
+                  onClick={handleSaveHub}
+                  disabled={!hubAccess?.canEditWorkspace}
+                >
+                  {hasUnsavedHubChanges ? "Save hub changes *" : "Save hub changes"}
+                </button>
+                <span style={subtleInfo}>Dashboard save keeps all current hub changes together in one workspace save.</span>
+              </div>
+            ) : null}
+          </section>
+        ) : null}
+
+        {showUnsavedBanner ? (
           <div className="he-hub-banner he-hub-banner--row he-unsaved-banner" role="status" aria-live="polite">
             <div>
               <strong>Unsaved changes</strong>
@@ -2521,7 +2603,7 @@ export default function MerchantPortalPage() {
         {activeHubSection === "users" && passwordNotice ? (
           <HubTransientBanner message={passwordNotice} onDismiss={() => setPasswordNotice("")} />
         ) : null}
-        {activeHubSection === "orders" && orderNotice ? (
+        {(activeHubSection === "orders" || activeHubSection === "orderHistory") && orderNotice ? (
           <HubTransientBanner message={orderNotice} onDismiss={() => setOrderNotice("")} />
         ) : null}
         {activeHubSection === "drivers" && driverNotice ? (
@@ -2660,8 +2742,46 @@ export default function MerchantPortalPage() {
         {activeHubSection === "orderHistory" ? (
           <section style={placeholderPanel}>
             <p style={eyebrowDark}>Order history</p>
-            <h2 style={sectionTitle}>Completed orders and refunds</h2>
-            <p style={panelCopyDark}>Past orders, customer notes, delivery status, and issue handling will be shown here as orders begin flowing through Hull Eats.</p>
+            <div style={itemTopRow}>
+              <div>
+                <h2 style={sectionTitle}>Completed and past orders</h2>
+                <p style={panelCopyDark}>Delivered, rejected, and cancelled orders move here once they are no longer live.</p>
+              </div>
+              <button
+                type="button"
+                style={secondaryButton}
+                onClick={() => {
+                  void loadMerchantOrderHistory(merchantToken, { silent: true }).then(() => {
+                    setOrderNotice("Order history updated.");
+                  });
+                }}
+              >
+                Refresh history
+              </button>
+            </div>
+            <div style={orderListGrid}>
+              {merchantOrderHistory.map((order) => (
+                <article key={order.id} style={orderListCard}>
+                  <div>
+                    <strong style={orderNumberStyle}>{order.orderNumber}</strong>
+                    <p style={panelCopyDark}>
+                      {order.source.replaceAll("_", " ")} / {order.fulfillmentType} / {order.paymentStatus} / {order.paymentMethod.replaceAll("_", " ")}
+                    </p>
+                    <p style={{ ...panelCopyDark, marginTop: 8, fontWeight: 700 }}>Placed {formatOrderPlacedAt(order.placedAt)}</p>
+                  </div>
+                  <div style={itemBadgeRow}>
+                    <span style={darkBadge}>{order.status}</span>
+                    {hubAccess?.canOperateOrders ? (
+                      <button type="button" style={secondaryButtonSmall} onClick={() => void handlePrintOrderReceipt(order)}>
+                        Print receipt
+                      </button>
+                    ) : null}
+                    <span style={orangeBadge}>£{order.totalAmount.toFixed(2)}</span>
+                  </div>
+                </article>
+              ))}
+              {merchantOrderHistory.length === 0 ? <div style={emptyStateCard}>No completed or past orders yet.</div> : null}
+            </div>
           </section>
         ) : null}
 
@@ -2769,48 +2889,16 @@ export default function MerchantPortalPage() {
         activeHubSection === "settings" ||
         activeHubSection === "users" ? (
         <section style={workbenchShell}>
-          <div style={workbenchNav}>
-            {activeHubSection === "menu" ? (
-              <>
-                <button type="button" style={activeHubPanel === "menu" ? workbenchTabActive : workbenchTab} onClick={() => setActiveHubPanel("menu")}>
-                  Menu builder
-                </button>
-                <button type="button" style={activeHubPanel === "import" ? workbenchTabActive : workbenchTab} onClick={() => setActiveHubPanel("import")}>
-                  Paste or upload menu
-                </button>
-              </>
-            ) : null}
-
-            {activeHubSection === "businessProfile" ? (
-              <button type="button" style={activeHubPanel === "businessProfile" ? workbenchTabActive : workbenchTab} onClick={() => setActiveHubPanel("businessProfile")}>
-                Business profile
+          {activeHubSection === "menu" ? (
+            <div style={workbenchNav}>
+              <button type="button" style={activeHubPanel === "menu" ? workbenchTabActive : workbenchTab} onClick={() => setActiveHubPanel("menu")}>
+                Menu builder
               </button>
-            ) : null}
-
-            {activeHubSection === "availability" ? (
-              <button type="button" style={activeHubPanel === "availability" ? workbenchTabActive : workbenchTab} onClick={() => setActiveHubPanel("availability")}>
-                Opening times
+              <button type="button" style={activeHubPanel === "import" ? workbenchTabActive : workbenchTab} onClick={() => setActiveHubPanel("import")}>
+                Paste or upload menu
               </button>
-            ) : null}
-
-            {activeHubSection === "deliveryRanges" ? (
-              <button type="button" style={activeHubPanel === "deliveryRanges" ? workbenchTabActive : workbenchTab} onClick={() => setActiveHubPanel("deliveryRanges")}>
-                Delivery ranges
-              </button>
-            ) : null}
-
-            {activeHubSection === "settings" ? (
-              <button type="button" style={activeHubPanel === "settings" ? workbenchTabActive : workbenchTab} onClick={() => setActiveHubPanel("settings")}>
-                Settings
-              </button>
-            ) : null}
-
-            {activeHubSection === "users" ? (
-              <button type="button" style={workbenchTabActive} onClick={() => setActiveHubPanel("account")}>
-                Users and password
-              </button>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
 
           {activeHubPanel === "menu" ? (
             <HubMenuStudio
@@ -3098,6 +3186,11 @@ export default function MerchantPortalPage() {
 
           {activeHubPanel === "businessProfile" ? (
             <section style={compactEditorCard}>
+              <div style={panelHeader}>
+                <p style={eyebrowDark}>Business profile</p>
+                <h2 style={sectionTitle}>Storefront business details</h2>
+                <p style={panelCopyDark}>Update the public business name, description, location, and storefront image shown to customers.</p>
+              </div>
               <div className="he-two-col" style={twoColumnGrid}>
                 <label style={field}>
                   <span style={darkFieldLabel}>Business name</span>
@@ -3119,20 +3212,20 @@ export default function MerchantPortalPage() {
                     onChange={(event) => handleHubFieldChange("onboardingMessage", event.target.value)}
                   />
                 </label>
-                <label style={{ ...field, gridColumn: "1 / -1" }}>
-                  <span style={darkFieldLabel}>Hero image URL</span>
-                  <input
-                    style={lightInput}
-                    value={hubSettings.heroImageUrl}
-                    onChange={(event) => handleHubFieldChange("heroImageUrl", event.target.value)}
-                  />
-                </label>
+                <HubStorefrontImageField value={hubSettings.heroImageUrl} onChange={(next) => handleHubFieldChange("heroImageUrl", next)} />
               </div>
             </section>
           ) : null}
 
           {activeHubPanel === "deliveryRanges" ? (
             <section style={compactEditorCard}>
+              <div style={panelHeader}>
+                <p style={eyebrowDark}>Delivery ranges</p>
+                <h2 style={sectionTitle}>Delivery coverage and pricing</h2>
+                <p style={panelCopyDark}>
+                  Set the shop postcode, choose radius or postcode coverage, and decide what each delivery area costs.
+                </p>
+              </div>
               <div className="he-two-col" style={twoColumnGrid}>
                 <label style={field}>
                   <span style={darkFieldLabel}>Shop postcode</span>
@@ -3153,24 +3246,8 @@ export default function MerchantPortalPage() {
                   hubId={activeHubId}
                   merchantToken={merchantToken}
                   styles={hubDeliveryConfigStyles}
+                  readOnly={!hubAccess?.canEditWorkspace}
                 />
-                <div style={{ display: "grid", gap: 12, marginTop: 18 }}>
-                  <span style={darkFieldLabel}>Mile band fees (£)</span>
-                  <p style={subtleInfo}>Distance from your shop to the customer postcode picks the band.</p>
-                  {["Under 1 mile", "Under 2 miles", "Under 3 miles", "Under 4 miles", "Under 5 miles"].map((label, index) => (
-                    <label key={label} style={field}>
-                      <span style={darkFieldLabel}>{label}</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min={0}
-                        style={lightInput}
-                        value={hubSettings.deliveryMileFees[index]}
-                        onChange={(event) => handleMileFeeBandChange(index, Number(event.target.value) || 0)}
-                      />
-                    </label>
-                  ))}
-                </div>
               </div>
             </section>
           ) : null}
@@ -3222,6 +3299,11 @@ export default function MerchantPortalPage() {
 
           {activeHubPanel === "settings" ? (
             <section style={compactEditorCard}>
+              <div style={panelHeader}>
+                <p style={eyebrowDark}>Store settings</p>
+                <h2 style={sectionTitle}>Operations and backups</h2>
+                <p style={panelCopyDark}>Manage prep defaults, minimum order value, and save backups of the current hub setup.</p>
+              </div>
               {burgerPartsSection || kebabPartsSection ? (
                 <HubMenuPartsSettingsWorkbench
                   burgerPartsSection={burgerPartsSection}
@@ -3277,10 +3359,6 @@ export default function MerchantPortalPage() {
                   <input type="number" min={1} style={lightInput} value={hubSettings.etaMinutes} onChange={(event) => handleHubFieldChange("etaMinutes", Math.max(1, Number(event.target.value) || 1))} />
                 </label>
                 <label style={field}>
-                  <span style={darkFieldLabel}>Flat delivery fallback (£)</span>
-                  <input type="number" step="0.01" style={lightInput} value={hubSettings.deliveryFee} onChange={(event) => handleHubFieldChange("deliveryFee", Number(event.target.value) || 0)} />
-                </label>
-                <label style={field}>
                   <span style={darkFieldLabel}>Minimum order</span>
                   <input type="number" step="0.01" style={lightInput} value={hubSettings.minimumOrderAmount} onChange={(event) => handleHubFieldChange("minimumOrderAmount", Number(event.target.value) || 0)} />
                 </label>
@@ -3325,6 +3403,11 @@ export default function MerchantPortalPage() {
 
           {activeHubPanel === "account" ? (
             <section style={compactEditorCard}>
+              <div style={panelHeader}>
+                <p style={eyebrowDark}>Users</p>
+                <h2 style={sectionTitle}>Users and password</h2>
+                <p style={panelCopyDark}>Manage the signed-in password and review who currently has access to this hub.</p>
+              </div>
               <div style={quickAddGrid}>
                 <div style={quickAddCard}>
                   <h3 style={quickAddTitle}>Change password</h3>
@@ -3347,6 +3430,17 @@ export default function MerchantPortalPage() {
                 </div>
               </div>
             </section>
+          ) : null}
+          {showSectionFooterSave ? (
+            <div style={sectionFooterSave}>
+              <div style={{ display: "grid", gap: 4 }}>
+                <strong style={{ color: "#101216" }}>Save these hub changes</strong>
+                <span style={subtleInfo}>This saves the current business, availability, delivery, and settings edits to the hub.</span>
+              </div>
+              <button type="button" style={saveHubButtonStyle} onClick={handleSaveHub} disabled={!hubAccess?.canEditWorkspace}>
+                {hasUnsavedHubChanges ? "Save hub changes *" : "Save hub changes"}
+              </button>
+            </div>
           ) : null}
         </section>
         ) : null}
@@ -3737,14 +3831,7 @@ export default function MerchantPortalPage() {
                     onChange={(event) => handleHubFieldChange("onboardingMessage", event.target.value)}
                   />
                 </label>
-                <label style={{ ...field, gridColumn: "1 / -1" }}>
-                  <span style={darkFieldLabel}>Hero image URL</span>
-                  <input
-                    style={lightInput}
-                    value={hubSettings.heroImageUrl}
-                    onChange={(event) => handleHubFieldChange("heroImageUrl", event.target.value)}
-                  />
-                </label>
+                <HubStorefrontImageField value={hubSettings.heroImageUrl} onChange={(next) => handleHubFieldChange("heroImageUrl", next)} />
               </div>
             </section>
 
@@ -4438,6 +4525,24 @@ const sidebarButtonActive: React.CSSProperties = {
 };
 
 const hubMainHeader: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  flexWrap: "wrap",
+  gap: 18,
+  borderRadius: 28,
+  border: "1px solid rgba(15, 17, 21, 0.1)",
+  background: "linear-gradient(180deg, #ffffff, #fbfbfc)",
+  padding: "16px 20px",
+  boxShadow: "0 18px 34px rgba(15, 17, 21, 0.06)",
+};
+
+const workspaceHeroCard: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-end",
+  flexWrap: "wrap",
+  gap: 18,
   borderRadius: 28,
   border: "1px solid rgba(15, 17, 21, 0.1)",
   background: "linear-gradient(180deg, #ffffff, #fbfbfc)",
@@ -5293,6 +5398,18 @@ const portalGrid: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
   gap: 18,
+};
+
+const sectionFooterSave: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 16,
+  flexWrap: "wrap",
+  padding: "16px 18px",
+  borderRadius: 20,
+  border: "1px solid rgba(15, 17, 21, 0.12)",
+  background: "rgba(255, 255, 255, 0.9)",
 };
 
 const fastStartGrid: React.CSSProperties = {

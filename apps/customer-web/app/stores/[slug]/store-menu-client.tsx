@@ -29,7 +29,7 @@ import {
   DELIVERY_NOT_AVAILABLE_TO_POSTCODE_MESSAGE,
   hubAllowsCollection,
   hubAllowsDelivery,
-  normaliseDeliveryPricing,
+  normaliseDeliveryPricingForServe,
 } from "@hull-eats/types";
 import { fetchCustomerDefaultDeliveryPostcode } from "../../../src/lib/customer-default-delivery-postcode";
 import { getDeliveryPostcodeForStore, setDeliveryPostcodeForStore } from "../../../src/lib/delivery-postcode";
@@ -216,7 +216,7 @@ export function StoreMenuClient({
   const [deliveryPostcodeBootstrapDone, setDeliveryPostcodeBootstrapDone] = useState(false);
   const [showPostcodeEditor, setShowPostcodeEditor] = useState(false);
   const deliveryPricing = useMemo(
-    () => (storeDeliveryPricing ? normaliseDeliveryPricing(storeDeliveryPricing) : null),
+    () => (storeDeliveryPricing ? normaliseDeliveryPricingForServe(storeDeliveryPricing) : null),
     [storeDeliveryPricing],
   );
   const canChooseDelivery = hubAllowsDelivery(deliveryPricing?.orderFulfillment);

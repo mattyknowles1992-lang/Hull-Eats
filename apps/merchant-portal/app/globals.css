@@ -1311,6 +1311,13 @@ textarea {
   align-items: center;
 }
 
+.he-opening-hours__mobile-label {
+  display: none;
+  font-size: 0.76rem;
+  font-weight: 800;
+  color: var(--he-muted);
+}
+
 .he-opening-hours__copy-btn {
   border: 1px solid rgba(16, 18, 22, 0.12);
   background: #fff;
@@ -1328,7 +1335,7 @@ textarea {
   cursor: not-allowed;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 960px) {
   .he-opening-hours__row {
     grid-template-columns: 1fr 1fr;
     grid-template-areas:
@@ -1359,5 +1366,9 @@ textarea {
 
   .he-opening-hours__time-control {
     grid-template-columns: 1fr;
+  }
+
+  .he-opening-hours__mobile-label {
+    display: block;
   }
 }

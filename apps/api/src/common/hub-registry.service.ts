@@ -1674,6 +1674,7 @@ export class HubRegistryService {
     return {
       mode: settings.deliveryMode,
       radiusMiles: settings.deliveryRadiusMiles,
+      distanceRanges: settings.deliveryDistanceRanges,
       postcodeZones: settings.deliveryPostcodeZones,
       postcodeDistricts: enabledDistricts,
       mileFees: [...settings.deliveryMileFees],
@@ -1687,6 +1688,7 @@ export class HubRegistryService {
     HubSettings,
     | "deliveryMode"
     | "deliveryRadiusMiles"
+    | "deliveryDistanceRanges"
     | "deliveryPostcodeZones"
     | "deliveryMileFees"
     | "deliveryOriginLatitude"
@@ -1697,6 +1699,7 @@ export class HubRegistryService {
     return {
       deliveryMode: cfg.mode,
       deliveryRadiusMiles: cfg.radiusMiles,
+      deliveryDistanceRanges: cfg.distanceRanges.map((range) => ({ ...range })),
       deliveryPostcodeZones: cfg.postcodeZones.map((zone) => ({ ...zone })),
       deliveryMileFees: [
         cfg.mileFees[0] ?? 0,

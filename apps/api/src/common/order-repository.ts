@@ -26,6 +26,7 @@ const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}
 
 const MERCHANT_PENDING_TIMEOUT_MS = 120_000;
 const CUSTOMER_CANCEL_GRACE_MS = 60_000;
+const TERMINAL_MERCHANT_ORDER_STATUSES = ["DELIVERED", "CANCELLED", "REJECTED"] as const;
 
 const normalisePhone = (value: string) => value.replace(/\s+/g, "").trim();
 
@@ -675,6 +676,29 @@ export const persistCheckoutOrder = async (
 export const listMerchantOrders = async (hubId: string): Promise<OrderSummary[]> => {
   const orders = await prisma.order.findMany({
     where: {
+      status: { notIn: [...TERMINAL_MERCHANT_ORDER_STATUSES] as any },
+      store: {
+        merchantId: hubId,
+      },
+    },
+    include: {
+      store: {
+        select: {
+          autoAcceptOrders: true,
+        },
+      },
+    },
+    orderBy: { placedAt: "desc" },
+    take: 100,
+  });
+
+  return orders.map((row) => buildOrderSummaryForClient(row));
+};
+
+export const listMerchantOrderHistory = async (hubId: string): Promise<OrderSummary[]> => {
+  const orders = await prisma.order.findMany({
+    where: {
+      status: { in: [...TERMINAL_MERCHANT_ORDER_STATUSES] as any },
       store: {
         merchantId: hubId,
       },

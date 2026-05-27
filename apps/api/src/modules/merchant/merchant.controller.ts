@@ -44,6 +44,7 @@ import {
   buildMerchantOrderReceipt,
   findMerchantOrder,
   listMerchantDriverCashUp,
+  listMerchantOrderHistory,
   listMerchantDriverTracking,
   listMerchantOrders,
   queueMerchantOrderReceiptPrint,
@@ -345,6 +346,12 @@ export class MerchantController {
   async listOrders(@Headers("authorization") authorization?: string) {
     const session = await this.internalAuth.requireMerchantToken(authorization);
     return listMerchantOrders(session.hubId!);
+  }
+
+  @Get("orders/history")
+  async listOrderHistory(@Headers("authorization") authorization?: string) {
+    const session = await this.internalAuth.requireMerchantToken(authorization);
+    return listMerchantOrderHistory(session.hubId!);
   }
 
   @Get("drivers/tracking")
