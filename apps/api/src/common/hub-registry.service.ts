@@ -55,6 +55,19 @@ import type {
 } from "@hull-eats/types";
 
 const categoryLikeLine = /^[A-Za-z][A-Za-z\s&/+'->]{1,60}$/;
+const hubUserSelectWithoutLocale = {
+  id: true,
+  merchantId: true,
+  fullName: true,
+  email: true,
+  username: true,
+  role: true,
+  status: true,
+  isActive: true,
+  mustChangePassword: true,
+  sessionVersion: true,
+  createdAt: true,
+} as const;
 const ignoredImportLines = [
   /^read more$/i,
   /^show less$/i,
@@ -248,6 +261,7 @@ export class HubRegistryService {
         hubUsers: {
           where: { isActive: true },
           orderBy: { createdAt: "asc" },
+          select: hubUserSelectWithoutLocale,
         },
       },
       orderBy: { createdAt: "desc" },
@@ -267,8 +281,11 @@ export class HubRegistryService {
 
     const users = await prisma.hubUser.findMany({
       where: { isActive: true },
-      include: {
-        merchant: true,
+      select: {
+        ...hubUserSelectWithoutLocale,
+        merchant: {
+          select: { name: true },
+        },
       },
       orderBy: { createdAt: "asc" },
     });
@@ -299,8 +316,8 @@ export class HubRegistryService {
     const cuisineLabel = input.cuisineLabel.trim();
 
     const [usernameExists, emailExists, slugExists] = await Promise.all([
-      prisma.hubUser.findUnique({ where: { username: hubUsername } }),
-      prisma.hubUser.findUnique({ where: { email: ownerEmail } }),
+      prisma.hubUser.findUnique({ where: { username: hubUsername }, select: { id: true } }),
+      prisma.hubUser.findUnique({ where: { email: ownerEmail }, select: { id: true } }),
       prisma.merchant.findUnique({ where: { slug } }),
     ]);
 
@@ -494,10 +511,72 @@ export class HubRegistryService {
       where: {
         OR: [{ username: normalizedLogin }, { email: normalizedLogin }],
       },
+      select: {
+        ...hubUserSelectWithoutLocale,
+        passwordHash: true,
+      },
     });
 
     if (!hubUser || !hubUser.isActive || hubUser.status === "DISABLED" || !verifyPassword(password, hubUser.passwordHash)) {
       throw new UnauthorizedException("Hub email or password did not match a provisioned business account.");
+    }
+
+    const workspace = await this.getWorkspaceById(hubUser.merchantId);
+    const activeUser = workspace.users.find((entry) => entry.id === hubUser.id) ?? this.mapHubUser(hubUser);
+
+    return {
+      user: activeUser,
+      workspace,
+      session: {
+        id: hubUser.id,
+        hubId: hubUser.merchantId,
+        username: hubUser.username,
+        role: hubUser.role.toLowerCase(),
+        sessionVersion: hubUser.sessionVersion ?? 0,
+      },
+    };
+  }
+
+  async createAdminHubImpersonation(hubId: string, loginHint?: string) {
+    await this.ensurePilotHub();
+
+    const normalizedHint = loginHint?.trim().toLowerCase();
+    const hintedUser =
+      normalizedHint && normalizedHint.length > 0
+        ? await prisma.hubUser.findFirst({
+            where: {
+              merchantId: hubId,
+              isActive: true,
+              status: { not: "DISABLED" },
+              OR: [{ username: normalizedHint }, { email: normalizedHint }],
+            },
+            select: hubUserSelectWithoutLocale,
+          })
+        : null;
+
+    const hubUser =
+      hintedUser ??
+      (await prisma.hubUser.findFirst({
+        where: {
+          merchantId: hubId,
+          isActive: true,
+          status: { not: "DISABLED" },
+          role: "OWNER",
+        },
+        select: hubUserSelectWithoutLocale,
+      })) ??
+      (await prisma.hubUser.findFirst({
+        where: {
+          merchantId: hubId,
+          isActive: true,
+          status: { not: "DISABLED" },
+        },
+        orderBy: { createdAt: "asc" },
+        select: hubUserSelectWithoutLocale,
+      }));
+
+    if (!hubUser) {
+      throw new NotFoundException(`No active hub user was found for hub ${hubId}.`);
     }
 
     const workspace = await this.getWorkspaceById(hubUser.merchantId);
@@ -788,6 +867,7 @@ export class HubRegistryService {
       where: {
         OR: [{ username }, { email }],
       },
+      select: { id: true },
     });
 
     if (duplicate) {
@@ -820,6 +900,10 @@ export class HubRegistryService {
         merchantId: hubId,
         isActive: true,
       },
+      select: {
+        ...hubUserSelectWithoutLocale,
+        passwordHash: true,
+      },
     });
 
     if (!user || user.status === "DISABLED" || !verifyPassword(input.currentPassword, user.passwordHash)) {
@@ -849,6 +933,7 @@ export class HubRegistryService {
         id: userId,
         merchantId: hubId,
       },
+      select: hubUserSelectWithoutLocale,
     });
 
     if (!user) {
@@ -1411,6 +1496,7 @@ export class HubRegistryService {
         hubUsers: {
           where: { isActive: true },
           orderBy: { createdAt: "asc" },
+          select: hubUserSelectWithoutLocale,
         },
       },
     });
@@ -1432,6 +1518,7 @@ export class HubRegistryService {
         hubUsers: {
           where: { isActive: true },
           orderBy: { createdAt: "asc" },
+          select: hubUserSelectWithoutLocale,
         },
       },
     });

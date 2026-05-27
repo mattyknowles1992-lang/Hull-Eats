@@ -8,6 +8,7 @@ import type { ContactMessageRecord } from "@hull-eats/types";
 import {
   adminSessionStorageKey,
   adminSessionEmailStorageKey,
+  createAdminHubImpersonation,
   createAdminHub,
   createAdminHubCourier,
   createAdminHubUser,
@@ -26,6 +27,7 @@ import {
   updateAdminContactMessageStatus,
   updateAdminCourier,
   updateAdminCustomer,
+  merchantPortalBaseUrl,
   type AdminCourierSummary,
   type AdminCustomerSummary,
   type AdminHubOrderSummary,
@@ -607,6 +609,26 @@ export function AdminConsoleLive() {
       }
       return isExpanded ? current.filter((id) => id !== hubId) : [...current, hubId];
     });
+  };
+
+  const handleImpersonateHub = async (hub: AdminHubSummary) => {
+    if (!authToken) {
+      return;
+    }
+    try {
+      const session = await createAdminHubImpersonation(authToken, hub.id);
+      const encodedSession = encodeURIComponent(
+        JSON.stringify({
+          token: session.token,
+          hubId: session.hubId,
+          user: session.user,
+        }),
+      );
+      window.open(`${merchantPortalBaseUrl}/?adminSession=${encodedSession}`, "_blank", "noopener,noreferrer");
+      setHubNotice(`Opened ${hub.businessName} as ${session.user.fullName}.`);
+    } catch (error) {
+      setHubNotice(error instanceof Error ? error.message : "Could not open hub session.");
+    }
   };
 
   const handleCreateUser = async () => {
@@ -1202,6 +1224,11 @@ export function AdminConsoleLive() {
                             onClick={() => void handleToggleHubService(hub, !hub.acceptingOrders)}
                           >
                             {hub.acceptingOrders ? "Stop service" : "Start service"}
+                          </button>
+                        ) : null}
+                        {isUltraAdmin ? (
+                          <button type="button" style={styles.buttonPrimary} onClick={() => void handleImpersonateHub(hub)}>
+                            Login as hub
                           </button>
                         ) : null}
                         <button

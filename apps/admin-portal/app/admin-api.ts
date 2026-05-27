@@ -4,6 +4,9 @@ export type { AdminHubSummary } from "@hull-eats/types";
 
 const defaultApiBaseUrl = process.env.NODE_ENV === "production" ? "https://hull-eats-api.onrender.com" : "http://localhost:4000";
 export const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL ?? defaultApiBaseUrl).replace(/\/$/, "");
+const defaultMerchantPortalUrl =
+  process.env.NODE_ENV === "production" ? "https://hull-eats-merchant-portal.onrender.com" : "http://localhost:3001";
+export const merchantPortalBaseUrl = (process.env.NEXT_PUBLIC_MERCHANT_PORTAL_URL ?? defaultMerchantPortalUrl).replace(/\/$/, "");
 export const adminSessionStorageKey = "hull-eats-admin-session";
 export const adminSessionEmailStorageKey = "hull-eats-admin-email";
 
@@ -46,6 +49,23 @@ export type AdminLoginResponse = {
   admin: {
     email: string;
   };
+};
+
+export type AdminHubImpersonationResponse = {
+  token: string;
+  user: {
+    id: string;
+    hubId: string;
+    fullName: string;
+    email: string;
+    username: string;
+    role: "owner" | "manager" | "staff" | "viewer";
+    status: "active" | "invited" | "disabled";
+    mustChangePassword: boolean;
+    preferredLocale: string;
+  };
+  hubId: string;
+  hubSlug: string;
 };
 
 export type AdminCreateHubResponse = {
@@ -303,6 +323,24 @@ export async function createAdminHubUser(
     role: "owner" | "manager" | "staff" | "viewer";
     status: "active" | "invited" | "disabled";
   }>(response);
+}
+
+export async function createAdminHubImpersonation(
+  token: string,
+  hubId: string,
+  input?: { loginHint?: string },
+): Promise<AdminHubImpersonationResponse> {
+  const response = await authedFetch(`/v1/admin/hubs/${encodeURIComponent(hubId)}/impersonate`, token, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(input ?? {}),
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Admin hub impersonation failed"));
+  }
+  return parseJson<AdminHubImpersonationResponse>(response);
 }
 
 export async function fetchAdminCouriers(token: string): Promise<AdminCourierSummary[]> {

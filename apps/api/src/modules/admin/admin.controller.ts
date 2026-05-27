@@ -100,6 +100,23 @@ export class AdminController {
     return this.hubRegistry.createHubUser(hubId, input, "owner");
   }
 
+  @Post("hubs/:hubId/impersonate")
+  async impersonateHubUser(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("hubId") hubId: string,
+    @Body() body: { loginHint?: string } | undefined,
+  ) {
+    this.internalAuth.requireAdminToken(authorization);
+    const loginHint = typeof body?.loginHint === "string" ? body.loginHint : undefined;
+    const impersonation = await this.hubRegistry.createAdminHubImpersonation(hubId, loginHint);
+    return {
+      token: this.internalAuth.issueMerchantToken(impersonation.session),
+      user: impersonation.user,
+      hubId: impersonation.workspace.hub.id,
+      hubSlug: impersonation.workspace.hub.slug,
+    };
+  }
+
   @Post("merchants")
   createMerchant(@Headers("authorization") authorization: string | undefined, @Body() body: Record<string, unknown>) {
     this.internalAuth.requireAdminToken(authorization);

@@ -1486,6 +1486,35 @@ export default function MerchantPortalPage() {
       setResetEmail(lastEmail);
     }
 
+    const params = new URLSearchParams(window.location.search);
+    const adminSessionParam = params.get("adminSession");
+    if (adminSessionParam) {
+      try {
+        const parsedAdminSession = JSON.parse(decodeURIComponent(adminSessionParam)) as StoredMerchantSession;
+        if (parsedAdminSession?.token && parsedAdminSession?.hubId && parsedAdminSession?.user) {
+          window.localStorage.setItem(
+            merchantSessionStorageKey,
+            JSON.stringify({
+              token: parsedAdminSession.token,
+              hubId: parsedAdminSession.hubId,
+              user: parsedAdminSession.user,
+            } satisfies StoredMerchantSession),
+          );
+          window.localStorage.setItem(
+            merchantLastLoginEmailKey,
+            parsedAdminSession.user.email || parsedAdminSession.user.username || "",
+          );
+        }
+      } catch {
+        // Ignore malformed adminSession payloads and continue with normal login/session restore.
+      } finally {
+        params.delete("adminSession");
+        const next = params.toString();
+        const cleaned = `${window.location.pathname}${next ? `?${next}` : ""}${window.location.hash}`;
+        window.history.replaceState({}, "", cleaned);
+      }
+    }
+
     const storedSession = window.localStorage.getItem(merchantSessionStorageKey);
     if (!storedSession) {
       setBootStatus("login");
