@@ -6,11 +6,11 @@ import { useMemo, useState } from "react";
 import type { MenuItem } from "@hull-eats/types";
 
 import {
-  applyComponentsToItem,
   componentFromMenuPart,
   filterPartsNotListedAsExtras,
   isLabelListedAsExtra,
   partSlotLabel,
+  syncComposePartsFromSelection,
   type ComposePartSlot,
   type ComposeProductLine,
   type HubExtraTopping,
@@ -45,8 +45,27 @@ export function HubMenuItemPartsPicker({
     for (const component of item.components) {
       map.set(component.id, component);
     }
+    for (const group of item.optionGroups) {
+      if (!/^__HULL_PART_CHOICE:(burger|kebab):/.test((group.description ?? "").trim())) {
+        continue;
+      }
+      for (const option of group.options) {
+        if (!map.has(option.id)) {
+          map.set(option.id, {
+            id: option.id,
+            label: option.label,
+            quantity: 1,
+            removable: false,
+          });
+        }
+      }
+    }
     return map;
-  }, [item.components]);
+  }, [item.components, item.optionGroups]);
+
+  const collectSelectedComponents = (): MenuItem["components"] => {
+    return Array.from(selectedByPartId.values());
+  };
 
   const partsBySlot = useMemo(() => {
     const groups = new Map<ComposePartSlot, HubMenuPart[]>();
@@ -67,23 +86,37 @@ export function HubMenuItemPartsPicker({
   );
 
   const patchComponents = (components: MenuItem["components"]) => {
-    onUpdateItem((current) => applyComponentsToItem(current, components, { syncDescription }));
+    onUpdateItem((current) =>
+      syncComposePartsFromSelection(current, line, slotDefinitions, parts, components, { syncDescription }),
+    );
   };
+
+  const selectedCountBySlot = useMemo(() => {
+    const counts = new Map<ComposePartSlot, number>();
+    for (const partId of selectedByPartId.keys()) {
+      const part = parts.find((entry) => entry.id === partId);
+      if (part) {
+        counts.set(part.slot, (counts.get(part.slot) ?? 0) + 1);
+      }
+    }
+    return counts;
+  }, [parts, selectedByPartId]);
 
   const togglePart = (part: HubMenuPart, checked: boolean) => {
     if (checked && isLabelListedAsExtra(part.label, extras)) {
       return;
     }
+    const current = collectSelectedComponents();
     if (checked) {
-      patchComponents([...item.components, componentFromMenuPart(part)]);
+      patchComponents([...current.filter((entry) => entry.id !== part.id), componentFromMenuPart(part)]);
       return;
     }
-    patchComponents(item.components.filter((component) => component.id !== part.id));
+    patchComponents(current.filter((component) => component.id !== part.id));
   };
 
   const updateComponent = (partId: string, patch: Partial<MenuItem["components"][number]>) => {
     patchComponents(
-      item.components.map((component) => (component.id === partId ? { ...component, ...patch } : component)),
+      collectSelectedComponents().map((component) => (component.id === partId ? { ...component, ...patch } : component)),
     );
   };
 
@@ -102,8 +135,9 @@ export function HubMenuItemPartsPicker({
         <div>
           <strong style={title}>Build this {line} from parts</strong>
           <p style={copy}>
-            Tick what is included in this product (prints on kitchen tickets). Paid add-ons like cheese, onion, or
-            chorizo — tick those under <strong>Added extras</strong> below, not here.
+            Tick what makes up this product. <strong>One</strong> tick per group = fixed on the item (set quantity).
+            <strong> Two or more</strong> in the same group (e.g. two buns) = customer <strong>picks one</strong> on the
+            website. Paid add-ons (cheese, bacon…) go under <strong>Added extras</strong> on this item.
           </p>
         </div>
       </div>
@@ -131,9 +165,15 @@ export function HubMenuItemPartsPicker({
         if (slotParts.length === 0) {
           return null;
         }
+        const slotCount = selectedCountBySlot.get(slotDef.key) ?? 0;
         return (
           <div key={slotDef.key} className="hub-menu-item-parts__group">
             <p style={groupTitle}>{partSlotLabel(line, slotDef.key, slotDefinitions)}</p>
+            {slotCount > 1 ? (
+              <p style={slotHint}>Customer will pick one of these on the menu ({slotCount} choices).</p>
+            ) : slotCount === 1 ? (
+              <p style={slotHint}>Fixed on this item — set quantity below.</p>
+            ) : null}
             <ul style={optionList}>
               {slotParts.map((part) => {
                 const selected = selectedByPartId.get(part.id);
@@ -166,10 +206,10 @@ export function HubMenuItemPartsPicker({
                           <input
                             type="checkbox"
                             checked={selected.removable}
-                            disabled={readOnly}
+                            disabled={readOnly || slotCount > 1}
                             onChange={(e) => updateComponent(part.id, { removable: e.target.checked })}
                           />
-                          <span>Customer can remove</span>
+                          <span>{slotCount > 1 ? "Pick-one group (not removable)" : "Customer can remove"}</span>
                         </label>
                       </div>
                     ) : null}
@@ -223,6 +263,7 @@ const hintBox: CSSProperties = {
 const syncRow: CSSProperties = { display: "flex", alignItems: "center", gap: 8, fontSize: "0.84rem", fontWeight: 600 };
 const empty: CSSProperties = { margin: 0, fontSize: "0.84rem", color: "#5b6470" };
 const groupTitle: CSSProperties = { margin: "0 0 6px", fontSize: "0.78rem", fontWeight: 800, color: "#064f68" };
+const slotHint: CSSProperties = { margin: "0 0 8px", fontSize: "0.78rem", color: "#5b6470", lineHeight: 1.4 };
 const optionList: CSSProperties = { margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 6 };
 const optionRow: CSSProperties = {
   display: "grid",

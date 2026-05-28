@@ -64,6 +64,7 @@ import {
   findBurgerPartsSection,
   findKebabPartsSection,
   findExtrasLibrarySection,
+  findSaucesLibrarySection,
   findMealLibrarySection,
   getMealDealBundleSelection,
   getHubExtraToppingsFromSection,
@@ -870,6 +871,7 @@ export default function MerchantPortalPage() {
   }, [activeUser?.preferredLocale, setLocale]);
 
   const extrasSection = useMemo(() => findExtrasLibrarySection(menuSections), [menuSections]);
+  const saucesSection = useMemo(() => findSaucesLibrarySection(menuSections), [menuSections]);
   const burgerPartsSection = useMemo(() => findBurgerPartsSection(menuSections), [menuSections]);
   const kebabPartsSection = useMemo(() => findKebabPartsSection(menuSections), [menuSections]);
   const mealSection = useMemo(() => findMealLibrarySection(menuSections), [menuSections]);
@@ -3080,6 +3082,29 @@ export default function MerchantPortalPage() {
                   ),
                 );
               }}
+              saucesSection={saucesSection}
+              onAddSauce={(item) => {
+                if (!saucesSection) {
+                  return;
+                }
+                updateMenuSections((current) =>
+                  current.map((section) =>
+                    section.id === saucesSection.id ? { ...section, items: [...section.items, item] } : section,
+                  ),
+                );
+              }}
+              onRemoveSauce={(itemId) => {
+                if (!saucesSection) {
+                  return;
+                }
+                updateMenuSections((current) =>
+                  current.map((section) =>
+                    section.id === saucesSection.id
+                      ? { ...section, items: section.items.filter((item) => item.id !== itemId) }
+                      : section,
+                  ),
+                );
+              }}
               burgerPartsSection={burgerPartsSection}
               kebabPartsSection={kebabPartsSection}
               onAddBurgerPart={(item) => {
@@ -3382,18 +3407,15 @@ export default function MerchantPortalPage() {
                   </select>
                   <p style={subtleInfo}>Use this if the kitchen needs to stop orders straight away and come back later.</p>
                 </label>
-                <label style={field}>
+                <div style={field}>
                   <span style={darkFieldLabel}>Listed on Hull Eats</span>
-                  <select
-                    style={lightInput}
-                    value={hubSettings.isOpen ? "open" : "closed"}
-                    onChange={(event) => handleHubFieldChange("isOpen", event.target.value === "open")}
-                  >
-                    <option value="open">Live - visible on marketplace</option>
-                    <option value="closed">Setup - hidden from customers</option>
-                  </select>
-                  <p style={subtleInfo}>Opening times above only apply while the store is live and accepting orders.</p>
-                </label>
+                  <p style={{ ...lightInput, margin: 0, padding: "12px 14px" }}>
+                    {hubSettings.isOpen ? "Live — visible on marketplace" : "Hidden — not listed on marketplace yet"}
+                  </p>
+                  <p style={subtleInfo}>
+                    Marketplace listing is controlled by Hull Eats admin and is not changed when you save menu or hub settings.
+                  </p>
+                </div>
               </div>
             </section>
           ) : null}
@@ -3934,17 +3956,13 @@ export default function MerchantPortalPage() {
                     <option value="paused">Paused — hide store and stop new orders</option>
                   </select>
                 </label>
-                <label style={field}>
+                <div style={field}>
                   <span style={darkFieldLabel}>Listed on Hull Eats</span>
-                  <select
-                    style={lightInput}
-                    value={hubSettings.isOpen ? "open" : "closed"}
-                    onChange={(event) => handleHubFieldChange("isOpen", event.target.value === "open")}
-                  >
-                    <option value="open">Live — visible on marketplace</option>
-                    <option value="closed">Setup — hidden from customers</option>
-                  </select>
-                </label>
+                  <p style={{ ...lightInput, margin: 0, padding: "12px 14px" }}>
+                    {hubSettings.isOpen ? "Live — visible on marketplace" : "Hidden — not listed on marketplace yet"}
+                  </p>
+                  <p style={subtleInfo}>Marketplace listing is managed by Hull Eats admin.</p>
+                </div>
                 <label style={{ ...field, gridColumn: "1 / -1" }}>
                   <span style={darkFieldLabel}>Marketplace description</span>
                   <textarea

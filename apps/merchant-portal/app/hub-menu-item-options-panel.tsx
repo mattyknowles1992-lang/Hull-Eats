@@ -7,13 +7,18 @@ import type { MenuItem } from "@hull-eats/types";
 
 import { HubMenuItemExtrasPicker } from "./hub-menu-item-extras";
 import { HubMenuItemMealPicker } from "./hub-menu-item-meal-picker";
+import { HubMenuItemSaucesPicker } from "./hub-menu-item-sauces-picker";
 import {
   addItemCustomOptionGroup,
   addItemOptionToGroup,
   applyExtraToppingsToItem,
   applyMealUpgradeToItem,
+  applySaucesToItem,
   buildAllToppingSelection,
+  findSaucesIncludedGroup,
+  findSaucesExtraGroup,
   getItemExtraToppingSelection,
+  getItemSauceSelection,
   listItemOptionBlocks,
   removeItemOptionBlock,
   removeItemOptionFromGroup,
@@ -22,16 +27,20 @@ import {
   updateItemOptionInGroup,
   updateExtrasGroupTitle,
   updateMealChoiceGroupTitle,
+  updateSaucesIncludedGroupTitle,
+  updateSaucesExtraGroupTitle,
   findExtrasToppingsGroup,
   findMealChoiceGroup,
   type HubExtraTopping,
   type HubMealTemplate,
+  type HubSauceOption,
   type ItemOptionBlock,
 } from "./menu-studio-core";
 
 type Props = {
   item: MenuItem;
   toppings: HubExtraTopping[];
+  sauces: HubSauceOption[];
   mealTemplates: HubMealTemplate[];
   readOnly?: boolean;
   onUpdateItem: (updater: (item: MenuItem) => MenuItem) => void;
@@ -55,6 +64,80 @@ function BlockGrip({
   );
 }
 
+function ItemSaucesBlock({
+  item,
+  sauces,
+  readOnly,
+  onUpdateItem,
+}: {
+  item: MenuItem;
+  sauces: HubSauceOption[];
+  readOnly: boolean;
+  onUpdateItem: Props["onUpdateItem"];
+}) {
+  const selection = getItemSauceSelection(item);
+
+  const patch = (
+    enabled: boolean,
+    includedIds: Set<string>,
+    extraEnabled: boolean,
+    extraIds: Set<string>,
+    extraPriceById: Map<string, number>,
+  ) => {
+    onUpdateItem((current) => applySaucesToItem(current, enabled, sauces, includedIds, extraEnabled, extraIds, extraPriceById));
+  };
+
+  return (
+    <HubMenuItemSaucesPicker
+      sauces={sauces}
+      enabled={selection.enabled}
+      includedIds={selection.includedIds}
+      extraEnabled={selection.extraEnabled}
+      extraIds={selection.extraIds}
+      extraPriceById={selection.extraPriceById}
+      readOnly={readOnly}
+      onEnabledChange={(enabled) => {
+        if (enabled) {
+          const defaults = new Set(sauces.map((sauce) => sauce.id));
+          patch(true, defaults, false, new Set(), selection.extraPriceById);
+          return;
+        }
+        patch(false, new Set(), false, new Set(), selection.extraPriceById);
+      }}
+      onSelectAllIncluded={() => patch(selection.enabled, new Set(sauces.map((s) => s.id)), selection.extraEnabled, selection.extraIds, selection.extraPriceById)}
+      onClearIncluded={() => patch(false, new Set(), false, new Set(), selection.extraPriceById)}
+      onIncludedToggle={(id, checked) => {
+        const next = new Set(selection.includedIds);
+        if (checked) {
+          next.add(id);
+        } else {
+          next.delete(id);
+        }
+        patch(selection.enabled || next.size > 0, next, selection.extraEnabled, selection.extraIds, selection.extraPriceById);
+      }}
+      onExtraEnabledChange={(extraEnabled) => {
+        const extraIds =
+          extraEnabled && selection.extraIds.size === 0 ? new Set(sauces.map((s) => s.id)) : selection.extraIds;
+        patch(selection.enabled, selection.includedIds, extraEnabled, extraIds, selection.extraPriceById);
+      }}
+      onExtraToggle={(id, checked) => {
+        const next = new Set(selection.extraIds);
+        if (checked) {
+          next.add(id);
+        } else {
+          next.delete(id);
+        }
+        patch(selection.enabled, selection.includedIds, selection.extraEnabled, next, selection.extraPriceById);
+      }}
+      onExtraPriceChange={(id, price) => {
+        const next = new Map(selection.extraPriceById);
+        next.set(id, price);
+        patch(selection.enabled, selection.includedIds, selection.extraEnabled, selection.extraIds, next);
+      }}
+    />
+  );
+}
+
 function ItemExtrasBlock({
   item,
   toppings,
@@ -68,8 +151,13 @@ function ItemExtrasBlock({
 }) {
   const selection = getItemExtraToppingSelection(item);
 
-  const patch = (enabled: boolean, selectedIds: Set<string>, priceById: Map<string, number>) => {
-    onUpdateItem((current) => applyExtraToppingsToItem(current, enabled, toppings, selectedIds, priceById));
+  const patch = (
+    enabled: boolean,
+    selectedIds: Set<string>,
+    priceById: Map<string, number>,
+    includedQtyById: Map<string, number>,
+  ) => {
+    onUpdateItem((current) => applyExtraToppingsToItem(current, enabled, toppings, selectedIds, priceById, includedQtyById));
   };
 
   if (toppings.length === 0) {
@@ -86,30 +174,41 @@ function ItemExtrasBlock({
       enabled={selection.enabled}
       selectedIds={selection.selectedIds}
       priceById={selection.priceById}
+      includedQtyById={selection.includedQtyById}
       readOnly={readOnly}
       onEnabledChange={(enabled) => {
         if (enabled) {
           const defaults = buildAllToppingSelection(toppings);
-          patch(true, defaults.selectedIds, defaults.priceById);
+          const included = new Map(toppings.map((t) => [t.id, 0]));
+          patch(true, defaults.selectedIds, defaults.priceById, included);
           return;
         }
-        patch(false, new Set(), new Map());
+        patch(false, new Set(), new Map(), new Map());
       }}
-      onSelectAll={() => patch(true, new Set(toppings.map((t) => t.id)), selection.priceById)}
-      onClearAll={() => patch(false, new Set(), selection.priceById)}
+      onSelectAll={() => patch(true, new Set(toppings.map((t) => t.id)), selection.priceById, selection.includedQtyById)}
+      onClearAll={() => patch(false, new Set(), selection.priceById, selection.includedQtyById)}
       onToggle={(id, checked) => {
         const next = new Set(selection.selectedIds);
+        const included = new Map(selection.includedQtyById);
         if (checked) {
           next.add(id);
+          if (!included.has(id)) {
+            included.set(id, 0);
+          }
         } else {
           next.delete(id);
         }
-        patch(true, next, selection.priceById);
+        patch(true, next, selection.priceById, included);
       }}
       onPriceChange={(id, price) => {
         const next = new Map(selection.priceById);
         next.set(id, price);
-        patch(selection.enabled, selection.selectedIds, next);
+        patch(selection.enabled, selection.selectedIds, next, selection.includedQtyById);
+      }}
+      onIncludedQtyChange={(id, quantity) => {
+        const next = new Map(selection.includedQtyById);
+        next.set(id, quantity);
+        patch(selection.enabled, selection.selectedIds, selection.priceById, next);
       }}
     />
   );
@@ -210,6 +309,7 @@ function OptionBlockCard({
   block,
   item,
   toppings,
+  sauces,
   mealTemplates,
   readOnly,
   reorderableIndex,
@@ -220,6 +320,7 @@ function OptionBlockCard({
   block: ItemOptionBlock;
   item: MenuItem;
   toppings: HubExtraTopping[];
+  sauces: HubSauceOption[];
   mealTemplates: HubMealTemplate[];
   readOnly: boolean;
   reorderableIndex: number;
@@ -231,6 +332,8 @@ function OptionBlockCard({
   const customGroupId = block.kind === "custom" ? block.groupIds[0] : null;
   const customGroup = customGroupId ? item.optionGroups.find((g) => g.id === customGroupId) : null;
   const extrasGroup = block.kind === "extras" ? findExtrasToppingsGroup(item) : null;
+  const saucesIncludedGroup = block.kind === "sauces" ? findSaucesIncludedGroup(item) : null;
+  const saucesExtraGroup = block.kind === "sauces" ? findSaucesExtraGroup(item) : null;
   const mealGroup = block.kind === "meal" ? findMealChoiceGroup(item) : null;
 
   const handleDragStart = (event: DragEvent<HTMLSpanElement>) => {
@@ -296,6 +399,29 @@ function OptionBlockCard({
                 onChange={(e) => onUpdateItem((current) => updateExtrasGroupTitle(current, e.target.value))}
               />
             </label>
+          ) : block.kind === "sauces" && saucesIncludedGroup ? (
+            <label style={titleField}>
+              <span style={fieldLabel}>Included sauces title (customer sees)</span>
+              <input
+                style={input}
+                disabled={readOnly}
+                value={saucesIncludedGroup.name}
+                placeholder="Sauces"
+                onChange={(e) => onUpdateItem((current) => updateSaucesIncludedGroupTitle(current, e.target.value))}
+              />
+              <span style={blockMeta}>Customer must pick one included sauce</span>
+            </label>
+          ) : block.kind === "sauces" && saucesExtraGroup && !saucesIncludedGroup ? (
+            <label style={titleField}>
+              <span style={fieldLabel}>Extra sauce title (customer sees)</span>
+              <input
+                style={input}
+                disabled={readOnly}
+                value={saucesExtraGroup.name}
+                placeholder="Extra sauce"
+                onChange={(e) => onUpdateItem((current) => updateSaucesExtraGroupTitle(current, e.target.value))}
+              />
+            </label>
           ) : block.kind === "meal" && mealGroup ? (
             <label style={titleField}>
               <span style={fieldLabel}>Title (customer sees)</span>
@@ -313,6 +439,7 @@ function OptionBlockCard({
           )}
           {block.kind === "custom" ? <span style={blockMeta}>Variation / option group</span> : null}
           {block.kind === "extras" && !extrasGroup ? <span style={blockMeta}>From your master extras list</span> : null}
+          {block.kind === "sauces" ? <span style={blockMeta}>From your master sauces list</span> : null}
           {block.kind === "meal" && !mealGroup ? <span style={blockMeta}>Meal upgrade template</span> : null}
         </div>
         {readOnly || !block.canRemove ? null : (
@@ -323,6 +450,7 @@ function OptionBlockCard({
       </header>
 
       {block.kind === "extras" ? <ItemExtrasBlock item={item} toppings={toppings} readOnly={readOnly} onUpdateItem={onUpdateItem} /> : null}
+      {block.kind === "sauces" ? <ItemSaucesBlock item={item} sauces={sauces} readOnly={readOnly} onUpdateItem={onUpdateItem} /> : null}
       {block.kind === "meal" ? (
         <HubMenuItemMealPicker item={item} templates={mealTemplates} readOnly={readOnly} onUpdateItem={onUpdateItem} />
       ) : null}
@@ -336,11 +464,12 @@ function OptionBlockCard({
   );
 }
 
-export function HubMenuItemOptionsPanel({ item, toppings, mealTemplates, readOnly = false, onUpdateItem }: Props) {
+export function HubMenuItemOptionsPanel({ item, toppings, sauces, mealTemplates, readOnly = false, onUpdateItem }: Props) {
   const blocks = listItemOptionBlocks(item);
   const reorderable = blocks.filter((block) => block.canReorder);
   const fixed = blocks.filter((block) => !block.canReorder);
   const hasExtras = blocks.some((b) => b.kind === "extras");
+  const hasSauces = blocks.some((b) => b.kind === "sauces");
   const hasMeal = blocks.some((b) => b.kind === "meal");
 
   const handleReorder = (from: number, to: number) => {
@@ -352,7 +481,15 @@ export function HubMenuItemOptionsPanel({ item, toppings, mealTemplates, readOnl
       return;
     }
     const { selectedIds, priceById } = buildAllToppingSelection(toppings);
-    onUpdateItem((current) => applyExtraToppingsToItem(current, true, toppings, selectedIds, priceById));
+    onUpdateItem((current) => applyExtraToppingsToItem(current, true, toppings, selectedIds, priceById, new Map()));
+  };
+
+  const addSaucesBlock = () => {
+    if (sauces.length === 0) {
+      return;
+    }
+    const includedIds = new Set(sauces.map((sauce) => sauce.id));
+    onUpdateItem((current) => applySaucesToItem(current, true, sauces, includedIds, false, new Set(), new Map()));
   };
 
   const addMealBlock = () => {
@@ -387,6 +524,7 @@ export function HubMenuItemOptionsPanel({ item, toppings, mealTemplates, readOnl
           block={block}
           item={item}
           toppings={toppings}
+          sauces={sauces}
           mealTemplates={mealTemplates}
           readOnly={readOnly}
           reorderableIndex={-1}
@@ -402,6 +540,7 @@ export function HubMenuItemOptionsPanel({ item, toppings, mealTemplates, readOnl
           block={block}
           item={item}
           toppings={toppings}
+          sauces={sauces}
           mealTemplates={mealTemplates}
           readOnly={readOnly}
           reorderableIndex={index}
@@ -419,6 +558,11 @@ export function HubMenuItemOptionsPanel({ item, toppings, mealTemplates, readOnl
           {!hasExtras && toppings.length > 0 ? (
             <button type="button" style={secondaryBtn} onClick={addExtrasBlock}>
               + Added extras on this item
+            </button>
+          ) : null}
+          {!hasSauces && sauces.length > 0 ? (
+            <button type="button" style={secondaryBtn} onClick={addSaucesBlock}>
+              + Sauces on this item
             </button>
           ) : null}
           {!hasMeal && mealTemplates.length > 0 ? (

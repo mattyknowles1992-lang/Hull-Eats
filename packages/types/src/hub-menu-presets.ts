@@ -23,6 +23,9 @@ export const HUB_MENU_CATEGORY_CUSTOM_ID = "custom";
 /** Internal category for hub-wide extra toppings (hidden on customer menu). */
 export const HUB_MENU_EXTRAS_LIBRARY_PRESET = "extras-library";
 
+/** Internal category for hub-wide sauce choices (hidden on customer menu). */
+export const HUB_MENU_SAUCES_LIBRARY_PRESET = "sauces-library";
+
 /** Internal category for meal-upgrade templates (hidden on customer menu). */
 export const HUB_MENU_MEAL_LIBRARY_PRESET = "meal-upgrades-library";
 
@@ -91,6 +94,12 @@ export function isHubMenuExtrasLibrarySection(
   return section?.presetKey === HUB_MENU_EXTRAS_LIBRARY_PRESET;
 }
 
+export function isHubMenuSaucesLibrarySection(
+  section: { presetKey?: string | null; name?: string } | null | undefined,
+): boolean {
+  return section?.presetKey === HUB_MENU_SAUCES_LIBRARY_PRESET;
+}
+
 export function isHubMenuMealLibrarySection(
   section: { presetKey?: string | null; name?: string } | null | undefined,
 ): boolean {
@@ -136,6 +145,7 @@ export function isHubMenuStaffLibrarySection(
 ): boolean {
   return (
     isHubMenuExtrasLibrarySection(section) ||
+    isHubMenuSaucesLibrarySection(section) ||
     isHubMenuMealLibrarySection(section) ||
     isHubMenuComposePartsSection(section) ||
     isHubMenuMenuBoardsConfigSection(section)
@@ -216,6 +226,44 @@ export function customerFacingOptionGroupDescription(description?: string | null
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => line.length > 0 && !HULL_INTERNAL_OPTION_LINE.test(line))
+    .join("\n")
+    .trim();
+}
+
+const EXTRA_INCLUDED_QTY_PREFIX = /^__HULL_EXTRA_INCLUDED:(\d+)__$/;
+
+/** Free quantity bundled with the item before `priceDelta` applies (extras library on hub items). */
+export function parseExtraIncludedQuantity(description?: string | null | undefined): number {
+  if (!description?.trim()) {
+    return 0;
+  }
+  for (const line of description.split(/\r?\n/)) {
+    const match = line.trim().match(EXTRA_INCLUDED_QTY_PREFIX);
+    if (match) {
+      return Math.max(0, Number(match[1]) || 0);
+    }
+  }
+  return 0;
+}
+
+export function encodeExtraIncludedQuantity(includedQuantity: number, note = ""): string {
+  const qty = Math.max(0, Math.floor(includedQuantity));
+  const marker = qty > 0 ? `__HULL_EXTRA_INCLUDED:${qty}__` : "";
+  const text = note.trim();
+  if (marker && text) {
+    return `${marker}\n${text}`;
+  }
+  return marker || text;
+}
+
+export function customerFacingOptionDescription(description?: string | null): string {
+  if (!description?.trim()) {
+    return "";
+  }
+  return description
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !HULL_INTERNAL_OPTION_LINE.test(line) && !EXTRA_INCLUDED_QTY_PREFIX.test(line))
     .join("\n")
     .trim();
 }

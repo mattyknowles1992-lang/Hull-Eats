@@ -5,6 +5,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import type { MenuItem, StoreSummary, StorefrontPromotionBanner } from "@hull-eats/types";
+import { customerFacingOptionDescription, parseExtraIncludedQuantity } from "@hull-eats/types";
 
 import {
   addConfiguredItemToBasket,
@@ -1104,15 +1105,26 @@ export function StoreMenuClient({
                   {group.options.map((option) => {
                     const selectedQuantity = getSelectedQuantityForOption(selection, option.id);
                     const selected = selectedQuantity > 0;
+                    const includedFree = parseExtraIncludedQuantity(option.description);
+                    const optionNote = customerFacingOptionDescription(option.description);
+                    const priceLabel =
+                      includedFree > 0 && option.priceDelta > 0
+                        ? `${includedFree} included · +${formatMoney(option.priceDelta)} each extra`
+                        : includedFree > 0
+                          ? `${includedFree} included with item`
+                          : option.priceDelta > 0
+                            ? `+${formatMoney(option.priceDelta)}`
+                            : "Included";
 
                     return (
                       <label key={option.id} className={`customise-choice ${selected ? "is-selected" : ""}`}>
                         <div>
                           <strong>{option.label}</strong>
                           <p>
-                            {option.priceDelta > 0 ? `+${formatMoney(option.priceDelta)}` : "Included"}
+                            {priceLabel}
                             {option.maxQuantity > 1 ? ` / up to ${option.maxQuantity}` : ""}
                           </p>
+                          {optionNote ? <p className="customise-option-note">{optionNote}</p> : null}
                         </div>
 
                         {group.selectionMode === "single" ? (

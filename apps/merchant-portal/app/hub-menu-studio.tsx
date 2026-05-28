@@ -19,6 +19,7 @@ import {
 import { HubMenuCategoryTabs, isMenuStudioStaffSection } from "./hub-menu-category-tabs";
 import { HubMenuComposePartsPanel } from "./hub-menu-compose-parts-panel";
 import { HubMenuExtrasLibrary } from "./hub-menu-extras-library";
+import { HubMenuSaucesLibrary } from "./hub-menu-sauces-library";
 import { HubMenuCategorySubGroupsPanel } from "./hub-menu-category-subgroups";
 import { HubMenuItemPartsPicker } from "./hub-menu-item-parts-picker";
 import { HubMenuItemSubGroupField } from "./hub-menu-item-subgroup-field";
@@ -33,6 +34,7 @@ import {
   formatPartSlotTabMeta,
   getCategoryItemBuilderMode,
   getHubExtraToppingsFromSection,
+  getHubSaucesFromSection,
   getHubPartsFromSection,
   getHubMealTemplatesFromSection,
   readPartSlotDefinitions,
@@ -117,6 +119,7 @@ type HubMenuStudioProps = {
   onRequestPublish: () => void;
   onOpenImport: () => void;
   extrasSection: HubMenuSection | null;
+  saucesSection: HubMenuSection | null;
   burgerPartsSection: HubMenuSection | null;
   kebabPartsSection: HubMenuSection | null;
   mealSection: HubMenuSection | null;
@@ -128,6 +131,8 @@ type HubMenuStudioProps = {
   onUpdateKebabPartsSection: (updater: (section: HubMenuSection) => HubMenuSection) => void;
   onAddExtraTopping: (item: MenuItem) => void;
   onRemoveExtraTopping: (itemId: string) => void;
+  onAddSauce: (item: MenuItem) => void;
+  onRemoveSauce: (itemId: string) => void;
   onAddMealTemplate: (item: MenuItem) => void;
   onUpdateMealTemplate: (itemId: string, updater: (item: MenuItem) => MenuItem) => void;
   onRemoveMealTemplate: (itemId: string) => void;
@@ -192,6 +197,7 @@ export function HubMenuStudio({
   onRequestPublish,
   onOpenImport,
   extrasSection,
+  saucesSection,
   burgerPartsSection,
   kebabPartsSection,
   mealSection,
@@ -203,6 +209,8 @@ export function HubMenuStudio({
   onUpdateKebabPartsSection,
   onAddExtraTopping,
   onRemoveExtraTopping,
+  onAddSauce,
+  onRemoveSauce,
   onAddMealTemplate,
   onUpdateMealTemplate,
   onRemoveMealTemplate,
@@ -269,6 +277,7 @@ export function HubMenuStudio({
   };
   const selectedBuilderHint = describeCategoryItemBuilder(selectedCategory);
   const hubExtraToppings = getHubExtraToppingsFromSection(extrasSection);
+  const hubSauces = getHubSaucesFromSection(saucesSection);
   const hubBurgerParts = getHubPartsFromSection(burgerPartsSection, "burger");
   const hubKebabParts = getHubPartsFromSection(kebabPartsSection, "kebab");
   const burgerSlotDefinitions = useMemo(() => readPartSlotDefinitions(burgerPartsSection, "burger"), [burgerPartsSection]);
@@ -388,9 +397,9 @@ export function HubMenuStudio({
         <div className="he-hub-banner" role="status">
           <strong>Build your menu faster</strong>
           <p>
-            Set up <strong>Added extras</strong> and <strong>Burger parts</strong> / <strong>Kebab parts</strong> on the
-            left first (buns, meat, salad, cheese, onion…). Add <strong>Make it a meal</strong> if you use meal deals.
-            Then create customer categories (e.g. Sides, Burgers) and add products — tick parts and extras on each item.
+            Set up <strong>Extras &amp; sauces</strong> and <strong>Burger parts</strong> / <strong>Kebab parts</strong> on the
+            left first. Add <strong>Make it a meal</strong> if you use meal deals. Then create customer categories and add
+            products — tick extras and sauces on each item.
             Work saves automatically; use <strong>Publish</strong> when customers should see it live.
           </p>
         </div>
@@ -460,13 +469,21 @@ export function HubMenuStudio({
               style={staffPanelOnly ? staffBuilderMain : builderMain}
             >
               {showExtrasPanel && extrasSection ? (
-                <div className="hub-menu-staff-library-editor">
+                <div className="hub-menu-staff-library-editor" style={{ display: "grid", gap: 24 }}>
                   <HubMenuExtrasLibrary
                     section={extrasSection}
                     onAddTopping={onAddExtraTopping}
                     onRemoveTopping={onRemoveExtraTopping}
                     readOnly={studioLocked}
                   />
+                  {saucesSection ? (
+                    <HubMenuSaucesLibrary
+                      section={saucesSection}
+                      onAddSauce={onAddSauce}
+                      onRemoveSauce={onRemoveSauce}
+                      readOnly={studioLocked}
+                    />
+                  ) : null}
                 </div>
               ) : null}
 
@@ -686,6 +703,7 @@ export function HubMenuStudio({
                   <HubMenuItemOptionsPanel
                     item={newItemDraft}
                     toppings={hubExtraToppings}
+                    sauces={hubSauces}
                     mealTemplates={mealTemplates}
                     readOnly={studioLocked}
                     onUpdateItem={patchNewItemDraft}
@@ -861,6 +879,7 @@ export function HubMenuStudio({
                   <HubMenuItemOptionsPanel
                     item={selectedItem}
                     toppings={hubExtraToppings}
+                    sauces={hubSauces}
                     mealTemplates={mealTemplates}
                     readOnly={studioLocked}
                     onUpdateItem={onUpdateItem}

@@ -109,8 +109,8 @@ export function HubMenuCategoryTabs({
               }}
             >
               <span className="hub-menu-tab-label">
-                <span className="hub-menu-tab-name">Added extras</span>
-                <span className="hub-menu-tab-meta">Master topping list</span>
+                <span className="hub-menu-tab-name">Extras &amp; sauces</span>
+                <span className="hub-menu-tab-meta">Toppings and sauce lists</span>
               </span>
             </button>
           ) : null}

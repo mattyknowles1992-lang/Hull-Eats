@@ -486,15 +486,20 @@ export class HubRegistryService {
       throw new BadRequestException("Featured businesses need a homepage feature order.");
     }
 
+    const lifecycleUpdate: Prisma.StoreUpdateInput = {
+      homepageFeatured: nextHomepageFeatured,
+      homepageFeatureOrder: nextHomepageFeatureOrder,
+    };
+    if (input.listedOnMarketplace !== undefined) {
+      lifecycleUpdate.storefrontStatus = input.listedOnMarketplace ? "LIVE" : "ONBOARDING";
+    }
+    if (input.acceptingOrders !== undefined) {
+      lifecycleUpdate.isActive = input.acceptingOrders;
+    }
+
     await prisma.store.update({
       where: { id: store.id },
-      data: {
-        storefrontStatus:
-          input.listedOnMarketplace === undefined ? undefined : input.listedOnMarketplace ? "LIVE" : "ONBOARDING",
-        isActive: input.acceptingOrders,
-        homepageFeatured: nextHomepageFeatured,
-        homepageFeatureOrder: nextHomepageFeatureOrder,
-      },
+      data: lifecycleUpdate,
     });
 
     return {
@@ -643,8 +648,8 @@ export class HubRegistryService {
             deliveryFee: settings.deliveryFee,
             deliveryConfig: this.deliveryJsonFromHubSettings(settings),
             minimumOrderAmount: settings.minimumOrderAmount,
+            // Order acceptance can be paused from the hub; marketplace listing is admin-only (lifecycle API).
             isActive: settings.acceptingOrders,
-            storefrontStatus: settings.isOpen ? "LIVE" : "ONBOARDING",
             autoAcceptOrders: settings.autoAcceptOrders,
             autoAcceptMaxPrepMinutes: settings.autoAcceptMaxPrepMinutes,
           },
@@ -831,8 +836,14 @@ export class HubRegistryService {
       throw new NotFoundException(`Config backup ${snapshotId} was not found for this hub.`);
     }
     const payload = hubConfigSnapshotPayloadSchema.parse(row.payload);
+    const store = await this.findPrimaryStore(hubId);
     return this.updateWorkspace(hubId, {
-      settings: payload.settings,
+      settings: {
+        ...payload.settings,
+        // Backups may pre-date admin go-live; never roll back platform lifecycle on restore.
+        isOpen: store.storefrontStatus === "LIVE",
+        acceptingOrders: Boolean(store.isActive),
+      },
       menuSections: payload.menuSections,
     });
   }

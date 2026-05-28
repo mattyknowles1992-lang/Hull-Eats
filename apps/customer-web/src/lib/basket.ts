@@ -1,4 +1,5 @@
 import type { MenuItem } from "@hull-eats/types";
+import { parseExtraIncludedQuantity } from "@hull-eats/types";
 
 export type BasketSelectedOption = {
   groupId: string;
@@ -249,14 +250,19 @@ export const getBasketLineDetails = (item: MenuItem, selection: BasketCustomisat
   const selectedOptions = visibleGroups.flatMap((group) =>
     group.options
       .filter((option) => (selection.selectedOptionQuantities[option.id] ?? 0) > 0)
-      .map((option) => ({
-        groupId: group.id,
-        groupName: group.name,
-        valueId: option.id,
-        valueName: option.label,
-        quantity: selection.selectedOptionQuantities[option.id] ?? 0,
-        priceDelta: option.priceDelta,
-      })),
+      .map((option) => {
+        const quantity = selection.selectedOptionQuantities[option.id] ?? 0;
+        const includedFree = parseExtraIncludedQuantity(option.description);
+        const billableQuantity = Math.max(0, quantity - includedFree);
+        return {
+          groupId: group.id,
+          groupName: group.name,
+          valueId: option.id,
+          valueName: option.label,
+          quantity,
+          priceDelta: Number((option.priceDelta * billableQuantity).toFixed(2)),
+        };
+      }),
   );
 
   const removedComponents = item.components
@@ -275,7 +281,7 @@ export const getBasketLineDetails = (item: MenuItem, selection: BasketCustomisat
   }));
 
   const customisationTotal = Number(
-    selectedOptions.reduce((sum, option) => sum + option.priceDelta * option.quantity, 0).toFixed(2),
+    selectedOptions.reduce((sum, option) => sum + option.priceDelta, 0).toFixed(2),
   );
 
   return {
