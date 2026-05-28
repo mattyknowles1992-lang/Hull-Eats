@@ -607,6 +607,29 @@ export class HubRegistryService {
     return this.mapMerchantWorkspace(record);
   }
 
+  /**
+   * Merchant menu/settings saves must never change admin marketplace listing (`storefrontStatus`).
+   * Only `publishHub` and `updateAdminHubLifecycle` may set LIVE vs ONBOARDING.
+   */
+  private buildMerchantWorkspaceStorePatch(settings: HubSettings): Prisma.StoreUpdateInput {
+    return {
+      slug: slugify(settings.name),
+      name: settings.name,
+      city: settings.city,
+      postcode: settings.postcode,
+      cuisineLabel: settings.cuisineLabel,
+      onboardingMessage: settings.onboardingMessage,
+      heroImageUrl: settings.heroImageUrl,
+      etaMinutes: settings.etaMinutes,
+      deliveryFee: settings.deliveryFee,
+      deliveryConfig: this.deliveryJsonFromHubSettings(settings),
+      minimumOrderAmount: settings.minimumOrderAmount,
+      isActive: settings.acceptingOrders,
+      autoAcceptOrders: settings.autoAcceptOrders,
+      autoAcceptMaxPrepMinutes: settings.autoAcceptMaxPrepMinutes,
+    };
+  }
+
   async updateWorkspace(hubId: string, input: MerchantWorkspaceUpdateInput): Promise<MerchantWorkspace> {
     await this.ensurePilotHub();
 
@@ -624,6 +647,9 @@ export class HubRegistryService {
       settings.deliveryOriginLongitude = geocoded.longitude;
     }
 
+    const storePatch = this.buildMerchantWorkspaceStorePatch(settings);
+    storePatch.slug = storePatch.slug || store.slug;
+
     // Keep the interactive transaction short — Supabase pooler closes long txs (~5s) and Prisma raises P2028.
     await prisma.$transaction(
       async (tx) => {
@@ -636,23 +662,7 @@ export class HubRegistryService {
 
         await tx.store.update({
           where: { id: store.id },
-          data: {
-            slug: slugify(settings.name) || store.slug,
-            name: settings.name,
-            city: settings.city,
-            postcode: settings.postcode,
-            cuisineLabel: settings.cuisineLabel,
-            onboardingMessage: settings.onboardingMessage,
-            heroImageUrl: settings.heroImageUrl,
-            etaMinutes: settings.etaMinutes,
-            deliveryFee: settings.deliveryFee,
-            deliveryConfig: this.deliveryJsonFromHubSettings(settings),
-            minimumOrderAmount: settings.minimumOrderAmount,
-            // Order acceptance can be paused from the hub; marketplace listing is admin-only (lifecycle API).
-            isActive: settings.acceptingOrders,
-            autoAcceptOrders: settings.autoAcceptOrders,
-            autoAcceptMaxPrepMinutes: settings.autoAcceptMaxPrepMinutes,
-          },
+          data: storePatch,
         });
       },
       { maxWait: 10_000, timeout: 20_000 },
@@ -1451,7 +1461,7 @@ export class HubRegistryService {
             description: candidate.description,
             price: candidatePrice > 0 ? candidate.price : section.defaultPrice ?? 0,
             customisationConfig: this.buildCustomisationConfig({ components: [], optionGroups: [] }),
-            isActive: false,
+            isActive: true,
             isFeatured: false,
             trackStock: false,
             stockQuantity: null,

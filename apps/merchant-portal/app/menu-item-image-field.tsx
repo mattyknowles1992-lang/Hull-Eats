@@ -71,6 +71,19 @@ export function MenuItemImageField({ value, onChange, disabled }: MenuItemImageF
     }
   };
 
+  const handleUrlChange = (raw: string) => {
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      onChange(undefined);
+      return;
+    }
+    if (trimmed.startsWith("data:image/")) {
+      onChange(trimmed);
+      return;
+    }
+    onChange(trimmed);
+  };
+
   return (
     <div style={wrap}>
       <span style={label}>Product photo</span>
@@ -118,7 +131,7 @@ export function MenuItemImageField({ value, onChange, disabled }: MenuItemImageF
           value={value?.startsWith("data:") ? "" : (value ?? "")}
           disabled={disabled}
           placeholder="https://…"
-          onChange={(event) => onChange(event.target.value.trim() || undefined)}
+          onChange={(event) => handleUrlChange(event.target.value)}
         />
       </label>
 

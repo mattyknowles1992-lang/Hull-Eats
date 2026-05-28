@@ -50,6 +50,7 @@ import { HE_BRAND } from "./portal-brand";
 import { HubDriversWorkbench } from "./hub-drivers-workbench";
 import { HubOffersWorkbench } from "./hub-offers-workbench";
 import {
+  applyMenuAvailabilityMode,
   applyMenuBoardPublish,
   appendMenuBoard,
   buildLocalMenuCategory,
@@ -58,6 +59,7 @@ import {
   buildMenuPublishSummary,
   buildMenuTemplate,
   cloneMenuItemDraft,
+  reconcileMenuSectionsAfterWorkspaceSave,
   computeMenuPublishIssues,
   customerFacingMenuSections,
   ensureStaffMenuSections,
@@ -79,6 +81,7 @@ import {
   type HubMenuBoardKind,
   type HubMenuBoardPublishMode,
   type MenuTemplateKind,
+  type MenuAvailabilityMode,
 } from "./menu-studio-core";
 import { PizzaSizeDraftPanel, buildPizzaSizeOptionGroupFromRows, createInitialPizzaSizeRows } from "./pizza-size-draft";
 import type { PizzaSizeRow } from "./pizza-size-draft";
@@ -840,6 +843,8 @@ export default function MerchantPortalPage() {
   const [partsOptionSettingsLine, setPartsOptionSettingsLine] = useState<ComposeProductLine | null>(null);
   const [menuHubPersistState, setMenuHubPersistState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const menuSaveInFlightRef = useRef(false);
+  const menuSectionsRef = useRef(menuSections);
+  menuSectionsRef.current = menuSections;
   const menuSaveQueuedRef = useRef(false);
   const menuWorkspaceReadyRef = useRef(false);
   const [driverTracking, setDriverTracking] = useState<MerchantDriverTracking | null>(null);
@@ -1042,7 +1047,7 @@ export default function MerchantPortalPage() {
   }, [isCreatingNewItem, menuSections, selectedCategoryId, selectedItemId]);
 
   const beginCreateItem = useCallback(
-    (sectionId: string) => {
+    (sectionId: string, menuSubGroup?: string) => {
       const section = menuSections.find((entry) => entry.id === sectionId);
       setIsCreatingNewItem(true);
       setSelectedCategoryId(sectionId);
@@ -1050,6 +1055,7 @@ export default function MerchantPortalPage() {
       setNewItem({
         ...initialCreateItemState,
         sectionId,
+        menuSubGroup: menuSubGroup?.trim() ?? "",
         price: "",
       });
       setPizzaSizeRows(createInitialPizzaSizeRows());
@@ -1106,23 +1112,30 @@ export default function MerchantPortalPage() {
 
   const hubAccess = useMemo(() => (activeUser ? getHubAccess(activeUser.role) : null), [activeUser]);
 
-  const applyWorkspaceSaveResult = useCallback((workspace: MerchantWorkspace) => {
-    setHubSettings({
-      ...workspace.settings,
-      deliveryPostcodeZones:
-        workspace.settings.deliveryPostcodeZones.length > 0
-          ? workspace.settings.deliveryPostcodeZones
-          : createDefaultHullPostcodeZones(),
-    });
-    const sections = ensureStaffMenuSections(workspace.menuSections);
-    setMenuSections(sections);
-    setHubUsers(workspace.users);
-    setPendingImports(workspace.pendingImports ?? []);
-    commitSavedHubSnapshot(workspace.settings, sections);
-    if (activeHubId) {
-      clearBrowserMenuDraft(activeHubId);
-    }
-  }, [activeHubId, commitSavedHubSnapshot]);
+  const applyWorkspaceSaveResult = useCallback(
+    (workspace: MerchantWorkspace, sectionsSentWithRequest?: HubMenuSection[]) => {
+      setHubSettings({
+        ...workspace.settings,
+        deliveryPostcodeZones:
+          workspace.settings.deliveryPostcodeZones.length > 0
+            ? workspace.settings.deliveryPostcodeZones
+            : createDefaultHullPostcodeZones(),
+      });
+      const serverSections = ensureStaffMenuSections(workspace.menuSections);
+      const sections =
+        sectionsSentWithRequest && sectionsSentWithRequest.length > 0
+          ? reconcileMenuSectionsAfterWorkspaceSave(menuSectionsRef.current, serverSections, sectionsSentWithRequest)
+          : serverSections;
+      setMenuSections(sections);
+      setHubUsers(workspace.users);
+      setPendingImports(workspace.pendingImports ?? []);
+      commitSavedHubSnapshot(workspace.settings, sections);
+      if (activeHubId) {
+        clearBrowserMenuDraft(activeHubId);
+      }
+    },
+    [activeHubId, commitSavedHubSnapshot],
+  );
 
   const persistWorkspaceToHub = useCallback(
     async (options?: { manualCheckpoint?: boolean }) => {
@@ -1136,6 +1149,7 @@ export default function MerchantPortalPage() {
       }
 
       menuSaveInFlightRef.current = true;
+      const sectionsSnapshot = menuSectionsRef.current;
       setMenuHubPersistState("saving");
       if (options?.manualCheckpoint) {
         setMenuPublishing(true);
@@ -1144,9 +1158,9 @@ export default function MerchantPortalPage() {
       try {
         const workspace = await saveWorkspace(merchantToken, activeHubId, {
           settings: hubSettings,
-          menuSections,
+          menuSections: sectionsSnapshot,
         });
-        applyWorkspaceSaveResult(workspace);
+        applyWorkspaceSaveResult(workspace, sectionsSnapshot);
         setMenuHubPersistState("saved");
         if (options?.manualCheckpoint) {
           setSaveNotice("Draft saved on your hub — ready to publish when you choose.");
@@ -2087,7 +2101,7 @@ export default function MerchantPortalPage() {
     setMenuNotice(`${sectionName} removed. Saving to your hub — publish when customers should see the change.`);
   };
 
-  const handleCreateItem = () => {
+  const handleCreateItem = (availabilityMode: MenuAvailabilityMode = "live") => {
     const targetSection = menuSections.find((section) => section.id === newItem.sectionId);
     const isPizza = isHubMenuSectionPizza(targetSection);
 
@@ -2148,9 +2162,9 @@ export default function MerchantPortalPage() {
       requiresIdVerification: newItem.requiresIdVerification,
       components: newItemComponents.filter((component) => component.label.trim()),
       optionGroups: isPizza ? [...optionGroups, ...newItemOptionGroups] : newItemOptionGroups,
-      isActive: false,
     });
 
+    createdItem = applyMenuAvailabilityMode(createdItem, availabilityMode);
     createdItem = mergeItemDescriptionWithComponents(createdItem, true);
 
     updateMenuSections((current) =>
@@ -2170,9 +2184,9 @@ export default function MerchantPortalPage() {
     setNewItemComponents([]);
     setNewItemOptionGroups([]);
     setMenuNotice(
-      isPizza
-        ? `Added ${createdItem.name} — saving to your hub. Set Live and publish when customers should see it.`
-        : `Added ${createdItem.name} — saving to your hub. It stays until you remove it. Publish when customers should see it.`,
+      availabilityMode === "hidden"
+        ? `Added ${createdItem.name} as Hidden — saving to your hub. Switch to Live when ready, then publish.`
+        : `Added ${createdItem.name} as Live — saving to your hub. Publish when customers should see it.`,
     );
   };
 
@@ -2237,7 +2251,7 @@ export default function MerchantPortalPage() {
     setIsCreatingNewItem(false);
     setShowChoiceSetupForItemId(null);
     setMenuNotice(
-      `Duplicated "${item.name}". Change the name (e.g. 6 → 8 wings) and price, then set Live and publish.`,
+      `Duplicated "${item.name}". Change the name and price — saved as Live unless you set Hidden on the row.`,
     );
   };
 
@@ -2308,7 +2322,7 @@ export default function MerchantPortalPage() {
       setPendingImports(workspace.pendingImports ?? []);
       setSelectedImportCandidateIds([]);
       setMenuNotice(
-        "Import saved as hidden items in your hub. Set each item to Live, then save & publish menu for customers to see them.",
+        "Import applied as Live items — saving to your hub. Set any row to Hidden if needed, then publish when ready.",
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : "Menu import apply failed.";
@@ -3008,6 +3022,7 @@ export default function MerchantPortalPage() {
               menuSections={menuSections}
               selectedCategory={selectedCategory}
               selectedItem={selectedItem}
+              selectedItemId={selectedItemId}
               isCreatingNewItem={isCreatingNewItem}
               newCategory={newCategory}
               newItem={newItem}
@@ -3232,8 +3247,8 @@ export default function MerchantPortalPage() {
                 );
               }}
               onUpdateItem={(updater) => {
-                if (selectedCategory && selectedItem) {
-                  updateItem(selectedCategory.id, selectedItem.id, updater);
+                if (selectedCategory && selectedItemId) {
+                  updateItem(selectedCategory.id, selectedItemId, updater);
                 }
               }}
               onOpenPartsOptionSettings={() => openPartsOptionSettings()}
@@ -3797,7 +3812,7 @@ export default function MerchantPortalPage() {
                     />
                     <span>Verify with ID at delivery (age-restricted)</span>
                   </label>
-                  <button type="button" style={primaryButton} onClick={handleCreateItem}>
+                  <button type="button" style={primaryButton} onClick={() => handleCreateItem()}>
                     Add item
                   </button>
                 </div>
@@ -4117,7 +4132,7 @@ export default function MerchantPortalPage() {
                     />
                     <span>Verify with ID at delivery (age-restricted)</span>
                   </label>
-                  <button type="button" style={primaryButton} onClick={handleCreateItem}>
+                  <button type="button" style={primaryButton} onClick={() => handleCreateItem()}>
                     Create item shell
                   </button>
                 </div>

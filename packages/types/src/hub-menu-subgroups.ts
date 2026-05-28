@@ -34,6 +34,16 @@ function parseMenuSubGroupsPayload(raw: string): MenuSubGroupDefinition[] {
   }
 }
 
+/** Build a customer-facing section heading, e.g. Fizzy + Cans → "Fizzy — Cans". */
+export function formatMenuSubGroupLabel(type: string, format: string): string {
+  const typeTrimmed = type.trim();
+  const formatTrimmed = format.trim();
+  if (typeTrimmed && formatTrimmed) {
+    return `${typeTrimmed} — ${formatTrimmed}`;
+  }
+  return typeTrimmed || formatTrimmed;
+}
+
 export function slugifyMenuSubGroupLabel(label: string): string {
   return label
     .trim()

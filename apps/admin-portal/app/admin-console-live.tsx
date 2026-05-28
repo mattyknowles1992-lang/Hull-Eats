@@ -6,8 +6,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ContactMessageRecord } from "@hull-eats/types";
 
 import {
-  adminSessionStorageKey,
   adminSessionEmailStorageKey,
+  adminSessionStorageKey,
   createAdminHubImpersonation,
   createAdminHub,
   createAdminHubCourier,
@@ -34,6 +34,12 @@ import {
   type AdminHubSummary,
   type AdminHubUserSummary,
 } from "./admin-api";
+import {
+  adminSessionExpiredMessage,
+  clearAdminSessionStorage,
+  isAdminSessionAuthFailure,
+  readStoredAdminSessionToken,
+} from "./admin-session";
 
 const styles = {
   page: {
@@ -226,6 +232,7 @@ export function AdminConsoleLive() {
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
+  const [sessionNotice, setSessionNotice] = useState("");
 
   const [hubs, setHubs] = useState<AdminHubSummary[]>([]);
   const [users, setUsers] = useState<AdminHubUserSummary[]>([]);
@@ -276,6 +283,37 @@ export function AdminConsoleLive() {
   const platformUsers = useMemo(() => users.map(mapApiUserToRecord), [users]);
   const isUltraAdmin = adminEmail.trim().toLowerCase() === ultraAdminEmail;
 
+  const clearAdminSession = useCallback((notice = "") => {
+    setIsLoggedIn(false);
+    setAuthToken("");
+    setAdminEmail("");
+    setLoginPassword("");
+    setDataError("");
+    setLoadState("idle");
+    setHubs([]);
+    setUsers([]);
+    setCouriers([]);
+    setCustomers([]);
+    setOrders([]);
+    setContactMessages([]);
+    clearAdminSessionStorage();
+    setSessionNotice(notice);
+    setLoginError("");
+  }, []);
+
+  const endAdminSessionIfUnauthorized = useCallback(
+    (error: unknown, fallbackNotice = adminSessionExpiredMessage) => {
+      if (!isAdminSessionAuthFailure(error)) {
+        return false;
+      }
+
+      const notice = error instanceof Error && error.message.trim() ? error.message : fallbackNotice;
+      clearAdminSession(notice);
+      return true;
+    },
+    [clearAdminSession],
+  );
+
   const refreshAdminData = useCallback(
     async (token = authToken, options: { silent?: boolean } = {}) => {
       if (!token) {
@@ -305,6 +343,10 @@ export function AdminConsoleLive() {
         setDataError("");
         setLoadState("ready");
       } catch (error) {
+        if (endAdminSessionIfUnauthorized(error)) {
+          return;
+        }
+
         const message = error instanceof Error ? error.message : "Admin data failed to load.";
         setDataError(message);
         setLoadState("error");
@@ -316,7 +358,7 @@ export function AdminConsoleLive() {
         setContactMessages([]);
       }
     },
-    [authToken],
+    [authToken, endAdminSessionIfUnauthorized],
   );
 
   useEffect(() => {
@@ -324,12 +366,16 @@ export function AdminConsoleLive() {
       return;
     }
 
-    const stored = window.sessionStorage.getItem(adminSessionStorageKey);
-    const storedEmail = window.sessionStorage.getItem(adminSessionEmailStorageKey);
+    const rawToken = window.sessionStorage.getItem(adminSessionStorageKey);
+    const stored = readStoredAdminSessionToken();
     if (!stored) {
+      if (rawToken) {
+        setSessionNotice(adminSessionExpiredMessage);
+      }
       return;
     }
 
+    const storedEmail = window.sessionStorage.getItem(adminSessionEmailStorageKey);
     setAuthToken(stored);
     setAdminEmail(storedEmail ?? "");
     setIsLoggedIn(true);
@@ -414,6 +460,7 @@ export function AdminConsoleLive() {
       setAdminEmail(response.admin.email);
       setIsLoggedIn(true);
       setLoginError("");
+      setSessionNotice("");
       if (typeof window !== "undefined") {
         window.sessionStorage.setItem(adminSessionStorageKey, response.token);
         window.sessionStorage.setItem(adminSessionEmailStorageKey, response.admin.email);
@@ -424,22 +471,7 @@ export function AdminConsoleLive() {
   };
 
   const handleSignOut = () => {
-    setIsLoggedIn(false);
-    setAuthToken("");
-    setAdminEmail("");
-    setLoginPassword("");
-    setDataError("");
-    setLoadState("idle");
-    setHubs([]);
-    setUsers([]);
-    setCouriers([]);
-    setCustomers([]);
-    setOrders([]);
-    setContactMessages([]);
-    if (typeof window !== "undefined") {
-      window.sessionStorage.removeItem(adminSessionStorageKey);
-      window.sessionStorage.removeItem(adminSessionEmailStorageKey);
-    }
+    clearAdminSession();
   };
 
   const handleCreateHub = async () => {
@@ -474,6 +506,9 @@ export function AdminConsoleLive() {
         `${created.hub.businessName} created in setup. Owner login: ${created.ownerUser.email}. Temporary password: ${created.temporaryPassword}`,
       );
     } catch (error) {
+      if (endAdminSessionIfUnauthorized(error)) {
+        return;
+      }
       setHubNotice(error instanceof Error ? error.message : "Hub creation failed.");
     }
   };
@@ -487,6 +522,9 @@ export function AdminConsoleLive() {
       await refreshAdminData(authToken, { silent: true });
       setHubNotice(`Hub deleted: ${businessNameToDelete}`);
     } catch (error) {
+      if (endAdminSessionIfUnauthorized(error)) {
+        return;
+      }
       setHubNotice(error instanceof Error ? error.message : "Hub deletion failed.");
     }
   };
@@ -500,6 +538,9 @@ export function AdminConsoleLive() {
       await refreshAdminData(authToken, { silent: true });
       setHubNotice(`${businessNameToPublish} is now live on Hull Eats.`);
     } catch (error) {
+      if (endAdminSessionIfUnauthorized(error)) {
+        return;
+      }
       setHubNotice(error instanceof Error ? error.message : "Hub publish failed.");
     }
   };
@@ -517,6 +558,9 @@ export function AdminConsoleLive() {
           : `${hub.businessName} has been hidden from Hull Eats.`,
       );
     } catch (error) {
+      if (endAdminSessionIfUnauthorized(error)) {
+        return;
+      }
       setHubNotice(error instanceof Error ? error.message : "Hub listing update failed.");
     }
   };
@@ -534,6 +578,9 @@ export function AdminConsoleLive() {
           : `${hub.businessName} service has been paused.`,
       );
     } catch (error) {
+      if (endAdminSessionIfUnauthorized(error)) {
+        return;
+      }
       setHubNotice(error instanceof Error ? error.message : "Hub service update failed.");
     }
   };
@@ -575,6 +622,9 @@ export function AdminConsoleLive() {
           : `${hub.businessName} has been removed from the homepage featured carousel.`,
       );
     } catch (error) {
+      if (endAdminSessionIfUnauthorized(error)) {
+        return;
+      }
       setHubNotice(error instanceof Error ? error.message : "Homepage featured update failed.");
     }
   };
@@ -597,6 +647,9 @@ export function AdminConsoleLive() {
       await refreshAdminData(authToken, { silent: true });
       setHubNotice(`${hub.businessName} featured order saved as slot ${nextOrder}.`);
     } catch (error) {
+      if (endAdminSessionIfUnauthorized(error)) {
+        return;
+      }
       setHubNotice(error instanceof Error ? error.message : "Homepage feature order update failed.");
     }
   };
@@ -627,6 +680,9 @@ export function AdminConsoleLive() {
       window.open(`${merchantPortalBaseUrl}/?adminSession=${encodedSession}`, "_blank", "noopener,noreferrer");
       setHubNotice(`Opened ${hub.businessName} as ${session.user.fullName}.`);
     } catch (error) {
+      if (endAdminSessionIfUnauthorized(error)) {
+        return;
+      }
       setHubNotice(error instanceof Error ? error.message : "Could not open hub session.");
     }
   };
@@ -654,6 +710,9 @@ export function AdminConsoleLive() {
       setNewUserRole("manager");
       setUserNotice("Business user created.");
     } catch (error) {
+      if (endAdminSessionIfUnauthorized(error)) {
+        return;
+      }
       setUserNotice(error instanceof Error ? error.message : "Business user creation failed.");
     }
   };
@@ -689,6 +748,9 @@ export function AdminConsoleLive() {
           : created.message ?? `${created.fullName} linked to ${hub.businessName}.`,
       );
     } catch (error) {
+      if (endAdminSessionIfUnauthorized(error)) {
+        return;
+      }
       setCourierNotice(error instanceof Error ? error.message : "Courier creation failed.");
     }
   };
@@ -702,6 +764,9 @@ export function AdminConsoleLive() {
       await refreshAdminData(authToken, { silent: true });
       setCourierNotice(`${courier.fullName} removed from this hub.`);
     } catch (error) {
+      if (endAdminSessionIfUnauthorized(error)) {
+        return;
+      }
       setCourierNotice(error instanceof Error ? error.message : "Courier unassign failed.");
     }
   };
@@ -715,6 +780,9 @@ export function AdminConsoleLive() {
       await refreshAdminData(authToken, { silent: true });
       setCourierNotice(`${courier.fullName} updated to ${status}.`);
     } catch (error) {
+      if (endAdminSessionIfUnauthorized(error)) {
+        return;
+      }
       setCourierNotice(error instanceof Error ? error.message : "Courier update failed.");
     }
   };
@@ -728,6 +796,9 @@ export function AdminConsoleLive() {
       await refreshAdminData(authToken, { silent: true });
       setCourierNotice(`Courier account removed for ${courier.fullName}.`);
     } catch (error) {
+      if (endAdminSessionIfUnauthorized(error)) {
+        return;
+      }
       setCourierNotice(error instanceof Error ? error.message : "Courier removal failed.");
     }
   };
@@ -741,6 +812,9 @@ export function AdminConsoleLive() {
       await refreshAdminData(authToken, { silent: true });
       setCustomerNotice(`${customer.fullName} updated.`);
     } catch (error) {
+      if (endAdminSessionIfUnauthorized(error)) {
+        return;
+      }
       setCustomerNotice(error instanceof Error ? error.message : "Customer update failed.");
     }
   };
@@ -754,147 +828,67 @@ export function AdminConsoleLive() {
       await refreshAdminData(authToken, { silent: true });
       setInboxNotice(`Inbox status updated for ${message.senderName}.`);
     } catch (error) {
+      if (endAdminSessionIfUnauthorized(error)) {
+        return;
+      }
       setInboxNotice(error instanceof Error ? error.message : "Inbox update failed.");
     }
   };
 
   if (!isLoggedIn) {
     return (
-      <main className="he-admin-page" style={styles.page}>
-        <div className="he-admin-shell">
-          <section style={{ minHeight: "calc(100vh - 84px)", display: "grid", alignItems: "center" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.1fr) minmax(320px, 0.9fr)", gap: 24 }}>
-              <section style={{ ...styles.card, padding: 30 }}>
-                <div style={{ display: "grid", gap: 18 }}>
-                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                    <span
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 8,
-                        minHeight: 38,
-                        padding: "0 14px",
-                        borderRadius: 999,
-                        border: "1px solid rgba(255,255,255,0.1)",
-                        background: "rgba(255,255,255,0.05)",
-                        color: "#dce9ff",
-                        fontSize: 13,
-                        fontWeight: 700,
-                      }}
-                    >
-                      Admin portal protected
-                    </span>
-                    <span
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        minHeight: 38,
-                        padding: "0 14px",
-                        borderRadius: 999,
-                        border: "1px solid rgba(255,255,255,0.1)",
-                        background: "rgba(255,255,255,0.05)",
-                        color: "#dce9ff",
-                        fontSize: 13,
-                        fontWeight: 700,
-                      }}
-                    >
-                      Live hub data only
-                    </span>
-                  </div>
-                  <div>
-                    <p style={{ margin: 0, color: "#9ae8ff", fontSize: 13, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase" }}>
-                      Admin portal
-                    </p>
-                    <h1 style={{ margin: "12px 0 0", fontSize: 54, lineHeight: 0.92, fontFamily: "Georgia, serif" }}>
-                      Hull Eats admin
-                    </h1>
-                    <p style={{ margin: "18px 0 0", color: "#c7d8ed", lineHeight: 1.8, maxWidth: 560 }}>
-                      Real hub operations surface for provisioning, courier assignment, live order oversight, customer review,
-                      and support inbox triage.
-                    </p>
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12 }}>
-                    {metrics.slice(0, 4).map((metric) => (
-                      <article
-                        key={metric.label}
-                        style={{
-                          borderRadius: 20,
-                          border: "1px solid rgba(255,255,255,0.1)",
-                          background: "rgba(255,255,255,0.05)",
-                          padding: 16,
-                        }}
-                      >
-                        <div style={{ color: "#9fb2c9", fontSize: 12, fontWeight: 700 }}>{metric.label}</div>
-                        <strong style={{ display: "block", marginTop: 10, fontSize: 28 }}>{metric.value}</strong>
-                      </article>
-                    ))}
-                  </div>
-                </div>
-              </section>
-
-              <section style={{ ...styles.card, padding: 28 }}>
-                <div>
-                  <p style={{ margin: 0, color: "#9ae8ff", fontSize: 12, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase" }}>
-                    Ultra admin sign-in
-                  </p>
-                  <h2 style={{ margin: "10px 0 0", fontSize: 34, lineHeight: 1.02, fontFamily: "Georgia, serif" }}>Access Hull Eats HQ</h2>
-                  <p style={{ margin: "12px 0 0", color: "#9fb2c9", lineHeight: 1.7 }}>
-                    Sign in to view live hubs, orders, couriers, customers, and inbound support messages.
-                  </p>
-                  <div style={{ display: "grid", gap: 14, marginTop: 22 }}>
-                    <label style={{ display: "grid", gap: 8 }}>
-                      <span style={{ fontWeight: 800, color: "#dce9ff" }}>Email</span>
-                      <input style={styles.input} value={loginEmail} onChange={(event) => setLoginEmail(event.target.value)} />
-                    </label>
-                    <label style={{ display: "grid", gap: 8 }}>
-                      <span style={{ fontWeight: 800, color: "#dce9ff" }}>Password</span>
-                      <input
-                        style={styles.input}
-                        type="password"
-                        value={loginPassword}
-                        onChange={(event) => setLoginPassword(event.target.value)}
-                      />
-                    </label>
-                  </div>
-                  <div style={{ display: "grid", gap: 12, marginTop: 20 }}>
-                    <button type="button" style={{ ...styles.buttonPrimary, width: "100%" }} onClick={handleLogin}>
-                      Sign in as ultra admin
-                    </button>
-                    <div
-                      style={{
-                        minHeight: 52,
-                        display: "grid",
-                        placeItems: "center",
-                        padding: "12px 16px",
-                        borderRadius: 18,
-                        border: "1px solid rgba(255,255,255,0.12)",
-                        background: "rgba(255,255,255,0.05)",
-                        color: "#9fb2c9",
-                        fontSize: 14,
-                        textAlign: "center",
-                        lineHeight: 1.6,
-                      }}
-                    >
-                      Use the master account {ultraAdminEmail} for ultra admin access. Future audit logs can trace changes back to this email.
-                    </div>
-                  </div>
-                  {loginError ? (
-                    <p
-                      style={{
-                        marginTop: 16,
-                        padding: "14px 16px",
-                        borderRadius: 16,
-                        color: "#ffd7d7",
-                        background: "rgba(255, 95, 95, 0.12)",
-                        border: "1px solid rgba(255, 95, 95, 0.2)",
-                      }}
-                    >
-                      {loginError}
-                    </p>
-                  ) : null}
-                </div>
-              </section>
+      <main className="he-admin-page he-admin-login-page" style={styles.page}>
+        <div className="he-admin-login-shell">
+          <section className="he-admin-login-card">
+            <div className="he-admin-login-brand">
+              <p className="he-admin-eyebrow">Hull Eats admin</p>
+              <h1 className="he-admin-login-title">Access Hull Eats HQ</h1>
+              <p className="he-admin-login-copy">
+                Sign in to manage live hubs, orders, couriers, customers, and support inbox.
+              </p>
             </div>
+
+            <form
+              className="he-admin-login-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void handleLogin();
+              }}
+            >
+              <label className="he-admin-field">
+                <span>Email</span>
+                <input
+                  className="he-admin-input"
+                  type="email"
+                  autoComplete="email"
+                  inputMode="email"
+                  value={loginEmail}
+                  onChange={(event) => setLoginEmail(event.target.value)}
+                />
+              </label>
+              <label className="he-admin-field">
+                <span>Password</span>
+                <input
+                  className="he-admin-input"
+                  type="password"
+                  autoComplete="current-password"
+                  value={loginPassword}
+                  onChange={(event) => setLoginPassword(event.target.value)}
+                />
+              </label>
+
+              <button type="submit" className="he-admin-button he-admin-button-primary he-admin-button-block">
+                Sign in as ultra admin
+              </button>
+            </form>
+
+            <p className="he-admin-login-footnote">
+              Use the master account {ultraAdminEmail} for ultra admin access. Future audit logs can trace changes back to this
+              email.
+            </p>
+
+            {sessionNotice ? <p className="he-admin-login-notice he-admin-login-notice-info">{sessionNotice}</p> : null}
+            {loginError ? <p className="he-admin-login-notice he-admin-login-notice-error">{loginError}</p> : null}
           </section>
         </div>
       </main>
@@ -902,7 +896,7 @@ export function AdminConsoleLive() {
   }
 
   return (
-    <main className="he-admin-page" style={styles.page}>
+    <main className="he-admin-page he-admin-console-page" style={styles.page}>
       <div className="he-admin-shell">
         <style jsx>{`
           .hero-grid,
@@ -927,6 +921,23 @@ export function AdminConsoleLive() {
 
           .hub-meta-grid {
             grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+          }
+
+          @media (max-width: 900px) {
+            .split-grid,
+            .hub-grid {
+              grid-template-columns: 1fr;
+            }
+          }
+
+          @media (max-width: 640px) {
+            .hero-grid {
+              grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .hub-meta-grid {
+              grid-template-columns: 1fr;
+            }
           }
         `}</style>
 
@@ -974,7 +985,7 @@ export function AdminConsoleLive() {
               ) : null}
             </div>
           </div>
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <div className="he-admin-header-actions">
             <button type="button" style={styles.buttonGlass} onClick={() => void refreshAdminData()}>
               Refresh
             </button>

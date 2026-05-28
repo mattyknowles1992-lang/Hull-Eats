@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { deliveryFeeFromForStorefront, type StoreSummary } from "@hull-eats/types";
 
+import { FeaturedStoreCarousel } from "../src/components/featured-store-carousel";
 import { HullMicrocopy } from "../src/components/hull-microcopy";
 import { YouAreHereWidget } from "../src/components/you-are-here-widget";
 import { playOrderSuccessDelight } from "../src/lib/customer-experience";
@@ -449,9 +450,11 @@ export default function CustomerHomePage() {
             <span className="store-tag">{featuredStores.length} featured</span>
           </div>
 
-          <div className="featured-store-rail" aria-label="Featured businesses">
-            {featuredStores.map((store) => renderStoreCard(store, "store-card featured-store-card"))}
-          </div>
+          <FeaturedStoreCarousel
+            stores={featuredStores}
+            storeDistances={storeDistances}
+            formatDistance={formatDistance}
+          />
         </section>
       ) : null}
 

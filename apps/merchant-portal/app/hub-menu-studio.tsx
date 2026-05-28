@@ -9,6 +9,7 @@ import {
   hubMenuCategorySelectOptions,
   isHubMenuStaffLibrarySection,
   getCategoryCustomerDescription,
+  isHubMenuOrderTicketCategory,
   isHubMenuMealDealsCategory,
   isHubMenuSectionPizza,
   writeMenuSubGroupsOnSection,
@@ -20,10 +21,12 @@ import { HubMenuCategoryTabs, isMenuStudioStaffSection } from "./hub-menu-catego
 import { HubMenuComposePartsPanel } from "./hub-menu-compose-parts-panel";
 import { HubMenuExtrasLibrary } from "./hub-menu-extras-library";
 import { HubMenuSaucesLibrary } from "./hub-menu-sauces-library";
-import { HubMenuCategorySubGroupsPanel } from "./hub-menu-category-subgroups";
+import { HubMenuOrderTicketBuilder } from "./hub-menu-order-ticket-builder";
+import { HubMenuPizzaOrderBuilder } from "./hub-menu-pizza-order-builder";
 import { HubMenuItemPartsPicker } from "./hub-menu-item-parts-picker";
 import { HubMenuItemSubGroupField } from "./hub-menu-item-subgroup-field";
 import { HubMenuPublishDialog } from "./hub-menu-publish-dialog";
+import { MenuItemVisibilitySelect } from "./hub-menu-item-visibility-select";
 import { MenuItemImageField } from "./menu-item-image-field";
 import {
   applyMenuAvailabilityMode,
@@ -84,6 +87,7 @@ type HubMenuStudioProps = {
   menuSections: HubMenuSection[];
   selectedCategory: HubMenuSection | null;
   selectedItem: MenuItem | null;
+  selectedItemId: string;
   isCreatingNewItem: boolean;
   newCategory: CreateCategoryFormState;
   newItem: CreateItemFormState;
@@ -108,9 +112,9 @@ type HubMenuStudioProps = {
   onPizzaSizeRowsChange: (rows: PizzaSizeRow[]) => void;
   onSelectCategory: (sectionId: string) => void;
   onSelectItem: (itemId: string) => void;
-  onBeginCreateItem: (sectionId: string) => void;
+  onBeginCreateItem: (sectionId: string, menuSubGroup?: string) => void;
   onCancelCreateItem: () => void;
-  onCreateItem: () => void;
+  onCreateItem: (availabilityMode?: MenuAvailabilityMode) => void;
   onCreateCategory: () => void;
   onDuplicateItem: (item: MenuItem) => void;
   onDeleteCategory: () => void;
@@ -162,6 +166,7 @@ export function HubMenuStudio({
   menuSections,
   selectedCategory,
   selectedItem,
+  selectedItemId,
   isCreatingNewItem,
   newCategory,
   newItem,
@@ -234,7 +239,6 @@ export function HubMenuStudio({
   readOnly = false,
 }: HubMenuStudioProps) {
   const newItemDraftRef = useRef<HTMLElement | null>(null);
-  const availabilityModes: MenuAvailabilityMode[] = ["live", "sold_out", "hidden"];
   const studioLocked = readOnly;
   const visibleSections = customerFacingMenuSections(menuSections);
   const hasCustomerMenu = visibleSections.length > 0;
@@ -255,7 +259,7 @@ export function HubMenuStudio({
       price: Number(newItem.price) || 0,
       imageUrl: newItem.imageUrl.trim() || undefined,
       menuSubGroup: newItem.menuSubGroup.trim() || undefined,
-      isActive: false,
+      isActive: true,
       trackStock: false,
       stockQuantity: null,
       stockStatus: "in_stock",
@@ -276,6 +280,10 @@ export function HubMenuStudio({
     onNewItemChange({ description: next.description });
   };
   const selectedBuilderHint = describeCategoryItemBuilder(selectedCategory);
+  const usesPizzaOrderBuilder = isHubMenuSectionPizza(selectedCategory);
+  const usesOrderTicketBuilder = isHubMenuOrderTicketCategory(selectedCategory);
+  const creatingOrderTicketItem = isHubMenuOrderTicketCategory(creatingItemSection);
+  const editingOrderTicketItem = isHubMenuOrderTicketCategory(selectedCategory);
   const hubExtraToppings = getHubExtraToppingsFromSection(extrasSection);
   const hubSauces = getHubSaucesFromSection(saucesSection);
   const hubBurgerParts = getHubPartsFromSection(burgerPartsSection, "burger");
@@ -528,6 +536,104 @@ export function HubMenuStudio({
 
               {showCategoryBuilder && selectedCategory ? (
                 <>
+              {usesPizzaOrderBuilder ? (
+                <div className="hub-menu-drinks-builder-layout">
+                  <div className="hub-menu-drinks-builder-layout__head">
+                    <div>
+                      <p style={sectionLabel}>{selectedCategory.name}</p>
+                      <p style={itemsPanelCopy}>{selectedBuilderHint}</p>
+                    </div>
+                  </div>
+                  <details style={categorySettingsDetails}>
+                    <summary style={categorySettingsSummary}>Category settings</summary>
+                    <div style={builderGrid}>
+                      <label style={field}>
+                        <span style={darkFieldLabel}>Category name</span>
+                        <input
+                          style={lightInput}
+                          value={selectedCategory.name}
+                          onChange={(event) => onUpdateSectionField("name", event.target.value)}
+                        />
+                      </label>
+                      <label style={field}>
+                        <span style={darkFieldLabel}>Category note (optional)</span>
+                        <input
+                          style={lightInput}
+                          value={getCategoryCustomerDescription(selectedCategory)}
+                          onChange={(event) =>
+                            onPatchSelectedCategory((section) =>
+                              writeMenuSubGroupsOnSection(
+                                section,
+                                readMenuSubGroupsFromSection(section),
+                                event.target.value,
+                              ),
+                            )
+                          }
+                        />
+                      </label>
+                    </div>
+                    <div style={inlineActions}>
+                      <button type="button" style={dangerButtonSmall} onClick={onDeleteCategory}>
+                        Delete category
+                      </button>
+                    </div>
+                  </details>
+                  <HubMenuPizzaOrderBuilder
+                    section={selectedCategory}
+                    readOnly={studioLocked}
+                    onPatchSection={onPatchSelectedCategory}
+                  />
+                </div>
+              ) : usesOrderTicketBuilder ? (
+                <div className="hub-menu-drinks-builder-layout">
+                  <div className="hub-menu-drinks-builder-layout__head">
+                    <div>
+                      <p style={sectionLabel}>{selectedCategory.name}</p>
+                      <p style={itemsPanelCopy}>{selectedBuilderHint}</p>
+                    </div>
+                  </div>
+                  <details style={categorySettingsDetails}>
+                    <summary style={categorySettingsSummary}>Category settings</summary>
+                    <div style={builderGrid}>
+                      <label style={field}>
+                        <span style={darkFieldLabel}>Category name</span>
+                        <input
+                          style={lightInput}
+                          value={selectedCategory.name}
+                          onChange={(event) => onUpdateSectionField("name", event.target.value)}
+                        />
+                      </label>
+                      <label style={field}>
+                        <span style={darkFieldLabel}>Category note (optional)</span>
+                        <input
+                          style={lightInput}
+                          value={getCategoryCustomerDescription(selectedCategory)}
+                          onChange={(event) =>
+                            onPatchSelectedCategory((section) =>
+                              writeMenuSubGroupsOnSection(
+                                section,
+                                readMenuSubGroupsFromSection(section),
+                                event.target.value,
+                              ),
+                            )
+                          }
+                        />
+                      </label>
+                    </div>
+                    <div style={inlineActions}>
+                      <button type="button" style={dangerButtonSmall} onClick={onDeleteCategory}>
+                        Delete category
+                      </button>
+                    </div>
+                  </details>
+                  <HubMenuOrderTicketBuilder
+                    section={selectedCategory}
+                    readOnly={studioLocked}
+                    onPatchSection={onPatchSelectedCategory}
+                  />
+                </div>
+              ) : (
+                <>
               <aside className="hub-menu-item-sidebar" style={itemSidebar}>
                 <div style={itemSidebarHeader}>
                   <div>
@@ -589,11 +695,6 @@ export function HubMenuStudio({
                       />
                     </label>
                   </div>
-                  <HubMenuCategorySubGroupsPanel
-                    section={selectedCategory}
-                    readOnly={studioLocked}
-                    onUpdateSection={onPatchSelectedCategory}
-                  />
                   <div style={inlineActions}>
                     <button type="button" style={dangerButtonSmall} onClick={onDeleteCategory}>
                       Delete category
@@ -638,38 +739,6 @@ export function HubMenuStudio({
                     onChange={(menuSubGroup) => onNewItemChange({ menuSubGroup: menuSubGroup ?? "" })}
                   />
                 ) : null}
-                <div style={{ gridColumn: "1 / -1" }}>
-                  <MenuItemImageField
-                    value={newItem.imageUrl || undefined}
-                    onChange={(imageUrl) => onNewItemChange({ imageUrl: imageUrl ?? "" })}
-                    disabled={studioLocked}
-                  />
-                </div>
-                <div style={{ gridColumn: "1 / -1" }}>
-                  {creatingItemUsesParts && creatingComposeLine ? (
-                    <HubMenuItemPartsPicker
-                      item={newItemDraft}
-                      line={creatingComposeLine}
-                      parts={creatingComposeLine === "burger" ? hubBurgerParts : hubKebabParts}
-                      slotDefinitions={creatingComposeLine === "burger" ? burgerSlotDefinitions : kebabSlotDefinitions}
-                      extras={hubExtraToppings}
-                      readOnly={studioLocked}
-                      onUpdateItem={patchNewItemDraft}
-                    />
-                  ) : (
-                    <HubMenuItemIngredients item={newItemDraft} readOnly={studioLocked} onUpdateItem={patchNewItemDraft} />
-                  )}
-                </div>
-
-                <label style={{ ...field, gridColumn: "1 / -1" }}>
-                  <span style={darkFieldLabel}>Description (customer sees)</span>
-                  <textarea
-                    style={{ ...lightInput, minHeight: 72, paddingTop: 10, paddingBottom: 10, resize: "vertical" }}
-                    value={newItem.description}
-                    onChange={(event) => onNewItemChange({ description: event.target.value })}
-                    placeholder="Marketing copy — ingredients can be added automatically above"
-                  />
-                </label>
                 {creatingItemBuilderMode === "pizza-sizes" ? (
                   <div style={{ gridColumn: "1 / -1" }}>
                     <PizzaSizeDraftPanel rows={pizzaSizeRows} onChange={onPizzaSizeRowsChange} />
@@ -683,9 +752,44 @@ export function HubMenuStudio({
                       style={lightInput}
                       value={newItem.price}
                       onChange={(event) => onNewItemChange({ price: event.target.value })}
-                      placeholder="e.g. 7.99"
+                      placeholder="e.g. 1.99"
                     />
                   </label>
+                )}
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <MenuItemImageField
+                    value={newItem.imageUrl || undefined}
+                    onChange={(imageUrl) => onNewItemChange({ imageUrl: imageUrl ?? "" })}
+                    disabled={studioLocked}
+                  />
+                </div>
+                {creatingOrderTicketItem ? null : (
+                  <>
+                    <div style={{ gridColumn: "1 / -1" }}>
+                      {creatingItemUsesParts && creatingComposeLine ? (
+                        <HubMenuItemPartsPicker
+                          item={newItemDraft}
+                          line={creatingComposeLine}
+                          parts={creatingComposeLine === "burger" ? hubBurgerParts : hubKebabParts}
+                          slotDefinitions={creatingComposeLine === "burger" ? burgerSlotDefinitions : kebabSlotDefinitions}
+                          extras={hubExtraToppings}
+                          readOnly={studioLocked}
+                          onUpdateItem={patchNewItemDraft}
+                        />
+                      ) : (
+                        <HubMenuItemIngredients item={newItemDraft} readOnly={studioLocked} onUpdateItem={patchNewItemDraft} />
+                      )}
+                    </div>
+                    <label style={{ ...field, gridColumn: "1 / -1" }}>
+                      <span style={darkFieldLabel}>Description (customer sees)</span>
+                      <textarea
+                        style={{ ...lightInput, minHeight: 72, paddingTop: 10, paddingBottom: 10, resize: "vertical" }}
+                        value={newItem.description}
+                        onChange={(event) => onNewItemChange({ description: event.target.value })}
+                        placeholder="Marketing copy — ingredients can be added automatically above"
+                      />
+                    </label>
+                  </>
                 )}
               </div>
               {creatingIsMealDealsCategory ? (
@@ -698,7 +802,7 @@ export function HubMenuStudio({
                     onUpdateItem={patchNewItemDraft}
                   />
                 </section>
-              ) : (
+              ) : creatingOrderTicketItem ? null : (
                 <section style={{ ...choicesSection, gridColumn: "1 / -1" }}>
                   <HubMenuItemOptionsPanel
                     item={newItemDraft}
@@ -710,7 +814,18 @@ export function HubMenuStudio({
                   />
                 </section>
               )}
-              <button type="button" style={primaryButton} onClick={onCreateItem}>
+              <section style={availabilityPanel}>
+                <p style={sectionLabel}>Save as</p>
+                <p style={itemsPanelCopy}>
+                  Defaults to <strong>Live</strong>. Choose <strong>Hidden</strong> if this should stay off the menu for now.
+                </p>
+                <MenuItemVisibilitySelect
+                  item={newItemDraft}
+                  readOnly={studioLocked}
+                  onChange={(next) => patchNewItemDraft(() => next)}
+                />
+              </section>
+              <button type="button" style={primaryButton} onClick={() => onCreateItem(getMenuAvailabilityMode(newItemDraft))}>
                 Save item
               </button>
             </section>
@@ -755,15 +870,8 @@ export function HubMenuStudio({
                     onChange={(menuSubGroup) => onUpdateItem((current) => ({ ...current, menuSubGroup }))}
                   />
                 ) : null}
-                <div style={{ gridColumn: "1 / -1" }}>
-                  <MenuItemImageField
-                    value={selectedItem.imageUrl}
-                    onChange={(imageUrl) => onUpdateItem((current) => ({ ...current, imageUrl }))}
-                    disabled={studioLocked}
-                  />
-                </div>
                 {itemUsesSizePricing(selectedItem) ? (
-                  <div className="he-hub-banner">
+                  <div className="he-hub-banner" style={{ gridColumn: "1 / -1" }}>
                     <strong>Prices are on each size</strong>
                     <p>Set each size price in the table below.</p>
                   </div>
@@ -780,28 +888,40 @@ export function HubMenuStudio({
                   </label>
                 )}
                 <div style={{ gridColumn: "1 / -1" }}>
-                  {editingItemUsesParts && editingComposeLine ? (
-                    <HubMenuItemPartsPicker
-                      item={selectedItem}
-                      line={editingComposeLine}
-                      parts={editingComposeLine === "burger" ? hubBurgerParts : hubKebabParts}
-                      slotDefinitions={editingComposeLine === "burger" ? burgerSlotDefinitions : kebabSlotDefinitions}
-                      extras={hubExtraToppings}
-                      readOnly={studioLocked}
-                      onUpdateItem={onUpdateItem}
-                    />
-                  ) : (
-                    <HubMenuItemIngredients item={selectedItem} readOnly={studioLocked} onUpdateItem={onUpdateItem} />
-                  )}
-                </div>
-                <label style={{ ...field, gridColumn: "1 / -1" }}>
-                  <span style={darkFieldLabel}>Description (customer sees)</span>
-                  <textarea
-                    style={{ ...lightInput, minHeight: 88, paddingTop: 12, paddingBottom: 12, resize: "vertical" }}
-                    value={selectedItem.description}
-                    onChange={(event) => onUpdateItem((current) => ({ ...current, description: event.target.value }))}
+                  <MenuItemImageField
+                    key={selectedItemId}
+                    value={selectedItem.imageUrl}
+                    onChange={(imageUrl) => onUpdateItem((current) => ({ ...current, imageUrl }))}
+                    disabled={studioLocked}
                   />
-                </label>
+                </div>
+                {editingOrderTicketItem ? null : (
+                  <>
+                    <div style={{ gridColumn: "1 / -1" }}>
+                      {editingItemUsesParts && editingComposeLine ? (
+                        <HubMenuItemPartsPicker
+                          item={selectedItem}
+                          line={editingComposeLine}
+                          parts={editingComposeLine === "burger" ? hubBurgerParts : hubKebabParts}
+                          slotDefinitions={editingComposeLine === "burger" ? burgerSlotDefinitions : kebabSlotDefinitions}
+                          extras={hubExtraToppings}
+                          readOnly={studioLocked}
+                          onUpdateItem={onUpdateItem}
+                        />
+                      ) : (
+                        <HubMenuItemIngredients item={selectedItem} readOnly={studioLocked} onUpdateItem={onUpdateItem} />
+                      )}
+                    </div>
+                    <label style={{ ...field, gridColumn: "1 / -1" }}>
+                      <span style={darkFieldLabel}>Description (customer sees)</span>
+                      <textarea
+                        style={{ ...lightInput, minHeight: 88, paddingTop: 12, paddingBottom: 12, resize: "vertical" }}
+                        value={selectedItem.description}
+                        onChange={(event) => onUpdateItem((current) => ({ ...current, description: event.target.value }))}
+                      />
+                    </label>
+                  </>
+                )}
               </div>
 
               {editingPizzaItem && itemUsesSizePricing(selectedItem) ? (
@@ -835,24 +955,16 @@ export function HubMenuStudio({
               ) : null}
 
               <section style={availabilityPanel}>
-                <p style={sectionLabel}>Customer visibility</p>
-                <div style={availabilityGrid}>
-                  {availabilityModes.map((mode) => {
-                    const meta = describeMenuAvailability(mode);
-                    const active = getMenuAvailabilityMode(selectedItem) === mode;
-                    return (
-                      <button
-                        key={mode}
-                        type="button"
-                        style={active ? availabilityCardActive : availabilityCard}
-                        onClick={() => onUpdateItem((current) => applyMenuAvailabilityMode(current, mode))}
-                      >
-                        <strong>{meta.label}</strong>
-                        <span>{meta.hint}</span>
-                      </button>
-                    );
-                  })}
-                </div>
+                <p style={sectionLabel}>Save as</p>
+                <p style={itemsPanelCopy}>
+                  New items save as <strong>Live</strong> when you add them. Choose <strong>Hidden</strong> only if you
+                  are not ready for customers to see it yet — then publish when the menu is ready.
+                </p>
+                <MenuItemVisibilitySelect
+                  item={selectedItem}
+                  readOnly={studioLocked}
+                  onChange={(next) => onUpdateItem(() => next)}
+                />
               </section>
 
               <label style={{ ...toggleLabel, marginTop: 4 }}>
@@ -874,7 +986,7 @@ export function HubMenuStudio({
                     onUpdateItem={onUpdateItem}
                   />
                 </section>
-              ) : (
+              ) : editingOrderTicketItem ? null : (
                 <section style={choicesSection}>
                   <HubMenuItemOptionsPanel
                     item={selectedItem}
@@ -889,12 +1001,14 @@ export function HubMenuStudio({
             </section>
           ) : null}
 
-          {showCategoryBuilder && selectedCategory && !isCreatingNewItem && !selectedItem ? (
+          {showCategoryBuilder && selectedCategory && !usesPizzaOrderBuilder && !usesOrderTicketBuilder && !isCreatingNewItem && !selectedItem ? (
             <div style={emptyStateCard}>
               Select a product from the list, or tap <strong>+ Add item</strong> to add one to {selectedCategory.name}.
             </div>
           ) : null}
               </div>
+                </>
+              )}
                 </>
               ) : !hasCustomerMenu && !staffPanelOnly ? (
                 <div className="hub-menu-customer-empty" style={customerEmptyPanel}>

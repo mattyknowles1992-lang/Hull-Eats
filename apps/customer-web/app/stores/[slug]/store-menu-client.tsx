@@ -5,7 +5,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import type { MenuItem, StoreSummary, StorefrontPromotionBanner } from "@hull-eats/types";
-import { customerFacingOptionDescription, parseExtraIncludedQuantity } from "@hull-eats/types";
+import { customerFacingMenuItemDescription, customerFacingOptionDescription, parseExtraIncludedQuantity } from "@hull-eats/types";
 
 import {
   addConfiguredItemToBasket,
@@ -155,7 +155,7 @@ const getMenuItemListingLine = (item: MenuItem): string | null => {
     return labels.join(" · ");
   }
 
-  const description = item.description?.trim();
+  const description = customerFacingMenuItemDescription(item.description);
   if (!description) {
     return null;
   }
@@ -957,7 +957,7 @@ export function StoreMenuClient({
                   <div className="menu-item-grid">
                     {section.items.map((item) => {
                       const listing = getMenuItemListingLine(item);
-                      const fullDescription = item.description?.trim();
+                      const fullDescription = customerFacingMenuItemDescription(item.description);
                       const orderable = isMenuItemOrderable(item, storeIsOpenNow);
                       const statusLabel = getMenuItemStatusLabel(item);
 

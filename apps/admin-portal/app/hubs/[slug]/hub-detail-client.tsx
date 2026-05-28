@@ -6,7 +6,6 @@ import { useEffect, useMemo, useState } from "react";
 import type { ContactMessageRecord } from "@hull-eats/types";
 
 import {
-  adminSessionStorageKey,
   fetchAdminContactMessages,
   fetchAdminCouriers,
   fetchAdminHubs,
@@ -17,6 +16,7 @@ import {
   type AdminHubSummary,
   type AdminHubUserSummary,
 } from "../../admin-api";
+import { adminSessionExpiredMessage, clearAdminSessionStorage, isAdminSessionAuthFailure, readStoredAdminSessionToken } from "../../admin-session";
 
 const pageStyle = {
   minHeight: "100vh",
@@ -62,10 +62,10 @@ export function HubDetailClient({ slug }: { slug: string }) {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const token = typeof window !== "undefined" ? window.sessionStorage.getItem(adminSessionStorageKey) : null;
+    const token = readStoredAdminSessionToken();
     if (!token) {
       setState("error");
-      setError("Admin session missing. Sign in again from the admin console.");
+      setError(adminSessionExpiredMessage);
       return;
     }
 
@@ -92,6 +92,13 @@ export function HubDetailClient({ slug }: { slug: string }) {
         setState("ready");
         setError("");
       } catch (nextError) {
+        if (isAdminSessionAuthFailure(nextError)) {
+          clearAdminSessionStorage();
+          setState("error");
+          setError(nextError instanceof Error ? nextError.message : adminSessionExpiredMessage);
+          return;
+        }
+
         setState("error");
         setError(nextError instanceof Error ? nextError.message : "Hub detail failed to load.");
       }
@@ -114,7 +121,7 @@ export function HubDetailClient({ slug }: { slug: string }) {
   }, [couriers.length, hub, messages.length, users.length]);
 
   return (
-    <main style={pageStyle} className="he-admin-page">
+    <main style={pageStyle} className="he-admin-page he-admin-console-page">
       <div className="he-admin-shell">
         <header className="he-admin-header">
           <div>
@@ -127,9 +134,10 @@ export function HubDetailClient({ slug }: { slug: string }) {
             </p>
           </div>
 
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <div className="he-admin-header-actions">
             <Link
               href="/"
+              className="he-admin-back-link"
               style={{
                 minHeight: 48,
                 padding: "0 16px",
@@ -198,7 +206,7 @@ export function HubDetailClient({ slug }: { slug: string }) {
               ))}
             </section>
 
-            <section style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.1fr) minmax(300px, 0.9fr)", gap: 18 }}>
+            <section className="he-admin-detail-split">
               <section
                 style={{
                   borderRadius: 24,

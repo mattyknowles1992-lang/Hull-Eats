@@ -142,6 +142,20 @@ async function parseJson<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
 
+export class AdminApiError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "AdminApiError";
+    this.status = status;
+  }
+
+  get isAuthFailure() {
+    return this.status === 401;
+  }
+}
+
 async function readErrorMessage(response: Response, fallback: string): Promise<string> {
   try {
     const body = (await response.json()) as { message?: string | string[] };
@@ -156,6 +170,14 @@ async function readErrorMessage(response: Response, fallback: string): Promise<s
   }
 
   return `${fallback} (${response.status})`;
+}
+
+async function assertAdminResponseOk(response: Response, fallback: string) {
+  if (response.ok) {
+    return;
+  }
+
+  throw new AdminApiError(await readErrorMessage(response, fallback), response.status);
 }
 
 async function authedFetch(path: string, token: string, init?: RequestInit) {
@@ -178,34 +200,25 @@ export async function loginToAdmin(email: string, password: string): Promise<Adm
     body: JSON.stringify({ email, password }),
   });
 
-  if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Admin login failed"));
-  }
-
+  await assertAdminResponseOk(response, "Admin login failed");
   return parseJson<AdminLoginResponse>(response);
 }
 
 export async function fetchAdminHubs(token: string): Promise<AdminHubSummary[]> {
   const response = await authedFetch("/v1/admin/hubs", token);
-  if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Admin hub fetch failed"));
-  }
+  await assertAdminResponseOk(response, "Admin hub fetch failed");
   return parseJson<AdminHubSummary[]>(response);
 }
 
 export async function fetchAdminUsers(token: string): Promise<AdminHubUserSummary[]> {
   const response = await authedFetch("/v1/admin/users", token);
-  if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Admin user fetch failed"));
-  }
+  await assertAdminResponseOk(response, "Admin user fetch failed");
   return parseJson<AdminHubUserSummary[]>(response);
 }
 
 export async function fetchAdminCustomers(token: string): Promise<AdminCustomerSummary[]> {
   const response = await authedFetch("/v1/admin/customers", token);
-  if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Admin customer fetch failed"));
-  }
+  await assertAdminResponseOk(response, "Admin customer fetch failed");
   return parseJson<AdminCustomerSummary[]>(response);
 }
 
@@ -217,9 +230,7 @@ export async function updateAdminCustomer(token: string, customerId: string, inp
     },
     body: JSON.stringify(input),
   });
-  if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Admin customer update failed"));
-  }
+  await assertAdminResponseOk(response, "Admin customer update failed");
   return parseJson<AdminCustomerSummary>(response);
 }
 
@@ -244,9 +255,7 @@ export async function createAdminHub(
     },
     body: JSON.stringify(input),
   });
-  if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Admin hub create failed"));
-  }
+  await assertAdminResponseOk(response, "Admin hub create failed");
   return parseJson<AdminCreateHubResponse>(response);
 }
 
@@ -254,9 +263,7 @@ export async function deleteAdminHub(token: string, hubId: string) {
   const response = await authedFetch(`/v1/admin/hubs/${encodeURIComponent(hubId)}`, token, {
     method: "DELETE",
   });
-  if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Admin hub delete failed"));
-  }
+  await assertAdminResponseOk(response, "Admin hub delete failed");
   return parseJson<{ deletedHubId: string; deletedBusinessName: string }>(response);
 }
 
@@ -264,9 +271,7 @@ export async function publishAdminHub(token: string, hubId: string) {
   const response = await authedFetch(`/v1/admin/hubs/${encodeURIComponent(hubId)}/publish`, token, {
     method: "POST",
   });
-  if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Admin hub publish failed"));
-  }
+  await assertAdminResponseOk(response, "Admin hub publish failed");
   return parseJson<{ hub: AdminHubSummary }>(response);
 }
 
@@ -287,9 +292,7 @@ export async function updateAdminHubLifecycle(
     },
     body: JSON.stringify(input),
   });
-  if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Admin hub lifecycle update failed"));
-  }
+  await assertAdminResponseOk(response, "Admin hub lifecycle update failed");
   return parseJson<{ hub: AdminHubSummary }>(response);
 }
 
@@ -311,9 +314,7 @@ export async function createAdminHubUser(
     },
     body: JSON.stringify(input),
   });
-  if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Admin hub user create failed"));
-  }
+  await assertAdminResponseOk(response, "Admin hub user create failed");
   return parseJson<{
     id: string;
     hubId: string;
@@ -337,17 +338,13 @@ export async function createAdminHubImpersonation(
     },
     body: JSON.stringify(input ?? {}),
   });
-  if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Admin hub impersonation failed"));
-  }
+  await assertAdminResponseOk(response, "Admin hub impersonation failed");
   return parseJson<AdminHubImpersonationResponse>(response);
 }
 
 export async function fetchAdminCouriers(token: string): Promise<AdminCourierSummary[]> {
   const response = await authedFetch("/v1/admin/couriers", token);
-  if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Admin courier fetch failed"));
-  }
+  await assertAdminResponseOk(response, "Admin courier fetch failed");
   return parseJson<AdminCourierSummary[]>(response);
 }
 
@@ -371,9 +368,7 @@ export async function createAdminHubCourier(
     },
     body: JSON.stringify(input),
   });
-  if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Admin hub courier create failed"));
-  }
+  await assertAdminResponseOk(response, "Admin hub courier create failed");
   return parseJson<AdminCreateHubCourierResponse>(response);
 }
 
@@ -385,9 +380,7 @@ export async function removeAdminHubCourierAssignment(token: string, hubId: stri
       method: "DELETE",
     },
   );
-  if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Admin courier unassign failed"));
-  }
+  await assertAdminResponseOk(response, "Admin courier unassign failed");
   return parseJson<{ removed: true; courierProfileId: string }>(response);
 }
 
@@ -412,9 +405,7 @@ export async function updateAdminCourier(
     },
     body: JSON.stringify(input),
   });
-  if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Admin courier update failed"));
-  }
+  await assertAdminResponseOk(response, "Admin courier update failed");
   return parseJson<AdminCourierSummary>(response);
 }
 
@@ -422,25 +413,19 @@ export async function deleteAdminCourier(token: string, courierProfileId: string
   const response = await authedFetch(`/v1/admin/couriers/${encodeURIComponent(courierProfileId)}`, token, {
     method: "DELETE",
   });
-  if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Admin courier delete failed"));
-  }
+  await assertAdminResponseOk(response, "Admin courier delete failed");
   return parseJson<{ deletedCourierProfileId: string }>(response);
 }
 
 export async function fetchAdminOrders(token: string): Promise<AdminHubOrderSummary[]> {
   const response = await authedFetch("/v1/admin/orders", token);
-  if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Admin order fetch failed"));
-  }
+  await assertAdminResponseOk(response, "Admin order fetch failed");
   return parseJson<AdminHubOrderSummary[]>(response);
 }
 
 export async function fetchAdminContactMessages(token: string): Promise<ContactMessageRecord[]> {
   const response = await authedFetch("/v1/admin/contact-messages", token);
-  if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Admin inbox fetch failed"));
-  }
+  await assertAdminResponseOk(response, "Admin inbox fetch failed");
   return parseJson<ContactMessageRecord[]>(response);
 }
 
@@ -456,8 +441,6 @@ export async function updateAdminContactMessageStatus(
     },
     body: JSON.stringify({ status }),
   });
-  if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Admin inbox update failed"));
-  }
+  await assertAdminResponseOk(response, "Admin inbox update failed");
   return parseJson<ContactMessageRecord>(response);
 }

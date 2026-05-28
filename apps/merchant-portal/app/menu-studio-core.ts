@@ -21,12 +21,15 @@ import {
   isHubMenuKebabMenuCategory,
   isHubMenuKebabPartsSection,
   isHubMenuExtrasLibrarySection,
+  isHubMenuOrderTicketCategory,
+  getHubMenuOrderTicketConfig,
   isHubMenuMealDealsCategory,
   isHubMenuMealLibrarySection,
   isHubMenuMenuBoardsConfigSection,
   isHubMenuStaffLibrarySection,
   isHubMenuSectionPizza,
 } from "@hull-eats/types";
+import { buildPizzaSizeOptionGroupFromRows } from "./pizza-size-draft";
 
 export type HubExtraTopping = {
   id: string;
@@ -86,6 +89,142 @@ export function findSaucesExtraGroup(item: MenuItem): MenuOptionGroup | null {
   return item.optionGroups.find((group) => isSaucesExtraGroup(group)) ?? null;
 }
 export const MANUAL_VARIATIONS_GROUP_NAME = "Options";
+
+export const SPICE_HEAT_LEVELS = [
+  { value: "", label: "—" },
+  { value: "mild", label: "Mild" },
+  { value: "medium", label: "Medium" },
+  { value: "hot", label: "Hot" },
+  { value: "very-hot", label: "Very hot" },
+] as const;
+
+const SPICE_HEAT_MARKER = /^__HULL_SPICE:([a-z-]+)__(?:\r?\n)?/i;
+
+export function getItemSpiceHeat(item: MenuItem): string {
+  const match = item.description.match(SPICE_HEAT_MARKER);
+  return match?.[1]?.toLowerCase() ?? "";
+}
+
+export function applyItemSpiceHeat(item: MenuItem, level: string): MenuItem {
+  const intro = item.description.replace(SPICE_HEAT_MARKER, "").trim();
+  const normalized = level.trim().toLowerCase();
+  if (!normalized) {
+    return { ...item, description: intro };
+  }
+  return { ...item, description: intro ? `__HULL_SPICE:${normalized}__\n${intro}` : `__HULL_SPICE:${normalized}__` };
+}
+
+export function formatItemSpiceHeatLabel(level: string): string {
+  return SPICE_HEAT_LEVELS.find((entry) => entry.value === level)?.label ?? level;
+}
+
+export const DRINK_SIZE_LABELS = ["330ml", "500ml"] as const;
+
+export type DrinkSizePrices = { ml330: string; ml500: string };
+
+export function getDrinkSizePrices(item: MenuItem): DrinkSizePrices {
+  const sizeGroup = item.optionGroups.find((group) => group.isRequired && /size/i.test(group.name));
+  const result: DrinkSizePrices = { ml330: "", ml500: "" };
+  if (!sizeGroup) {
+    if (item.price > 0 && !itemUsesSizePricing(item)) {
+      result.ml330 = String(item.price);
+    }
+    return result;
+  }
+  for (const option of sizeGroup.options) {
+    const full = Number((item.price + option.priceDelta).toFixed(2));
+    const label = option.label.trim().toLowerCase();
+    if (label.includes("330")) {
+      result.ml330 = String(full);
+    }
+    if (label.includes("500")) {
+      result.ml500 = String(full);
+    }
+  }
+  return result;
+}
+
+export function applyDrinkSizesToItem(item: MenuItem, sizes: DrinkSizePrices): MenuItem | { error: string } {
+  const active: Array<{ label: string; price: string }> = [];
+  if (sizes.ml330.trim()) {
+    active.push({ label: "330ml", price: sizes.ml330.trim() });
+  }
+  if (sizes.ml500.trim()) {
+    active.push({ label: "500ml", price: sizes.ml500.trim() });
+  }
+
+  const otherGroups = item.optionGroups.filter((group) => !(group.isRequired && /size/i.test(group.name)));
+
+  if (active.length === 0) {
+    return { ...item, price: 0, optionGroups: otherGroups };
+  }
+
+  if (active.length === 1) {
+    const price = Number(active[0]!.price);
+    if (!Number.isFinite(price) || price < 0) {
+      return { error: "Enter a valid drink price." };
+    }
+    return { ...item, price, optionGroups: otherGroups };
+  }
+
+  const rows = active.map((entry, index) => ({
+    key: `drink-${index}`,
+    label: entry.label,
+    selected: true,
+    price: entry.price,
+  }));
+
+  const built = buildPizzaSizeOptionGroupFromRows(rows);
+  if ("error" in built) {
+    return built;
+  }
+
+  return {
+    ...item,
+    price: built.basePrice,
+    optionGroups: [...otherGroups, ...built.optionGroups],
+  };
+}
+
+export type BulkPasteRow = { name: string; price?: number };
+
+export function parseBulkMenuPasteLines(raw: string): BulkPasteRow[] {
+  const rows: BulkPasteRow[] = [];
+  for (const originalLine of raw.split(/\r?\n/)) {
+    let line = originalLine.trim();
+    if (!line) {
+      continue;
+    }
+
+    line = line.replace(/[\u{1F300}-\u{1FAFF}]/gu, "").trim();
+    line = line.replace(/\d+%\s*off/gi, "").trim();
+    line = line.replace(/\bspicy\b/gi, "").trim();
+
+    let price: number | undefined;
+    const fromPrice = line.match(/(?:from\s+)?£\s*(\d+(?:\.\d{1,2})?)\s*$/i);
+    if (fromPrice) {
+      price = Number(fromPrice[1]);
+      line = line.slice(0, fromPrice.index).trim();
+    } else {
+      const trailingPrice = line.match(/(?:\t| {2,}|\s-\s|\s+)(\d+(?:\.\d{1,2})?)\s*$/);
+      if (trailingPrice) {
+        const candidate = Number(trailingPrice[1]);
+        if (Number.isFinite(candidate) && candidate >= 0.5 && candidate <= 200) {
+          price = candidate;
+          line = line.slice(0, trailingPrice.index).trim();
+        }
+      }
+    }
+
+    line = line.replace(/[.\s]+$/g, "").trim();
+    if (!line || line.length < 2) {
+      continue;
+    }
+
+    rows.push({ name: line, price });
+  }
+  return rows;
+}
 
 /** Shown in the menu builder — stored as option group name `Options` on the item. */
 export const CUSTOMER_CHOICES_GROUP_LABEL = "Customer choices";
@@ -319,7 +458,7 @@ export type MenuItemDraftInput = {
   requiresIdVerification: boolean;
   components: MenuItem["components"];
   optionGroups: MenuItem["optionGroups"];
-  /** Defaults to hidden until the owner marks the item live and publishes. */
+  /** Defaults to live — choose Hidden when saving if the item should stay off the menu. */
   isActive?: boolean;
 };
 
@@ -599,12 +738,12 @@ export function applyMenuAvailabilityMode(item: MenuItem, mode: MenuAvailability
 
 export function describeMenuAvailability(mode: MenuAvailabilityMode) {
   if (mode === "live") {
-    return { label: "Live", hint: "Customers can order this item." };
+    return { label: "Live", hint: "On your menu — customers can order after you publish." };
   }
   if (mode === "sold_out") {
-    return { label: "Sold out", hint: "Still visible on your menu but cannot be ordered." };
+    return { label: "Sold out", hint: "Visible on your menu but ordering is disabled." };
   }
-  return { label: "Hidden", hint: "Not shown to customers until you turn it live and publish." };
+  return { label: "Hidden", hint: "Stays off the customer menu until you save it as Live." };
 }
 
 export function buildLocalMenuCategory(input: MenuCategoryDraftInput): HubMenuSection {
@@ -628,7 +767,7 @@ export function buildLocalMenuItem(input: MenuItemDraftInput): MenuItem {
     price: input.price,
     imageUrl: input.imageUrl,
     menuSubGroup: input.menuSubGroup?.trim() || undefined,
-    isActive: input.isActive ?? false,
+    isActive: input.isActive ?? true,
     trackStock: false,
     stockQuantity: null,
     stockStatus: "in_stock",
@@ -664,9 +803,47 @@ export function cloneMenuItemDraft(source: MenuItem, nameOverride?: string): Men
     ...cloned,
     id: createMenuDraftId("item"),
     name: nameOverride ?? source.name.trim(),
-    isActive: false,
+    isActive: true,
     stockStatus: "in_stock",
   });
+}
+
+function itemByIdMap(sections: HubMenuSection[]): Map<string, MenuItem> {
+  return new Map(sections.flatMap((section) => section.items.map((item) => [item.id, item] as const)));
+}
+
+/**
+ * After a workspace save returns, keep local product photos (and other media) the user changed
+ * while the request was in flight — avoids duplicated/edited items snapping back to the old image.
+ */
+export function reconcileMenuSectionsAfterWorkspaceSave(
+  currentLocal: HubMenuSection[],
+  serverSections: HubMenuSection[],
+  sectionsSentWithRequest: HubMenuSection[],
+): HubMenuSection[] {
+  const sentById = itemByIdMap(sectionsSentWithRequest);
+  const localById = itemByIdMap(currentLocal);
+
+  return serverSections.map((section) => ({
+    ...section,
+    items: section.items.map((item) => {
+      const sent = sentById.get(item.id);
+      const local = localById.get(item.id);
+      if (!local?.imageUrl?.trim()) {
+        return item;
+      }
+
+      const localImage = local.imageUrl.trim();
+      const sentImage = sent?.imageUrl?.trim() ?? "";
+      const serverImage = item.imageUrl?.trim() ?? "";
+
+      if (localImage !== serverImage && (localImage !== sentImage || !serverImage)) {
+        return { ...item, imageUrl: local.imageUrl };
+      }
+
+      return item;
+    }),
+  }));
 }
 
 export type ComposeProductLine = "burger" | "kebab";
@@ -952,7 +1129,7 @@ export function isMealDealBundleItem(item: MenuItem): boolean {
 export function describeCategoryItemBuilder(section: HubMenuSection | null | undefined): string {
   const mode = getCategoryItemBuilderMode(section);
   if (mode === "pizza-sizes") {
-    return "Add the pizza name, then tick each size and set a price. Use choices for crust/base — not auto-added.";
+    return "Add each pizza on the table — use popular suggestions or bulk paste for names, then fill size prices.";
   }
   if (mode === "burger-compose") {
     return "Set name and price, tick buns/meat/salad from Burger parts (left). Paid add-ons (cheese, onion…) come from Added extras on this item.";
@@ -960,12 +1137,9 @@ export function describeCategoryItemBuilder(section: HubMenuSection | null | und
   if (mode === "kebab-compose") {
     return "Set name and price, tick bread/meat/salad from Kebab parts (left). Paid add-ons come from Added extras on this item.";
   }
-  const key = section?.presetKey ?? "";
-  if (key === "drinks" || key === "milkshakes" || key === "coffee") {
-    return "Add sub-categories (Cans, Milkshakes…) in category settings, then one product per drink (Coke, Fanta…) each with its own photo and price — not as option names only.";
-  }
-  if (key === "chicken" || key === "starters" || key === "sides") {
-    return "Set the portion price (e.g. 6 wings), then add flavour options (BBQ, Spicy…) with any extra £.";
+  const ticketConfig = getHubMenuOrderTicketConfig(section);
+  if (ticketConfig) {
+    return ticketConfig.introBody;
   }
   if (isHubMenuMealDealsCategory(section)) {
     return "Set one bundle price, then pick items from your menu for main, side, and drink choices.";

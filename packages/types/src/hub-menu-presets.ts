@@ -204,6 +204,171 @@ export function isHubMenuBurgerKebabMenuCategory(
   return isHubMenuBurgerMenuCategory(section) || isHubMenuKebabMenuCategory(section);
 }
 
+export function isHubMenuDrinksStyleCategory(
+  section: { presetKey?: string | null; name?: string } | null | undefined,
+): boolean {
+  const key = section?.presetKey ?? "";
+  return key === "drinks" || key === "milkshakes" || key === "coffee" || key === "alcohol";
+}
+
+/** Fast row-based menu builder — each preset gets columns and copy that fit that category. */
+export type HubMenuOrderTicketConfig = {
+  useSubGroupHeaders: boolean;
+  showPhoto: boolean;
+  showVariations: boolean;
+  showAgeCheck: boolean;
+  showSpiceHeat: boolean;
+  showDrinkSizes: boolean;
+  showBulkPaste: boolean;
+  introTitle: string;
+  introBody: string;
+  namePlaceholder: string;
+};
+
+const ORDER_TICKET_SPICE_PRESETS = new Set(["curry", "indian", "thai", "rice-dishes"]);
+
+const ORDER_TICKET_HEADER_PRESETS = new Set(["drinks", "milkshakes", "coffee", "alcohol"]);
+const ORDER_TICKET_VARIATION_PRESETS = new Set(["chicken"]);
+const ORDER_TICKET_FLAT_PRESETS = new Set([
+  "starters",
+  "sides",
+  "soups",
+  "salads",
+  "desserts",
+  "kids",
+  "breakfast",
+  "sundries",
+  "specials",
+  "grill",
+  "fish",
+  "rice-dishes",
+  "noodles",
+  "curry",
+  "indian",
+  "chinese",
+  "thai",
+  "mexican",
+]);
+
+export function isHubMenuOrderTicketCategory(
+  section: { presetKey?: string | null; name?: string } | null | undefined,
+): boolean {
+  if (!section || isHubMenuStaffLibrarySection(section)) {
+    return false;
+  }
+  const key = section.presetKey ?? "";
+  return (
+    ORDER_TICKET_HEADER_PRESETS.has(key) ||
+    ORDER_TICKET_VARIATION_PRESETS.has(key) ||
+    ORDER_TICKET_FLAT_PRESETS.has(key)
+  );
+}
+
+function flatOrderTicketIntro(presetKey: string): string {
+  const copy: Record<string, string> = {
+    starters: "Add each starter on its own line — name and price, like your printed menu.",
+    sides: "One line per side (fries, rings, coleslaw…) with price. Use Copy to all when prices match.",
+    soups: "Each soup on its own row — name and price.",
+    salads: "Each salad or bowl on its own row.",
+    desserts: "Cakes, ice cream, cookies — one product per line with photo if you have one.",
+    kids: "Each kids meal on its own line — name, price, and optional photo.",
+    breakfast: "Morning plates and brunch items — one line each.",
+    sundries: "Sauces, dips, and extras — quick lines with prices.",
+    specials: "Limited-time dishes — add each special on its own row.",
+    grill: "Grilled mains — name and price on each line.",
+    fish: "Fish and seafood dishes — one line each.",
+    "rice-dishes": "Curries, biryanis, and rice bowls — one dish per row.",
+    noodles: "Noodle boxes and soups — one line each.",
+    curry: "Each curry on its own row — name and price.",
+    indian: "Indian favourites — one dish per line.",
+    chinese: "Chinese classics — one line per dish.",
+    thai: "Thai curries and stir fries — one row each.",
+    mexican: "Tacos, burritos, nachos — one product per line.",
+  };
+  return copy[presetKey] ?? "Add each dish on its own line with name and price.";
+}
+
+function flatOrderTicketPlaceholder(presetKey: string): string {
+  const copy: Record<string, string> = {
+    starters: "e.g. Garlic bread",
+    sides: "e.g. Chips",
+    soups: "e.g. Tomato soup",
+    salads: "e.g. Greek salad",
+    desserts: "e.g. Chocolate fudge cake",
+    kids: "e.g. Kids nuggets meal",
+    breakfast: "e.g. Full English",
+    sundries: "e.g. Pot of curry sauce",
+    specials: "e.g. Chef's special",
+    grill: "e.g. Mixed grill",
+    fish: "e.g. Cod & chips",
+    "rice-dishes": "e.g. Chicken biryani",
+    noodles: "e.g. Chow mein",
+    curry: "e.g. Chicken tikka masala",
+    indian: "e.g. Lamb rogan josh",
+    chinese: "e.g. Sweet & sour chicken",
+    thai: "e.g. Pad thai",
+    mexican: "e.g. Chicken burrito",
+  };
+  return copy[presetKey] ?? "e.g. Dish name";
+}
+
+export function getHubMenuOrderTicketConfig(
+  section: { presetKey?: string | null; name?: string } | null | undefined,
+): HubMenuOrderTicketConfig | null {
+  if (!isHubMenuOrderTicketCategory(section)) {
+    return null;
+  }
+  const key = section?.presetKey ?? "";
+
+  if (ORDER_TICKET_HEADER_PRESETS.has(key)) {
+    const isAlcohol = key === "alcohol";
+    return {
+      useSubGroupHeaders: true,
+      showPhoto: true,
+      showVariations: false,
+      showAgeCheck: isAlcohol,
+      showSpiceHeat: false,
+      showDrinkSizes: true,
+      showBulkPaste: true,
+      introTitle: "Build like an order ticket",
+      introBody: isAlcohol
+        ? "Add menu headers (e.g. Beer — Bottles), then each drink on its own line. Tick 18+ where ID check is required."
+        : "Add a menu header (e.g. Fizzy — Cans), then add each product on its own line with name and price — the way it appears when a customer orders.",
+      namePlaceholder:
+        key === "coffee" ? "e.g. Latte" : key === "milkshakes" ? "e.g. Strawberry shake" : isAlcohol ? "e.g. Peroni" : "e.g. Coke",
+    };
+  }
+
+  if (ORDER_TICKET_VARIATION_PRESETS.has(key)) {
+    return {
+      useSubGroupHeaders: false,
+      showPhoto: true,
+      showVariations: true,
+      showAgeCheck: false,
+      showSpiceHeat: false,
+      showDrinkSizes: false,
+      showBulkPaste: true,
+      introTitle: "Portions and flavours",
+      introBody:
+        "Each row is one product (e.g. 6 Wings). Set the portion price, then add flavour options if customers pick BBQ, Spicy, Plain, etc.",
+      namePlaceholder: "e.g. 6 Chicken Wings",
+    };
+  }
+
+  return {
+    useSubGroupHeaders: false,
+    showPhoto: true,
+    showVariations: false,
+    showAgeCheck: false,
+    showSpiceHeat: ORDER_TICKET_SPICE_PRESETS.has(key),
+    showDrinkSizes: false,
+    showBulkPaste: true,
+    introTitle: "Add products in a list",
+    introBody: flatOrderTicketIntro(key),
+    namePlaceholder: flatOrderTicketPlaceholder(key),
+  };
+}
+
 export function isHubMenuSectionPizza(section: { presetKey?: string | null; name?: string } | null | undefined): boolean {
   if (!section) {
     return false;
@@ -216,6 +381,12 @@ export function isHubMenuSectionPizza(section: { presetKey?: string | null; name
 }
 
 const HULL_INTERNAL_OPTION_LINE = /^__HULL_[A-Z0-9_]+(?::[^_]*)?__$/i;
+const HULL_SPICE_DESC_PREFIX = /^__HULL_SPICE:[a-z-]+__(?:\r?\n)?/i;
+
+/** Strip hub-internal markers from menu item descriptions before customers see them. */
+export function customerFacingMenuItemDescription(description?: string | null): string {
+  return (description ?? "").replace(HULL_SPICE_DESC_PREFIX, "").trim();
+}
 
 /** Strip hub-internal markers from option group descriptions before customers see them. */
 export function customerFacingOptionGroupDescription(description?: string | null): string {
