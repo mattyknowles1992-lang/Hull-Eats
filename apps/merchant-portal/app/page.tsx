@@ -25,6 +25,7 @@ import {
   hubMenuCategorySelectOptions,
   hubRoleLabel,
   hubRolesCreatableBy,
+  formatHubPortalLocaleOptionLabel,
   HUB_PORTAL_LOCALE_OPTIONS,
   type HubPortalLocale,
   isHubMenuMealDealsCategory,
@@ -3559,7 +3560,7 @@ export default function MerchantPortalPage() {
                     >
                       {HUB_PORTAL_LOCALE_OPTIONS.map((option) => (
                         <option key={option.value} value={option.value}>
-                          {option.nativeLabel}
+                          {formatHubPortalLocaleOptionLabel(option)}
                         </option>
                       ))}
                     </select>
