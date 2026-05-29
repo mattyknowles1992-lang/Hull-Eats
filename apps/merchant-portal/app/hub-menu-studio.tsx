@@ -335,12 +335,13 @@ export function HubMenuStudio({
         storeSlug={storeSlug}
         customerWebBaseUrl={customerWebBaseUrl}
       />
-      <div style={studioTopBar}>
+      <div className={menuHubPersistState === "saving" ? "hub-menu-studio__top-bar is-saving" : "hub-menu-studio__top-bar"} style={studioTopBar}>
         <div>
           <p style={eyebrow}>Menu studio</p>
           <h2 style={studioTitle}>Menu builder</h2>
           <p style={studioCopy}>
-            Set up extras and burger/kebab parts first, then add products. Changes save automatically.
+            Set up extras and burger/kebab parts first, then add products. Changes save automatically in the background.
+            {menuHubPersistState === "saving" ? " Saving now…" : null}
           </p>
         </div>
         <div className="he-btn-row" style={studioTopActions}>
@@ -371,10 +372,6 @@ export function HubMenuStudio({
         <div className="he-hub-banner" role="alert">
           <strong>Could not save to your hub</strong>
           <p>Check your connection and use Save draft now. Your work is still on this page until you refresh.</p>
-        </div>
-      ) : menuHubPersistState === "saving" ? (
-        <div className="he-hub-banner" role="status">
-          <strong>Saving…</strong>
         </div>
       ) : null}
 

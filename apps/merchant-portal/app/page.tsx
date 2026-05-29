@@ -286,6 +286,28 @@ const hubWorkspaceSnapshotsEqual = (left: HubWorkspaceSnapshot, right: HubWorksp
   JSON.stringify(left.settings) === JSON.stringify(right.settings) &&
   JSON.stringify(left.menuSections) === JSON.stringify(right.menuSections);
 
+const normalizeWorkspaceSettings = (settings: HubSettings): HubSettings => ({
+  ...settings,
+  deliveryPostcodeZones:
+    settings.deliveryPostcodeZones.length > 0 ? settings.deliveryPostcodeZones : createDefaultHullPostcodeZones(),
+  openingHours: settings.openingHours?.length === 7 ? settings.openingHours : createDefaultOpeningHours(),
+});
+
+const mergeGeocodedSettingsFromServer = (
+  local: HubSettings,
+  sent: HubSettings,
+  server: HubSettings,
+): HubSettings => {
+  if (JSON.stringify(local) !== JSON.stringify(sent)) {
+    return local;
+  }
+  return {
+    ...local,
+    deliveryOriginLatitude: server.deliveryOriginLatitude,
+    deliveryOriginLongitude: server.deliveryOriginLongitude,
+  };
+};
+
 const hullTrackingBounds = {
   minLatitude: 53.70,
   maxLatitude: 53.83,
@@ -403,7 +425,11 @@ async function fetchWorkspace(token: string, hubId: string) {
   return (await response.json()) as MerchantWorkspace;
 }
 
-async function saveWorkspace(token: string, hubId: string, input: { settings: HubSettings; menuSections: HubMenuSection[] }) {
+async function saveWorkspace(
+  token: string,
+  hubId: string,
+  input: { settings: HubSettings; menuSections?: HubMenuSection[] },
+) {
   let payload: ReturnType<typeof parseMerchantWorkspaceUpdateInput>;
   try {
     payload = parseMerchantWorkspaceUpdateInput(input);
@@ -846,7 +872,10 @@ export default function MerchantPortalPage() {
   const menuSaveInFlightRef = useRef(false);
   const menuSectionsRef = useRef(menuSections);
   menuSectionsRef.current = menuSections;
+  const hubSettingsRef = useRef(hubSettings);
+  hubSettingsRef.current = hubSettings;
   const menuSaveQueuedRef = useRef(false);
+  const menuSaveQueuedSilentRef = useRef(true);
   const menuWorkspaceReadyRef = useRef(false);
   const [driverTracking, setDriverTracking] = useState<MerchantDriverTracking | null>(null);
   const [activeHubSection, setActiveHubSection] = useState<HubSection>("home");
@@ -1041,8 +1070,12 @@ export default function MerchantPortalPage() {
 
     const activeCategory =
       customerSections.find((section) => section.id === selectedCategoryId) ?? nextCategory;
-    const nextItem = activeCategory.items.find((item) => item.id === selectedItemId) ?? activeCategory.items[0]!;
-    if (nextItem.id !== selectedItemId) {
+    if (selectedItemId && activeCategory.items.some((item) => item.id === selectedItemId)) {
+      return;
+    }
+
+    const nextItem = activeCategory.items[0];
+    if (nextItem && nextItem.id !== selectedItemId) {
       setSelectedItemId(nextItem.id);
     }
   }, [isCreatingNewItem, menuSections, selectedCategoryId, selectedItemId]);
@@ -1114,24 +1147,42 @@ export default function MerchantPortalPage() {
   const hubAccess = useMemo(() => (activeUser ? getHubAccess(activeUser.role) : null), [activeUser]);
 
   const applyWorkspaceSaveResult = useCallback(
-    (workspace: MerchantWorkspace, sectionsSentWithRequest?: HubMenuSection[]) => {
-      setHubSettings({
-        ...workspace.settings,
-        deliveryPostcodeZones:
-          workspace.settings.deliveryPostcodeZones.length > 0
-            ? workspace.settings.deliveryPostcodeZones
-            : createDefaultHullPostcodeZones(),
-      });
+    (
+      workspace: MerchantWorkspace,
+      options?: { sectionsSentWithRequest?: HubMenuSection[]; settingsSentWithRequest?: HubSettings },
+    ) => {
+      const serverSettings = normalizeWorkspaceSettings(workspace.settings);
       const serverSections = ensureStaffMenuSections(workspace.menuSections);
-      const sections =
-        sectionsSentWithRequest && sectionsSentWithRequest.length > 0
-          ? reconcileMenuSectionsAfterWorkspaceSave(menuSectionsRef.current, serverSections, sectionsSentWithRequest)
-          : serverSections;
-      setMenuSections(sections);
+      const sectionsSent = options?.sectionsSentWithRequest;
+      const settingsSent = options?.settingsSentWithRequest ?? hubSettingsRef.current;
+      const menuWasPersisted = Boolean(sectionsSent);
+      const localSettings = hubSettingsRef.current;
+      const localSections = menuSectionsRef.current;
+      const localStillMatchesRequest =
+        JSON.stringify(localSettings) === JSON.stringify(settingsSent) &&
+        (!menuWasPersisted || JSON.stringify(localSections) === JSON.stringify(sectionsSent));
+
+      const menuSnapshot = menuWasPersisted
+        ? reconcileMenuSectionsAfterWorkspaceSave(sectionsSent!, serverSections, sectionsSent!)
+        : localSections;
+
+      const settingsSnapshot = mergeGeocodedSettingsFromServer(settingsSent, settingsSent, serverSettings);
+
+      commitSavedHubSnapshot(settingsSnapshot, menuSnapshot);
       setHubUsers(workspace.users);
       setPendingImports(workspace.pendingImports ?? []);
-      commitSavedHubSnapshot(workspace.settings, sections);
-      if (activeHubId) {
+
+      if (localStillMatchesRequest) {
+        const mergedLiveSettings = mergeGeocodedSettingsFromServer(localSettings, settingsSent, serverSettings);
+        if (JSON.stringify(mergedLiveSettings) !== JSON.stringify(localSettings)) {
+          setHubSettings(mergedLiveSettings);
+        }
+      }
+
+      if (activeHubId && localStillMatchesRequest && hubWorkspaceSnapshotsEqual(
+        { settings: hubSettingsRef.current, menuSections: menuSectionsRef.current },
+        { settings: settingsSnapshot, menuSections: menuSnapshot },
+      )) {
         clearBrowserMenuDraft(activeHubId);
       }
     },
@@ -1139,30 +1190,52 @@ export default function MerchantPortalPage() {
   );
 
   const persistWorkspaceToHub = useCallback(
-    async (options?: { manualCheckpoint?: boolean }) => {
+    async (options?: { manualCheckpoint?: boolean; silent?: boolean }) => {
       if (!merchantToken || !activeHubId || !hubAccess?.canEditWorkspace) {
         return false;
       }
 
       if (menuSaveInFlightRef.current) {
         menuSaveQueuedRef.current = true;
+        if (!options?.silent) {
+          menuSaveQueuedSilentRef.current = false;
+        }
         return false;
       }
 
-      menuSaveInFlightRef.current = true;
+      const settingsSnapshot = hubSettingsRef.current;
       const sectionsSnapshot = menuSectionsRef.current;
-      setMenuHubPersistState("saving");
+      const savedSnapshot = savedHubSnapshot;
+      const includeMenu =
+        !savedSnapshot || JSON.stringify(sectionsSnapshot) !== JSON.stringify(savedSnapshot.menuSections);
+      const includeSettings =
+        !savedSnapshot || JSON.stringify(settingsSnapshot) !== JSON.stringify(savedSnapshot.settings);
+
+      if (!includeMenu && !includeSettings) {
+        return true;
+      }
+
+      menuSaveInFlightRef.current = true;
+      const silent = options?.silent ?? false;
+      if (!silent) {
+        setMenuHubPersistState("saving");
+      }
       if (options?.manualCheckpoint) {
         setMenuPublishing(true);
       }
 
       try {
         const workspace = await saveWorkspace(merchantToken, activeHubId, {
-          settings: hubSettings,
-          menuSections: sectionsSnapshot,
+          settings: settingsSnapshot,
+          ...(includeMenu ? { menuSections: sectionsSnapshot } : {}),
         });
-        applyWorkspaceSaveResult(workspace, sectionsSnapshot);
-        setMenuHubPersistState("saved");
+        applyWorkspaceSaveResult(workspace, {
+          sectionsSentWithRequest: includeMenu ? sectionsSnapshot : undefined,
+          settingsSentWithRequest: settingsSnapshot,
+        });
+        if (!silent) {
+          setMenuHubPersistState("saved");
+        }
         if (options?.manualCheckpoint) {
           setSaveNotice("Draft saved on your hub — ready to publish when you choose.");
           setMenuNotice("All items and options are kept. Nothing was removed. Publish when customers should see changes.");
@@ -1170,7 +1243,9 @@ export default function MerchantPortalPage() {
         return true;
       } catch (error) {
         const message = error instanceof Error ? error.message : "Save failed.";
-        setMenuHubPersistState("error");
+        if (!silent) {
+          setMenuHubPersistState("error");
+        }
         setSaveNotice(message);
         if (options?.manualCheckpoint) {
           setMenuNotice(message);
@@ -1183,18 +1258,11 @@ export default function MerchantPortalPage() {
         }
         if (menuSaveQueuedRef.current) {
           menuSaveQueuedRef.current = false;
-          void persistWorkspaceToHub();
+          void persistWorkspaceToHub({ silent: menuSaveQueuedSilentRef.current });
         }
       }
     },
-    [
-      activeHubId,
-      applyWorkspaceSaveResult,
-      hubAccess?.canEditWorkspace,
-      hubSettings,
-      menuSections,
-      merchantToken,
-    ],
+    [activeHubId, applyWorkspaceSaveResult, hubAccess?.canEditWorkspace, merchantToken, savedHubSnapshot],
   );
 
   useEffect(() => {
@@ -1203,7 +1271,7 @@ export default function MerchantPortalPage() {
     }
 
     const timeoutId = window.setTimeout(() => {
-      void persistWorkspaceToHub();
+      void persistWorkspaceToHub({ silent: true });
     }, 2000);
 
     return () => window.clearTimeout(timeoutId);
@@ -1860,7 +1928,7 @@ export default function MerchantPortalPage() {
       setSaveNotice("Your account is view-only and cannot save menu changes.");
       return;
     }
-    await persistWorkspaceToHub({ manualCheckpoint: true });
+    await persistWorkspaceToHub({ manualCheckpoint: true, silent: false });
   };
 
   const handleSaveHub = async () => {
@@ -1879,10 +1947,10 @@ export default function MerchantPortalPage() {
         setMenuSections((current) => applyMenuBoardPublish(current, editingMenuBoardId, editingMenuBoardId));
         setEditingMenuBoardId(null);
       }
-      let saved = await persistWorkspaceToHub({ manualCheckpoint: true });
+      let saved = await persistWorkspaceToHub({ manualCheckpoint: true, silent: false });
       if (!saved) {
         await new Promise((resolve) => window.setTimeout(resolve, 800));
-        saved = await persistWorkspaceToHub({ manualCheckpoint: true });
+        saved = await persistWorkspaceToHub({ manualCheckpoint: true, silent: false });
       }
       if (!saved) {
         throw new Error("Could not save the menu to your hub before publishing.");

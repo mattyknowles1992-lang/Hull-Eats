@@ -311,11 +311,10 @@ export const prepareMerchantWorkspaceUpdateBody = (raw: unknown): unknown => {
   };
 
   const settings = body.settings;
-  const menuSections = Array.isArray(body.menuSections) ? body.menuSections : [];
+  const hasMenuSections = Array.isArray(body.menuSections);
+  const menuSections = hasMenuSections ? body.menuSections : undefined;
 
-  return {
-    ...body,
-    settings: settings
+  const normalizedSettings = settings
       ? {
           ...settings,
           etaMinutes: Math.max(1, coerceInt(settings.etaMinutes, 25)),
@@ -336,8 +335,14 @@ export const prepareMerchantWorkspaceUpdateBody = (raw: unknown): unknown => {
               : Number(settings.deliveryOriginLongitude),
           openingHours: normalizeOpeningHours(settings.openingHours) as StoreOpeningHours,
         }
-      : settings,
-    menuSections: menuSections.map((section) => {
+      : settings;
+
+  return {
+    ...body,
+    settings: normalizedSettings,
+    ...(hasMenuSections
+      ? {
+          menuSections: menuSections!.map((section) => {
       if (!section || typeof section !== "object") {
         return section;
       }
@@ -363,13 +368,15 @@ export const prepareMerchantWorkspaceUpdateBody = (raw: unknown): unknown => {
             })
           : [],
       };
-    }),
+          }),
+        }
+      : {}),
   };
 };
 
 const merchantWorkspaceUpdateBodySchema = z.object({
   settings: hubSettingsSchema,
-  menuSections: z.array(hubMenuSectionUpdateSchema),
+  menuSections: z.array(hubMenuSectionUpdateSchema).optional(),
 });
 
 export const merchantWorkspaceUpdateInputSchema = z.preprocess(

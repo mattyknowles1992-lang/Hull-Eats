@@ -668,7 +668,9 @@ export class HubRegistryService {
       { maxWait: 10_000, timeout: 20_000 },
     );
 
-    await this.persistHubMenuSections(store.id, input.menuSections);
+    if (input.menuSections !== undefined) {
+      await this.persistHubMenuSections(store.id, input.menuSections);
+    }
     await this.persistStoreOpeningHours(store.id, settings.openingHours);
 
     return this.getWorkspaceById(hubId);
@@ -676,7 +678,7 @@ export class HubRegistryService {
 
   private async persistHubMenuSections(
     storeId: string,
-    menuSections: MerchantWorkspaceUpdateInput["menuSections"],
+    menuSections: NonNullable<MerchantWorkspaceUpdateInput["menuSections"]>,
   ) {
     if (menuSections.length === 0) {
       throw new BadRequestException("Cannot save an empty menu. Add at least one category first.");
