@@ -9,7 +9,6 @@ import { HubMenuPizzaCategoryChoicesPanel } from "./hub-menu-pizza-category-choi
 import {
   formatPizzaMenuSuggestionName,
   normalizeMenuSuggestionName,
-  PIZZA_MENU_ROW_KINDS,
   PIZZA_MENU_SUGGESTIONS_BY_KIND,
   type PizzaMenuRowKind,
 } from "./hub-menu-pizza-presets";
@@ -116,11 +115,72 @@ type PizzaCategoryBlockProps = {
   items: MenuItem[];
   existingNameKeys: ReadonlySet<string>;
   readOnly: boolean;
+  showBulkPaste?: boolean;
   onPatchSection: Props["onPatchSection"];
   onRemoveSizeColumn: (columnKey: string) => void;
   onPatchSizeColumns: (columns: PizzaSizeColumnDef[]) => void;
   onPatchSizeSteps: (stepByColumnKey: Record<string, string>) => void;
+  onBulkPaste?: (rows: BulkPasteRow[]) => void;
 };
+
+function PizzaTableSizeAddRow({
+  readOnly,
+  sizeColumns,
+  onPatchSizeColumns,
+}: {
+  readOnly: boolean;
+  sizeColumns: PizzaSizeColumnDef[];
+  onPatchSizeColumns: (columns: PizzaSizeColumnDef[]) => void;
+}) {
+  const [newSizeLabel, setNewSizeLabel] = useState("");
+
+  if (readOnly) {
+    return null;
+  }
+
+  const addSizeColumn = () => {
+    const normalized = normalizePizzaSizeLabel(newSizeLabel);
+    if (!normalized) {
+      return;
+    }
+    if (sizeColumns.some((column) => column.label.toLowerCase() === normalized.toLowerCase())) {
+      setNewSizeLabel("");
+      return;
+    }
+    const isStandard = defaultPizzaSizeColumnDefs().some((column) => column.label === normalized);
+    onPatchSizeColumns(
+      sortPizzaSizeColumnDefs([
+        ...sizeColumns,
+        {
+          key: `hull-pizza-col-${Date.now()}`,
+          label: normalized,
+          labelEditable: !isStandard,
+        },
+      ]),
+    );
+    setNewSizeLabel("");
+  };
+
+  return (
+    <form
+      className="hub-menu-pizza-builder__table-size-add"
+      onSubmit={(event) => {
+        event.preventDefault();
+        addSizeColumn();
+      }}
+    >
+      <label>
+        <span className="hub-menu-order-builder__sr-only">Add size column</span>
+        <input
+          value={newSizeLabel}
+          placeholder='Add size column e.g. 8"'
+          onChange={(event) => setNewSizeLabel(event.target.value)}
+        />
+      </label>
+      <button type="submit">Add size</button>
+    </form>
+  );
+}
 
 function PizzaCategoryBlock({
   section,
@@ -130,10 +190,12 @@ function PizzaCategoryBlock({
   items,
   existingNameKeys,
   readOnly,
+  showBulkPaste = false,
   onPatchSection,
   onRemoveSizeColumn,
   onPatchSizeColumns,
   onPatchSizeSteps,
+  onBulkPaste,
 }: PizzaCategoryBlockProps) {
   const { columns: sizeColumns, stepByColumnKey } = tableConfig;
   const gridColumns = buildGridColumns(sizeColumns.length);
@@ -187,10 +249,7 @@ function PizzaCategoryBlock({
     }
 
     if (columnIndex === 0) {
-      applyRowsToItem(
-        item,
-        expandPizzaPricesFromBase(rows, sizeColumns, stepByColumnKey, trimmed),
-      );
+      applyRowsToItem(item, expandPizzaPricesFromBase(rows, sizeColumns, stepByColumnKey, trimmed));
       return;
     }
 
@@ -241,10 +300,17 @@ function PizzaCategoryBlock({
   const namePlaceholder =
     kind === "garlic_bread" ? "e.g. Garlic Bread with Cheese" : kind === "calzone" ? "e.g. Pepperoni Calzone" : "e.g. Margherita Pizza";
 
+  const rowKindLabel =
+    kind === "garlic_bread" ? "garlic bread" : kind === "calzone" ? "calzone" : "pizza";
+
   return (
     <section className="hub-menu-pizza-builder__category">
+      <div className="hub-menu-pizza-builder__category-head">
+        <h3>{label}</h3>
+        <span>{items.length} row{items.length === 1 ? "" : "s"}</span>
+      </div>
+
       <HubMenuSuggestionStrip
-        title={`Suggested ${label.toLowerCase()}`}
         suggestions={PIZZA_MENU_SUGGESTIONS_BY_KIND[kind]}
         existingNames={existingNameKeys}
         readOnly={readOnly}
@@ -252,18 +318,18 @@ function PizzaCategoryBlock({
         onAdd={addSuggestedRow}
       />
 
-      <div className="hub-menu-pizza-builder__category-head">
-        <h3>{label}</h3>
-        <span>{items.length} row{items.length === 1 ? "" : "s"}</span>
-      </div>
+      {showBulkPaste && onBulkPaste ? (
+        <HubMenuBulkPastePanel
+          readOnly={readOnly}
+          placeholder={`Paste pizza names — one per line — e.g.\nMargherita\nPepperoni from £9.50`}
+          onApply={onBulkPaste}
+        />
+      ) : null}
 
-      <PizzaSizeColumnControls
-        categoryLabel={label}
-        readOnly={readOnly}
-        sizeColumns={sizeColumns}
-        onRemoveSizeColumn={onRemoveSizeColumn}
-        onPatchSizeColumns={onPatchSizeColumns}
-      />
+      <p className="hub-menu-pizza-builder__table-hint">
+        Set <strong>+£</strong> on each size in the table header. Enter the <strong>base</strong> price in the first size
+        column — other sizes fill from your steps. Use <strong>Copy ↓</strong> to copy a row&apos;s prices down.
+      </p>
 
       <div className="hub-menu-pizza-builder__table-wrap">
         <div className="hub-menu-pizza-builder__table" role="table">
@@ -317,14 +383,11 @@ function PizzaCategoryBlock({
           </div>
 
           {items.map((item, itemIndex) => {
-            const targetsBelow = Math.min(
-              COPY_PRICES_DOWN_COUNT,
-              Math.max(0, items.length - itemIndex - 1),
-            );
+            const targetsBelow = Math.min(COPY_PRICES_DOWN_COUNT, Math.max(0, items.length - itemIndex - 1));
             return (
               <div
                 key={item.id}
-                className="hub-menu-pizza-builder__row"
+                className="hub-menu-pizza-builder__row hub-menu-pizza-builder__product-row"
                 role="row"
                 style={{ gridTemplateColumns: gridColumns }}
               >
@@ -342,6 +405,7 @@ function PizzaCategoryBlock({
                     key={`${item.id}-${column.key}`}
                     className="hub-menu-order-builder__cell hub-menu-pizza-builder__size-cell"
                   >
+                    <span className="hub-menu-pizza-builder__mobile-size-label">{column.label}</span>
                     <span className="hub-menu-order-builder__sr-only">{column.label} price</span>
                     <input
                       type="number"
@@ -389,101 +453,16 @@ function PizzaCategoryBlock({
             );
           })}
         </div>
+
+        <PizzaTableSizeAddRow readOnly={readOnly} sizeColumns={sizeColumns} onPatchSizeColumns={onPatchSizeColumns} />
       </div>
 
       {readOnly ? null : (
         <button type="button" className="hub-menu-order-builder__add-line" onClick={() => addRow("")}>
-          + Add {label.toLowerCase().replace(/s$/, "")} row
+          + Add {rowKindLabel} row
         </button>
       )}
     </section>
-  );
-}
-
-function PizzaSizeColumnControls({
-  categoryLabel,
-  readOnly,
-  sizeColumns,
-  onRemoveSizeColumn,
-  onPatchSizeColumns,
-}: {
-  categoryLabel: string;
-  readOnly: boolean;
-  sizeColumns: PizzaSizeColumnDef[];
-  onRemoveSizeColumn: (columnKey: string) => void;
-  onPatchSizeColumns: (columns: PizzaSizeColumnDef[]) => void;
-}) {
-  const [newSizeLabel, setNewSizeLabel] = useState("");
-
-  const addSizeColumn = () => {
-    const normalized = normalizePizzaSizeLabel(newSizeLabel);
-    if (!normalized) {
-      return;
-    }
-    if (sizeColumns.some((column) => column.label.toLowerCase() === normalized.toLowerCase())) {
-      setNewSizeLabel("");
-      return;
-    }
-    const isStandard = defaultPizzaSizeColumnDefs().some((column) => column.label === normalized);
-    onPatchSizeColumns(
-      sortPizzaSizeColumnDefs([
-        ...sizeColumns,
-        {
-          key: `hull-pizza-col-${Date.now()}`,
-          label: normalized,
-          labelEditable: !isStandard,
-        },
-      ]),
-    );
-    setNewSizeLabel("");
-  };
-
-  if (readOnly) {
-    return null;
-  }
-
-  return (
-    <div className="hub-menu-pizza-builder__size-controls">
-      <p className="hub-menu-pizza-builder__size-controls-copy">
-        <strong>{categoryLabel}</strong> — set <strong>+£</strong> on each size header (bigger sizes cost more). Enter the{" "}
-        <strong>base</strong> price in the first size column on a row; other sizes fill automatically. Use{" "}
-        <strong>Copy ↓5</strong> to copy that row&apos;s prices to the next five lines (then tweak any row).
-      </p>
-      <div className="hub-menu-pizza-builder__size-chip-row">
-        {sizeColumns.map((column) => (
-          <span key={column.key} className="hub-menu-pizza-builder__size-chip">
-            {column.label}
-            {sizeColumns.length <= 1 ? null : (
-              <button
-                type="button"
-                className="hub-menu-pizza-builder__size-remove"
-                aria-label={`Remove ${column.label} size column`}
-                onClick={() => onRemoveSizeColumn(column.key)}
-              >
-                ×
-              </button>
-            )}
-          </span>
-        ))}
-      </div>
-      <form
-        className="hub-menu-pizza-builder__size-add"
-        onSubmit={(event) => {
-          event.preventDefault();
-          addSizeColumn();
-        }}
-      >
-        <label>
-          <span className="hub-menu-order-builder__sr-only">Custom size</span>
-          <input
-            value={newSizeLabel}
-            placeholder='Add size e.g. 8"'
-            onChange={(event) => setNewSizeLabel(event.target.value)}
-          />
-        </label>
-        <button type="submit">Add size column</button>
-      </form>
-    </div>
   );
 }
 
@@ -521,7 +500,23 @@ export function HubMenuPizzaOrderBuilder({ section, readOnly = false, onPatchSec
   };
 
   const patchSizeSteps = (stepByColumnKey: Record<string, string>) => {
-    onPatchSection((current) => writePizzaSizeTableConfigOnSection(current, { ...readPizzaSizeTableConfigFromSection(current), stepByColumnKey }));
+    onPatchSection((current) =>
+      writePizzaSizeTableConfigOnSection(current, { ...readPizzaSizeTableConfigFromSection(current), stepByColumnKey }),
+    );
+  };
+
+  const removeSizeColumn = (columnKey: string) => {
+    if (sizeColumns.length <= 1) {
+      return;
+    }
+    patchTableConfig((current) => {
+      const nextSteps = { ...current.stepByColumnKey };
+      delete nextSteps[columnKey];
+      return {
+        columns: current.columns.filter((column) => column.key !== columnKey),
+        stepByColumnKey: nextSteps,
+      };
+    });
   };
 
   const applyBulkRows = (rows: BulkPasteRow[], kind: PizzaMenuRowKind) => {
@@ -534,52 +529,41 @@ export function HubMenuPizzaOrderBuilder({ section, readOnly = false, onPatchSec
     patchSectionItems(onPatchSection, (items) => [...items, ...created]);
   };
 
+  const blockProps = {
+    section,
+    tableConfig,
+    existingNameKeys,
+    readOnly,
+    onPatchSection,
+    onRemoveSizeColumn: removeSizeColumn,
+    onPatchSizeColumns: patchSizeColumns,
+    onPatchSizeSteps: patchSizeSteps,
+  };
+
   return (
     <div className="hub-menu-order-builder hub-menu-pizza-builder">
       <div className="hub-menu-order-builder__intro">
-        <strong>Pizza menu tables</strong>
+        <strong>Pizza menu builder</strong>
         <p>
-          Pizzas, garlic breads, and calzones each have their own table. Set +£ per size in the header, enter the base
-          (smallest) price on a row, then use <strong>Copy ↓5</strong> to fill the next lines. Prices step by £0.10.
+          Work top to bottom: pizzas, garlic breads, bases &amp; crusts, then calzones. Suggestions sit above each table.
+          Add or remove rows and size columns in the table — not above it.
         </p>
       </div>
 
-      <HubMenuBulkPastePanel
-        readOnly={readOnly}
-        placeholder={`Paste pizza names — one per line — e.g.\nMargherita\nPepperoni from £9.50`}
-        onApply={(rows) => applyBulkRows(rows, "pizza")}
+      <PizzaCategoryBlock
+        {...blockProps}
+        kind="pizza"
+        label="Pizzas"
+        items={itemsByKind.pizza}
+        showBulkPaste
+        onBulkPaste={(rows) => applyBulkRows(rows, "pizza")}
       />
+
+      <PizzaCategoryBlock {...blockProps} kind="garlic_bread" label="Garlic breads" items={itemsByKind.garlic_bread} />
 
       <HubMenuPizzaCategoryChoicesPanel section={section} readOnly={readOnly} onPatchSection={onPatchSection} />
 
-      {PIZZA_MENU_ROW_KINDS.map(({ id, label }) => (
-        <PizzaCategoryBlock
-          key={id}
-          section={section}
-          tableConfig={tableConfig}
-          kind={id}
-          label={label}
-          items={itemsByKind[id]}
-          existingNameKeys={existingNameKeys}
-          readOnly={readOnly}
-          onPatchSection={onPatchSection}
-          onRemoveSizeColumn={(columnKey) => {
-            if (sizeColumns.length <= 1) {
-              return;
-            }
-            patchTableConfig((current) => {
-              const nextSteps = { ...current.stepByColumnKey };
-              delete nextSteps[columnKey];
-              return {
-                columns: current.columns.filter((column) => column.key !== columnKey),
-                stepByColumnKey: nextSteps,
-              };
-            });
-          }}
-          onPatchSizeColumns={patchSizeColumns}
-          onPatchSizeSteps={patchSizeSteps}
-        />
-      ))}
+      <PizzaCategoryBlock {...blockProps} kind="calzone" label="Calzones" items={itemsByKind.calzone} />
     </div>
   );
 }

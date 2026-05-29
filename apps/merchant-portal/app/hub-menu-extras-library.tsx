@@ -61,7 +61,7 @@ export function HubMenuExtrasLibrary({
       <div>
         <strong style={{ fontSize: "0.95rem" }}>Added extras list</strong>
         <p style={{ margin: "6px 0 0", fontSize: "0.84rem", color: "#5b6470", lineHeight: 1.45 }}>
-          Toppings only — one suggestion at a time (+ to add, × for next). Defaults to {formatMenuMoney(HUB_DEFAULT_EXTRA_LIBRARY_PRICE)}.
+          Toppings only — three suggestions at a time (+ to add, × for next). Defaults to {formatMenuMoney(HUB_DEFAULT_EXTRA_LIBRARY_PRICE)}.
           Bases and crusts belong on the pizza category, not here.
         </p>
       </div>
@@ -70,7 +70,7 @@ export function HubMenuExtrasLibrary({
         suggestions={HUB_EXTRA_SUGGESTIONS}
         existingNames={existingNameKeys}
         normalizeName={normalizeExtraSuggestionName}
-        batchSize={1}
+        batchSize={3}
         readOnly={readOnly}
         onAdd={(label) => addExtra(label)}
       />

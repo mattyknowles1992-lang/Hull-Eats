@@ -79,7 +79,7 @@ function ChoiceListEditor({
         suggestions={suggestions}
         existingNames={existingNames}
         normalizeName={normalizePizzaChoiceSuggestionName}
-        batchSize={1}
+        batchSize={3}
         readOnly={readOnly}
         onAdd={(name) => addRow(name)}
       />
