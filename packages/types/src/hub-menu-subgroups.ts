@@ -1,4 +1,5 @@
 import { decodeHubMenuCategoryDescription, encodeHubMenuCategoryDescription } from "./hub-menu-presets";
+import { stripHubPizzaSizeColumnsMarker } from "./hub-menu-pizza-columns";
 
 export type MenuSubGroupDefinition = {
   id: string;
@@ -88,7 +89,7 @@ export function getCategoryCustomerDescription(section: {
   presetKey?: string | null;
 }): string {
   const decoded = decodeHubMenuCategoryDescription(section.description ?? "");
-  return stripMenuSubGroupsMarker(decoded.description);
+  return stripHubPizzaSizeColumnsMarker(stripMenuSubGroupsMarker(decoded.description));
 }
 
 export function writeMenuSubGroupsOnSection<T extends { description?: string | null; presetKey?: string | null }>(

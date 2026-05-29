@@ -59,9 +59,10 @@ import { HubMenuMealLibrary } from "./hub-menu-meal-library";
 import { HubMenuPreview } from "./hub-menu-preview";
 import {
   PizzaSizeDraftPanel,
-  applyPizzaSizesToMenuItem,
+  applyPizzaSizesOrClearItem,
   createInitialPizzaSizeRows,
-  pizzaSizeRowsFromMenuItem,
+  pizzaSizeRowsForItem,
+  readPizzaSizeColumnsFromSection,
   simplifyPizzaMenuItem,
   type PizzaSizeRow,
 } from "./pizza-size-draft";
@@ -308,10 +309,12 @@ export function HubMenuStudio({
   const creatingItemUsesParts = creatingComposeLine !== null;
   const editingItemUsesParts = editingComposeLine !== null;
   useEffect(() => {
-    if (selectedItem && editingPizzaItem && itemUsesSizePricing(selectedItem)) {
-      setEditPizzaSizeRows(pizzaSizeRowsFromMenuItem(selectedItem));
+    if (selectedItem && editingPizzaItem && itemUsesSizePricing(selectedItem) && selectedCategory) {
+      setEditPizzaSizeRows(
+        pizzaSizeRowsForItem(selectedItem, readPizzaSizeColumnsFromSection(selectedCategory)),
+      );
     }
-  }, [selectedItem?.id, editingPizzaItem]);
+  }, [selectedItem?.id, editingPizzaItem, selectedCategory?.description, selectedCategory?.presetKey]);
 
   const showExtrasPanel = Boolean(extrasSection && selectedCategory?.id === extrasSection.id);
   const showBurgerPartsPanel = Boolean(burgerPartsSection && selectedCategory?.id === burgerPartsSection.id);
@@ -943,7 +946,7 @@ export function HubMenuStudio({
                     onChange={(rows) => {
                       setEditPizzaSizeRows(rows);
                       onUpdateItem((current) => {
-                        const next = applyPizzaSizesToMenuItem(current, rows);
+                        const next = applyPizzaSizesOrClearItem(current, rows);
                         return "error" in next ? current : next;
                       });
                     }}

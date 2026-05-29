@@ -10,6 +10,7 @@ export * from "./hub-config-snapshots";
 export * from "./hub-access";
 export * from "./hub-portal-locale";
 export * from "./hub-menu-presets";
+export * from "./hub-menu-pizza-columns";
 export * from "./hub-menu-subgroups";
 export * from "./merchant-drivers";
 export * from "./marketplace-resale";
