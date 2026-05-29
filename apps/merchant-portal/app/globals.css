@@ -829,6 +829,88 @@ textarea {
   font-size: 1.1rem;
 }
 
+.hub-menu-suggestion-strip__hint {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #5b6470;
+}
+
+.hub-menu-suggestion-strip__chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 46px;
+  padding: 0 8px 0 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(7, 155, 200, 0.35);
+  background: #fff;
+  color: #101216;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.hub-menu-suggestion-strip__chip-label {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.hub-menu-suggestion-strip__chip-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.hub-menu-suggestion-strip__chip-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid rgba(7, 155, 200, 0.25);
+  background: #f4fbfe;
+  font: inherit;
+  font-size: 1.05rem;
+  font-weight: 800;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.hub-menu-suggestion-strip__chip-btn--add {
+  color: #0680a6;
+}
+
+.hub-menu-suggestion-strip__chip-btn--skip {
+  color: #5b6470;
+}
+
+.hub-menu-pizza-builder__category {
+  display: grid;
+  gap: 12px;
+}
+
+.hub-menu-pizza-builder__category-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hub-menu-pizza-builder__category-head h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.hub-menu-pizza-builder__category-head span {
+  font-size: 0.8rem;
+  color: #5b6470;
+  font-weight: 700;
+}
+
+.hub-menu-extras-library__suggestions {
+  display: grid;
+  gap: 10px;
+}
+
 .hub-menu-pizza-builder__table-wrap {
   overflow-x: auto;
 }

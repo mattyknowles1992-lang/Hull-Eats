@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import type { HubMenuSection, MenuItem } from "@hull-eats/types";
 
+import { HUB_EXTRA_SUGGESTION_GROUPS, normalizeExtraSuggestionName } from "./hub-menu-extras-presets";
+import { HubMenuSuggestionStrip } from "./hub-menu-suggestion-strip";
 import { buildLocalMenuItem, formatMenuMoney } from "./menu-studio-core";
 
 type HubMenuExtrasLibraryProps = {
@@ -17,15 +19,20 @@ export function HubMenuExtrasLibrary({ section, onAddTopping, onRemoveTopping, r
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
 
-  const handleAdd = () => {
-    if (!name.trim()) {
+  const existingNameKeys = useMemo(
+    () => new Set(section.items.map((item) => normalizeExtraSuggestionName(item.name)).filter(Boolean)),
+    [section.items],
+  );
+
+  const addExtra = (label: string, priceValue = price) => {
+    if (!label.trim()) {
       return;
     }
-    const parsedPrice = Number(price);
+    const parsedPrice = Number(priceValue);
     onAddTopping(
       buildLocalMenuItem({
         categoryId: section.id,
-        name: name.trim(),
+        name: label.trim(),
         description: "",
         price: Number.isFinite(parsedPrice) && parsedPrice >= 0 ? parsedPrice : 0,
         requiresIdVerification: false,
@@ -38,13 +45,32 @@ export function HubMenuExtrasLibrary({ section, onAddTopping, onRemoveTopping, r
     setPrice("");
   };
 
+  const handleAdd = () => {
+    addExtra(name);
+  };
+
   return (
     <section className="hub-menu-extras-library">
       <div>
         <strong style={{ fontSize: "0.95rem" }}>Added extras list</strong>
         <p style={{ margin: "6px 0 0", fontSize: "0.84rem", color: "#5b6470", lineHeight: 1.45 }}>
-          Add each extra once with a price. On each product, tick which extras customers can pick.
+          Add each extra once with a price. Suggestions run in order — + to add, × to skip to the next. On each product,
+          tick which extras customers can pick.
         </p>
+      </div>
+
+      <div className="hub-menu-extras-library__suggestions">
+        {HUB_EXTRA_SUGGESTION_GROUPS.map((group) => (
+          <HubMenuSuggestionStrip
+            key={group.id}
+            title={`Suggested ${group.label.toLowerCase()}`}
+            suggestions={group.suggestions}
+            existingNames={existingNameKeys}
+            normalizeName={normalizeExtraSuggestionName}
+            readOnly={readOnly}
+            onAdd={(label) => addExtra(label)}
+          />
+        ))}
       </div>
 
       {!readOnly ? (

@@ -99,6 +99,27 @@ export const SPICE_HEAT_LEVELS = [
 ] as const;
 
 const SPICE_HEAT_MARKER = /^__HULL_SPICE:([a-z-]+)__(?:\r?\n)?/i;
+const PIZZA_ROW_KIND_MARKER = /^__HULL_PIZZA_KIND:(pizza|garlic_bread|calzone)__(?:\r?\n)?/i;
+
+export type PizzaMenuRowKind = "pizza" | "garlic_bread" | "calzone";
+
+export function getPizzaMenuRowKind(item: MenuItem): PizzaMenuRowKind {
+  const match = item.description.match(PIZZA_ROW_KIND_MARKER);
+  const value = match?.[1];
+  if (value === "garlic_bread" || value === "calzone") {
+    return value;
+  }
+  return "pizza";
+}
+
+export function applyPizzaMenuRowKind(item: MenuItem, kind: PizzaMenuRowKind): MenuItem {
+  const intro = item.description.replace(PIZZA_ROW_KIND_MARKER, "").trim();
+  if (kind === "pizza") {
+    return { ...item, description: intro };
+  }
+  const marker = `__HULL_PIZZA_KIND:${kind}__`;
+  return { ...item, description: intro ? `${marker}\n${intro}` : marker };
+}
 
 export function getItemSpiceHeat(item: MenuItem): string {
   const match = item.description.match(SPICE_HEAT_MARKER);

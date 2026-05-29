@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import type { HubMenuSection, MenuItem } from "@hull-eats/types";
 
+import { HUB_SAUCE_SUGGESTIONS, normalizeExtraSuggestionName } from "./hub-menu-extras-presets";
+import { HubMenuSuggestionStrip } from "./hub-menu-suggestion-strip";
 import { buildLocalMenuItem, formatMenuMoney } from "./menu-studio-core";
 
 type HubMenuSaucesLibraryProps = {
@@ -17,15 +19,20 @@ export function HubMenuSaucesLibrary({ section, onAddSauce, onRemoveSauce, readO
   const [name, setName] = useState("");
   const [extraPrice, setExtraPrice] = useState("");
 
-  const handleAdd = () => {
-    if (!name.trim()) {
+  const existingNameKeys = useMemo(
+    () => new Set(section.items.map((item) => normalizeExtraSuggestionName(item.name)).filter(Boolean)),
+    [section.items],
+  );
+
+  const addSauce = (label: string) => {
+    if (!label.trim()) {
       return;
     }
     const parsedPrice = Number(extraPrice);
     onAddSauce(
       buildLocalMenuItem({
         categoryId: section.id,
-        name: name.trim(),
+        name: label.trim(),
         description: "",
         price: Number.isFinite(parsedPrice) && parsedPrice >= 0 ? parsedPrice : 0,
         requiresIdVerification: false,
@@ -38,14 +45,28 @@ export function HubMenuSaucesLibrary({ section, onAddSauce, onRemoveSauce, readO
     setExtraPrice("");
   };
 
+  const handleAdd = () => {
+    addSauce(name);
+  };
+
   return (
     <section className="hub-menu-extras-library hub-menu-sauces-library">
       <div>
         <strong style={{ fontSize: "0.95rem" }}>Sauces list</strong>
         <p style={{ margin: "6px 0 0", fontSize: "0.84rem", color: "#5b6470", lineHeight: 1.45 }}>
-          Add each sauce once. On products, tick which sauces customers can pick (one included) and which can be added as paid extras.
+          Add each sauce once. Suggestions run in order — + to add, × to skip. On products, tick which sauces customers
+          can pick (one included) and which can be added as paid extras.
         </p>
       </div>
+
+      <HubMenuSuggestionStrip
+        title="Suggested sauces"
+        suggestions={HUB_SAUCE_SUGGESTIONS}
+        existingNames={existingNameKeys}
+        normalizeName={normalizeExtraSuggestionName}
+        readOnly={readOnly}
+        onAdd={addSauce}
+      />
 
       {!readOnly ? (
         <div className="hub-menu-extras-library__add-row">
