@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { CreateHubPromotionInput, HubMenuSection, HubPromotion } from "@hull-eats/types";
+import { useHubPortalI18n } from "@hull-eats/i18n";
 
 type Props = {
   apiBaseUrl: string;
@@ -222,6 +223,7 @@ async function deletePromotionApi(apiBaseUrl: string, token: string, hubId: stri
 }
 
 export function HubOffersWorkbench({ apiBaseUrl, token, hubId, menuSections, onNotice }: Props) {
+  const { t } = useHubPortalI18n();
   const [promotions, setPromotions] = useState<HubPromotion[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -249,7 +251,7 @@ export function HubOffersWorkbench({ apiBaseUrl, token, hubId, menuSections, onN
       const rows = await fetchPromotions(apiBaseUrl, token, hubId);
       setPromotions(rows);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not load offers.");
+      setError(e instanceof Error ? e.message : t("offers.couldNotLoad"));
     } finally {
       setLoading(false);
     }
@@ -357,48 +359,44 @@ export function HubOffersWorkbench({ apiBaseUrl, token, hubId, menuSections, onN
     try {
       if (editingId) {
         await patchPromotion(apiBaseUrl, token, hubId, editingId, form);
-        onNotice("Offer updated.");
+        onNotice(t("offers.offerUpdated"));
       } else {
         const created = await postPromotion(apiBaseUrl, token, hubId, form);
         setEditingId(created.id);
-        onNotice("Offer created.");
+        onNotice(t("offers.offerCreated"));
       }
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Save failed.");
+      setError(e instanceof Error ? e.message : t("offers.saveFailed"));
     }
   };
 
   const remove = async () => {
     if (!editingId) return;
-    if (!window.confirm("Delete this offer?")) return;
+    if (!window.confirm(t("offers.deleteConfirm"))) return;
     setError("");
     try {
       await deletePromotionApi(apiBaseUrl, token, hubId, editingId);
-      onNotice("Offer deleted.");
+      onNotice(t("offers.offerDeleted"));
       startNew();
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Delete failed.");
+      setError(e instanceof Error ? e.message : t("offers.deleteFailed"));
     }
   };
 
   const kindLabel: Record<CreateHubPromotionInput["kind"], string> = {
-    bogo_item: "Buy one get one free (selected items)",
-    percent_off: "Percentage off",
-    fixed_amount_item: "Fixed amount off per item (£)",
-    bundle_fixed_price: "Bundle / meal deal (fixed bundle price)",
+    bogo_item: t("offers.kindBogo"),
+    percent_off: t("offers.kindPercent"),
+    fixed_amount_item: t("offers.kindFixed"),
+    bundle_fixed_price: t("offers.kindBundle"),
   };
 
   return (
     <section style={shell}>
-      <p style={eyebrow}>Offers &amp; deals</p>
-      <h2 style={title}>Run promos on your menu</h2>
-      <p style={copy}>
-        Choose the mechanic, what it applies to, and when it runs. Dates are all-day unless you add a daily time window.
-        Use the quick ranges (1 / 7 / 30 days), a custom from–to range, or pick individual days — then confirm into this
-        offer.
-      </p>
+      <p style={eyebrow}>{t("menu.offersEyebrow")}</p>
+      <h2 style={title}>{t("menu.offersTitle")}</h2>
+      <p style={copy}>{t("offers.intro")}</p>
 
       {error ? (
         <p style={{ margin: 0, color: "#b42318", fontWeight: 700 }}>
@@ -416,21 +414,21 @@ export function HubOffersWorkbench({ apiBaseUrl, token, hubId, menuSections, onN
         <div style={{ display: "grid", gap: 14 }}>
           <div className="hub-offers-actions" style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
             <button type="button" style={primaryBtn} onClick={startNew}>
-              New offer
+              {t("menu.newOffer")}
             </button>
             <button type="button" style={primaryBtn} onClick={() => void save()}>
-              {editingId ? "Save changes" : "Create offer"}
+              {editingId ? t("menu.saveChanges") : t("menu.createOffer")}
             </button>
             {editingId ? (
               <button type="button" style={btn} onClick={() => void remove()}>
-                Delete
+                {t("offers.delete")}
               </button>
             ) : null}
           </div>
 
           <div style={field}>
             <label style={label} htmlFor="offer-title">
-              Offer name (internal)
+              {t("offers.offerNameInternal")}
             </label>
             <input
               id="offer-title"
@@ -441,7 +439,7 @@ export function HubOffersWorkbench({ apiBaseUrl, token, hubId, menuSections, onN
           </div>
 
           <div style={field}>
-            <span style={label}>Mechanic</span>
+            <span style={label}>{t("offers.mechanic")}</span>
             <select
               style={input}
               value={form.kind}
@@ -479,28 +477,28 @@ export function HubOffersWorkbench({ apiBaseUrl, token, hubId, menuSections, onN
 
           {(form.kind === "percent_off" || form.kind === "fixed_amount_item") && (
             <div style={field}>
-              <span style={label}>Applies to</span>
+              <span style={label}>{t("offers.appliesTo")}</span>
               <select
                 style={input}
                 value={form.scope}
                 onChange={(e) => setForm((f) => ({ ...f, scope: e.target.value as CreateHubPromotionInput["scope"] }))}
               >
-                <option value="whole_menu">Whole menu</option>
-                <option value="categories">Selected categories</option>
-                <option value="items">Selected items</option>
+                <option value="whole_menu">{t("offers.wholeMenu")}</option>
+                <option value="categories">{t("offers.selectedCategories")}</option>
+                <option value="items">{t("offers.selectedItems")}</option>
               </select>
             </div>
           )}
 
           {form.kind === "percent_off" && (
             <div style={{ display: "grid", gap: 10 }}>
-              <span style={label}>% off</span>
+              <span style={label}>{t("offers.percentOff")}</span>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                 <button type="button" style={percentMode === "preset" ? btnActive : btn} onClick={() => setPercentMode("preset")}>
-                  Preset %
+                  {t("offers.presetPercent")}
                 </button>
                 <button type="button" style={percentMode === "custom" ? btnActive : btn} onClick={() => setPercentMode("custom")}>
-                  Custom %
+                  {t("offers.customPercent")}
                 </button>
               </div>
               {percentMode === "preset" ? (
@@ -511,7 +509,7 @@ export function HubOffersWorkbench({ apiBaseUrl, token, hubId, menuSections, onN
                 >
                   {presetPercents.map((n) => (
                     <option key={n} value={n}>
-                      {n}% off
+                      {t("offers.percentOffOption", { n })}
                     </option>
                   ))}
                 </select>
@@ -537,13 +535,13 @@ export function HubOffersWorkbench({ apiBaseUrl, token, hubId, menuSections, onN
           {form.kind === "fixed_amount_item" && (
             <div style={field}>
               <label style={label} htmlFor="fixed-off">
-                £ off each qualifying line item
+                {t("offers.fixedOffLabel")}
               </label>
               <input
                 id="fixed-off"
                 type="number"
                 min={0}
-                step={0.01}
+                step={0.1}
                 style={input}
                 value={form.fixedAmountOff ?? ""}
                 onChange={(e) =>
@@ -560,13 +558,13 @@ export function HubOffersWorkbench({ apiBaseUrl, token, hubId, menuSections, onN
             <div style={{ display: "grid", gap: 10 }}>
               <div style={field}>
                 <label style={label} htmlFor="bundle-price">
-                  Bundle price (£)
+                  {t("offers.bundlePrice")}
                 </label>
                 <input
                   id="bundle-price"
                   type="number"
                   min={0}
-                  step={0.01}
+                  step={0.1}
                   style={input}
                   value={form.bundleFixedPrice ?? ""}
                   onChange={(e) =>
@@ -791,7 +789,7 @@ export function HubOffersWorkbench({ apiBaseUrl, token, hubId, menuSections, onN
       </div>
 
       <div style={{ marginTop: 22 }}>
-        <span style={label}>{loading ? "Loading offers…" : "Your offers"}</span>
+        <span style={label}>{loading ? t("offers.loadingOffers") : t("offers.yourOffers")}</span>
         <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
           {promotions.map((p) => (
             <button
@@ -807,7 +805,7 @@ export function HubOffersWorkbench({ apiBaseUrl, token, hubId, menuSections, onN
               </span>
             </button>
           ))}
-          {!loading && promotions.length === 0 ? <div style={{ fontSize: 14, color: "#596271" }}>No offers yet — create one above.</div> : null}
+          {!loading && promotions.length === 0 ? <div style={{ fontSize: 14, color: "#596271" }}>{t("menu.noOffers")}</div> : null}
         </div>
       </div>
     </section>

@@ -118,7 +118,7 @@ export function HubMenuItemSaucesPicker({
                   <span style={{ flex: 1, fontWeight: 700 }}>{sauce.label}</span>
                   <input
                     type="number"
-                    step="0.01"
+                    step="0.1"
                     min={0}
                     disabled={readOnly || !enabled || !extraEnabled || !checked}
                     className="hub-menu-item-extras__price"

@@ -140,7 +140,7 @@ function NewMealDealForm({
           <span style={fieldLabel}>Meal deal price (£)</span>
           <input
             type="number"
-            step="0.01"
+            step="0.1"
             min={0}
             style={input}
             value={upgradePrice}
@@ -219,7 +219,7 @@ function MealTemplateEditor({
             <span style={fieldLabel}>Meal deal price (£)</span>
             <input
               type="number"
-              step="0.01"
+              step="0.1"
               style={input}
               value={item.price}
               disabled={readOnly}

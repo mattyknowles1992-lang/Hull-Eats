@@ -1,6 +1,6 @@
 import { Injectable, UnauthorizedException } from "@nestjs/common";
 
-import { safeEqual, signSessionToken, verifySessionToken } from "@hull-eats/auth";
+import { assertMerchantHubAccess, MerchantHubAccessError, safeEqual, signSessionToken, verifySessionToken } from "@hull-eats/auth";
 import { loadEnv } from "@hull-eats/config";
 import { prisma } from "@hull-eats/db";
 
@@ -114,8 +114,15 @@ export class InternalAuthService {
       throw new UnauthorizedException("Merchant session is no longer valid.");
     }
 
-    if (hubId && user.merchantId !== hubId) {
-      throw new UnauthorizedException("Merchant token does not belong to this hub.");
+    if (hubId) {
+      try {
+        assertMerchantHubAccess(user.merchantId, hubId);
+      } catch (error) {
+        if (error instanceof MerchantHubAccessError) {
+          throw new UnauthorizedException(error.message);
+        }
+        throw error;
+      }
     }
 
     if ((payload.sessionVersion ?? -1) !== user.sessionVersion) {

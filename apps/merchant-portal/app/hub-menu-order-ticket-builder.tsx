@@ -431,7 +431,7 @@ function OrderTicketBlock({
                       <input
                         type="number"
                         min={0}
-                        step="0.01"
+                        step="0.1"
                         disabled={readOnly}
                         placeholder="£"
                         value={drinkSizes.ml330}
@@ -445,7 +445,7 @@ function OrderTicketBlock({
                       <input
                         type="number"
                         min={0}
-                        step="0.01"
+                        step="0.1"
                         disabled={readOnly}
                         placeholder="£"
                         value={drinkSizes.ml500}
@@ -462,7 +462,7 @@ function OrderTicketBlock({
                       <input
                         type="number"
                         min={0}
-                        step="0.01"
+                        step="0.1"
                         disabled={readOnly}
                         value={Number.isFinite(item.price) ? item.price : 0}
                         onChange={(e) => onUpdateItem(item.id, { price: Number(e.target.value) || 0 })}

@@ -28,6 +28,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useHubPortalI18n } from "@hull-eats/i18n";
 
+import { HUB_DISTANCE_MILE_INPUT_STEP, HUB_PRICE_INPUT_STEP } from "./hub-input-steps";
+
 import "leaflet/dist/leaflet.css";
 
 const HULL_MAP_BOUNDS = {
@@ -895,7 +897,7 @@ export function HubDeliveryConfig({
               type="number"
               min={0.1}
               max={40}
-              step={0.1}
+              step={HUB_DISTANCE_MILE_INPUT_STEP}
               style={styles.lightInput}
               value={settings.deliveryRadiusMiles}
               disabled={readOnly}
@@ -916,7 +918,7 @@ export function HubDeliveryConfig({
             <input
               type="number"
               min={0}
-              step="0.01"
+              step={HUB_PRICE_INPUT_STEP}
               style={styles.lightInput}
               value={settings.deliveryFee}
               disabled={readOnly}
@@ -941,7 +943,7 @@ export function HubDeliveryConfig({
                       type="number"
                       min={0.1}
                       max={40}
-                      step={0.1}
+                      step={HUB_DISTANCE_MILE_INPUT_STEP}
                       style={styles.lightInput}
                       value={range.maxMiles}
                       disabled={readOnly}
@@ -957,7 +959,7 @@ export function HubDeliveryConfig({
                     <input
                       type="number"
                       min={0}
-                      step="0.01"
+                      step={HUB_PRICE_INPUT_STEP}
                       style={styles.lightInput}
                       value={range.fee}
                       disabled={readOnly}
@@ -1070,7 +1072,7 @@ export function HubDeliveryConfig({
                           <input
                             type="number"
                             min={0}
-                            step="0.01"
+                            step={HUB_PRICE_INPUT_STEP}
                             style={styles.lightInput}
                             value={zone.fee ?? ""}
                             disabled={readOnly}

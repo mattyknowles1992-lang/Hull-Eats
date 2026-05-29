@@ -97,9 +97,21 @@ docs/
 - Stripe payment intents and webhook-driven payment confirmation
 - Real-time order tracking once checkout is complete
 
+## Quality checks
+
+```powershell
+pnpm typecheck
+pnpm test
+pnpm db:deploy   # after pulling — includes audit + entitlements tables
+```
+
+**Roadmap & progress:** [docs/ROADMAP.md](docs/ROADMAP.md) · [docs/ARCHITECTURE-PROGRESS.md](docs/ARCHITECTURE-PROGRESS.md)
+
+Sending this repo to a reviewer? Start with [docs/REVIEWER_GUIDE.md](docs/REVIEWER_GUIDE.md) and [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Architecture Docs
 
-See [docs/architecture.md](/C:/Hull_Eats/docs/architecture.md) for:
+See [docs/architecture.md](docs/architecture.md) for:
 
 - architecture overview
 - module boundaries
@@ -112,7 +124,9 @@ See [docs/architecture.md](/C:/Hull_Eats/docs/architecture.md) for:
 - seed plan
 - testing strategy
 
-See [docs/deployment.md](/C:/Hull_Eats/docs/deployment.md) for:
+See [docs/TENANCY.md](docs/TENANCY.md) for hub isolation, GDPR-oriented notes, and what is intentional vs still hardening.
+
+See [docs/deployment.md](docs/deployment.md) for:
 
 - Render blueprint and service layout
 - Supabase + Stripe environment model

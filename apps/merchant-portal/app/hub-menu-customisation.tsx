@@ -214,7 +214,7 @@ export function HubMenuCustomisationBuilder({ item, onChangeComponents, onChange
                         <span style={darkFieldLabel}>Extra price</span>
                         <input
                           type="number"
-                          step="0.01"
+                          step="0.1"
                           style={lightInput}
                           value={option.priceDelta}
                           onChange={(event) => updateOption(group.id, option.id, { priceDelta: Number(event.target.value) || 0 })}

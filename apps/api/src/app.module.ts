@@ -11,6 +11,8 @@ import { CustomerController } from "./modules/customer/customer.controller";
 import { PaymentsController } from "./modules/payments/payments.controller";
 import { RealtimeController } from "./modules/realtime/realtime.controller";
 import { OrderUpdatesGateway } from "./modules/realtime/order-updates.gateway";
+import { AuditLogService } from "./common/audit-log.service";
+import { BusinessPackageService } from "./common/business-package.service";
 import { HubRegistryService } from "./common/hub-registry.service";
 import { InternalAuthService } from "./common/internal-auth.service";
 import { CourierRegistryService } from "./common/courier-registry.service";
@@ -37,6 +39,8 @@ import { OrderLifecycleService } from "./common/order-lifecycle.service";
   providers: [
     OrderUpdatesGateway,
     HubRegistryService,
+    AuditLogService,
+    BusinessPackageService,
     InternalAuthService,
     CourierRegistryService,
     CustomerNotificationsService,

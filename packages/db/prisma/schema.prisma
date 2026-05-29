@@ -324,6 +324,8 @@ model Merchant {
   mediaAssets  MediaAsset[]
   hubUsers     HubUser[]
   contactMessages ContactMessage[]
+  auditLogs    PlatformAuditLog[]
+  packageEntitlements BusinessPackageEntitlement[]
 
   @@map("businesses")
 }
@@ -1148,4 +1150,35 @@ model ResaleResolutionCase {
   @@index([openedByCustomerProfileId, status])
   @@index([status, createdAt])
   @@map("resale_resolution_cases")
+}
+
+model PlatformAuditLog {
+  id          String    @id @default(uuid()) @db.Uuid
+  scope       String
+  action      String
+  merchantId  String?   @map("business_id") @db.Uuid
+  actorUserId String?   @map("actor_user_id")
+  actorEmail  String?   @map("actor_email")
+  metadata    Json?
+  ipAddress   String?   @map("ip_address")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  merchant    Merchant? @relation(fields: [merchantId], references: [id], onDelete: SetNull)
+
+  @@index([merchantId, createdAt])
+  @@index([scope, action, createdAt])
+  @@map("platform_audit_logs")
+}
+
+model BusinessPackageEntitlement {
+  id         String    @id @default(uuid()) @db.Uuid
+  merchantId String    @map("business_id") @db.Uuid
+  packageKey String    @map("package_key")
+  enabled    Boolean   @default(true)
+  enabledAt  DateTime? @map("enabled_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+  merchant   Merchant  @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, packageKey])
+  @@map("business_package_entitlements")
 }

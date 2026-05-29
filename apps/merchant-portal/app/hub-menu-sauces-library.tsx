@@ -78,7 +78,7 @@ export function HubMenuSaucesLibrary({ section, onAddSauce, onRemoveSauce, readO
             <span style={{ fontSize: "0.78rem", fontWeight: 800, color: "#3d4652" }}>Extra portion price (£)</span>
             <input
               type="number"
-              step="0.01"
+              step="0.1"
               min={0}
               value={extraPrice}
               onChange={(e) => setExtraPrice(e.target.value)}

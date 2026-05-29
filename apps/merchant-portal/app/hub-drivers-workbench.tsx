@@ -7,6 +7,7 @@ import type {
   MerchantDriverAssignment,
   MerchantDriverCashUpResponse,
 } from "@hull-eats/types";
+import { useHubPortalI18n } from "@hull-eats/i18n";
 
 import "leaflet/dist/leaflet.css";
 
@@ -24,14 +25,6 @@ const leafletIconAssets = {
   iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png",
   shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png",
 };
-
-const formatTrackingTime = (value?: string | null) =>
-  value
-    ? new Date(value).toLocaleTimeString("en-GB", {
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    : "No ping yet";
 
 type DriverTrackingDriver = {
   courierProfileId: string;
@@ -458,6 +451,14 @@ export function HubDriversWorkbench({
   onNotice,
   readOnly = false,
 }: Props) {
+  const { t } = useHubPortalI18n();
+  const formatTrackingTime = (value?: string | null) =>
+    value
+      ? new Date(value).toLocaleTimeString("en-GB", {
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : t("delivery.noPingYet");
   const [tab, setTab] = useState<DriverWorkbenchTab>("dashboard");
   const [cashPeriod, setCashPeriod] = useState<string>("today");
   const [cashUp, setCashUp] = useState<MerchantDriverCashUpResponse | null>(null);
@@ -489,7 +490,7 @@ export function HubDriversWorkbench({
       setCashUp(data);
     } catch (e) {
       setCashUp(null);
-      setCashError(e instanceof Error ? e.message : "Could not load cash-up.");
+      setCashError(e instanceof Error ? e.message : t("drivers.couldNotLoadCashUp"));
     }
   }, [apiBaseUrl, hubId, token, cashPeriod]);
 
@@ -499,7 +500,7 @@ export function HubDriversWorkbench({
       const rows = await fetchAssignments(apiBaseUrl, token, hubId);
       setAssignments(rows);
     } catch (e) {
-      setTeamError(e instanceof Error ? e.message : "Could not load courier team.");
+      setTeamError(e instanceof Error ? e.message : t("drivers.couldNotLoadTeam"));
     }
   }, [apiBaseUrl, hubId, token]);
 
@@ -658,29 +659,26 @@ export function HubDriversWorkbench({
 
   return (
     <section style={shell}>
-      <p style={eyebrowDark}>Drivers &amp; delivery</p>
+      <p style={eyebrowDark}>{t("delivery.driversEyebrow")}</p>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
         <div>
-          <h2 style={sectionTitle}>Driver dashboard</h2>
-          <p style={{ ...panelCopyDark, maxWidth: 920 }}>
-            Dashboard shows live jobs scanned in the Hull Eats Courier app. Cash-up uses orders in the selected period. Add drivers under{" "}
-            <strong>Team</strong> so they only see delivery jobs for <strong>{storeName}</strong>.
-          </p>
+          <h2 style={sectionTitle}>{t("delivery.driverDashboard")}</h2>
+          <p style={{ ...panelCopyDark, maxWidth: 920 }}>{t("drivers.dashboardCopy", { storeName })}</p>
         </div>
         <button type="button" style={secondaryButton} onClick={() => void onRefreshTracking()}>
-          Refresh live data
+          {t("delivery.refreshLiveData")}
         </button>
       </div>
 
       <div style={tabRow}>
         <button type="button" style={tab === "dashboard" ? tabBtnActive : tabBtn} onClick={() => setTab("dashboard")}>
-          Live dashboard
+          {t("delivery.liveDashboard")}
         </button>
         <button type="button" style={tab === "analysis" ? tabBtnActive : tabBtn} onClick={() => setTab("analysis")}>
-          Cash-up &amp; analysis
+          {t("delivery.cashUpAnalysis")}
         </button>
         <button type="button" style={tab === "team" ? tabBtnActive : tabBtn} onClick={() => setTab("team")}>
-          Courier team
+          {t("delivery.courierTeam")}
         </button>
       </div>
 
@@ -694,19 +692,19 @@ export function HubDriversWorkbench({
 
           <div style={summaryGrid}>
             <article style={summaryCard}>
-              <span style={summaryLabel}>Drivers on deliveries</span>
+              <span style={summaryLabel}>{t("drivers.driversOnDeliveries")}</span>
               <strong style={summaryValue}>{driverTracking?.totals.driverCount ?? 0}</strong>
             </article>
             <article style={summaryCard}>
-              <span style={summaryLabel}>Active delivery orders</span>
+              <span style={summaryLabel}>{t("drivers.activeDeliveryOrders")}</span>
               <strong style={summaryValue}>{driverTracking?.totals.orderCount ?? 0}</strong>
             </article>
             <article style={summaryCard}>
-              <span style={summaryLabel}>Cash orders (live)</span>
+              <span style={summaryLabel}>{t("drivers.cashOrdersLive")}</span>
               <strong style={summaryValue}>{driverTracking?.totals.cashOrderCount ?? 0}</strong>
             </article>
             <article style={summaryCard}>
-              <span style={summaryLabel}>Cash due back</span>
+              <span style={summaryLabel}>{t("drivers.cashDueBack")}</span>
               <strong style={summaryValue}>{formatMoney(driverTracking?.totals.cashDue ?? 0)}</strong>
             </article>
           </div>
@@ -715,18 +713,18 @@ export function HubDriversWorkbench({
             <article style={driverMapPanel}>
               <div style={driverMapHeader}>
                 <div>
-                  <span style={summaryLabel}>Hull area map</span>
-                  <strong style={driverMapTitle}>{liveAllowed ? "Driver locations" : "Map paused"}</strong>
+                  <span style={summaryLabel}>{t("drivers.hullAreaMap")}</span>
+                  <strong style={driverMapTitle}>{liveAllowed ? t("delivery.driverLocations") : t("delivery.mapPaused")}</strong>
                 </div>
-                <span style={darkBadge}>Hull only</span>
+                <span style={darkBadge}>{t("drivers.hullOnly")}</span>
               </div>
-              <div style={{ ...driverMapCanvas, opacity: liveAllowed ? 1 : 0.35 }} aria-label="Live driver map">
+              <div style={{ ...driverMapCanvas, opacity: liveAllowed ? 1 : 0.35 }} aria-label={t("drivers.liveDriverMapAria")}>
                 <div ref={driverMapHostRef} style={{ position: "absolute", inset: 0 }} />
                 {liveAllowed && (driverTracking?.drivers ?? []).every((d) => !d.latestLocation) ? (
-                  <div style={driverMapEmpty}>Driver locations appear here after couriers send a GPS ping from the app.</div>
+                  <div style={driverMapEmpty}>{t("drivers.mapEmptyLive")}</div>
                 ) : null}
                 {!liveAllowed ? (
-                  <div style={driverMapEmpty}>Live map is available during configured opening hours (store_hours). Outside those times, use order tracking links.</div>
+                  <div style={driverMapEmpty}>{t("drivers.mapEmptyPaused")}</div>
                 ) : null}
               </div>
             </article>
@@ -738,11 +736,11 @@ export function HubDriversWorkbench({
                     <div>
                       <h3 style={driverName}>{driver.courierName}</h3>
                       <p style={panelCopyDark}>
-                        {driver.currentStatus.replaceAll("_", " ")} / {driver.orderCount} orders / location {formatTrackingTime(driver.latestLocation?.updatedAt)}
+                        {driver.currentStatus.replaceAll("_", " ")} / {t("drivers.ordersCount", { count: driver.orderCount })} / {t("drivers.locationAt", { time: formatTrackingTime(driver.latestLocation?.updatedAt) })}
                       </p>
                     </div>
                     <span style={driver.totalCashDue > 0 ? orangeBadge : darkBadge}>
-                      {driver.totalCashDue > 0 ? `Cash due ${formatMoney(driver.totalCashDue)}` : "No cash due"}
+                      {driver.totalCashDue > 0 ? t("drivers.cashDue", { amount: formatMoney(driver.totalCashDue) }) : t("drivers.noCashDue")}
                     </span>
                   </div>
 
@@ -752,14 +750,14 @@ export function HubDriversWorkbench({
                         <div>
                           <strong>{order.orderNumber}</strong>
                           <p style={driverOrderMeta}>
-                            {order.customerName} / {order.status.replaceAll("_", " ")} / scanned {formatTrackingTime(order.scannedAt)}
+                            {order.customerName} / {order.status.replaceAll("_", " ")} / {t("drivers.scannedAt", { time: formatTrackingTime(order.scannedAt) })}
                           </p>
-                          <p style={driverOrderAddress}>{order.paymentMethod.replaceAll("_", " ")} · {order.dropoffAddress || "No address"}</p>
+                          <p style={driverOrderAddress}>{order.paymentMethod.replaceAll("_", " ")} · {order.dropoffAddress || t("drivers.noAddress")}</p>
                         </div>
                         <div style={driverOrderTotals}>
                           <span>{formatMoney(order.totalAmount)}</span>
                           <div style={{ fontSize: 12, fontWeight: 700, color: order.cashDue > 0 ? "#7a3e00" : "#596271" }}>
-                            {order.cashDue > 0 ? `Collect ${formatMoney(order.cashDue)}` : "Paid online"}
+                            {order.cashDue > 0 ? t("drivers.collectCash", { amount: formatMoney(order.cashDue) }) : t("drivers.paidOnline")}
                           </div>
                         </div>
                       </div>
@@ -769,9 +767,7 @@ export function HubDriversWorkbench({
               ))}
 
               {(driverTracking?.drivers ?? []).length === 0 ? (
-                <div style={emptyStateCard}>
-                  No scanned delivery orders yet. Couriers sign in with Hull Eats Courier, scan the receipt QR, then orders appear here with cash totals.
-                </div>
+                <div style={emptyStateCard}>{t("drivers.noScannedOrders")}</div>
               ) : null}
             </div>
           </section>
@@ -781,14 +777,14 @@ export function HubDriversWorkbench({
       {tab === "analysis" ? (
         <div style={{ display: "grid", gap: 16 }}>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-            <span style={{ fontWeight: 800, color: "#101216" }}>Period</span>
+            <span style={{ fontWeight: 800, color: "#101216" }}>{t("drivers.period")}</span>
             {(["today", "yesterday", "last_7_days"] as const).map((p) => (
               <button key={p} type="button" style={cashPeriod === p ? tabBtnActive : tabBtn} onClick={() => setCashPeriod(p)}>
-                {p === "today" ? "Today" : p === "yesterday" ? "Yesterday" : "Last 7 days"}
+                {p === "today" ? t("drivers.today") : p === "yesterday" ? t("drivers.yesterday") : t("drivers.last7Days")}
               </button>
             ))}
             <button type="button" style={primaryButton} onClick={() => void loadCashUp()}>
-              Refresh
+              {t("common.refresh")}
             </button>
           </div>
 
@@ -804,11 +800,11 @@ export function HubDriversWorkbench({
                 <table style={tableShell}>
                   <thead>
                     <tr>
-                      <th style={th}>Driver</th>
-                      <th style={th}>Paid orders</th>
-                      <th style={{ ...th, textAlign: "right" }}>Paid total</th>
-                      <th style={th}>Cash orders</th>
-                      <th style={{ ...th, textAlign: "right" }}>Cash to collect</th>
+                      <th style={th}>{t("drivers.driverColumn")}</th>
+                      <th style={th}>{t("drivers.paidOrders")}</th>
+                      <th style={{ ...th, textAlign: "right" }}>{t("drivers.paidTotal")}</th>
+                      <th style={th}>{t("drivers.cashOrders")}</th>
+                      <th style={{ ...th, textAlign: "right" }}>{t("drivers.cashToCollect")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -822,7 +818,7 @@ export function HubDriversWorkbench({
                       </tr>
                     ))}
                     <tr style={{ fontWeight: 950, background: "rgba(15,17,21,0.04)" }}>
-                      <td style={td}>Totals</td>
+                      <td style={td}>{t("drivers.totals")}</td>
                       <td style={td}>{cashUp.totals.paidOrderCount}</td>
                       <td style={{ ...td, textAlign: "right" }}>{formatMoney(cashUp.totals.paidOrderTotal)}</td>
                       <td style={td}>{cashUp.totals.cashOrderCount}</td>
@@ -832,7 +828,7 @@ export function HubDriversWorkbench({
                 </table>
               </div>
 
-              <p style={{ ...summaryLabel, marginTop: 8 }}>Quick cash-up (per driver)</p>
+              <p style={{ ...summaryLabel, marginTop: 8 }}>{t("drivers.quickCashUp")}</p>
               <div style={{ overflowX: "auto" }}>
                 <table style={tableShell}>
                   <thead>
@@ -857,17 +853,14 @@ export function HubDriversWorkbench({
               </div>
             </>
           ) : (
-            !cashError && <div style={emptyStateCard}>Loading cash-up…</div>
+            !cashError && <div style={emptyStateCard}>{t("drivers.loadingCashUp")}</div>
           )}
         </div>
       ) : null}
 
       {tab === "team" ? (
         <div style={{ display: "grid", gap: 18, maxWidth: 760 }}>
-          <p style={panelCopyDark}>
-            Add your own delivery drivers for <strong>{storeName}</strong>. They download the <strong>Hull Eats Courier</strong>{" "}
-            app and sign in with the email and temporary password you set here. They only see jobs for your store.
-          </p>
+          <p style={panelCopyDark}>{t("drivers.teamIntro", { storeName })}</p>
 
           {driverCredentials ? (
             <div
@@ -878,21 +871,19 @@ export function HubDriversWorkbench({
                 background: "rgba(244, 160, 32, 0.12)",
               }}
             >
-              <strong style={{ display: "block", marginBottom: 8 }}>Share these login details with your driver</strong>
+              <strong style={{ display: "block", marginBottom: 8 }}>{t("drivers.shareCredentials")}</strong>
               <p style={{ margin: "0 0 10px", fontSize: 14, color: "#3d4652" }}>
-                Email: <strong>{driverCredentials.email}</strong>
+                {t("drivers.credentialsEmail", { email: driverCredentials.email })}
                 <br />
-                Temporary password: <strong>{driverCredentials.temporaryPassword}</strong>
+                {t("drivers.credentialsPassword", { password: driverCredentials.temporaryPassword })}
               </p>
-              <p style={{ margin: 0, fontSize: 13, color: "#596271" }}>
-                They can change their password in the courier app after the first sign-in.
-              </p>
+              <p style={{ margin: 0, fontSize: 13, color: "#596271" }}>{t("drivers.credentialsChangeHint")}</p>
               <button
                 type="button"
                 style={{ ...secondaryButton, marginTop: 12 }}
                 onClick={() => setDriverCredentials(null)}
               >
-                Dismiss
+                {t("drivers.dismiss")}
               </button>
             </div>
           ) : null}
@@ -900,49 +891,49 @@ export function HubDriversWorkbench({
           {teamError ? <p style={{ color: "#b42318", fontWeight: 800 }}>{teamError}</p> : null}
 
           {readOnly ? (
-            <p style={panelCopyDark}>View-only account — you cannot add or remove drivers.</p>
+            <p style={panelCopyDark}>{t("drivers.viewOnlyDrivers")}</p>
           ) : (
             <section style={{ display: "grid", gap: 12 }}>
-              <span style={{ fontWeight: 900, color: "#101216" }}>Add a new driver</span>
+              <span style={{ fontWeight: 900, color: "#101216" }}>{t("drivers.addNewDriver")}</span>
               <label style={{ display: "grid", gap: 6 }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: "#3d4652" }}>Full name</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "#3d4652" }}>{t("users.fullName")}</span>
                 <input
                   value={driverFullName}
                   onChange={(e) => setDriverFullName(e.target.value)}
-                  placeholder="e.g. Alex Driver"
+                  placeholder={t("drivers.driverNamePlaceholder")}
                   style={teamInputStyle}
                 />
               </label>
               <label style={{ display: "grid", gap: 6 }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: "#3d4652" }}>Login email</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "#3d4652" }}>{t("drivers.loginEmail")}</span>
                 <input
                   type="email"
                   value={driverEmail}
                   onChange={(e) => setDriverEmail(e.target.value)}
-                  placeholder="driver@example.com"
+                  placeholder={t("drivers.driverEmailPlaceholder")}
                   style={teamInputStyle}
                 />
               </label>
               <label style={{ display: "grid", gap: 6 }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: "#3d4652" }}>Phone (optional)</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "#3d4652" }}>{t("drivers.phoneOptional")}</span>
                 <input
                   value={driverPhone}
                   onChange={(e) => setDriverPhone(e.target.value)}
-                  placeholder="07…"
+                  placeholder={t("drivers.phonePlaceholder")}
                   style={teamInputStyle}
                 />
               </label>
               <label style={{ display: "grid", gap: 6 }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: "#3d4652" }}>Vehicle registration (optional)</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "#3d4652" }}>{t("drivers.vehicleRegOptional")}</span>
                 <input
                   value={driverVehicleReg}
                   onChange={(e) => setDriverVehicleReg(e.target.value.toUpperCase())}
-                  placeholder="AB12 CDE"
+                  placeholder={t("drivers.vehiclePlaceholder")}
                   style={teamInputStyle}
                 />
               </label>
               <label style={{ display: "grid", gap: 6 }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: "#3d4652" }}>Temporary password</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "#3d4652" }}>{t("drivers.temporaryPassword")}</span>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   <input
                     type={showDriverPassword ? "text" : "password"}
@@ -951,10 +942,10 @@ export function HubDriversWorkbench({
                     style={{ ...teamInputStyle, flex: "1 1 200px" }}
                   />
                   <button type="button" style={secondaryButton} onClick={() => setShowDriverPassword((v) => !v)}>
-                    {showDriverPassword ? "Hide" : "Show"}
+                    {showDriverPassword ? t("auth.hide") : t("auth.show")}
                   </button>
                   <button type="button" style={secondaryButton} onClick={() => setDriverPassword(suggestCourierPassword())}>
-                    New password
+                    {t("drivers.newPassword")}
                   </button>
                 </div>
               </label>
@@ -964,7 +955,7 @@ export function HubDriversWorkbench({
                 disabled={creatingDriver}
                 onClick={async () => {
                   if (!driverFullName.trim() || !driverEmail.trim() || driverPassword.length < 8) {
-                    setTeamError("Enter name, email, and a password of at least 8 characters.");
+                    setTeamError(t("drivers.createDriverValidation"));
                     return;
                   }
                   setTeamError("");
@@ -984,9 +975,9 @@ export function HubDriversWorkbench({
                         email: result.email,
                         temporaryPassword: result.temporaryPassword,
                       });
-                      onNotice(`Driver added. Share the temporary password with ${result.fullName}.`);
+                      onNotice(t("drivers.driverAddedShare", { name: result.fullName }));
                     } else {
-                      onNotice(result.message ?? "Driver linked to your hub.");
+                      onNotice(result.message ?? t("drivers.driverLinked"));
                     }
                     setDriverFullName("");
                     setDriverEmail("");
@@ -994,26 +985,24 @@ export function HubDriversWorkbench({
                     setDriverVehicleReg("");
                     setDriverPassword(suggestCourierPassword());
                   } catch (e) {
-                    setTeamError(e instanceof Error ? e.message : "Could not add driver.");
+                    setTeamError(e instanceof Error ? e.message : t("drivers.couldNotAddDriver"));
                   } finally {
                     setCreatingDriver(false);
                   }
                 }}
               >
-                {creatingDriver ? "Adding…" : "Add driver"}
+                {creatingDriver ? t("delivery.addingDriver") : t("delivery.addDriver")}
               </button>
             </section>
           )}
 
           <details style={{ fontSize: 14, color: "#596271" }}>
-            <summary style={{ fontWeight: 800, color: "#101216", cursor: "pointer" }}>Link an existing Hull Eats courier</summary>
-            <p style={{ margin: "10px 0" }}>
-              Only if the driver already has a Hull Eats Courier account from another hub — enter their email to link them here.
-            </p>
+            <summary style={{ fontWeight: 800, color: "#101216", cursor: "pointer" }}>{t("drivers.linkExistingTitle")}</summary>
+            <p style={{ margin: "10px 0" }}>{t("drivers.linkExistingCopy")}</p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
               <input
                 type="email"
-                placeholder="courier@example.com"
+                placeholder={t("drivers.driverEmailPlaceholder")}
                 value={teamEmail}
                 disabled={readOnly}
                 onChange={(e) => setTeamEmail(e.target.value)}
@@ -1029,25 +1018,25 @@ export function HubDriversWorkbench({
                     const next = await postAssignment(apiBaseUrl, token, hubId, teamEmail.trim());
                     setAssignments(next);
                     setTeamEmail("");
-                    onNotice("Driver linked to this hub.");
+                    onNotice(t("drivers.driverLinkedHub"));
                   } catch (e) {
-                    setTeamError(e instanceof Error ? e.message : "Could not link driver.");
+                    setTeamError(e instanceof Error ? e.message : t("drivers.couldNotLinkDriver"));
                   }
                 }}
               >
-                Link existing
+                {t("drivers.linkExisting")}
               </button>
             </div>
           </details>
 
           <div style={{ display: "grid", gap: 8 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-              <span style={{ fontWeight: 900, color: "#101216" }}>Your drivers</span>
+              <span style={{ fontWeight: 900, color: "#101216" }}>{t("drivers.yourDrivers")}</span>
               <button type="button" style={secondaryButton} onClick={() => void loadAssignments()}>
-                Reload list
+                {t("drivers.reloadList")}
               </button>
             </div>
-            {assignments.length === 0 ? <div style={emptyStateCard}>No drivers yet — add one above.</div> : null}
+            {assignments.length === 0 ? <div style={emptyStateCard}>{t("drivers.noDriversYet")}</div> : null}
             {assignments.map((row) => (
               <div
                 key={row.id}
@@ -1074,13 +1063,13 @@ export function HubDriversWorkbench({
                       try {
                         await deleteAssignment(apiBaseUrl, token, hubId, row.courierProfileId);
                         await loadAssignments();
-                        onNotice("Driver removed from this hub.");
+                        onNotice(t("drivers.driverRemoved"));
                       } catch (e) {
-                        setTeamError(e instanceof Error ? e.message : "Remove failed.");
+                        setTeamError(e instanceof Error ? e.message : t("drivers.removeFailed"));
                       }
                     }}
                   >
-                    Remove
+                    {t("common.remove")}
                   </button>
                 )}
               </div>

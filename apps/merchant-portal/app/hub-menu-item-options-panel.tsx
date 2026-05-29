@@ -273,7 +273,7 @@ function CustomOptionGroupEditor({
           />
           <input
             type="number"
-            step="0.01"
+            step="0.1"
             style={priceInput}
             disabled={readOnly}
             value={option.priceDelta}

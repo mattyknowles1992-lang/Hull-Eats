@@ -1786,10 +1786,33 @@ export function ensureBurgerKebabPartsSections(sections: HubMenuSection[]): HubM
   return next;
 }
 
+export function normalizeMenuItemForPortal(item: MenuItem): MenuItem {
+  return {
+    ...item,
+    components: Array.isArray(item.components) ? item.components : [],
+    optionGroups: Array.isArray(item.optionGroups) ? item.optionGroups : [],
+  };
+}
+
+export function normalizeMenuSectionsForPortal(sections: HubMenuSection[] | null | undefined): HubMenuSection[] {
+  if (!Array.isArray(sections)) {
+    return [];
+  }
+
+  return sections.map((section) => ({
+    ...section,
+    items: Array.isArray(section.items) ? section.items.map(normalizeMenuItemForPortal) : [],
+  }));
+}
+
 export function ensureStaffMenuSections(sections: HubMenuSection[]): HubMenuSection[] {
   return sortMenuSectionsForStudio(
     ensureMenuBoardsConfigSection(
-      ensureMealLibrarySection(ensureBurgerKebabPartsSections(ensureSaucesLibrarySection(ensureExtrasLibrarySection(sections)))),
+      ensureMealLibrarySection(
+        ensureBurgerKebabPartsSections(
+          ensureSaucesLibrarySection(ensureExtrasLibrarySection(normalizeMenuSectionsForPortal(sections))),
+        ),
+      ),
     ),
   );
 }

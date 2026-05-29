@@ -13,7 +13,7 @@ if (existsSync(rootEnvPath) && typeof process.loadEnvFile === "function") {
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  transpilePackages: ["@hull-eats/ui", "@hull-eats/types"],
+  transpilePackages: ["@hull-eats/ui", "@hull-eats/types", "@hull-eats/i18n", "@hull-eats/sdk"],
 };
 
 export default nextConfig;

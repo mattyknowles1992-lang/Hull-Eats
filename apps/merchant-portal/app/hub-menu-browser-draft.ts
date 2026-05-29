@@ -1,5 +1,7 @@
 import type { HubMenuSection, HubSettings } from "@hull-eats/types";
 
+import { readBrowserStorage, removeBrowserStorage, writeBrowserStorage } from "./browser-storage";
+
 const DRAFT_KEY_PREFIX = "hull-eats-menu-draft-";
 
 export type BrowserMenuDraft = {
@@ -27,7 +29,7 @@ export function saveBrowserMenuDraft(hubId: string, menuSections: HubMenuSection
       settings,
       savedAt: new Date().toISOString(),
     };
-    window.localStorage.setItem(browserMenuDraftKey(hubId), JSON.stringify(payload));
+    writeBrowserStorage(browserMenuDraftKey(hubId), JSON.stringify(payload));
   } catch {
     // ignore quota / private mode
   }
@@ -38,7 +40,7 @@ export function loadBrowserMenuDraft(hubId: string): BrowserMenuDraft | null {
     return null;
   }
   try {
-    const raw = window.localStorage.getItem(browserMenuDraftKey(hubId));
+    const raw = readBrowserStorage(browserMenuDraftKey(hubId));
     if (!raw) {
       return null;
     }
@@ -81,7 +83,7 @@ export function clearBrowserMenuDraft(hubId: string): void {
     return;
   }
   try {
-    window.localStorage.removeItem(browserMenuDraftKey(hubId));
+    removeBrowserStorage(browserMenuDraftKey(hubId));
   } catch {
     // ignore
   }

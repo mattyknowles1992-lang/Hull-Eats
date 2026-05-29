@@ -52,7 +52,7 @@ export function ManualVariationsEditor({
           />
           <input
             type="number"
-            step="0.01"
+            step="0.1"
             style={lightInput}
             value={row.price}
             disabled={readOnly}

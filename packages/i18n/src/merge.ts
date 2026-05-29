@@ -1,5 +1,5 @@
 export type DeepPartial<T> = T extends string
-  ? T
+  ? string
   : T extends readonly (infer U)[]
     ? readonly U[]
     : T extends object

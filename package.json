@@ -8,7 +8,8 @@
     "dev": "pnpm exec turbo run dev --parallel",
     "lint": "pnpm exec turbo run lint",
     "typecheck": "pnpm -r run typecheck",
-    "test": "pnpm -r --if-present run test",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "format": "prettier --write .",
     "db:generate": "pnpm --filter @hull-eats/db prisma:generate",
     "db:migrate": "pnpm --filter @hull-eats/db prisma:migrate",
@@ -27,6 +28,7 @@
     "@types/node": "^22.15.17",
     "prettier": "^3.5.3",
     "turbo": "^2.5.3",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
   }
 }

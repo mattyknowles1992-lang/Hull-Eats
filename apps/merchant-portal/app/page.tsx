@@ -48,6 +48,56 @@ import { HubMenuPartsSettingsWorkbench } from "./hub-menu-parts-settings-workben
 import { HubMenuStudio } from "./hub-menu-studio";
 import { HubTransientBanner } from "./hub-transient-banner";
 import { HE_BRAND } from "./portal-brand";
+import { friendlyCaughtError } from "./hub-merchant-errors";
+import {
+  acceptMerchantOrder,
+  apiBaseUrl,
+  applyMenuImport,
+  changeHubPassword,
+  completeHubPasswordReset,
+  createBusinessUser,
+  createMenuCategory,
+  createMenuItem,
+  customerWebBaseUrl,
+  deleteBusinessUser,
+  deleteMenuCategory,
+  deleteMenuItem,
+  fetchMerchantDriverTracking,
+  fetchMerchantOrderHistory,
+  fetchMerchantOrders,
+  fetchWorkspace,
+  loginToHub,
+  previewMenuImport,
+  previewMenuTextImport,
+  printMerchantOrderReceipt,
+  rejectMerchantOrder,
+  requestHubPasswordReset,
+  saveWorkspace,
+  submitMerchantContactMessage,
+  updateMerchantPreferredLocale,
+  verifyHubPasswordReset,
+  type CreateCategoryFormState,
+  type MerchantDriverTracking,
+} from "./merchant-api";
+import {
+  clearMerchantSessionFromBrowser,
+  merchantLastLoginEmailKey,
+  merchantSessionStorageKey,
+  persistMerchantSessionToBrowser,
+  resolveActiveHubUser,
+  type StoredMerchantSession,
+} from "./merchant-session";
+import { readBrowserStorage, writeBrowserStorage } from "./browser-storage";
+import {
+  cloneHubSettings,
+  cloneMenuSections,
+  emptyHubSettings,
+  hubWorkspaceSnapshotsEqual,
+  mergeGeocodedSettingsFromServer,
+  normalizeWorkspaceSettings,
+  type HubWorkspaceSnapshot,
+} from "./merchant-workspace-state";
+
 import { HubDriversWorkbench } from "./hub-drivers-workbench";
 import { HubOffersWorkbench } from "./hub-offers-workbench";
 import {
@@ -112,67 +162,8 @@ type HubSection =
   | "settings"
   | "help";
 
-const defaultApiBaseUrl = process.env.NODE_ENV === "production" ? "https://hull-eats-api.onrender.com" : "http://localhost:4000";
-const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL ?? defaultApiBaseUrl).replace(/\/$/, "");
-const customerWebBaseUrl = (process.env.NEXT_PUBLIC_CUSTOMER_WEB_URL ?? "https://hull-eats.onrender.com").replace(/\/$/, "");
-const merchantSessionStorageKey = "hull-eats-merchant-session";
-const merchantLastLoginEmailKey = "hull-eats-merchant-last-login-email";
-
 type MerchantBootStatus = "checking" | "login" | "hub";
 type MerchantLoginView = "sign_in" | "forgot_password";
-
-type MerchantLoginResponse = {
-  token: string;
-  user: HubUser;
-  workspace: MerchantWorkspace;
-};
-
-type CreateCategoryFormState = {
-  presetId: string;
-  name: string;
-  description: string;
-  defaultPrice: string;
-};
-
-type MerchantDriverTracking = {
-  drivers: Array<{
-    courierProfileId: string;
-    courierName: string;
-    currentStatus: string;
-    rating: number | null;
-    latestLocation?: {
-      latitude: number;
-      longitude: number;
-      accuracyMeters?: number;
-      heading?: number;
-      updatedAt: string;
-    };
-    orders: Array<{
-      orderId: string;
-      orderNumber: string;
-      status: string;
-      customerName: string;
-      dropoffAddress: string;
-      paymentStatus: string;
-      paymentMethod: string;
-      cashDue: number;
-      totalAmount: number;
-      scannedAt: string | null;
-      pickedUpAt: string | null;
-      locationUpdatedAt: string | null;
-    }>;
-    totalCashDue: number;
-    orderCount: number;
-  }>;
-  totals: {
-    driverCount: number;
-    orderCount: number;
-    cashDue: number;
-    cashOrderCount: number;
-  };
-  liveMapAllowed?: boolean;
-  liveMapMessage?: string;
-};
 
 type CreateItemFormState = {
   sectionId: string;
@@ -197,23 +188,6 @@ type PasswordFormState = {
   newPassword: string;
   confirmPassword: string;
 };
-
-type StoredMerchantSession = {
-  token: string;
-  hubId: string;
-  user: HubUser;
-};
-
-function resolveActiveHubUser(workspace: MerchantWorkspace, fallbackUser: HubUser | null): HubUser | null {
-  if (!fallbackUser) {
-    return null;
-  }
-  return workspace.users.find((entry) => entry.id === fallbackUser.id) ?? fallbackUser;
-}
-
-function persistMerchantSessionToBrowser(session: StoredMerchantSession): void {
-  window.localStorage.setItem(merchantSessionStorageKey, JSON.stringify(session));
-}
 
 const initialCreateUserState: CreateUserFormState = {
   fullName: "",
@@ -246,32 +220,6 @@ const initialCreateItemState: CreateItemFormState = {
   requiresIdVerification: false,
 };
 
-const emptyHubSettings: HubSettings = {
-  name: "",
-  cuisineLabel: "",
-  onboardingMessage: "",
-  city: "",
-  postcode: "",
-  etaMinutes: 25,
-  deliveryFee: 0,
-  minimumOrderAmount: 0,
-  acceptingOrders: true,
-  isOpen: false,
-  logoImageUrl: "",
-  heroImageUrl: "",
-  autoAcceptOrders: false,
-  autoAcceptMaxPrepMinutes: 60,
-  deliveryMode: "business_radius",
-  deliveryRadiusMiles: 5,
-  deliveryDistanceRanges: [],
-  deliveryPostcodeZones: createDefaultHullPostcodeZones(),
-  deliveryMileFees: [0, 0, 0, 0, 0],
-  deliveryOriginLatitude: null,
-  deliveryOriginLongitude: null,
-  orderFulfillment: "delivery_and_collection",
-  openingHours: createDefaultOpeningHours(),
-};
-
 const moneyInput = (value: number) => value.toFixed(2);
 const formatMoney = (value: number) => `£${value.toFixed(2)}`;
 const formatOrderPlacedAt = (value: string) =>
@@ -281,48 +229,6 @@ const formatOrderPlacedAt = (value: string) =>
     hour: "2-digit",
     minute: "2-digit",
   });
-
-type HubWorkspaceSnapshot = {
-  settings: HubSettings;
-  menuSections: HubMenuSection[];
-};
-
-const cloneHubSettings = (settings: HubSettings): HubSettings => ({
-  ...settings,
-  deliveryDistanceRanges: settings.deliveryDistanceRanges.map((range) => ({ ...range })),
-  deliveryPostcodeZones: settings.deliveryPostcodeZones.map((zone) => ({ ...zone })),
-  deliveryMileFees: [...settings.deliveryMileFees] as HubSettings["deliveryMileFees"],
-  openingHours: settings.openingHours.map((day) => ({ ...day })),
-});
-
-const cloneMenuSections = (sections: HubMenuSection[]): HubMenuSection[] =>
-  JSON.parse(JSON.stringify(sections)) as HubMenuSection[];
-
-const hubWorkspaceSnapshotsEqual = (left: HubWorkspaceSnapshot, right: HubWorkspaceSnapshot) =>
-  JSON.stringify(left.settings) === JSON.stringify(right.settings) &&
-  JSON.stringify(left.menuSections) === JSON.stringify(right.menuSections);
-
-const normalizeWorkspaceSettings = (settings: HubSettings): HubSettings => ({
-  ...settings,
-  deliveryPostcodeZones:
-    settings.deliveryPostcodeZones.length > 0 ? settings.deliveryPostcodeZones : createDefaultHullPostcodeZones(),
-  openingHours: settings.openingHours?.length === 7 ? settings.openingHours : createDefaultOpeningHours(),
-});
-
-const mergeGeocodedSettingsFromServer = (
-  local: HubSettings,
-  sent: HubSettings,
-  server: HubSettings,
-): HubSettings => {
-  if (JSON.stringify(local) !== JSON.stringify(sent)) {
-    return local;
-  }
-  return {
-    ...local,
-    deliveryOriginLatitude: server.deliveryOriginLatitude,
-    deliveryOriginLongitude: server.deliveryOriginLongitude,
-  };
-};
 
 const hullTrackingBounds = {
   minLatitude: 53.70,
@@ -345,486 +251,6 @@ const formatTrackingTime = (value?: string | null) =>
         minute: "2-digit",
       })
     : "No ping yet";
-
-async function loginToHub(usernameOrEmail: string, password: string): Promise<MerchantLoginResponse> {
-  const response = await fetch(`${apiBaseUrl}/v1/merchant/auth/login`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({ username: usernameOrEmail, password }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Hub login failed with status ${response.status}`);
-  }
-
-  return (await response.json()) as MerchantLoginResponse;
-}
-
-async function readMerchantError(response: Response, fallback: string) {
-  try {
-    const body = (await response.json()) as { message?: string | string[] };
-    if (Array.isArray(body.message)) {
-      return body.message.join(", ");
-    }
-    if (typeof body.message === "string" && body.message.trim()) {
-      return body.message;
-    }
-  } catch {
-    // Ignore JSON parsing problems and fall back to the status-based message.
-  }
-
-  return `${fallback} (${response.status})`;
-}
-
-async function requestHubPasswordReset(email: string): Promise<MerchantPasswordResetRequestResult> {
-  const response = await fetch(`${apiBaseUrl}/v1/merchant/auth/password-reset/request`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({ email }),
-  });
-
-  if (!response.ok) {
-    throw new Error(await readMerchantError(response, "Password reset request failed"));
-  }
-
-  return (await response.json()) as MerchantPasswordResetRequestResult;
-}
-
-async function verifyHubPasswordReset(email: string, code: string): Promise<MerchantPasswordResetVerifyResult> {
-  const response = await fetch(`${apiBaseUrl}/v1/merchant/auth/password-reset/verify`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({ email, code }),
-  });
-
-  if (!response.ok) {
-    throw new Error(await readMerchantError(response, "Code verification failed"));
-  }
-
-  return (await response.json()) as MerchantPasswordResetVerifyResult;
-}
-
-async function completeHubPasswordReset(email: string, code: string): Promise<MerchantPasswordResetCompleteResult> {
-  const response = await fetch(`${apiBaseUrl}/v1/merchant/auth/password-reset/complete`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({ email, code }),
-  });
-
-  if (!response.ok) {
-    throw new Error(await readMerchantError(response, "Password reset completion failed"));
-  }
-
-  return (await response.json()) as MerchantPasswordResetCompleteResult;
-}
-
-async function fetchWorkspace(token: string, hubId: string) {
-  const response = await fetch(`${apiBaseUrl}/v1/merchant/hubs/${hubId}/workspace`, {
-    cache: "no-store",
-    headers: {
-      authorization: `Bearer ${token}`,
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Hub workspace fetch failed with status ${response.status}`);
-  }
-
-  return (await response.json()) as MerchantWorkspace;
-}
-
-async function saveWorkspace(
-  token: string,
-  hubId: string,
-  input: { settings: HubSettings; menuSections?: HubMenuSection[] },
-) {
-  let payload: ReturnType<typeof parseMerchantWorkspaceUpdateInput>;
-  try {
-    payload = parseMerchantWorkspaceUpdateInput(input);
-  } catch (error) {
-    const issues =
-      error && typeof error === "object" && "issues" in error && Array.isArray((error as { issues: unknown }).issues)
-        ? (error as { issues: Array<{ path?: (string | number)[]; message?: string }> }).issues
-        : null;
-    if (issues?.length) {
-      throw new Error(
-        issues.map((issue) => `${issue.path?.join(".") ?? "request"}: ${issue.message ?? "invalid"}`).join("; "),
-      );
-    }
-    throw error;
-  }
-
-  const response = await fetch(`${apiBaseUrl}/v1/merchant/hubs/${hubId}/workspace`, {
-    method: "PATCH",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    let detail = `Hub workspace save failed (${response.status})`;
-    try {
-      const body = (await response.json()) as {
-        message?: string;
-        issues?: Array<{ path?: string; message?: string }>;
-      };
-      if (body.issues?.length) {
-        detail = body.issues.map((issue) => `${issue.path ?? "request"}: ${issue.message ?? "invalid"}`).join("; ");
-      } else if (body.message) {
-        detail = body.message;
-      }
-    } catch {
-      // keep default detail
-    }
-    throw new Error(detail);
-  }
-
-  return (await response.json()) as MerchantWorkspace;
-}
-
-async function changeHubPassword(token: string, hubId: string, input: { currentPassword: string; newPassword: string }) {
-  const response = await fetch(`${apiBaseUrl}/v1/merchant/hubs/${hubId}/password`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(input),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Password change failed with status ${response.status}`);
-  }
-
-  return (await response.json()) as { changed: boolean; user: HubUser };
-}
-
-async function submitMerchantContactMessage(
-  token: string,
-  hubId: string,
-  input: { senderPhone?: string; subject: string; message: string; orderNumber?: string; sourcePath?: string },
-) {
-  const response = await fetch(`${apiBaseUrl}/v1/merchant/hubs/${hubId}/contact-messages`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(input),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Support request failed with status ${response.status}`);
-  }
-
-  return (await response.json()) as { id: string };
-}
-
-async function createBusinessUser(
-  token: string,
-  hubId: string,
-  input: { fullName: string; email: string; username: string; password: string; role: HubRole },
-) {
-  const response = await fetch(`${apiBaseUrl}/v1/merchant/hubs/${hubId}/users`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(input),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Business user create failed with status ${response.status}`);
-  }
-
-  return (await response.json()) as HubUser;
-}
-
-async function deleteBusinessUser(token: string, hubId: string, userId: string) {
-  const response = await fetch(`${apiBaseUrl}/v1/merchant/hubs/${hubId}/users/${userId}`, {
-    method: "DELETE",
-    headers: {
-      authorization: `Bearer ${token}`,
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Business user delete failed with status ${response.status}`);
-  }
-
-  return (await response.json()) as { deletedUserId: string };
-}
-
-async function createMenuCategory(token: string, hubId: string, input: CreateCategoryFormState): Promise<HubMenuSection> {
-  const presetKey = input.presetId && input.presetId !== HUB_MENU_CATEGORY_CUSTOM_ID ? input.presetId : undefined;
-  const response = await fetch(`${apiBaseUrl}/v1/merchant/hubs/${hubId}/menu-sections`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({
-      name: input.name,
-      description: input.description,
-      defaultPrice: input.defaultPrice.trim() ? Number(input.defaultPrice) : null,
-      presetKey,
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Menu category create failed with status ${response.status}`);
-  }
-
-  return (await response.json()) as HubMenuSection;
-}
-
-async function deleteMenuCategory(token: string, hubId: string, sectionId: string) {
-  const response = await fetch(`${apiBaseUrl}/v1/merchant/hubs/${hubId}/menu-sections/${sectionId}`, {
-    method: "DELETE",
-    headers: {
-      authorization: `Bearer ${token}`,
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Menu category delete failed with status ${response.status}`);
-  }
-
-  return (await response.json()) as { deletedSectionId: string };
-}
-
-async function createMenuItem(
-  token: string,
-  hubId: string,
-  sectionId: string,
-  input: {
-    name: string;
-    description: string;
-    price: number;
-    imageUrl?: string;
-    requiresIdVerification?: boolean;
-    components: MenuItem["components"];
-    optionGroups: MenuItem["optionGroups"];
-  },
-) {
-  const response = await fetch(`${apiBaseUrl}/v1/merchant/hubs/${hubId}/menu-sections/${sectionId}/items`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(input),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Menu item create failed with status ${response.status}`);
-  }
-
-  return (await response.json()) as HubMenuSection["items"][number];
-}
-
-async function deleteMenuItem(token: string, hubId: string, itemId: string) {
-  const response = await fetch(`${apiBaseUrl}/v1/merchant/hubs/${hubId}/menu-items/${itemId}`, {
-    method: "DELETE",
-    headers: {
-      authorization: `Bearer ${token}`,
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Menu item delete failed with status ${response.status}`);
-  }
-
-  return (await response.json()) as { deletedItemId: string };
-}
-
-async function previewMenuImport(token: string, hubId: string, imageName: string) {
-  const response = await fetch(`${apiBaseUrl}/v1/merchant/hubs/${hubId}/menu-imports/preview`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ imageName }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Menu import preview failed with status ${response.status}`);
-  }
-
-  return (await response.json()) as MerchantWorkspace["pendingImports"][number];
-}
-
-async function previewMenuTextImport(token: string, hubId: string, rawText: string) {
-  const response = await fetch(`${apiBaseUrl}/v1/merchant/hubs/${hubId}/menu-imports/text-preview`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ rawText }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Menu text import preview failed with status ${response.status}`);
-  }
-
-  return (await response.json()) as MerchantWorkspace["pendingImports"][number];
-}
-
-async function applyMenuImport(token: string, hubId: string, importId: string, acceptedCandidateIds: string[]) {
-  const response = await fetch(`${apiBaseUrl}/v1/merchant/hubs/${hubId}/menu-imports/${importId}/apply`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ acceptedCandidateIds }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Menu import apply failed with status ${response.status}`);
-  }
-
-  return (await response.json()) as MerchantWorkspace;
-}
-
-async function fetchMerchantOrders(token: string): Promise<OrderSummary[]> {
-  const response = await fetch(`${apiBaseUrl}/v1/merchant/orders`, {
-    cache: "no-store",
-    headers: {
-      authorization: `Bearer ${token}`,
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Merchant orders fetch failed with status ${response.status}`);
-  }
-
-  return (await response.json()) as OrderSummary[];
-}
-
-async function fetchMerchantOrderHistory(token: string): Promise<OrderSummary[]> {
-  const response = await fetch(`${apiBaseUrl}/v1/merchant/orders/history`, {
-    cache: "no-store",
-    headers: {
-      authorization: `Bearer ${token}`,
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Merchant order history fetch failed with status ${response.status}`);
-  }
-
-  return (await response.json()) as OrderSummary[];
-}
-
-async function fetchMerchantDriverTracking(token: string): Promise<MerchantDriverTracking> {
-  const response = await fetch(`${apiBaseUrl}/v1/merchant/drivers/tracking`, {
-    cache: "no-store",
-    headers: {
-      authorization: `Bearer ${token}`,
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Merchant driver tracking fetch failed with status ${response.status}`);
-  }
-
-  return (await response.json()) as MerchantDriverTracking;
-}
-
-type MerchantOrderPrintResponse = {
-  payload: {
-    qrCodeData?: string;
-  };
-  preview: string;
-  queued?: boolean;
-  printJobId?: string;
-  message?: string;
-};
-
-async function printMerchantOrderReceipt(token: string, orderId: string): Promise<MerchantOrderPrintResponse> {
-  const response = await fetch(`${apiBaseUrl}/v1/merchant/orders/${encodeURIComponent(orderId)}/print`, {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${token}`,
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Receipt print failed with status ${response.status}`);
-  }
-
-  return (await response.json()) as MerchantOrderPrintResponse;
-}
-
-async function acceptMerchantOrder(token: string, orderId: string, prepTimeMinutes: number): Promise<OrderSummary> {
-  const response = await fetch(`${apiBaseUrl}/v1/merchant/orders/${encodeURIComponent(orderId)}/accept`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ prepTimeMinutes }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Accept order failed with status ${response.status}`);
-  }
-
-  return (await response.json()) as OrderSummary;
-}
-
-async function rejectMerchantOrder(token: string, orderId: string, reason: string): Promise<OrderSummary> {
-  const response = await fetch(`${apiBaseUrl}/v1/merchant/orders/${encodeURIComponent(orderId)}/reject`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ reason }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Reject order failed with status ${response.status}`);
-  }
-
-  return (await response.json()) as OrderSummary;
-}
-
-const updateMerchantPreferredLocale = async (
-  token: string,
-  hubId: string,
-  preferredLocale: HubPortalLocale,
-): Promise<HubUser> => {
-  const response = await fetch(`${apiBaseUrl}/v1/merchant/hubs/${hubId}/me/locale`, {
-    method: "PATCH",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ preferredLocale }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Update locale failed with status ${response.status}`);
-  }
-
-  const payload = (await response.json()) as { user: HubUser };
-  return payload.user;
-};
 
 const escapeHtml = (value: string) =>
   value
@@ -934,10 +360,17 @@ export default function MerchantPortalPage() {
   const menuPublishIssues = useMemo(() => computeMenuPublishIssues(menuSections), [menuSections]);
 
   const menuStats = useMemo(() => {
-    const totalItems = menuSections.reduce((sum, section) => sum + section.items.length, 0);
-    const activeItems = menuSections.reduce((sum, section) => sum + section.items.filter((item) => item.isActive).length, 0);
+    const totalItems = menuSections.reduce((sum, section) => sum + (section.items?.length ?? 0), 0);
+    const activeItems = menuSections.reduce(
+      (sum, section) => sum + (section.items ?? []).filter((item) => item.isActive).length,
+      0,
+    );
     const customisableItems = menuSections.reduce(
-      (sum, section) => sum + section.items.filter((item) => item.components.length > 0 || item.optionGroups.length > 0).length,
+      (sum, section) =>
+        sum +
+        (section.items ?? []).filter(
+          (item) => (item.components?.length ?? 0) > 0 || (item.optionGroups?.length ?? 0) > 0,
+        ).length,
       0,
     );
 
@@ -1262,7 +695,7 @@ export default function MerchantPortalPage() {
         }
         return true;
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Save failed.";
+        const message = friendlyCaughtError(error, "workspace_save");
         if (!silent) {
           setMenuHubPersistState("error");
         }
@@ -1344,18 +777,8 @@ export default function MerchantPortalPage() {
     }
     setPendingImports(workspace.pendingImports ?? []);
 
-    const serverSettings = {
-      ...workspace.settings,
-      deliveryPostcodeZones:
-        workspace.settings.deliveryPostcodeZones.length > 0
-          ? workspace.settings.deliveryPostcodeZones
-          : createDefaultHullPostcodeZones(),
-      openingHours:
-        workspace.settings.openingHours?.length === 7
-          ? workspace.settings.openingHours
-          : createDefaultOpeningHours(),
-    };
-    const serverSections = ensureStaffMenuSections(workspace.menuSections);
+    const serverSettings = normalizeWorkspaceSettings(workspace.settings);
+    const serverSections = ensureStaffMenuSections(workspace.menuSections ?? []);
     const serverSnapshot = { settings: serverSettings, menuSections: serverSections };
 
     const browserDraft = loadBrowserMenuDraft(workspace.hub.id);
@@ -1365,17 +788,15 @@ export default function MerchantPortalPage() {
 
     if (useBrowserDraft && browserDraft) {
       const draftSections = ensureStaffMenuSections(browserDraft.menuSections);
-      setHubSettings({
-        ...browserDraft.settings,
-        deliveryPostcodeZones:
-          browserDraft.settings.deliveryPostcodeZones.length > 0
-            ? browserDraft.settings.deliveryPostcodeZones
-            : createDefaultHullPostcodeZones(),
-        openingHours:
-          browserDraft.settings.openingHours?.length === 7
-            ? browserDraft.settings.openingHours
-            : serverSettings.openingHours,
-      });
+      setHubSettings(
+        normalizeWorkspaceSettings({
+          ...browserDraft.settings,
+          openingHours:
+            browserDraft.settings.openingHours?.length === 7
+              ? browserDraft.settings.openingHours
+              : serverSettings.openingHours,
+        }),
+      );
       setMenuSections(draftSections);
       commitSavedHubSnapshot(serverSettings, serverSections);
       setMenuNotice(
@@ -1420,7 +841,7 @@ export default function MerchantPortalPage() {
       setMerchantOrders(orders);
     } catch {
       if (!options.silent) {
-        setOrderNotice("Could not refresh orders. Try again.");
+        setOrderNotice(t("errors.ordersRefreshFailed"));
       }
     }
   };
@@ -1435,7 +856,7 @@ export default function MerchantPortalPage() {
       setMerchantOrderHistory(orders);
     } catch {
       if (!options.silent) {
-        setOrderNotice("Could not refresh order history. Try again.");
+        setOrderNotice(t("errors.orderHistoryRefreshFailed"));
       }
     }
   };
@@ -1446,7 +867,7 @@ export default function MerchantPortalPage() {
     }
 
     if (!hubAccess?.canOperateOrders) {
-      setOrderNotice("You do not have permission to manage orders.");
+      setOrderNotice(t("errors.noOrderPermission"));
       return;
     }
 
@@ -1454,9 +875,9 @@ export default function MerchantPortalPage() {
       await acceptMerchantOrder(merchantToken, order.id, hubSettings.etaMinutes);
       await loadMerchantOrders(merchantToken, { silent: true });
       await loadMerchantOrderHistory(merchantToken, { silent: true });
-      setOrderNotice("Order accepted.");
+      setOrderNotice(t("orders.orderAccepted"));
     } catch {
-      setOrderNotice("Could not accept this order. Try again.");
+      setOrderNotice(t("errors.acceptFailed"));
     }
   };
 
@@ -1466,24 +887,24 @@ export default function MerchantPortalPage() {
     }
 
     if (!hubAccess?.canOperateOrders) {
-      setOrderNotice("You do not have permission to manage orders.");
+      setOrderNotice(t("errors.noOrderPermission"));
       return;
     }
 
-    const reason = window.prompt("Reason for rejecting this order?", "Unable to fulfil right now");
+    const reason = window.prompt(t("orders.rejectPrompt"), t("orders.rejectDefaultReason"));
     if (reason === null) {
       return;
     }
 
-    const trimmed = reason.trim() || "Unable to fulfil right now";
+    const trimmed = reason.trim() || t("orders.rejectDefaultReason");
 
     try {
       await rejectMerchantOrder(merchantToken, order.id, trimmed);
       await loadMerchantOrders(merchantToken, { silent: true });
       await loadMerchantOrderHistory(merchantToken, { silent: true });
-      setOrderNotice("Order rejected.");
+      setOrderNotice(t("orders.orderRejected"));
     } catch {
-      setOrderNotice("Could not reject this order. Try again.");
+      setOrderNotice(t("errors.rejectFailed"));
     }
   };
 
@@ -1497,7 +918,7 @@ export default function MerchantPortalPage() {
       setDriverTracking(tracking);
     } catch {
       if (!options.silent) {
-        setDriverNotice("Could not refresh driver tracking. Try again.");
+        setDriverNotice(t("errors.driverTrackingFailed"));
       }
     }
   };
@@ -1515,7 +936,7 @@ export default function MerchantPortalPage() {
 
     try {
       const receipt = await printMerchantOrderReceipt(merchantToken, order.id);
-      setOrderNotice(receipt.message?.trim() || "Receipt sent.");
+      setOrderNotice(receipt.message?.trim() || t("orders.receiptSent"));
 
       if (receiptWindow) {
         const qrCodeData = receipt.payload.qrCodeData;
@@ -1571,7 +992,7 @@ export default function MerchantPortalPage() {
         receiptWindow.document.close();
       }
     } catch (error) {
-      setOrderNotice("Could not print receipt. Try again.");
+      setOrderNotice(t("errors.printReceiptFailed"));
       receiptWindow?.close();
     }
   };
@@ -1589,7 +1010,7 @@ export default function MerchantPortalPage() {
   }, [activeHubId, hubSettings, menuSections, merchantToken]);
 
   useEffect(() => {
-    const lastEmail = window.localStorage.getItem(merchantLastLoginEmailKey);
+    const lastEmail = readBrowserStorage(merchantLastLoginEmailKey);
     if (lastEmail) {
       setLoginUsername(lastEmail);
       setResetEmail(lastEmail);
@@ -1601,7 +1022,7 @@ export default function MerchantPortalPage() {
       try {
         const parsedAdminSession = JSON.parse(decodeURIComponent(adminSessionParam)) as StoredMerchantSession;
         if (parsedAdminSession?.token && parsedAdminSession?.hubId && parsedAdminSession?.user) {
-          window.localStorage.setItem(
+          writeBrowserStorage(
             merchantSessionStorageKey,
             JSON.stringify({
               token: parsedAdminSession.token,
@@ -1609,7 +1030,7 @@ export default function MerchantPortalPage() {
               user: parsedAdminSession.user,
             } satisfies StoredMerchantSession),
           );
-          window.localStorage.setItem(
+          writeBrowserStorage(
             merchantLastLoginEmailKey,
             parsedAdminSession.user.email || parsedAdminSession.user.username || "",
           );
@@ -1624,7 +1045,7 @@ export default function MerchantPortalPage() {
       }
     }
 
-    const storedSession = window.localStorage.getItem(merchantSessionStorageKey);
+    const storedSession = readBrowserStorage(merchantSessionStorageKey);
     if (!storedSession) {
       setBootStatus("login");
       return;
@@ -1653,7 +1074,7 @@ export default function MerchantPortalPage() {
         setBootStatus("hub");
         void loadMerchantOrders(parsed.token, { silent: true });
       } catch {
-        window.localStorage.removeItem(merchantSessionStorageKey);
+        clearMerchantSessionFromBrowser();
         setMerchantToken("");
         setBootStatus("login");
       }
@@ -1701,7 +1122,7 @@ export default function MerchantPortalPage() {
     try {
       const response = await loginToHub(loginUsername, loginPassword);
       const emailForRemember = response.user.email || loginUsername.trim();
-      window.localStorage.setItem(merchantLastLoginEmailKey, emailForRemember);
+      writeBrowserStorage(merchantLastLoginEmailKey, emailForRemember);
       persistMerchantSessionToBrowser({
         token: response.token,
         hubId: response.workspace.hub.id,
@@ -1723,8 +1144,7 @@ export default function MerchantPortalPage() {
       setOrderNotice("");
       void loadMerchantOrders(response.token);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Hub login failed.";
-      setLoginError(message);
+      setLoginError(friendlyCaughtError(error, "login"));
     } finally {
       setIsLoggingIn(false);
     }
@@ -1750,7 +1170,7 @@ export default function MerchantPortalPage() {
           : "If that email belongs to a hub user, a reset code has been prepared.",
       );
     } catch (error) {
-      setResetNotice(error instanceof Error ? error.message : "Could not request a password reset.");
+      setResetNotice(friendlyCaughtError(error, "password_reset_request"));
     } finally {
       setIsSubmittingReset(false);
     }
@@ -1771,7 +1191,7 @@ export default function MerchantPortalPage() {
       setResetNotice("Code verified. You can now reset this hub login to the temporary password.");
     } catch (error) {
       setResetCodeVerified(false);
-      setResetNotice(error instanceof Error ? error.message : "Code verification failed.");
+      setResetNotice(friendlyCaughtError(error, "password_reset_verify"));
     } finally {
       setIsSubmittingReset(false);
     }
@@ -1798,7 +1218,7 @@ export default function MerchantPortalPage() {
       setLoginError("");
       setResetNotice(`Login reset complete. Sign in with ${response.loginEmail} and temporary password ${response.temporaryPassword}.`);
     } catch (error) {
-      setResetNotice(error instanceof Error ? error.message : "Password reset failed.");
+      setResetNotice(friendlyCaughtError(error, "password_reset_complete"));
     } finally {
       setIsSubmittingReset(false);
     }
@@ -1829,7 +1249,7 @@ export default function MerchantPortalPage() {
   };
 
   const handleSignOut = () => {
-    window.localStorage.removeItem(merchantSessionStorageKey);
+    clearMerchantSessionFromBrowser();
     setBootStatus("login");
     setLoginView("sign_in");
     setMerchantToken("");
@@ -1891,7 +1311,7 @@ export default function MerchantPortalPage() {
       setPasswordForm(initialPasswordFormState);
       setPasswordNotice("Password changed. This browser will stay signed in until you sign out or the session expires.");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Password change failed.";
+      const message = friendlyCaughtError(error, "password_change");
       setPasswordNotice(message);
     }
   };
@@ -1983,7 +1403,7 @@ export default function MerchantPortalPage() {
       setSaveNotice(`Live menu published for ${hubSettings.name}.`);
       setMenuNotice("Customers will see your updated menu on Hull Eats.");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Menu publish failed.";
+      const message = friendlyCaughtError(error, "workspace_save");
       setSaveNotice(message);
       setMenuNotice(message);
     } finally {
@@ -2092,7 +1512,7 @@ export default function MerchantPortalPage() {
       setNewUser(initialCreateUserState);
       setUserNotice(`User created. ${createdUser.username} can now sign in to this hub.`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Business user creation failed.";
+      const message = friendlyCaughtError(error, "user_create");
       setUserNotice(message);
     }
   };
@@ -2112,7 +1532,7 @@ export default function MerchantPortalPage() {
       setHubUsers((current) => current.filter((user) => user.id !== userId));
       setUserNotice(`${username} has been removed from this hub.`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Business user delete failed.";
+      const message = friendlyCaughtError(error, "user_delete");
       setUserNotice(message);
     }
   };
@@ -2122,7 +1542,7 @@ export default function MerchantPortalPage() {
       return;
     }
     if (!supportSubject.trim() || !supportMessage.trim()) {
-      setSupportNotice("Add a subject and message before sending support.");
+      setSupportNotice(t("help.supportMissingFields"));
       return;
     }
 
@@ -2138,9 +1558,9 @@ export default function MerchantPortalPage() {
       setSupportSubject("");
       setSupportMessage("");
       setSupportOrderNumber("");
-      setSupportNotice("Your message has been sent to the Hull Eats admin inbox.");
+      setSupportNotice(t("help.supportSent"));
     } catch (error) {
-      setSupportNotice(error instanceof Error ? error.message : "Support request failed.");
+      setSupportNotice(friendlyCaughtError(error, "support"));
     } finally {
       setSupportSending(false);
     }
@@ -2380,7 +1800,7 @@ export default function MerchantPortalPage() {
       setSelectedImportCandidateIds(createdBatch.candidates.map((candidate) => candidate.id));
       setMenuNotice(`Created preview batch for ${createdBatch.imageName}. Tick the right items before applying.`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Menu import preview failed.";
+      const message = friendlyCaughtError(error, "menu_import");
       setMenuNotice(message);
     }
   };
@@ -2398,7 +1818,7 @@ export default function MerchantPortalPage() {
       setSelectedImportCandidateIds(createdBatch.candidates.map((candidate) => candidate.id));
       setMenuNotice("Parsed pasted menu text into review candidates.");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Menu text import preview failed.";
+      const message = friendlyCaughtError(error, "menu_import");
       setMenuNotice(message);
     }
   };
@@ -2418,7 +1838,7 @@ export default function MerchantPortalPage() {
         "Import applied as Live items — saving to your hub. Set any row to Hidden if needed, then publish when ready.",
       );
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Menu import apply failed.";
+      const message = friendlyCaughtError(error, "menu_import");
       setMenuNotice(message);
     }
   };
@@ -2571,18 +1991,12 @@ export default function MerchantPortalPage() {
       activeHubSection === "settings");
 
   const handleRestoreConfigBackup = (workspace: { settings: HubSettings; menuSections: HubMenuSection[] }) => {
-    const settings = {
-      ...workspace.settings,
-      deliveryPostcodeZones:
-        workspace.settings.deliveryPostcodeZones.length > 0
-          ? workspace.settings.deliveryPostcodeZones
-          : createDefaultHullPostcodeZones(),
-    };
+    const settings = normalizeWorkspaceSettings(workspace.settings);
     setHubSettings(settings);
     setMenuSections(ensureStaffMenuSections(workspace.menuSections));
     setEditingMenuBoardId(null);
     commitSavedHubSnapshot(settings, workspace.menuSections);
-    setSaveNotice("Backup restored and saved to your hub.");
+    setSaveNotice(t("settings.backupRestored"));
   };
 
   return (
@@ -2591,7 +2005,7 @@ export default function MerchantPortalPage() {
         <button
           type="button"
           className="hub-sidebar-backdrop"
-          aria-label="Close navigation"
+          aria-label={t("nav.closeNavigation")}
           onClick={() => setMobileNavOpen(false)}
         />
       ) : null}
@@ -2619,7 +2033,7 @@ export default function MerchantPortalPage() {
         <div style={sidebarBrand}>
           <span style={sidebarMark}>HE</span>
           <span>
-            <strong>{hubSettings.name || "Merchant hub"}</strong>
+            <strong>{hubSettings.name || t("common.merchantHubFallback")}</strong>
             <small>{describeStoreOpeningStatus(hubSettings.openingHours, hubSettings.isOpen, hubSettings.acceptingOrders)}</small>
           </span>
         </div>
@@ -2729,7 +2143,7 @@ export default function MerchantPortalPage() {
         <header className={`hub-main-header${showWorkspaceHero ? " is-home" : ""}`} style={hubMainHeader}>
           {!showWorkspaceHero ? (
             <div style={{ display: "grid", gap: 6 }}>
-              <strong style={{ color: "#101216", fontSize: "1rem" }}>{hubSettings.name || "Merchant hub"}</strong>
+              <strong style={{ color: "#101216", fontSize: "1rem" }}>{hubSettings.name || t("common.merchantHubFallback")}</strong>
               <span style={subtleInfo}>
                 {describeStoreOpeningStatus(hubSettings.openingHours, hubSettings.isOpen, hubSettings.acceptingOrders)}
               </span>
@@ -2857,22 +2271,22 @@ export default function MerchantPortalPage() {
 
         {activeHubSection === "orders" ? (
           <section style={placeholderPanel}>
-            <p style={eyebrowDark}>Live orders</p>
+            <p style={eyebrowDark}>{t("orders.liveOrdersEyebrow")}</p>
             <div style={itemTopRow}>
               <div>
-                <h2 style={sectionTitle}>Incoming orders</h2>
-                <p style={panelCopyDark}>Web, app, and kiosk orders appear here. Use refresh while live notifications are being connected.</p>
+                <h2 style={sectionTitle}>{t("orders.incomingOrders")}</h2>
+                <p style={panelCopyDark}>{t("orders.incomingCopy")}</p>
               </div>
               <button
                 type="button"
                 style={secondaryButton}
                 onClick={() => {
                   void loadMerchantOrders(merchantToken, { silent: true }).then(() => {
-                    setOrderNotice("Orders updated.");
+                    setOrderNotice(t("orders.ordersUpdated"));
                   });
                 }}
               >
-                Refresh orders
+                {t("orders.refreshOrders")}
               </button>
             </div>
             <div style={orderListGrid}>
@@ -2893,12 +2307,12 @@ export default function MerchantPortalPage() {
                     </p>
                     {isPending && hubSecondsLeft !== null ? (
                       <p style={{ ...panelCopyDark, marginTop: 8, fontWeight: 800, color: hubSecondsLeft <= 15 ? "#b42318" : "#101216" }}>
-                        Awaiting your response — auto-cancel in {hubSecondsLeft}s
+                        {t("orders.awaitingResponseTimer", { seconds: hubSecondsLeft })}
                       </p>
                     ) : null}
                     {isPending && hubSecondsLeft === null ? (
                       <p style={{ ...panelCopyDark, marginTop: 8, fontWeight: 800 }}>
-                        Awaiting your response — accept or reject to continue.
+                        {t("orders.awaitingResponse")}
                       </p>
                     ) : null}
                   </div>
@@ -2911,16 +2325,16 @@ export default function MerchantPortalPage() {
                           style={{ ...primaryButton, minHeight: 40, padding: "0 14px", borderRadius: 14, fontSize: 14 }}
                           onClick={() => void handleAcceptMerchantOrder(order)}
                         >
-                          Accept ({hubSettings.etaMinutes} min)
+                          {t("orders.acceptOrder", { eta: hubSettings.etaMinutes })}
                         </button>
                         <button type="button" style={secondaryButtonSmall} onClick={() => void handleRejectMerchantOrder(order)}>
-                          Reject
+                          {t("orders.reject")}
                         </button>
                       </>
                     ) : null}
                     {hubAccess?.canOperateOrders ? (
                     <button type="button" style={secondaryButtonSmall} onClick={() => void handlePrintOrderReceipt(order)}>
-                      Print receipt
+                      {t("orders.printReceipt")}
                     </button>
                     ) : null}
                     <span style={orangeBadge}>£{order.totalAmount.toFixed(2)}</span>
@@ -2928,7 +2342,7 @@ export default function MerchantPortalPage() {
                 </article>
               );
               })}
-              {merchantOrders.length === 0 ? <div style={emptyStateCard}>No orders loaded yet. Refresh after placing a kiosk test order.</div> : null}
+              {merchantOrders.length === 0 ? <div style={emptyStateCard}>{t("orders.noOrders")}</div> : null}
             </div>
           </section>
         ) : null}
@@ -2938,7 +2352,7 @@ export default function MerchantPortalPage() {
             apiBaseUrl={apiBaseUrl}
             token={merchantToken}
             hubId={activeHubId}
-            storeName={hubSettings.name || "Your store"}
+            storeName={hubSettings.name || t("common.yourStore")}
             driverTracking={driverTracking}
             readOnly={!hubAccess?.canOperateOrders}
             onRefreshTracking={() => void loadDriverTracking()}
@@ -2951,22 +2365,22 @@ export default function MerchantPortalPage() {
 
         {activeHubSection === "orderHistory" ? (
           <section style={placeholderPanel}>
-            <p style={eyebrowDark}>Order history</p>
+            <p style={eyebrowDark}>{t("orders.orderHistoryEyebrow")}</p>
             <div style={itemTopRow}>
               <div>
-                <h2 style={sectionTitle}>Completed and past orders</h2>
-                <p style={panelCopyDark}>Delivered, rejected, and cancelled orders move here once they are no longer live.</p>
+                <h2 style={sectionTitle}>{t("orders.orderHistoryTitle")}</h2>
+                <p style={panelCopyDark}>{t("orders.orderHistoryCopy")}</p>
               </div>
               <button
                 type="button"
                 style={secondaryButton}
                 onClick={() => {
                   void loadMerchantOrderHistory(merchantToken, { silent: true }).then(() => {
-                    setOrderNotice("Order history updated.");
+                    setOrderNotice(t("orders.orderHistoryUpdated"));
                   });
                 }}
               >
-                Refresh history
+                {t("orders.refreshHistory")}
               </button>
             </div>
             <div style={orderListGrid}>
@@ -2977,37 +2391,37 @@ export default function MerchantPortalPage() {
                     <p style={panelCopyDark}>
                       {order.source.replaceAll("_", " ")} / {order.fulfillmentType} / {order.paymentStatus} / {order.paymentMethod.replaceAll("_", " ")}
                     </p>
-                    <p style={{ ...panelCopyDark, marginTop: 8, fontWeight: 700 }}>Placed {formatOrderPlacedAt(order.placedAt)}</p>
+                    <p style={{ ...panelCopyDark, marginTop: 8, fontWeight: 700 }}>{t("orders.placedAt", { date: formatOrderPlacedAt(order.placedAt) })}</p>
                   </div>
                   <div style={itemBadgeRow}>
                     <span style={darkBadge}>{order.status}</span>
                     {hubAccess?.canOperateOrders ? (
                       <button type="button" style={secondaryButtonSmall} onClick={() => void handlePrintOrderReceipt(order)}>
-                        Print receipt
+                        {t("orders.printReceipt")}
                       </button>
                     ) : null}
                     <span style={orangeBadge}>£{order.totalAmount.toFixed(2)}</span>
                   </div>
                 </article>
               ))}
-              {merchantOrderHistory.length === 0 ? <div style={emptyStateCard}>No completed or past orders yet.</div> : null}
+              {merchantOrderHistory.length === 0 ? <div style={emptyStateCard}>{t("orders.noHistory")}</div> : null}
             </div>
           </section>
         ) : null}
 
         {activeHubSection === "earnings" ? (
           <section style={placeholderPanel}>
-            <p style={eyebrowDark}>Earnings</p>
-            <h2 style={sectionTitle}>Payouts and performance</h2>
-            <p style={panelCopyDark}>Daily sales, fees, payout status, and top items will live here after payment reporting is connected.</p>
+            <p style={eyebrowDark}>{t("nav.earnings")}</p>
+            <h2 style={sectionTitle}>{t("dashboard.earningsTitle")}</h2>
+            <p style={panelCopyDark}>{t("dashboard.earningsCopy")}</p>
           </section>
         ) : null}
 
         {activeHubSection === "reports" ? (
           <section style={placeholderPanel}>
-            <p style={eyebrowDark}>Reports</p>
-            <h2 style={sectionTitle}>Menu and service insights</h2>
-            <p style={panelCopyDark}>Use this area for product performance, busy periods, missing images, stock issues, and preparation-time reports.</p>
+            <p style={eyebrowDark}>{t("nav.reports")}</p>
+            <h2 style={sectionTitle}>{t("dashboard.reportsTitle")}</h2>
+            <p style={panelCopyDark}>{t("dashboard.reportsCopy")}</p>
           </section>
         ) : null}
 
@@ -3027,64 +2441,62 @@ export default function MerchantPortalPage() {
         {activeHubSection === "help" ? (
           <section className="he-dashboard-grid" style={dashboardGrid}>
             <article style={dashboardHeroCard}>
-              <p style={eyebrowDark}>Help and support</p>
-              <h2 style={sectionTitle}>Message Hull Eats support</h2>
-              <p style={panelCopyDark}>
-                Send a real support request into the admin inbox for onboarding help, menu issues, courier setup, or order problems.
-              </p>
+              <p style={eyebrowDark}>{t("help.helpSupportEyebrow")}</p>
+              <h2 style={sectionTitle}>{t("help.helpSupportTitle")}</h2>
+              <p style={panelCopyDark}>{t("help.helpSupportIntro")}</p>
             </article>
             <article style={dashboardCard}>
-              <span style={summaryLabel}>Menu categories</span>
+              <span style={summaryLabel}>{t("menu.menuCategories")}</span>
               <strong style={summaryValue}>{menuStats.categories}</strong>
             </article>
             <article style={dashboardCard}>
-              <span style={summaryLabel}>Users</span>
+              <span style={summaryLabel}>{t("help.usersLabel")}</span>
               <strong style={summaryValue}>{hubUsers.length}</strong>
             </article>
             <article style={{ ...dashboardCard, gridColumn: "1 / -1", display: "grid", gap: 14 }}>
               <label style={{ display: "grid", gap: 8 }}>
-                <span style={summaryLabel}>Reply contact</span>
-                <div style={{ color: "#dce9ff", fontWeight: 700 }}>{activeUser?.email || activeUser?.username || "Signed-in hub user"}</div>
+                <span style={summaryLabel}>{t("help.replyContact")}</span>
+                <div style={{ color: "#dce9ff", fontWeight: 700 }}>{activeUser?.email || activeUser?.username || t("help.signedInUserFallback")}</div>
               </label>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 }}>
                 <label style={{ display: "grid", gap: 8 }}>
-                  <span style={summaryLabel}>Phone</span>
-                  <input style={lightInput} value={supportPhone} onChange={(event) => setSupportPhone(event.target.value)} placeholder="Optional" />
+                  <span style={summaryLabel}>{t("help.phone")}</span>
+                  <input style={lightInput} value={supportPhone} onChange={(event) => setSupportPhone(event.target.value)} placeholder={t("common.optional")} />
                 </label>
                 <label style={{ display: "grid", gap: 8 }}>
-                  <span style={summaryLabel}>Order number</span>
+                  <span style={summaryLabel}>{t("help.orderNumber")}</span>
                   <input
                     style={lightInput}
                     value={supportOrderNumber}
                     onChange={(event) => setSupportOrderNumber(event.target.value)}
-                    placeholder="Optional"
+                    placeholder={t("common.optional")}
                   />
                 </label>
               </div>
               <label style={{ display: "grid", gap: 8 }}>
-                <span style={summaryLabel}>Subject</span>
+                <span style={summaryLabel}>{t("help.subject")}</span>
                 <input
                   style={lightInput}
                   value={supportSubject}
                   onChange={(event) => setSupportSubject(event.target.value)}
-                  placeholder="What do you need help with?"
+                  placeholder={t("help.subjectPlaceholder")}
                 />
               </label>
               <label style={{ display: "grid", gap: 8 }}>
-                <span style={summaryLabel}>Message</span>
+                <span style={summaryLabel}>{t("help.message")}</span>
                 <textarea
                   style={{ ...lightInput, minHeight: 160, padding: 14, resize: "vertical" }}
                   value={supportMessage}
                   onChange={(event) => setSupportMessage(event.target.value)}
-                  placeholder="Tell us what happened and what you need from Hull Eats support."
+                  placeholder={t("help.messagePlaceholder")}
                 />
               </label>
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
                 <button type="button" style={primaryButton} disabled={supportSending} onClick={() => void handleSubmitSupportMessage()}>
-                  {supportSending ? "Sending..." : "Send support message"}
+                  {supportSending ? t("help.sending") : t("help.sendSupport")}
                 </button>
                 <span style={{ color: "#9fb2c9", lineHeight: 1.6 }}>
-                  This lands in the real admin inbox for {hubSettings.name || "your hub"}.
+                  {t("help.supportInboxCopy", { hubName: hubSettings.name || t("common.yourHubFallback") })}
                 </span>
               </div>
               {supportNotice ? <p style={{ margin: 0, color: "#dce9ff", lineHeight: 1.6 }}>{supportNotice}</p> : null}
@@ -3102,10 +2514,10 @@ export default function MerchantPortalPage() {
           {activeHubSection === "menu" ? (
             <div style={workbenchNav}>
               <button type="button" style={activeHubPanel === "menu" ? workbenchTabActive : workbenchTab} onClick={() => setActiveHubPanel("menu")}>
-                Menu builder
+                {t("nav.menuBuilder")}
               </button>
               <button type="button" style={activeHubPanel === "import" ? workbenchTabActive : workbenchTab} onClick={() => setActiveHubPanel("import")}>
-                Paste or upload menu
+                {t("nav.pasteOrUploadMenu")}
               </button>
             </div>
           ) : null}
@@ -3421,25 +2833,25 @@ export default function MerchantPortalPage() {
           {activeHubPanel === "businessProfile" ? (
             <section style={compactEditorCard}>
               <div style={panelHeader}>
-                <p style={eyebrowDark}>Business profile</p>
-                <h2 style={sectionTitle}>Storefront business details</h2>
-                <p style={panelCopyDark}>Update the public business name, description, location, and storefront image shown to customers.</p>
+                <p style={eyebrowDark}>{t("nav.businessProfile")}</p>
+                <h2 style={sectionTitle}>{t("settings.storefrontBusinessDetails")}</h2>
+                <p style={panelCopyDark}>{t("settings.businessProfileCopy")}</p>
               </div>
               <div className="he-two-col" style={twoColumnGrid}>
                 <label style={field}>
-                  <span style={darkFieldLabel}>Business name</span>
+                  <span style={darkFieldLabel}>{t("settings.businessName")}</span>
                   <input style={lightInput} value={hubSettings.name} onChange={(event) => handleHubFieldChange("name", event.target.value)} />
                 </label>
                 <label style={field}>
-                  <span style={darkFieldLabel}>Cuisine label</span>
+                  <span style={darkFieldLabel}>{t("settings.cuisineLabel")}</span>
                   <input style={lightInput} value={hubSettings.cuisineLabel} onChange={(event) => handleHubFieldChange("cuisineLabel", event.target.value)} />
                 </label>
                 <label style={field}>
-                  <span style={darkFieldLabel}>City</span>
+                  <span style={darkFieldLabel}>{t("settings.city")}</span>
                   <input style={lightInput} value={hubSettings.city} onChange={(event) => handleHubFieldChange("city", event.target.value)} />
                 </label>
                 <label style={{ ...field, gridColumn: "1 / -1" }}>
-                  <span style={darkFieldLabel}>Marketplace description</span>
+                  <span style={darkFieldLabel}>{t("settings.marketplaceDescription")}</span>
                   <textarea
                     style={{ ...lightInput, minHeight: 110, paddingTop: 14, paddingBottom: 14, resize: "vertical" }}
                     value={hubSettings.onboardingMessage}
@@ -3454,22 +2866,20 @@ export default function MerchantPortalPage() {
           {activeHubPanel === "deliveryRanges" ? (
             <section style={compactEditorCard}>
               <div style={panelHeader}>
-                <p style={eyebrowDark}>Delivery ranges</p>
-                <h2 style={sectionTitle}>Delivery coverage and pricing</h2>
-                <p style={panelCopyDark}>
-                  Set the shop postcode, choose radius or postcode coverage, and decide what each delivery area costs.
-                </p>
+                <p style={eyebrowDark}>{t("nav.deliveryRanges")}</p>
+                <h2 style={sectionTitle}>{t("delivery.deliveryCoverageShortTitle")}</h2>
+                <p style={panelCopyDark}>{t("delivery.deliveryCoverageShortCopy")}</p>
               </div>
               <div className="he-two-col" style={twoColumnGrid}>
                 <label style={field}>
-                  <span style={darkFieldLabel}>Shop postcode</span>
+                  <span style={darkFieldLabel}>{t("delivery.shopPostcode")}</span>
                   <input
                     style={lightInput}
                     value={hubSettings.postcode}
                     onChange={(event) => handleHubFieldChange("postcode", event.target.value)}
-                    placeholder="e.g. HU5 1SN"
+                    placeholder={t("delivery.shopPostcodePlaceholder")}
                   />
-                  <p style={subtleInfo}>Used for your shop pin on the map and distance-based delivery fees.</p>
+                  <p style={subtleInfo}>{t("delivery.shopPostcodeHint")}</p>
                 </label>
               </div>
               <div style={{ marginTop: 24, paddingTop: 24, borderTop: "1px solid rgba(15, 17, 21, 0.1)" }}>
@@ -3489,11 +2899,9 @@ export default function MerchantPortalPage() {
           {activeHubPanel === "availability" ? (
             <section style={compactEditorCard}>
               <div style={panelHeader}>
-                <p style={eyebrowDark}>Opening times</p>
-                <h2 style={sectionTitle}>Storefront availability</h2>
-                <p style={panelCopyDark}>
-                  Customers see open or closed on Hull Eats using these times in UK local time (Europe/London, GMT/BST).
-                </p>
+                <p style={eyebrowDark}>{t("delivery.openingTimesTitle")}</p>
+                <h2 style={sectionTitle}>{t("settings.storefrontAvailability")}</h2>
+                <p style={panelCopyDark}>{t("delivery.openingTimesHint")}</p>
               </div>
 
               <HubOpeningHoursEditor
@@ -3504,25 +2912,23 @@ export default function MerchantPortalPage() {
 
               <div className="he-two-col" style={{ ...twoColumnGrid, marginTop: 18 }}>
                 <label style={field}>
-                  <span style={darkFieldLabel}>Accepting orders</span>
+                  <span style={darkFieldLabel}>{t("settings.acceptingOrders")}</span>
                   <select
                     style={lightInput}
                     value={hubSettings.acceptingOrders ? "accepting" : "paused"}
                     onChange={(event) => handleHubFieldChange("acceptingOrders", event.target.value === "accepting")}
                   >
-                    <option value="accepting">Accepting orders now</option>
-                    <option value="paused">Paused - hide store and stop new orders</option>
+                    <option value="accepting">{t("settings.acceptingNow")}</option>
+                    <option value="paused">{t("settings.pausedStopOrders")}</option>
                   </select>
-                  <p style={subtleInfo}>Use this if the kitchen needs to stop orders straight away and come back later.</p>
+                  <p style={subtleInfo}>{t("settings.acceptingOrdersHint")}</p>
                 </label>
                 <div style={field}>
-                  <span style={darkFieldLabel}>Listed on Hull Eats</span>
+                  <span style={darkFieldLabel}>{t("settings.listedOnHullEats")}</span>
                   <p style={{ ...lightInput, margin: 0, padding: "12px 14px" }}>
-                    {hubSettings.isOpen ? "Live — visible on marketplace" : "Hidden — not listed on marketplace yet"}
+                    {hubSettings.isOpen ? t("settings.listedLive") : t("settings.listedHidden")}
                   </p>
-                  <p style={subtleInfo}>
-                    Marketplace listing is controlled by Hull Eats admin and is not changed when you save menu or hub settings.
-                  </p>
+                  <p style={subtleInfo}>{t("settings.listedOnHullEatsHint")}</p>
                 </div>
               </div>
             </section>
@@ -3531,9 +2937,9 @@ export default function MerchantPortalPage() {
           {activeHubPanel === "settings" ? (
             <section style={compactEditorCard}>
               <div style={panelHeader}>
-                <p style={eyebrowDark}>Store settings</p>
-                <h2 style={sectionTitle}>Operations and backups</h2>
-                <p style={panelCopyDark}>Manage prep defaults, minimum order value, and save backups of the current hub setup.</p>
+                <p style={eyebrowDark}>{t("settings.storeSettings")}</p>
+                <h2 style={sectionTitle}>{t("settings.operationsBackups")}</h2>
+                <p style={panelCopyDark}>{t("settings.operationsBackupsCopy")}</p>
               </div>
               {burgerPartsSection || kebabPartsSection ? (
                 <HubMenuPartsSettingsWorkbench
@@ -3586,11 +2992,11 @@ export default function MerchantPortalPage() {
 
               <div className="he-two-col" style={{ ...twoColumnGrid, marginTop: burgerPartsSection || kebabPartsSection ? 28 : 0 }}>
                 <label style={field}>
-                  <span style={darkFieldLabel}>Delivery ETA (minutes)</span>
+                  <span style={darkFieldLabel}>{t("settings.deliveryEta")}</span>
                   <input type="number" min={1} style={lightInput} value={hubSettings.etaMinutes} onChange={(event) => handleHubFieldChange("etaMinutes", Math.max(1, Number(event.target.value) || 1))} />
                 </label>
                 <label style={field}>
-                  <span style={darkFieldLabel}>Minimum order</span>
+                  <span style={darkFieldLabel}>{t("settings.minimumOrder")}</span>
                   <input type="number" step="0.01" style={lightInput} value={hubSettings.minimumOrderAmount} onChange={(event) => handleHubFieldChange("minimumOrderAmount", Number(event.target.value) || 0)} />
                 </label>
                 <label style={{ display: "flex", gridColumn: "1 / -1", gap: 12, alignItems: "center" }}>
@@ -3600,11 +3006,11 @@ export default function MerchantPortalPage() {
                     onChange={(event) => handleHubFieldChange("autoAcceptOrders", event.target.checked)}
                     style={{ width: 18, height: 18 }}
                   />
-                  <span style={darkFieldLabel}>Auto-accept new orders</span>
+                  <span style={darkFieldLabel}>{t("settings.autoAcceptOrders")}</span>
                 </label>
                 {hubSettings.autoAcceptOrders ? (
                   <label style={field}>
-                    <span style={darkFieldLabel}>Max prep when auto-accepting (minutes)</span>
+                    <span style={darkFieldLabel}>{t("settings.autoAcceptMaxPrep")}</span>
                     <input
                       type="number"
                       min={5}

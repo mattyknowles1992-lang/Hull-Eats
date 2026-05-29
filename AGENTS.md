@@ -2,6 +2,8 @@
 
 This file is the first-read instruction set for future agents working on Hull Eats.
 
+**Also read:** [docs/ROADMAP.md](docs/ROADMAP.md) (build order and phase gates) and [docs/ARCHITECTURE-PROGRESS.md](docs/ARCHITECTURE-PROGRESS.md) (what structural work has already landed). Check ROADMAP before adding features that belong in a later phase.
+
 Hull Eats is not a single website. It is a multi-app ordering and business software platform with separate deployable surfaces that communicate through the backend API and shared database. Keep these boundaries intact.
 
 ## Product Vision
@@ -375,6 +377,7 @@ Build this behind an `integrations` boundary. Expect provider-specific API limit
 Recommended verification commands:
 
 ```powershell
+corepack pnpm test
 corepack pnpm --filter @hull-eats/types typecheck
 corepack pnpm --filter @hull-eats/api typecheck
 corepack pnpm --filter @hull-eats/admin-portal typecheck

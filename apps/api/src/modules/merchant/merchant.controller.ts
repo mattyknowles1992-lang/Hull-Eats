@@ -34,6 +34,8 @@ import {
   updateHubUserLocaleInputSchema,
 } from "@hull-eats/types";
 
+import { AuditLogService } from "../../common/audit-log.service";
+import { BusinessPackageService } from "../../common/business-package.service";
 import { HubRegistryService } from "../../common/hub-registry.service";
 import { requireHubPermission } from "../../common/hub-permissions";
 import { InternalAuthService } from "../../common/internal-auth.service";
@@ -63,12 +65,27 @@ export class MerchantController {
     private readonly contactMessages: ContactMessagesService,
     @Inject(MerchantPasswordResetService)
     private readonly passwordResets: MerchantPasswordResetService,
+    @Inject(AuditLogService)
+    private readonly auditLog: AuditLogService,
+    @Inject(BusinessPackageService)
+    private readonly businessPackages: BusinessPackageService,
   ) {}
 
   @Post("auth/login")
-  async login(@Body() body: unknown) {
+  async login(
+    @Body() body: unknown,
+    @Headers("x-forwarded-for") forwardedFor: string | undefined,
+  ) {
     const input = merchantLoginInputSchema.parse(body);
     const authenticated = await this.hubRegistry.authenticate(input.username, input.password);
+    await this.auditLog.record({
+      scope: "merchant",
+      action: "merchant.login.success",
+      hubId: authenticated.session.hubId,
+      actorUserId: authenticated.session.id,
+      actorEmail: authenticated.user.email,
+      ipAddress: forwardedFor?.split(",")[0]?.trim() ?? null,
+    });
     return {
       token: this.internalAuth.issueMerchantToken(authenticated.session),
       user: authenticated.user,
@@ -116,7 +133,24 @@ export class MerchantController {
     const session = await this.internalAuth.requireMerchantToken(authorization, hubId);
     requireHubPermission(session.role, "canEditWorkspace");
     const input = parseMerchantWorkspaceUpdateInput(body);
-    return this.hubRegistry.updateWorkspace(hubId, input);
+    const workspace = await this.hubRegistry.updateWorkspace(hubId, input);
+    await this.auditLog.record({
+      scope: "merchant",
+      action: input.menuSections === undefined ? "hub.workspace.settings_saved" : "hub.workspace.menu_published",
+      hubId,
+      actorUserId: session.sub,
+      metadata: {
+        menuSectionCount: input.menuSections?.length ?? 0,
+        settingsOnly: input.menuSections === undefined,
+      },
+    });
+    return workspace;
+  }
+
+  @Get("hubs/:hubId/entitlements")
+  async listHubEntitlements(@Headers("authorization") authorization: string | undefined, @Param("hubId") hubId: string) {
+    await this.internalAuth.requireMerchantToken(authorization, hubId);
+    return this.businessPackages.listHubEntitlements(hubId);
   }
 
   @Get("hubs/:hubId/config-snapshots")

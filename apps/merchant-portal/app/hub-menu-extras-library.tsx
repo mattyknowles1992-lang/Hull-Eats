@@ -83,7 +83,7 @@ export function HubMenuExtrasLibrary({ section, onAddTopping, onRemoveTopping, r
             <span style={{ fontSize: "0.78rem", fontWeight: 800, color: "#3d4652" }}>Price (£)</span>
             <input
               type="number"
-              step="0.01"
+              step="0.1"
               min={0}
               value={price}
               onChange={(e) => setPrice(e.target.value)}

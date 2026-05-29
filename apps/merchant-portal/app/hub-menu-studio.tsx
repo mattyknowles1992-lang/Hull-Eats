@@ -748,7 +748,7 @@ export function HubMenuStudio({
                     <span style={darkFieldLabel}>Price (£)</span>
                     <input
                       type="number"
-                      step="0.01"
+                      step="0.1"
                       style={lightInput}
                       value={newItem.price}
                       onChange={(event) => onNewItemChange({ price: event.target.value })}
@@ -880,7 +880,7 @@ export function HubMenuStudio({
                     <span style={darkFieldLabel}>Price (£)</span>
                     <input
                       type="number"
-                      step="0.01"
+                      step="0.1"
                       style={lightInput}
                       value={moneyInput(selectedItem.price)}
                       onChange={(event) => onUpdateItem((current) => ({ ...current, price: Number(event.target.value) || 0 }))}

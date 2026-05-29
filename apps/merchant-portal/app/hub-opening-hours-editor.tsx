@@ -1,8 +1,9 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import type { HubSettings, StoreOpeningHours, StoreOpeningHoursDay } from "@hull-eats/types";
+import type { StoreOpeningHours, StoreOpeningHoursDay } from "@hull-eats/types";
 import { OPENING_HOURS_UI_DAYS } from "@hull-eats/types";
+import { useHubPortalI18n } from "@hull-eats/i18n";
 
 type HubOpeningHoursEditorProps = {
   openingHours: StoreOpeningHours;
@@ -14,6 +15,8 @@ const patchDay = (hours: StoreOpeningHours, dayOfWeek: number, patch: Partial<St
   hours.map((day) => (day.dayOfWeek === dayOfWeek ? { ...day, ...patch } : day));
 
 export function HubOpeningHoursEditor({ openingHours, onChange, readOnly = false }: HubOpeningHoursEditorProps) {
+  const { t } = useHubPortalI18n();
+
   const setEveryDayOpen = () => {
     onChange(openingHours.map((day) => ({ ...day, isOpen: true })));
   };
@@ -30,24 +33,22 @@ export function HubOpeningHoursEditor({ openingHours, onChange, readOnly = false
     <section className="he-opening-hours">
       <div className="he-opening-hours__header">
         <div>
-          <h3 className="he-opening-hours__title">Opening times</h3>
-          <p className="he-opening-hours__hint">
-            Customers see open or closed on Hull Eats using these times in UK local time (Europe/London, GMT/BST).
-          </p>
+          <h3 className="he-opening-hours__title">{t("delivery.openingTimesTitle")}</h3>
+          <p className="he-opening-hours__hint">{t("delivery.openingTimesHint")}</p>
         </div>
         <div className="he-opening-hours__bulk">
           <button type="button" className="he-opening-hours__bulk-btn" disabled={readOnly} onClick={setEveryDayOpen}>
-            Open every day
+            {t("delivery.openEveryDay")}
           </button>
         </div>
       </div>
 
-      <div className="he-opening-hours__table" role="table" aria-label="Weekly opening schedule">
+      <div className="he-opening-hours__table" role="table" aria-label={t("delivery.weeklyScheduleAria")}>
         <div className="he-opening-hours__row he-opening-hours__row--head" role="row">
-          <span role="columnheader">Day</span>
-          <span role="columnheader">Open</span>
-          <span role="columnheader">Opens</span>
-          <span role="columnheader">Closes</span>
+          <span role="columnheader">{t("delivery.day")}</span>
+          <span role="columnheader">{t("delivery.openLabel")}</span>
+          <span role="columnheader">{t("delivery.opens")}</span>
+          <span role="columnheader">{t("delivery.closes")}</span>
         </div>
 
         {OPENING_HOURS_UI_DAYS.map(({ dayOfWeek, label }, index) => {
@@ -70,11 +71,11 @@ export function HubOpeningHoursEditor({ openingHours, onChange, readOnly = false
                   disabled={readOnly}
                   onChange={(event) => onChange(patchDay(openingHours, dayOfWeek, { isOpen: event.target.checked }))}
                 />
-                <span>Open</span>
+                <span>{t("delivery.openLabel")}</span>
               </label>
               <label className="he-opening-hours__time-field">
                 <div className="he-opening-hours__time-control">
-                  <span className="he-opening-hours__mobile-label">Opens</span>
+                  <span className="he-opening-hours__mobile-label">{t("delivery.opens")}</span>
                   <input
                     type="time"
                     value={day.openTime}
@@ -88,14 +89,14 @@ export function HubOpeningHoursEditor({ openingHours, onChange, readOnly = false
                       disabled={readOnly || !day.isOpen}
                       onClick={() => copyOpenTimeToAllOpenDays(day.openTime)}
                     >
-                      Copy to all
+                      {t("settings.copyToAll")}
                     </button>
                   ) : null}
                 </div>
               </label>
               <label className="he-opening-hours__time-field">
                 <div className="he-opening-hours__time-control">
-                  <span className="he-opening-hours__mobile-label">Closes</span>
+                  <span className="he-opening-hours__mobile-label">{t("delivery.closes")}</span>
                   <input
                     type="time"
                     value={day.closeTime}
@@ -109,7 +110,7 @@ export function HubOpeningHoursEditor({ openingHours, onChange, readOnly = false
                       disabled={readOnly || !day.isOpen}
                       onClick={() => copyCloseTimeToAllOpenDays(day.closeTime)}
                     >
-                      Copy to all
+                      {t("settings.copyToAll")}
                     </button>
                   ) : null}
                 </div>

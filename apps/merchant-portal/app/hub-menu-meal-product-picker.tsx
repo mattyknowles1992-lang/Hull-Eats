@@ -117,7 +117,7 @@ export function HubMenuMealProductPicker({
                     <span style={priceLabel}>Extra £</span>
                     <input
                       type="number"
-                      step="0.01"
+                      step="0.1"
                       min={0}
                       className="hub-menu-meal-product-picker__price-input"
                       disabled={readOnly}
@@ -182,7 +182,7 @@ export function HubMenuMealProductPicker({
             <span style={priceLabel}>Extra £</span>
             <input
               type="number"
-              step="0.01"
+              step="0.1"
               min={0}
               className="hub-menu-meal-product-picker__price-input"
               value={customPrice}

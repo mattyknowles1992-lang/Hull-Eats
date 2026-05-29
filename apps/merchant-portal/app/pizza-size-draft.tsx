@@ -10,7 +10,10 @@ import {
   stripHubPizzaSizeColumnsMarker,
 } from "@hull-eats/types";
 
-export const PIZZA_PRICE_INPUT_STEP = 0.1;
+import { HUB_PRICE_INPUT_STEP } from "./hub-input-steps";
+
+/** @deprecated Use HUB_PRICE_INPUT_STEP — same £0.10 step for all menu prices. */
+export const PIZZA_PRICE_INPUT_STEP = HUB_PRICE_INPUT_STEP;
 
 export type PizzaSizeRow = {
   key: string;

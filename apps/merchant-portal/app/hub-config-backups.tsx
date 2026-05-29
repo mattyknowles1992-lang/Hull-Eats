@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import type { HubConfigSnapshot, HubMenuSection, HubSettings } from "@hull-eats/types";
 import { HUB_CONFIG_SNAPSHOT_LIMIT } from "@hull-eats/types";
+import { useHubPortalI18n } from "@hull-eats/i18n";
 
 type HubConfigBackupsProps = {
   apiBaseUrl: string;
@@ -77,6 +78,7 @@ export function HubConfigBackups({
   onRestore,
   onNotice,
 }: HubConfigBackupsProps) {
+  const { t } = useHubPortalI18n();
   const [snapshots, setSnapshots] = useState<HubConfigSnapshot[]>([]);
   const [backupName, setBackupName] = useState("");
   const [renameDrafts, setRenameDrafts] = useState<Record<string, string>>({});
@@ -97,7 +99,7 @@ export function HubConfigBackups({
 
   useEffect(() => {
     void loadSnapshots().catch((error: unknown) => {
-      onNotice(error instanceof Error ? error.message : "Could not load config backups.");
+      onNotice(error instanceof Error ? error.message : t("errors.couldNotLoadBackups"));
     });
   }, [loadSnapshots, onNotice]);
 
@@ -122,9 +124,9 @@ export function HubConfigBackups({
       }
       setBackupName("");
       await loadSnapshots();
-      onNotice("Config backup saved (delivery, menu, and hub settings).");
+      onNotice(t("settings.backupSaved"));
     } catch (error) {
-      onNotice(error instanceof Error ? error.message : "Save backup failed.");
+      onNotice(error instanceof Error ? error.message : t("settings.backupSaveFailed"));
     } finally {
       setBusy(null);
     }
@@ -135,9 +137,7 @@ export function HubConfigBackups({
     if (!snapshot) {
       return;
     }
-    const ok = window.confirm(
-      `Restore "${snapshot.name}"? This replaces your current hub setup (settings, delivery, menu). Save again if you want it live for customers.`,
-    );
+    const ok = window.confirm(t("settings.restoreConfirm", { name: snapshot.name }));
     if (!ok) {
       return;
     }
@@ -156,9 +156,9 @@ export function HubConfigBackups({
       }
       const workspace = (await response.json()) as { settings: HubSettings; menuSections: HubMenuSection[] };
       onRestore({ settings: workspace.settings, menuSections: workspace.menuSections });
-      onNotice(`Restored "${snapshot.name}" to your live hub.`);
+      onNotice(t("settings.restoreSuccess", { name: snapshot.name }));
     } catch (error) {
-      onNotice(error instanceof Error ? error.message : "Restore failed.");
+      onNotice(error instanceof Error ? error.message : t("settings.restoreFailed"));
     } finally {
       setBusy(null);
     }
@@ -187,9 +187,9 @@ export function HubConfigBackups({
         throw new Error(`Rename failed (${response.status})`);
       }
       await loadSnapshots();
-      onNotice("Backup renamed.");
+      onNotice(t("settings.backupRenamed"));
     } catch (error) {
-      onNotice(error instanceof Error ? error.message : "Rename failed.");
+      onNotice(error instanceof Error ? error.message : t("settings.renameFailed"));
     } finally {
       setBusy(null);
     }
@@ -198,27 +198,26 @@ export function HubConfigBackups({
   return (
     <div style={card}>
       <div>
-        <h3 style={{ margin: 0, fontSize: "1.1rem" }}>Config backups</h3>
+        <h3 style={{ margin: 0, fontSize: "1.1rem" }}>{t("settings.configBackups")}</h3>
         <p style={{ margin: "8px 0 0", color: "#5b6470", lineHeight: 1.5 }}>
-          Save your full hub setup — delivery map, fees, menu, and settings. Up to {HUB_CONFIG_SNAPSHOT_LIMIT} backups;
-          older ones are replaced when you save a new one.
+          {t("settings.backupsIntro", { limit: HUB_CONFIG_SNAPSHOT_LIMIT })}
         </p>
       </div>
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
         <input
           style={inputStyle}
-          placeholder={`Backup name (e.g. Backup ${snapshots.length + 1})`}
+          placeholder={t("settings.backupNamePlaceholder", { number: snapshots.length + 1 })}
           value={backupName}
           onChange={(event) => setBackupName(event.target.value)}
         />
         <button type="button" style={primaryBtn} disabled={busy != null} onClick={() => void handleSaveBackup()}>
-          {busy === "save" ? "Saving…" : "Save current setup as backup"}
+          {busy === "save" ? t("common.saving") : t("settings.saveSetupBackup")}
         </button>
       </div>
 
       {snapshots.length === 0 ? (
-        <p style={{ margin: 0, color: "#5b6470" }}>No backups yet. Save one before big delivery or menu changes.</p>
+        <p style={{ margin: 0, color: "#5b6470" }}>{t("settings.noBackupsHint")}</p>
       ) : (
         <div style={{ display: "grid", gap: 10 }}>
           {snapshots.map((snapshot) => (
@@ -232,7 +231,7 @@ export function HubConfigBackups({
                   }
                 />
                 <span style={{ fontSize: "0.82rem", color: "#5b6470" }}>
-                  Saved {new Date(snapshot.createdAt).toLocaleString("en-GB")}
+                  {t("settings.backupSavedAt", { date: new Date(snapshot.createdAt).toLocaleString("en-GB") })}
                 </span>
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -242,7 +241,7 @@ export function HubConfigBackups({
                   disabled={busy != null}
                   onClick={() => void handleRename(snapshot.id)}
                 >
-                  Rename
+                  {t("common.rename")}
                 </button>
                 <button
                   type="button"
@@ -250,7 +249,7 @@ export function HubConfigBackups({
                   disabled={busy != null}
                   onClick={() => void handleRestore(snapshot.id)}
                 >
-                  {busy === `restore-${snapshot.id}` ? "Restoring…" : "Restore"}
+                  {busy === `restore-${snapshot.id}` ? t("common.restoring") : t("common.restore")}
                 </button>
               </div>
             </div>

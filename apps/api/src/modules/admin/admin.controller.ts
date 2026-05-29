@@ -3,6 +3,7 @@ import { Body, Controller, Delete, Get, Headers, Inject, Param, Patch, Post } fr
 import { MvpDispatchEngine } from "@hull-eats/dispatch-engine";
 import { createHubInputSchema, createHubUserInputSchema, manualDriverAssignmentSchema, updateAdminHubLifecycleInputSchema } from "@hull-eats/types";
 
+import { AuditLogService } from "../../common/audit-log.service";
 import { HubRegistryService } from "../../common/hub-registry.service";
 import { InternalAuthService } from "../../common/internal-auth.service";
 import { CourierRegistryService } from "../../common/courier-registry.service";
@@ -24,6 +25,8 @@ export class AdminController {
     private readonly customerRegistry: CustomerRegistryService,
     @Inject(ContactMessagesService)
     private readonly contactMessages: ContactMessagesService,
+    @Inject(AuditLogService)
+    private readonly auditLog: AuditLogService,
   ) {}
 
   @Post("auth/login")
@@ -60,10 +63,18 @@ export class AdminController {
   }
 
   @Post("hubs")
-  createHub(@Headers("authorization") authorization: string | undefined, @Body() body: unknown) {
-    this.internalAuth.requireAdminToken(authorization);
+  async createHub(@Headers("authorization") authorization: string | undefined, @Body() body: unknown) {
+    const admin = this.internalAuth.requireAdminToken(authorization);
     const input = createHubInputSchema.parse(body);
-    return this.hubRegistry.createHub(input);
+    const hub = await this.hubRegistry.createHub(input);
+    await this.auditLog.record({
+      scope: "admin",
+      action: "admin.hub.created",
+      hubId: hub.hub.id,
+      actorEmail: admin.email ?? admin.sub,
+      metadata: { businessName: input.businessName, ownerEmail: input.ownerEmail },
+    });
+    return hub;
   }
 
   @Delete("hubs/:hubId")

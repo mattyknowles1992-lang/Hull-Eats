@@ -105,7 +105,7 @@ export function HubMenuItemExtrasPicker({
                 <span>Extra £</span>
                 <input
                   type="number"
-                  step="0.01"
+                  step="0.1"
                   min={0}
                   disabled={readOnly || !enabled || !checked}
                   className="hub-menu-item-extras__price"
