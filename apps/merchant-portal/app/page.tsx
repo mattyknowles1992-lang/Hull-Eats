@@ -84,7 +84,12 @@ import {
   type MenuTemplateKind,
   type MenuAvailabilityMode,
 } from "./menu-studio-core";
-import { PizzaSizeDraftPanel, buildPizzaSizeOptionGroupFromRows, createInitialPizzaSizeRows } from "./pizza-size-draft";
+import {
+  PizzaSizeDraftPanel,
+  buildPizzaSizeOptionGroupFromRows,
+  createInitialPizzaSizeRows,
+  createPizzaSizeRowsForSection,
+} from "./pizza-size-draft";
 import type { PizzaSizeRow } from "./pizza-size-draft";
 
 const HUB_CATEGORY_PRESET_OPTIONS = hubMenuCategorySelectOptions();
@@ -198,6 +203,17 @@ type StoredMerchantSession = {
   hubId: string;
   user: HubUser;
 };
+
+function resolveActiveHubUser(workspace: MerchantWorkspace, fallbackUser: HubUser | null): HubUser | null {
+  if (!fallbackUser) {
+    return null;
+  }
+  return workspace.users.find((entry) => entry.id === fallbackUser.id) ?? fallbackUser;
+}
+
+function persistMerchantSessionToBrowser(session: StoredMerchantSession): void {
+  window.localStorage.setItem(merchantSessionStorageKey, JSON.stringify(session));
+}
 
 const initialCreateUserState: CreateUserFormState = {
   fullName: "",
@@ -1092,7 +1108,9 @@ export default function MerchantPortalPage() {
         menuSubGroup: menuSubGroup?.trim() ?? "",
         price: "",
       });
-      setPizzaSizeRows(createInitialPizzaSizeRows());
+      setPizzaSizeRows(
+        section && isHubMenuSectionPizza(section) ? createPizzaSizeRowsForSection(section) : createInitialPizzaSizeRows(),
+      );
       setNewItemComponents([]);
       setNewItemOptionGroups([]);
       setMenuNotice("");
@@ -1105,7 +1123,9 @@ export default function MerchantPortalPage() {
     const section = menuSections.find((entry) => entry.id === selectedCategoryId);
     setSelectedItemId(section?.items[0]?.id ?? "");
     setNewItem((current) => ({ ...initialCreateItemState, sectionId: current.sectionId }));
-    setPizzaSizeRows(createInitialPizzaSizeRows());
+    setPizzaSizeRows(
+      section && isHubMenuSectionPizza(section) ? createPizzaSizeRowsForSection(section) : createInitialPizzaSizeRows(),
+    );
     setNewItemComponents([]);
     setNewItemOptionGroups([]);
   }, [menuSections, selectedCategoryId]);
@@ -1314,10 +1334,14 @@ export default function MerchantPortalPage() {
 
   const applyWorkspace = (workspace: MerchantWorkspace, user: HubUser | null) => {
     menuWorkspaceReadyRef.current = false;
+    const resolvedUser = resolveActiveHubUser(workspace, user);
     setActiveHubId(workspace.hub.id);
     setActiveHubSlug(workspace.hub.slug);
-    setActiveUser(user);
+    setActiveUser(resolvedUser);
     setHubUsers(workspace.users);
+    if (resolvedUser?.preferredLocale) {
+      setLocale(resolvedUser.preferredLocale);
+    }
     setPendingImports(workspace.pendingImports ?? []);
 
     const serverSettings = {
@@ -1619,7 +1643,13 @@ export default function MerchantPortalPage() {
         setLoginUsername(parsed.user.email || parsed.user.username || lastEmail || "");
 
         const workspace = await fetchWorkspace(parsed.token, parsed.hubId);
-        applyWorkspace(workspace, parsed.user);
+        const resolvedUser = resolveActiveHubUser(workspace, parsed.user) ?? parsed.user;
+        persistMerchantSessionToBrowser({
+          token: parsed.token,
+          hubId: parsed.hubId,
+          user: resolvedUser,
+        });
+        applyWorkspace(workspace, resolvedUser);
         setBootStatus("hub");
         void loadMerchantOrders(parsed.token, { silent: true });
       } catch {
@@ -1672,14 +1702,11 @@ export default function MerchantPortalPage() {
       const response = await loginToHub(loginUsername, loginPassword);
       const emailForRemember = response.user.email || loginUsername.trim();
       window.localStorage.setItem(merchantLastLoginEmailKey, emailForRemember);
-      window.localStorage.setItem(
-        merchantSessionStorageKey,
-        JSON.stringify({
-          token: response.token,
-          hubId: response.workspace.hub.id,
-          user: response.user,
-        } satisfies StoredMerchantSession),
-      );
+      persistMerchantSessionToBrowser({
+        token: response.token,
+        hubId: response.workspace.hub.id,
+        user: response.user,
+      });
 
       setMerchantToken(response.token);
       applyWorkspace(response.workspace, response.user);
@@ -1788,6 +1815,11 @@ export default function MerchantPortalPage() {
       const user = await updateMerchantPreferredLocale(merchantToken, activeHubId, preferredLocale);
       setActiveUser(user);
       setHubUsers((current) => current.map((entry) => (entry.id === user.id ? user : entry)));
+      persistMerchantSessionToBrowser({
+        token: merchantToken,
+        hubId: activeHubId,
+        user,
+      });
       setUserNotice(t("common.portalLanguageSaved"));
     } catch {
       setUserNotice(t("common.portalLanguageSaveFailed"));
@@ -1849,20 +1881,12 @@ export default function MerchantPortalPage() {
       });
       setActiveUser(response.user);
       setHubUsers((current) => current.map((user) => (user.id === response.user.id ? response.user : user)));
-      const storedSession = window.localStorage.getItem(merchantSessionStorageKey);
-      if (storedSession) {
-        try {
-          const parsed = JSON.parse(storedSession) as StoredMerchantSession;
-          window.localStorage.setItem(
-            merchantSessionStorageKey,
-            JSON.stringify({
-              ...parsed,
-              user: response.user,
-            } satisfies StoredMerchantSession),
-          );
-        } catch {
-          // Ignore stale local session parsing problems.
-        }
+      if (merchantToken && activeHubId) {
+        persistMerchantSessionToBrowser({
+          token: merchantToken,
+          hubId: activeHubId,
+          user: response.user,
+        });
       }
       setPasswordForm(initialPasswordFormState);
       setPasswordNotice("Password changed. This browser will stay signed in until you sign out or the session expires.");

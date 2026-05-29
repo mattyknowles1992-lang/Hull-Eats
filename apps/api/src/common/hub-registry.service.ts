@@ -65,6 +65,7 @@ const hubUserSelectWithoutLocale = {
   status: true,
   isActive: true,
   mustChangePassword: true,
+  preferredLocale: true,
   sessionVersion: true,
   createdAt: true,
 } as const;
