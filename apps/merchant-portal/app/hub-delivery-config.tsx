@@ -53,9 +53,14 @@ const MAP_CAMERA_EASE = {
   easeLinearity: 0.22,
 } as const;
 
-const MAP_SECTOR_PADDING: [number, number] = [52, 52];
-const MAP_OUTWARD_PADDING: [number, number] = [44, 44];
+const MAP_SECTOR_PADDING: [number, number] = [40, 40];
+const MAP_OUTWARD_PADDING: [number, number] = [36, 36];
 const MAP_OVERVIEW_PADDING: [number, number] = [40, 40];
+
+/** Consistent camera when selecting Hull postcode areas on the map. */
+const HULL_SECTOR_MAX_ZOOM = 14.5;
+const HULL_OUTWARD_MAX_ZOOM = 13.25;
+const HULL_ENABLED_MAX_ZOOM = 12.75;
 
 type LeafletModule = typeof import("leaflet");
 
@@ -225,6 +230,8 @@ export function HubDeliveryConfig({
 }: HubDeliveryConfigProps) {
   const { t } = useHubPortalI18n();
   const mapHostRef = useRef<HTMLDivElement | null>(null);
+  const mapStickyRef = useRef<HTMLDivElement | null>(null);
+  const mapSentinelRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<import("leaflet").Map | null>(null);
   const layerGroupRef = useRef<import("leaflet").LayerGroup | null>(null);
   const zonesRef = useRef<HullPostcodeZone[]>([]);
@@ -239,6 +246,8 @@ export function HubDeliveryConfig({
   const [pinGeocodeNote, setPinGeocodeNote] = useState<string | null>(null);
   const [sectorBoundaries, setSectorBoundaries] = useState<HullSectorBoundaryCollection | null>(null);
   const [boundariesError, setBoundariesError] = useState<string | null>(null);
+  const [mapPinned, setMapPinned] = useState(false);
+  const [mapStickyHeight, setMapStickyHeight] = useState(320);
 
   const zones = useMemo(
     () =>
@@ -770,22 +779,22 @@ export function HubDeliveryConfig({
           (feature) =>
             feature.properties.outward === mapFocus.outward && feature.properties.sector === mapFocus.sector,
         );
-        if (sectorFeature && flyToFeatureBounds([sectorFeature], MAP_SECTOR_PADDING, 15)) {
+        if (sectorFeature && flyToFeatureBounds([sectorFeature], MAP_SECTOR_PADDING, HULL_SECTOR_MAX_ZOOM)) {
           return;
         }
         const centroid = getHullSectorCentroid(mapFocus.outward, mapFocus.sector);
-        if (centroid && safeFlyTo(centroid.lat, centroid.lng, 14.5)) {
+        if (centroid && safeFlyTo(centroid.lat, centroid.lng, HULL_SECTOR_MAX_ZOOM)) {
           return;
         }
       }
 
       if (mapFocus?.outward) {
         const outwardFeatures = features.filter((feature) => feature.properties.outward === mapFocus.outward);
-        if (flyToFeatureBounds(outwardFeatures, MAP_OUTWARD_PADDING, 13)) {
+        if (flyToFeatureBounds(outwardFeatures, MAP_OUTWARD_PADDING, HULL_OUTWARD_MAX_ZOOM)) {
           return;
         }
         const center = HULL_AREA_OUTWARD_CENTROIDS[mapFocus.outward];
-        if (center && safeFlyTo(center.lat, center.lng, 12.5)) {
+        if (center && safeFlyTo(center.lat, center.lng, HULL_OUTWARD_MAX_ZOOM)) {
           return;
         }
       }
@@ -796,7 +805,7 @@ export function HubDeliveryConfig({
           const zone = zones.find((entry) => entry.code === feature.properties.outward);
           return zone != null && isHullZoneSectorEnabled(zone, feature.properties.sector);
         });
-        if (flyToFeatureBounds(enabledFeatures, MAP_OVERVIEW_PADDING, 12)) {
+        if (flyToFeatureBounds(enabledFeatures, MAP_OVERVIEW_PADDING, HULL_ENABLED_MAX_ZOOM)) {
           return;
         }
         flyToHullOverview();
@@ -816,8 +825,117 @@ export function HubDeliveryConfig({
     sectorBoundaries,
   ]);
 
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) {
+      return;
+    }
+
+    const refreshSize = () => {
+      try {
+        map.invalidateSize();
+      } catch {
+        // Leaflet can throw if the map was torn down mid-resize (Safari navigation).
+      }
+    };
+
+    refreshSize();
+    const t1 = window.setTimeout(refreshSize, 120);
+    const t2 = window.setTimeout(refreshSize, 480);
+    window.addEventListener("resize", refreshSize);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+      window.removeEventListener("resize", refreshSize);
+    };
+  }, [mapReady, settings.deliveryMode]);
+
+  useEffect(() => {
+    const node = mapStickyRef.current;
+    if (!node) {
+      return;
+    }
+
+    const measure = () => {
+      setMapStickyHeight(node.offsetHeight);
+    };
+
+    measure();
+    const resizeObserver =
+      typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
+    resizeObserver?.observe(node);
+    window.addEventListener("resize", measure);
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [mapReady, pinGeocodeNote]);
+
+  useEffect(() => {
+    const sentinel = mapSentinelRef.current;
+    if (!sentinel || !mapReady) {
+      return;
+    }
+
+    const mobileQuery = window.matchMedia("(max-width: 960px)");
+    let observer: IntersectionObserver | null = null;
+
+    const readStickyTopPx = () => {
+      const raw =
+        getComputedStyle(document.documentElement).getPropertyValue("--hub-map-sticky-top").trim() || "0px";
+      const parsed = Number.parseFloat(raw);
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+
+    const connect = () => {
+      observer?.disconnect();
+      observer = null;
+      if (!mobileQuery.matches) {
+        setMapPinned(false);
+        return;
+      }
+
+      const topPx = readStickyTopPx();
+      observer = new IntersectionObserver(
+        ([entry]) => {
+          if (!entry) {
+            return;
+          }
+          setMapPinned(!entry.isIntersecting);
+        },
+        { threshold: [0, 1], rootMargin: `-${topPx}px 0px 0px 0px` },
+      );
+      observer.observe(sentinel);
+    };
+
+    connect();
+    mobileQuery.addEventListener("change", connect);
+    return () => {
+      mobileQuery.removeEventListener("change", connect);
+      observer?.disconnect();
+    };
+  }, [mapReady]);
+
+  useEffect(() => {
+    if (!mapPinned) {
+      return;
+    }
+    const map = mapRef.current;
+    if (!map) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      try {
+        map.invalidateSize();
+      } catch {
+        // Leaflet can throw if the map was torn down mid-resize.
+      }
+    }, 60);
+    return () => window.clearTimeout(timer);
+  }, [mapPinned]);
+
   return (
-    <div style={{ display: "grid", gap: 18 }}>
+    <div className="he-delivery-config-panel" style={{ display: "grid", gap: 18 }}>
       <label style={styles.field}>
         <span style={styles.darkFieldLabel}>{t("delivery.customerOrderOptions")}</span>
         <select
@@ -873,20 +991,15 @@ export function HubDeliveryConfig({
       </div>
       <p style={{ ...styles.subtleInfo, margin: "0 0 4px" }}>{t("delivery.deliveryModeLockHint")}</p>
 
-      <div
-        style={{
-          position: "sticky",
-          top: 0,
-          zIndex: 8,
-          marginBottom: 16,
-          paddingBottom: 10,
-          marginLeft: -2,
-          marginRight: -2,
-          background: "linear-gradient(180deg, rgba(255, 254, 252, 0.98) 0%, rgba(255, 254, 252, 0.97) 78%, rgba(255, 254, 252, 0) 100%)",
-        }}
-      >
-        <div ref={mapHostRef} style={styles.mapFrame} aria-label="Hull delivery area map" />
-        {pinGeocodeNote ? <p style={{ ...styles.subtleInfo, margin: "8px 0 0" }}>{pinGeocodeNote}</p> : null}
+      <div className="he-delivery-map-anchor">
+        <div ref={mapSentinelRef} className="he-delivery-map-sentinel" aria-hidden />
+        {mapPinned ? (
+          <div className="he-delivery-map-sticky-placeholder" style={{ height: mapStickyHeight }} aria-hidden />
+        ) : null}
+        <div ref={mapStickyRef} className={`he-delivery-map-sticky${mapPinned ? " is-pinned" : ""}`}>
+          <div ref={mapHostRef} className="he-delivery-map-frame" aria-label={t("delivery.hullDeliveryMap")} />
+          {pinGeocodeNote ? <p style={{ ...styles.subtleInfo, margin: "8px 0 0" }}>{pinGeocodeNote}</p> : null}
+        </div>
       </div>
 
       {settings.deliveryMode === "business_radius" ? (

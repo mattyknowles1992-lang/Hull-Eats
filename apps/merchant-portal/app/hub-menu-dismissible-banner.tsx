@@ -2,6 +2,8 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 
+import { readBrowserStorage, writeBrowserStorage } from "./browser-storage";
+
 type HubMenuDismissibleBannerProps = {
   storageKey: string;
   children: ReactNode;
@@ -12,19 +14,11 @@ export function HubMenuDismissibleBanner({ storageKey, children, role = "status"
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    try {
-      setVisible(window.localStorage.getItem(storageKey) !== "1");
-    } catch {
-      setVisible(true);
-    }
+    setVisible(readBrowserStorage(storageKey) !== "1");
   }, [storageKey]);
 
   const dismiss = () => {
-    try {
-      window.localStorage.setItem(storageKey, "1");
-    } catch {
-      // ignore quota / private mode
-    }
+    writeBrowserStorage(storageKey, "1");
     setVisible(false);
   };
 

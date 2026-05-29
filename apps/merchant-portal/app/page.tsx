@@ -23,7 +23,6 @@ import {
   describeStoreOpeningStatus,
   getHubAccess,
   hubMenuCategorySelectOptions,
-  hubRoleLabel,
   hubRolesCreatableBy,
   formatHubPortalLocaleOptionLabel,
   HUB_PORTAL_LOCALE_OPTIONS,
@@ -262,6 +261,19 @@ const escapeHtml = (value: string) =>
 
 export default function MerchantPortalPage() {
   const { t, locale, setLocale } = useHubPortalI18n();
+
+  const translateHubRole = (role: HubRole) => {
+    switch (role) {
+      case "owner":
+        return t("users.roleOwner");
+      case "manager":
+        return t("users.roleManager");
+      case "staff":
+        return t("users.roleStaff");
+      default:
+        return t("users.roleViewer");
+    }
+  };
   const [merchantToken, setMerchantToken] = useState("");
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -766,6 +778,25 @@ export default function MerchantPortalPage() {
   };
 
   const applyWorkspace = (workspace: MerchantWorkspace, user: HubUser | null) => {
+    try {
+      applyWorkspaceInner(workspace, user);
+    } catch (error) {
+      console.error("Hub workspace apply failed", error);
+      const serverSettings = normalizeWorkspaceSettings(workspace.settings);
+      const serverSections = ensureStaffMenuSections(workspace.menuSections ?? []);
+      setActiveHubId(workspace.hub.id);
+      setActiveHubSlug(workspace.hub.slug);
+      setActiveUser(resolveActiveHubUser(workspace, user));
+      setHubUsers(workspace.users);
+      setHubSettings(serverSettings);
+      setMenuSections(serverSections);
+      commitSavedHubSnapshot(serverSettings, serverSections);
+      menuWorkspaceReadyRef.current = true;
+      setSaveNotice("Some hub data could not be loaded in this browser. Showing the saved hub version.");
+    }
+  };
+
+  const applyWorkspaceInner = (workspace: MerchantWorkspace, user: HubUser | null) => {
     menuWorkspaceReadyRef.current = false;
     const resolvedUser = resolveActiveHubUser(workspace, user);
     setActiveHubId(workspace.hub.id);
@@ -1479,23 +1510,23 @@ export default function MerchantPortalPage() {
     }
 
     if (!hubAccess?.canManageUsers) {
-      setUserNotice("Only hub owners can create business logins.");
+      setUserNotice(t("errors.ownersOnlyCreateLogin"));
       return;
     }
 
     if (!newUser.fullName.trim() || !newUser.email.trim() || !newUser.username.trim() || !newUser.password.trim()) {
-      setUserNotice("Fill in name, email, username, and password before creating a business user.");
+      setUserNotice(t("errors.fillUserFields"));
       return;
     }
 
     const alreadyExists = hubUsers.some(
-      (user) =>
+      user =>
         user.username.toLowerCase() === newUser.username.trim().toLowerCase() ||
         user.email.toLowerCase() === newUser.email.trim().toLowerCase(),
     );
 
     if (alreadyExists) {
-      setUserNotice("That username or email is already in use for this hub.");
+      setUserNotice(t("errors.duplicateUser"));
       return;
     }
 
@@ -1510,7 +1541,7 @@ export default function MerchantPortalPage() {
 
       setHubUsers((current) => [createdUser, ...current]);
       setNewUser(initialCreateUserState);
-      setUserNotice(`User created. ${createdUser.username} can now sign in to this hub.`);
+      setUserNotice(t("users.userCreated", { username: createdUser.username }));
     } catch (error) {
       const message = friendlyCaughtError(error, "user_create");
       setUserNotice(message);
@@ -1523,14 +1554,14 @@ export default function MerchantPortalPage() {
     }
 
     if (!hubAccess?.canManageUsers) {
-      setUserNotice("Only hub owners can remove business logins.");
+      setUserNotice(t("errors.ownersOnlyCreateLogin"));
       return;
     }
 
     try {
       await deleteBusinessUser(merchantToken, activeHubId, userId);
       setHubUsers((current) => current.filter((user) => user.id !== userId));
-      setUserNotice(`${username} has been removed from this hub.`);
+      setUserNotice(t("users.userRemoved", { username }));
     } catch (error) {
       const message = friendlyCaughtError(error, "user_delete");
       setUserNotice(message);
@@ -2155,7 +2186,7 @@ export default function MerchantPortalPage() {
           <div className="hub-main-header-actions" style={{ display: "grid", gap: 12, justifyItems: "start" }}>
             {activeUser ? (
               <span style={activeUserChip}>
-                {activeUser.fullName} / {hubRoleLabel(activeUser.role)}
+                {activeUser.fullName} / {translateHubRole(activeUser.role)}
               </span>
             ) : null}
             <button type="button" className="hub-desktop-sign-out" style={secondaryButton} onClick={handleSignOut}>
@@ -2510,7 +2541,7 @@ export default function MerchantPortalPage() {
         activeHubSection === "deliveryRanges" ||
         activeHubSection === "settings" ||
         activeHubSection === "users" ? (
-        <section style={workbenchShell}>
+        <section className="he-hub-workbench" style={workbenchShell}>
           {activeHubSection === "menu" ? (
             <div style={workbenchNav}>
               <button type="button" style={activeHubPanel === "menu" ? workbenchTabActive : workbenchTab} onClick={() => setActiveHubPanel("menu")}>
@@ -2864,7 +2895,7 @@ export default function MerchantPortalPage() {
           ) : null}
 
           {activeHubPanel === "deliveryRanges" ? (
-            <section style={compactEditorCard}>
+            <section className="he-delivery-config-panel" style={compactEditorCard}>
               <div style={panelHeader}>
                 <p style={eyebrowDark}>{t("nav.deliveryRanges")}</p>
                 <h2 style={sectionTitle}>{t("delivery.deliveryCoverageShortTitle")}</h2>
@@ -2897,38 +2928,40 @@ export default function MerchantPortalPage() {
           ) : null}
 
           {activeHubPanel === "availability" ? (
-            <section style={compactEditorCard}>
-              <div style={panelHeader}>
-                <p style={eyebrowDark}>{t("delivery.openingTimesTitle")}</p>
-                <h2 style={sectionTitle}>{t("settings.storefrontAvailability")}</h2>
-                <p style={panelCopyDark}>{t("delivery.openingTimesHint")}</p>
+            <section className="he-availability-panel" style={compactEditorCard}>
+              <div className="he-availability-panel__intro">
+                <p className="he-availability-panel__eyebrow">{t("delivery.openingTimesTitle")}</p>
+                <h2 className="he-availability-panel__title">{t("settings.storefrontAvailability")}</h2>
+                <p className="he-availability-panel__copy">{t("delivery.openingTimesHint")}</p>
               </div>
 
               <HubOpeningHoursEditor
+                embedded
                 openingHours={hubSettings.openingHours}
                 readOnly={!hubAccess?.canEditWorkspace}
                 onChange={(openingHours) => handleHubFieldChange("openingHours", openingHours)}
               />
 
-              <div className="he-two-col" style={{ ...twoColumnGrid, marginTop: 18 }}>
-                <label style={field}>
-                  <span style={darkFieldLabel}>{t("settings.acceptingOrders")}</span>
+              <div className="he-availability-status">
+                <div className="he-availability-status__card">
+                  <span className="he-availability-status__label">{t("settings.acceptingOrders")}</span>
                   <select
-                    style={lightInput}
+                    className="he-availability-status__select"
                     value={hubSettings.acceptingOrders ? "accepting" : "paused"}
+                    disabled={!hubAccess?.canEditWorkspace}
                     onChange={(event) => handleHubFieldChange("acceptingOrders", event.target.value === "accepting")}
                   >
                     <option value="accepting">{t("settings.acceptingNow")}</option>
                     <option value="paused">{t("settings.pausedStopOrders")}</option>
                   </select>
-                  <p style={subtleInfo}>{t("settings.acceptingOrdersHint")}</p>
-                </label>
-                <div style={field}>
-                  <span style={darkFieldLabel}>{t("settings.listedOnHullEats")}</span>
-                  <p style={{ ...lightInput, margin: 0, padding: "12px 14px" }}>
+                  <p className="he-availability-status__hint">{t("settings.acceptingOrdersHint")}</p>
+                </div>
+                <div className="he-availability-status__card">
+                  <span className="he-availability-status__label">{t("settings.listedOnHullEats")}</span>
+                  <p className="he-availability-status__value">
                     {hubSettings.isOpen ? t("settings.listedLive") : t("settings.listedHidden")}
                   </p>
-                  <p style={subtleInfo}>{t("settings.listedOnHullEatsHint")}</p>
+                  <p className="he-availability-status__hint">{t("settings.listedOnHullEatsHint")}</p>
                 </div>
               </div>
             </section>
@@ -3039,12 +3072,13 @@ export default function MerchantPortalPage() {
           ) : null}
 
           {activeHubPanel === "account" ? (
-            <section style={compactEditorCard}>
+            <section className="he-hub-users-panel" style={compactEditorCard}>
               <div style={panelHeader}>
                 <p style={eyebrowDark}>{t("nav.users")}</p>
                 <h2 style={sectionTitle}>{t("users.usersPasswordTitle")}</h2>
                 <p style={panelCopyDark}>{t("users.usersPasswordCopy")}</p>
               </div>
+
               <div style={quickAddGrid}>
                 <div style={quickAddCard}>
                   <h3 style={quickAddTitle}>{t("users.accountSettings")}</h3>
@@ -3065,6 +3099,7 @@ export default function MerchantPortalPage() {
                   </label>
                   <p style={subtleInfo}>{t("common.portalLanguageHint")}</p>
                 </div>
+
                 <div style={quickAddCard}>
                   <h3 style={quickAddTitle}>{t("users.changePassword")}</h3>
                   <button type="button" style={secondaryButtonSmall} onClick={() => setShowAccountPasswords((current) => !current)}>
@@ -3077,15 +3112,89 @@ export default function MerchantPortalPage() {
                     {t("users.changePassword")}
                   </button>
                 </div>
+              </div>
+
+              {hubAccess?.canManageUsers ? (
                 <div style={quickAddCard}>
-                  <h3 style={quickAddTitle}>{t("users.hubUsers")}</h3>
-                  {hubUsers.map((user) => (
-                    <div key={user.id} style={listRow}>
-                      <span style={{ color: "#101216", fontWeight: 800 }}>{user.fullName}</span>
-                      <span style={subtleInfo}>{user.role}</span>
-                    </div>
-                  ))}
+                  <h3 style={quickAddTitle}>{t("users.createHubLogin")}</h3>
+                  <p style={{ ...subtleInfo, margin: "0 0 12px" }}>{t("users.createHubLoginCopy")}</p>
+                  <div style={{ display: "grid", gap: 12 }}>
+                    <label style={field}>
+                      <span style={darkFieldLabel}>{t("users.fullName")}</span>
+                      <input style={lightInput} value={newUser.fullName} onChange={(event) => setNewUser((current) => ({ ...current, fullName: event.target.value }))} />
+                    </label>
+                    <label style={field}>
+                      <span style={darkFieldLabel}>{t("users.email")}</span>
+                      <input type="email" style={lightInput} value={newUser.email} onChange={(event) => setNewUser((current) => ({ ...current, email: event.target.value }))} />
+                    </label>
+                    <label style={field}>
+                      <span style={darkFieldLabel}>{t("users.username")}</span>
+                      <input style={lightInput} value={newUser.username} onChange={(event) => setNewUser((current) => ({ ...current, username: event.target.value }))} />
+                    </label>
+                    <label style={field}>
+                      <span style={darkFieldLabel}>{t("users.role")}</span>
+                      <select style={lightInput} value={newUser.role} onChange={(event) => setNewUser((current) => ({ ...current, role: event.target.value as HubRole }))}>
+                        {creatableHubRoles.map((role) => (
+                          <option key={role} value={role}>
+                            {translateHubRole(role)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label style={field}>
+                      <span style={darkFieldLabel}>{t("users.newPassword")}</span>
+                      <span style={passwordFieldWrap}>
+                        <input
+                          type={showCreateUserPassword ? "text" : "password"}
+                          style={{ ...lightInput, paddingRight: 88 }}
+                          value={newUser.password}
+                          onChange={(event) => setNewUser((current) => ({ ...current, password: event.target.value }))}
+                          placeholder={t("users.passwordPlaceholder")}
+                        />
+                        <button type="button" style={passwordRevealButton} onClick={() => setShowCreateUserPassword((current) => !current)}>
+                          {showCreateUserPassword ? t("auth.hide") : t("auth.show")}
+                        </button>
+                      </span>
+                    </label>
+                    <ul className="he-hub-role-hints" aria-label={t("users.rolePermissions")}>
+                      <li>{t("users.roleOwnerHint")}</li>
+                      <li>{t("users.roleManagerHint")}</li>
+                      <li>{t("users.roleStaffHint")}</li>
+                      <li>{t("users.roleViewerHint")}</li>
+                    </ul>
+                    <button type="button" onClick={handleCreateUser} style={primaryButton}>
+                      {t("users.createBusinessUser")}
+                    </button>
+                  </div>
                 </div>
+              ) : (
+                <p style={panelCopyDark}>{t("users.ownersOnlyUsers")}</p>
+              )}
+
+              <div style={{ display: "grid", gap: 10 }}>
+                <h3 style={quickAddTitle}>{t("users.hubUsers")}</h3>
+                {hubUsers.length === 0 ? <div style={emptyStateCard}>{t("users.noHubUsersYet")}</div> : null}
+                {hubUsers.map((user) => (
+                  <article key={user.id} className="he-hub-user-card">
+                    <div className="he-hub-user-card__meta">
+                      <strong className="he-hub-user-card__name">{user.fullName}</strong>
+                      <span className="he-hub-user-card__email">{user.email}</span>
+                    </div>
+                    <div className="he-hub-user-card__actions">
+                      <span className="he-hub-role-badge">{translateHubRole(user.role)}</span>
+                      <span style={subtleInfo}>{t("users.usernameLine", { username: user.username })}</span>
+                      {hubAccess?.canManageUsers && user.id !== activeUser?.id ? (
+                        <button
+                          type="button"
+                          onClick={() => void handleDeleteUser(user.id, user.username)}
+                          style={{ ...secondaryButtonSmall, minHeight: 34, padding: "0 12px", fontSize: 13 }}
+                        >
+                          {t("users.removeUser")}
+                        </button>
+                      ) : null}
+                    </div>
+                  </article>
+                ))}
               </div>
             </section>
           ) : null}
@@ -3964,7 +4073,7 @@ export default function MerchantPortalPage() {
                   >
                     {creatableHubRoles.map((role) => (
                       <option key={role} value={role}>
-                        {hubRoleLabel(role)}
+                        {translateHubRole(role)}
                       </option>
                     ))}
                   </select>
@@ -4055,7 +4164,7 @@ export default function MerchantPortalPage() {
                       <span style={{ color: "#596271" }}>{user.email}</span>
                     </div>
                     <div style={{ display: "grid", gap: 8, justifyItems: "start" }}>
-                      <span style={darkBadge}>{hubRoleLabel(user.role)}</span>
+                      <span style={darkBadge}>{translateHubRole(user.role)}</span>
                       <span style={subtleInfo}>Username: {user.username}</span>
                       {hubAccess?.canManageUsers && user.id !== activeUser?.id ? (
                       <button

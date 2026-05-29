@@ -28,7 +28,7 @@ body {
   max-width: 100%;
   min-height: 100vh;
   min-height: 100dvh;
-  overflow-x: hidden;
+  overflow-x: clip;
   color: var(--he-ink);
   font-family: var(--font-manrope, "Manrope"), system-ui, sans-serif;
   background: var(--he-shell);
@@ -1616,7 +1616,7 @@ textarea {
   grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
   background: var(--he-shell);
   color: var(--he-ink);
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 .hub-sidebar {
@@ -2138,12 +2138,23 @@ textarea {
   gap: 16px;
 }
 
+.he-opening-hours--embedded {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
 .he-opening-hours__header {
   display: flex;
   flex-wrap: wrap;
   gap: 12px 20px;
   justify-content: space-between;
   align-items: flex-start;
+}
+
+.he-opening-hours__toolbar {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .he-opening-hours__title {
@@ -2157,6 +2168,7 @@ textarea {
   color: var(--he-muted);
   font-size: 0.88rem;
   max-width: 52ch;
+  line-height: 1.55;
 }
 
 .he-opening-hours__bulk {
@@ -2181,59 +2193,99 @@ textarea {
   cursor: not-allowed;
 }
 
-.he-opening-hours__table {
+.he-opening-hours__cards {
   display: grid;
-  gap: 8px;
-}
-
-.he-opening-hours__row {
-  display: grid;
-  grid-template-columns: minmax(96px, 1.1fr) minmax(72px, 0.7fr) minmax(120px, 1fr) minmax(120px, 1fr);
   gap: 10px;
-  align-items: center;
 }
 
-.he-opening-hours__row--head {
-  font-size: 0.78rem;
-  font-weight: 800;
-  color: var(--he-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+.he-opening-hours__day-card {
+  border-radius: 16px;
+  border: 1px solid var(--he-line);
+  background: var(--he-surface);
+  padding: 14px 16px;
+  display: grid;
+  gap: 12px;
+  box-shadow: 0 8px 22px rgba(15, 17, 21, 0.05);
+}
+
+.he-opening-hours__day-card.is-open {
+  border-color: rgba(7, 155, 200, 0.32);
+  background: linear-gradient(180deg, rgba(35, 205, 255, 0.07), #fff 72%);
+}
+
+.he-opening-hours__day-card.is-closed {
+  background: #f6f8fa;
+}
+
+.he-opening-hours__day-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .he-opening-hours__day {
   font-weight: 800;
   color: var(--he-ink);
+  font-size: 1rem;
 }
 
-.he-opening-hours__open-toggle {
+.he-opening-hours__toggle {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.88rem;
-  font-weight: 700;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--he-line);
+  background: #fff;
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--he-ink);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.he-opening-hours__toggle input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
+.he-opening-hours__times {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.he-opening-hours__time-field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.he-opening-hours__field-label {
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--he-muted);
 }
 
 .he-opening-hours__time-field input {
   width: 100%;
+  min-width: 0;
   border: 1px solid rgba(16, 18, 22, 0.14);
-  border-radius: 10px;
-  padding: 10px 12px;
+  border-radius: 12px;
+  padding: 11px 12px;
   font: inherit;
+  color: var(--he-ink);
+  background: #fff;
 }
 
 .he-opening-hours__time-control {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
-  align-items: center;
-}
-
-.he-opening-hours__mobile-label {
-  display: none;
-  font-size: 0.76rem;
-  font-weight: 800;
-  color: var(--he-muted);
 }
 
 .he-opening-hours__copy-btn {
@@ -2241,9 +2293,9 @@ textarea {
   background: #fff;
   color: var(--he-ink);
   border-radius: 10px;
-  padding: 10px 12px;
+  padding: 9px 12px;
   font-weight: 800;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   cursor: pointer;
   white-space: nowrap;
 }
@@ -2253,40 +2305,250 @@ textarea {
   cursor: not-allowed;
 }
 
+.he-opening-hours__closed-copy {
+  margin: 0;
+  color: var(--he-muted);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.he-availability-panel {
+  gap: 18px !important;
+  min-height: 0 !important;
+  overflow: visible;
+}
+
+.he-availability-panel__intro {
+  display: grid;
+  gap: 8px;
+}
+
+.he-availability-panel__eyebrow {
+  margin: 0;
+  color: #9b4a12;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.he-availability-panel__title {
+  margin: 0;
+  font-size: clamp(1.35rem, 2.4vw, 1.85rem);
+  font-family: Georgia, serif;
+  color: var(--he-ink);
+  line-height: 1.1;
+}
+
+.he-availability-panel__copy {
+  margin: 0;
+  color: var(--he-muted);
+  line-height: 1.6;
+  max-width: 62ch;
+}
+
+.he-availability-status {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+  margin-top: 4px;
+}
+
+.he-availability-status__card {
+  border-radius: 16px;
+  border: 1px solid var(--he-line);
+  background: #fff;
+  padding: 16px;
+  display: grid;
+  gap: 10px;
+  box-shadow: 0 8px 22px rgba(15, 17, 21, 0.04);
+}
+
+.he-availability-status__label {
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--he-muted);
+}
+
+.he-availability-status__select,
+.he-availability-status__value {
+  width: 100%;
+  border: 1px solid rgba(16, 18, 22, 0.14);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font: inherit;
+  color: var(--he-ink);
+  background: #fff;
+}
+
+.he-availability-status__hint {
+  margin: 0;
+  color: var(--he-muted);
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.he-hub-workbench {
+  overflow: visible;
+}
+
+.he-delivery-config-panel {
+  overflow: visible;
+}
+
+.he-delivery-map-anchor {
+  position: relative;
+}
+
+.he-delivery-map-sentinel {
+  height: 1px;
+  margin: 0;
+  pointer-events: none;
+}
+
+.he-delivery-map-sticky-placeholder {
+  width: 100%;
+  pointer-events: none;
+}
+
+.he-delivery-map-sticky {
+  position: -webkit-sticky;
+  position: sticky;
+  top: var(--hub-map-sticky-top, 0);
+  z-index: 25;
+  margin-bottom: 16px;
+  padding-bottom: 10px;
+  margin-left: -2px;
+  margin-right: -2px;
+  background: linear-gradient(180deg, rgba(255, 254, 252, 0.98) 0%, rgba(255, 254, 252, 0.97) 82%, rgba(255, 254, 252, 0) 100%);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  align-self: start;
+}
+
 @media (max-width: 960px) {
-  .he-opening-hours__row {
-    grid-template-columns: 1fr 1fr;
-    grid-template-areas:
-      "day day"
-      "open open"
-      "opens closes";
+  .he-delivery-map-sticky.is-pinned {
+    position: fixed;
+    top: var(--hub-map-sticky-top, 0);
+    left: 0;
+    right: 0;
+    z-index: 30;
+    width: 100%;
+    max-width: 100vw;
+    margin-left: 0;
+    margin-right: 0;
+    padding-left: clamp(14px, 4vw, 24px);
+    padding-right: clamp(14px, 4vw, 24px);
+    box-sizing: border-box;
   }
+}
 
-  .he-opening-hours__row .he-opening-hours__day {
-    grid-area: day;
+@media (min-width: 961px) {
+  :root {
+    --hub-map-sticky-top: 0px;
   }
+}
 
-  .he-opening-hours__row .he-opening-hours__open-toggle {
-    grid-area: open;
+.he-delivery-map-frame {
+  width: 100%;
+  min-height: 280px;
+  height: min(46vh, 420px);
+  border-radius: 18px;
+  border: 1px solid rgba(15, 17, 21, 0.12);
+  overflow: hidden;
+  background: #e8edf2;
+  box-shadow: 0 14px 28px rgba(15, 17, 21, 0.08);
+}
+
+.he-hub-users-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.he-hub-user-card {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid var(--he-line);
+  background: #fff;
+  box-shadow: 0 8px 20px rgba(15, 17, 21, 0.04);
+}
+
+.he-hub-user-card__meta {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.he-hub-user-card__name {
+  color: var(--he-ink);
+  font-size: 1rem;
+}
+
+.he-hub-user-card__email {
+  color: var(--he-muted);
+  font-size: 0.9rem;
+  word-break: break-word;
+}
+
+.he-hub-user-card__actions {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+
+.he-hub-role-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(15, 17, 21, 0.06);
+  color: var(--he-ink);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.he-hub-role-hints {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.he-hub-role-hints li {
+  color: var(--he-muted);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+@media (max-width: 960px) {
+  :root {
+    --hub-map-sticky-top: calc(env(safe-area-inset-top, 0px) + 57px);
   }
+}
 
-  .he-opening-hours__row .he-opening-hours__time-field:first-of-type {
-    grid-area: opens;
-  }
-
-  .he-opening-hours__row .he-opening-hours__time-field:last-of-type {
-    grid-area: closes;
-  }
-
-  .he-opening-hours__row--head {
-    display: none;
-  }
-
-  .he-opening-hours__time-control {
+@media (max-width: 720px) {
+  .he-opening-hours__times {
     grid-template-columns: 1fr;
   }
 
-  .he-opening-hours__mobile-label {
-    display: block;
+  .he-opening-hours__day-head {
+    align-items: flex-start;
+  }
+
+  .he-availability-status {
+    grid-template-columns: 1fr;
+  }
+
+  .he-delivery-map-frame {
+    min-height: 240px;
+    height: min(42vh, 360px);
   }
 }
