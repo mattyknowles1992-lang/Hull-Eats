@@ -292,11 +292,16 @@ export const getBasketLineDetails = (item: MenuItem, selection: BasketCustomisat
   };
 };
 
-const buildLineSignature = (menuItemId: string, selection: BasketCustomisationSelection) =>
+const buildLineSignature = (
+  menuItemId: string,
+  selection: BasketCustomisationSelection,
+  notes?: string,
+) =>
   JSON.stringify({
     menuItemId,
     selectedOptionQuantities: normaliseOptionQuantities(selection.selectedOptionQuantities),
     removedComponentIds: sortValues(selection.removedComponentIds),
+    notes: notes?.trim() || "",
   });
 
 export const loadBasket = (storeSlug: string): StoreBasket | null => {
@@ -352,6 +357,7 @@ export const addConfiguredItemToBasket = (
   store: Pick<StoreBasket, "storeId" | "storeSlug" | "storeName">,
   item: MenuItem,
   selection: BasketCustomisationSelection,
+  options?: { quantity?: number; notes?: string },
 ) => {
   const current =
     loadBasket(store.storeSlug) ?? {
@@ -359,20 +365,23 @@ export const addConfiguredItemToBasket = (
       items: [],
     };
 
+  const quantity = Math.max(1, Math.floor(options?.quantity ?? 1));
+  const notes = options?.notes?.trim() || undefined;
   const details = getBasketLineDetails(item, selection);
-  const signature = buildLineSignature(item.id, selection);
+  const signature = buildLineSignature(item.id, selection, notes);
   const existing = current.items.find((entry) => entry.lineId === signature);
 
   if (existing) {
-    existing.quantity += 1;
+    existing.quantity += quantity;
   } else {
     current.items.push({
       lineId: signature,
       menuItemId: item.id,
       name: item.name,
-      quantity: 1,
+      quantity,
       unitPrice: Number((item.price + details.customisationTotal).toFixed(2)),
       requiresIdVerification: item.requiresIdVerification ?? false,
+      notes,
       selectedOptionQuantities: normaliseOptionQuantities(selection.selectedOptionQuantities),
       removedComponentIds: sortValues(selection.removedComponentIds),
       selectedOptions: details.selectedOptions,

@@ -28,6 +28,9 @@ import {
   isHubMenuMenuBoardsConfigSection,
   isHubMenuStaffLibrarySection,
   isHubMenuSectionPizza,
+  getMenuItemCustomerMinPrice,
+  isMenuItemPriceListable,
+  menuItemUsesSizePricing,
 } from "@hull-eats/types";
 import { buildPizzaSizeOptionGroupFromRows } from "./pizza-size-draft";
 
@@ -147,7 +150,7 @@ export function getDrinkSizePrices(item: MenuItem): DrinkSizePrices {
   const sizeGroup = item.optionGroups.find((group) => group.isRequired && /size/i.test(group.name));
   const result: DrinkSizePrices = { ml330: "", ml500: "" };
   if (!sizeGroup) {
-    if (item.price > 0 && !itemUsesSizePricing(item)) {
+    if (item.price > 0 && !menuItemUsesSizePricing(item)) {
       result.ml330 = String(item.price);
     }
     return result;
@@ -712,10 +715,21 @@ export function formatMenuMoney(value: number) {
 }
 
 /** True when the item already has a required size choice group (prices live on each size). */
-export function itemUsesSizePricing(item: MenuItem): boolean {
-  return item.optionGroups.some(
-    (group) => group.isRequired && /size/i.test(group.name) && group.options.some((option) => option.label.trim()),
-  );
+export { menuItemUsesSizePricing as itemUsesSizePricing, getMenuItemCustomerMinPrice, isMenuItemPriceListable };
+
+/** Default list price when merchants add extras from suggestions (avoids accidental £0). */
+export const HUB_DEFAULT_EXTRA_LIBRARY_PRICE = 2;
+
+/** Default extra-portion price for sauces added from suggestions when no price is entered. */
+export const HUB_DEFAULT_SAUCE_EXTRA_LIBRARY_PRICE = 0.5;
+
+export function parseHubMenuPriceInput(raw: string, fallback: number): number {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return fallback;
+  }
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
 /** Apply a template but keep an existing size group from the pizza size builder. */
@@ -1202,6 +1216,10 @@ export function computeMenuPublishIssues(sections: HubMenuSection[]): string[] {
 
       if (Number.isNaN(item.price) || item.price < 0) {
         issues.push(`"${item.name}" needs a valid price.`);
+      } else if (!isMenuItemPriceListable(item)) {
+        issues.push(
+          `"${item.name.trim() || "Item"}" is live at £0.00 — set a price before publishing (customers cannot order £0 items).`,
+        );
       }
 
       for (const group of item.optionGroups) {
@@ -2178,6 +2196,90 @@ export function applyExtraToppingsToItem(
   };
 }
 
+export function updateExtrasLibraryItemPrice(
+  sections: HubMenuSection[],
+  extrasSectionId: string,
+  itemId: string,
+  price: number,
+): HubMenuSection[] {
+  const parsed = Math.max(0, Number(price) || 0);
+  return sections.map((section) => {
+    if (section.id === extrasSectionId) {
+      return {
+        ...section,
+        items: section.items.map((item) => (item.id === itemId ? { ...item, price: parsed } : item)),
+      };
+    }
+    if (isHubMenuStaffLibrarySection(section)) {
+      return section;
+    }
+    return {
+      ...section,
+      items: section.items.map((item) => syncExtraOptionPriceOnItem(item, itemId, parsed)),
+    };
+  });
+}
+
+export function updateSaucesLibraryItemPrice(
+  sections: HubMenuSection[],
+  saucesSectionId: string,
+  itemId: string,
+  extraPrice: number,
+): HubMenuSection[] {
+  const parsed = Math.max(0, Number(extraPrice) || 0);
+  return sections.map((section) => {
+    if (section.id === saucesSectionId) {
+      return {
+        ...section,
+        items: section.items.map((item) => (item.id === itemId ? { ...item, price: parsed } : item)),
+      };
+    }
+    if (isHubMenuStaffLibrarySection(section)) {
+      return section;
+    }
+    return {
+      ...section,
+      items: section.items.map((item) => syncSauceExtraOptionPriceOnItem(item, itemId, parsed)),
+    };
+  });
+}
+
+function syncExtraOptionPriceOnItem(item: MenuItem, extraId: string, price: number): MenuItem {
+  let changed = false;
+  const optionGroups = item.optionGroups.map((group) => {
+    if (!isExtrasToppingsGroup(group)) {
+      return group;
+    }
+    const options = group.options.map((option) => {
+      if (option.id !== extraId) {
+        return option;
+      }
+      changed = true;
+      return { ...option, priceDelta: price };
+    });
+    return { ...group, options };
+  });
+  return changed ? { ...item, optionGroups } : item;
+}
+
+function syncSauceExtraOptionPriceOnItem(item: MenuItem, sauceId: string, extraPrice: number): MenuItem {
+  let changed = false;
+  const optionGroups = item.optionGroups.map((group) => {
+    if (!SAUCES_EXTRA_MARKER.test(group.description ?? "")) {
+      return group;
+    }
+    const options = group.options.map((option) => {
+      if (option.id !== sauceId) {
+        return option;
+      }
+      changed = true;
+      return { ...option, priceDelta: extraPrice };
+    });
+    return { ...group, options };
+  });
+  return changed ? { ...item, optionGroups } : item;
+}
+
 export function getItemSauceSelection(item: MenuItem): {
   enabled: boolean;
   includedIds: Set<string>;
@@ -2501,11 +2603,24 @@ export function listItemOptionBlocks(item: MenuItem): ItemOptionBlock[] {
       continue;
     }
 
-    if (/^Crust \(/i.test(group.name)) {
+    if ((group.description ?? "").trim().startsWith("__HULL_PIZZA_BASE__")) {
+      blocks.push({
+        id: `block-pizza-base-${group.id}`,
+        kind: "custom",
+        label: "Base",
+        groupIds: [group.id],
+        canReorder: true,
+        canRemove: true,
+      });
+      index += 1;
+      continue;
+    }
+
+    if ((group.description ?? "").trim().startsWith("__HULL_PIZZA_CRUST__") || /^Crust \(/i.test(group.name)) {
       blocks.push({
         id: `block-crust-${group.id}`,
         kind: "crust",
-        label: group.name.trim(),
+        label: group.name.trim() || "Crust",
         groupIds: [group.id],
         canReorder: false,
         canRemove: false,
@@ -2662,13 +2777,8 @@ export function buildMenuPreviewCategories(sections: HubMenuSection[]): MenuPrev
 }
 
 export function getMenuItemPriceLabel(item: MenuItem): string {
-  if (itemUsesSizePricing(item)) {
-    const sizeGroup = item.optionGroups.find((group) => group.isRequired && /size/i.test(group.name));
-    const optionPrices = (sizeGroup?.options ?? [])
-      .filter((option) => option.label.trim())
-      .map((option) => item.price + option.priceDelta);
-    const minPrice = optionPrices.length > 0 ? Math.min(...optionPrices) : item.price;
-    return `From ${formatMenuMoney(minPrice)}`;
+  if (menuItemUsesSizePricing(item)) {
+    return `From ${formatMenuMoney(getMenuItemCustomerMinPrice(item))}`;
   }
 
   return formatMenuMoney(item.price);

@@ -127,6 +127,8 @@ import {
   switchToMainMenu,
   switchToMenuBoard,
   updateMenuBoardInConfig,
+  updateExtrasLibraryItemPrice,
+  updateSaucesLibraryItemPrice,
   type ComposeProductLine,
   type HubMenuBoardKind,
   type HubMenuBoardPublishMode,
@@ -2621,6 +2623,14 @@ export default function MerchantPortalPage() {
                   ),
                 );
               }}
+              onUpdateExtraToppingPrice={(itemId, price) => {
+                if (!extrasSection) {
+                  return;
+                }
+                updateMenuSections((current) =>
+                  updateExtrasLibraryItemPrice(current, extrasSection.id, itemId, price),
+                );
+              }}
               onRemoveExtraTopping={(itemId) => {
                 if (!extrasSection) {
                   return;
@@ -2642,6 +2652,14 @@ export default function MerchantPortalPage() {
                   current.map((section) =>
                     section.id === saucesSection.id ? { ...section, items: [...section.items, item] } : section,
                   ),
+                );
+              }}
+              onUpdateSaucePrice={(itemId, extraPrice) => {
+                if (!saucesSection) {
+                  return;
+                }
+                updateMenuSections((current) =>
+                  updateSaucesLibraryItemPrice(current, saucesSection.id, itemId, extraPrice),
                 );
               }}
               onRemoveSauce={(itemId) => {

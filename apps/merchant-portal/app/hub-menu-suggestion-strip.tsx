@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { MENU_SUGGESTION_CHIP_BATCH, normalizeMenuSuggestionName } from "./hub-menu-pizza-presets";
 
 type Props = {
-  title: string;
+  title?: string;
   suggestions: readonly string[];
   existingNames: ReadonlySet<string>;
   normalizeName?: (name: string) => string;
@@ -58,11 +58,17 @@ export function HubMenuSuggestionStrip({
   };
 
   return (
-    <section className="hub-menu-pizza-builder__popular">
-      <div className="hub-menu-pizza-builder__popular-head">
-        <strong>{title}</strong>
-        <span className="hub-menu-suggestion-strip__hint">Top of list first — use × to see the next suggestion</span>
-      </div>
+    <section className="hub-menu-pizza-builder__popular hub-menu-suggestion-strip">
+      {title ? (
+        <div className="hub-menu-pizza-builder__popular-head">
+          <strong>{title}</strong>
+          <span className="hub-menu-suggestion-strip__hint">Top of list first — use × to see the next suggestion</span>
+        </div>
+      ) : (
+        <p className="hub-menu-suggestion-strip__hint hub-menu-suggestion-strip__hint--solo">
+          Suggested — + to add, × for next
+        </p>
+      )}
       <div className="hub-menu-pizza-builder__popular-row">
         {visibleSuggestions.map((name) => (
           <div key={name} className="hub-menu-suggestion-strip__chip">

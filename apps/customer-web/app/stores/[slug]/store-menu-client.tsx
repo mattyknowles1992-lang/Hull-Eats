@@ -41,6 +41,8 @@ import {
 } from "../../../src/lib/fulfillment-preference";
 import { getBrowserSupabaseClient } from "../../../src/lib/supabase-browser";
 import { fetchMarketplaceStore } from "../../../src/lib/marketplace";
+import { StoreMenuAddSheet } from "./store-menu-add-sheet";
+import { usesItemAddSheet } from "./store-menu-add-sheet-helpers";
 
 type MenuCategory = {
   id: string;
@@ -204,6 +206,8 @@ export function StoreMenuClient({
   const [basket, setBasket] = useState<StoreBasket | null>(null);
   const [activeItem, setActiveItem] = useState<MenuItem | null>(null);
   const [selection, setSelection] = useState<BasketCustomisationSelection | null>(null);
+  const [addQuantity, setAddQuantity] = useState(1);
+  const [specialInstructions, setSpecialInstructions] = useState("");
   const [addedMessage, setAddedMessage] = useState("");
   const [storeIsOpenNow, setStoreIsOpenNow] = useState(storeAcceptsOrders);
   const [isClient, setIsClient] = useState(false);
@@ -524,6 +528,8 @@ export function StoreMenuClient({
 
     setActiveItem(item);
     setSelection(getDefaultCustomisationSelection(item));
+    setAddQuantity(1);
+    setSpecialInstructions("");
   };
 
   const toggleCategoryExpanded = (categoryId: string) => {
@@ -535,6 +541,8 @@ export function StoreMenuClient({
   const closeCustomise = () => {
     setActiveItem(null);
     setSelection(null);
+    setAddQuantity(1);
+    setSpecialInstructions("");
   };
 
   const toggleRemovedComponent = (componentId: string) => {
@@ -624,6 +632,7 @@ export function StoreMenuClient({
       },
       activeItem,
       selection,
+      { quantity: addQuantity, notes: specialInstructions },
     );
     setAddedMessage(`${activeItem.name} added to your basket`);
     setAddedItemId(activeItem.id);
@@ -1035,6 +1044,22 @@ export function StoreMenuClient({
 
       {isClient && activeItem && selection
         ? createPortal(
+            usesItemAddSheet(activeItem) ? (
+              <StoreMenuAddSheet
+                item={activeItem}
+                selection={selection}
+                visibleGroups={visibleOptionGroups}
+                addQuantity={addQuantity}
+                specialInstructions={specialInstructions}
+                itemTotal={activeItem.price + activeDetails.customisationTotal}
+                validationErrors={selectionValidationErrors}
+                onClose={closeCustomise}
+                onConfirm={confirmCustomisation}
+                onSpecialInstructionsChange={setSpecialInstructions}
+                onAddQuantityChange={setAddQuantity}
+                onSetOptionQuantity={setOptionQuantity}
+              />
+            ) : (
         <div className="customise-modal-backdrop" onClick={closeCustomise}>
           <section className="customise-modal" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="customise-modal-title">
             <div className="customise-modal-scroll">
@@ -1228,7 +1253,8 @@ export function StoreMenuClient({
               </button>
             </div>
           </section>
-        </div>,
+        </div>
+            ),
             document.body,
           )
         : null}

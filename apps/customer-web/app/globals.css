@@ -5002,6 +5002,177 @@ button.filter-pill {
   color: #f7fbff;
 }
 
+/* Simple add-to-basket sheet — reference layout, Hull Eats styling */
+.customise-modal--add-sheet {
+  max-width: min(480px, 100%);
+}
+
+.customise-modal--add-sheet .customise-modal-scroll {
+  gap: 0;
+  padding: 0;
+}
+
+.add-sheet-header {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(15, 17, 21, 0.08);
+  background: rgba(255, 255, 255, 0.98);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.add-sheet-back {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.add-sheet-title {
+  margin: 0;
+  text-align: center;
+  font-family: var(--font-heading), serif;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.add-sheet-intro {
+  margin: 0;
+  padding: 12px 16px;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.45;
+  border-bottom: 1px solid rgba(15, 17, 21, 0.06);
+}
+
+.add-sheet-section {
+  border-bottom: 1px solid rgba(15, 17, 21, 0.08);
+}
+
+.add-sheet-section-title {
+  margin: 0;
+  padding: 14px 16px 8px;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--ink-strong);
+}
+
+.add-sheet-options {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.add-sheet-option {
+  border-top: 1px solid rgba(15, 17, 21, 0.06);
+}
+
+.add-sheet-option-label {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  cursor: pointer;
+  min-height: 48px;
+}
+
+.add-sheet-option.is-selected .add-sheet-option-label {
+  background: rgba(18, 183, 232, 0.06);
+}
+
+.add-sheet-checkbox {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--brand-blue-dark);
+}
+
+.add-sheet-option-name {
+  font-weight: 700;
+  color: var(--ink-strong);
+  font-size: 0.92rem;
+}
+
+.add-sheet-option-price {
+  font-weight: 700;
+  color: var(--muted);
+  font-size: 0.88rem;
+  white-space: nowrap;
+}
+
+.add-sheet-section--field {
+  padding: 0 16px 16px;
+}
+
+.add-sheet-section--field .add-sheet-section-title {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.add-sheet-textarea {
+  width: 100%;
+  min-height: 72px;
+  resize: vertical;
+}
+
+.add-sheet-quantity {
+  width: 100%;
+  justify-content: space-between;
+  padding: 4px 0;
+}
+
+.add-sheet-quantity .glass-button {
+  min-width: 48px;
+  min-height: 48px;
+}
+
+.add-sheet-errors {
+  margin: 0;
+  padding: 12px 16px;
+  color: #9b1c1c;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.add-sheet-footer {
+  padding: 12px 16px max(14px, env(safe-area-inset-bottom, 12px));
+}
+
+.add-sheet-submit {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+}
+
+.add-sheet-submit-price {
+  font-weight: 900;
+  padding-right: 12px;
+  border-right: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.add-sheet-submit-label {
+  text-align: center;
+  font-weight: 900;
+}
+
+@media (max-width: 540px) {
+  .customise-modal--add-sheet {
+    width: 100%;
+    max-width: none;
+    border-radius: 22px 22px 0 0;
+    max-height: min(92dvh, 100%);
+  }
+}
+
 .checkout-copy {
   margin: 10px 0 0;
   color: var(--muted);

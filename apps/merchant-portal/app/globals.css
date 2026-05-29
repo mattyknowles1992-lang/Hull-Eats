@@ -911,6 +911,64 @@ textarea {
   gap: 10px;
 }
 
+.hub-menu-pizza-choices-panel {
+  display: grid;
+  gap: 20px;
+  margin-bottom: 8px;
+}
+
+.hub-menu-pizza-choices {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid var(--he-line);
+  background: #fff;
+}
+
+.hub-menu-pizza-choices__head strong {
+  display: block;
+  font-size: 0.92rem;
+}
+
+.hub-menu-pizza-choices__head p {
+  margin: 6px 0 0;
+  font-size: 0.84rem;
+  color: #5b6470;
+  line-height: 1.45;
+}
+
+.hub-menu-pizza-choices__empty {
+  margin: 0;
+  font-size: 0.84rem;
+  color: #5b6470;
+}
+
+.hub-menu-pizza-choices__apply-btn {
+  justify-self: start;
+  border-radius: 10px;
+  border: 1px solid rgba(7, 155, 200, 0.35);
+  background: rgba(35, 205, 255, 0.12);
+  color: #064f68;
+  font-weight: 800;
+  padding: 10px 14px;
+  cursor: pointer;
+}
+
+.hub-menu-pizza-choices__apply-btn--all {
+  margin-top: -4px;
+}
+
+.hub-menu-suggestion-strip__hint--solo {
+  margin: 0 0 8px;
+  font-size: 0.78rem;
+  color: #5b6470;
+}
+
+.hub-menu-suggestion-strip .hub-menu-pizza-builder__popular-row {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .hub-menu-pizza-builder__table-wrap {
   overflow-x: auto;
 }
@@ -1378,15 +1436,52 @@ textarea {
 }
 
 .hub-menu-extras-library__row {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) auto minmax(140px, 1.2fr) auto;
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
   border-radius: 10px;
   background: #fafbfc;
   border: 1px solid var(--he-line);
+}
+
+.hub-menu-extras-library__row-name {
+  min-width: 0;
+}
+
+.hub-menu-extras-library__price-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #3d4652;
+}
+
+.hub-menu-extras-library__price-field input {
+  width: 88px;
+  border-radius: 10px;
+  border: 1px solid rgba(15, 17, 21, 0.14);
+  padding: 8px 10px;
+  font-size: 0.9rem;
+}
+
+.hub-menu-extras-library__zero-note {
+  grid-column: 1 / -1;
+  font-size: 0.78rem;
+  color: #9b1c1c;
+  font-weight: 700;
+}
+
+.hub-menu-extras-library__remove-btn {
+  border: none;
+  background: transparent;
+  color: #b42318;
+  font-weight: 800;
+  cursor: pointer;
+  font-size: 0.8rem;
+  justify-self: end;
 }
 
 .hub-menu-extras-library__add-btn {

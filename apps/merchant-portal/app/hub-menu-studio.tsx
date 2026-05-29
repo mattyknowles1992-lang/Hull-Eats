@@ -135,8 +135,10 @@ type HubMenuStudioProps = {
   onUpdateBurgerPartsSection: (updater: (section: HubMenuSection) => HubMenuSection) => void;
   onUpdateKebabPartsSection: (updater: (section: HubMenuSection) => HubMenuSection) => void;
   onAddExtraTopping: (item: MenuItem) => void;
+  onUpdateExtraToppingPrice: (itemId: string, price: number) => void;
   onRemoveExtraTopping: (itemId: string) => void;
   onAddSauce: (item: MenuItem) => void;
+  onUpdateSaucePrice: (itemId: string, extraPrice: number) => void;
   onRemoveSauce: (itemId: string) => void;
   onAddMealTemplate: (item: MenuItem) => void;
   onUpdateMealTemplate: (itemId: string, updater: (item: MenuItem) => MenuItem) => void;
@@ -214,8 +216,10 @@ export function HubMenuStudio({
   onUpdateBurgerPartsSection,
   onUpdateKebabPartsSection,
   onAddExtraTopping,
+  onUpdateExtraToppingPrice,
   onRemoveExtraTopping,
   onAddSauce,
+  onUpdateSaucePrice,
   onRemoveSauce,
   onAddMealTemplate,
   onUpdateMealTemplate,
@@ -481,6 +485,7 @@ export function HubMenuStudio({
                   <HubMenuExtrasLibrary
                     section={extrasSection}
                     onAddTopping={onAddExtraTopping}
+                    onUpdateToppingPrice={onUpdateExtraToppingPrice}
                     onRemoveTopping={onRemoveExtraTopping}
                     readOnly={studioLocked}
                   />
@@ -488,6 +493,7 @@ export function HubMenuStudio({
                     <HubMenuSaucesLibrary
                       section={saucesSection}
                       onAddSauce={onAddSauce}
+                      onUpdateSaucePrice={onUpdateSaucePrice}
                       onRemoveSauce={onRemoveSauce}
                       readOnly={studioLocked}
                     />

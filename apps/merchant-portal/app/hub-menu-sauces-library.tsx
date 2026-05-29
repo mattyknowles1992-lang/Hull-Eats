@@ -6,16 +6,28 @@ import type { HubMenuSection, MenuItem } from "@hull-eats/types";
 
 import { HUB_SAUCE_SUGGESTIONS, normalizeExtraSuggestionName } from "./hub-menu-extras-presets";
 import { HubMenuSuggestionStrip } from "./hub-menu-suggestion-strip";
-import { buildLocalMenuItem, formatMenuMoney } from "./menu-studio-core";
+import {
+  buildLocalMenuItem,
+  formatMenuMoney,
+  HUB_DEFAULT_SAUCE_EXTRA_LIBRARY_PRICE,
+  parseHubMenuPriceInput,
+} from "./menu-studio-core";
 
 type HubMenuSaucesLibraryProps = {
   section: HubMenuSection;
   onAddSauce: (item: MenuItem) => void;
+  onUpdateSaucePrice: (itemId: string, extraPrice: number) => void;
   onRemoveSauce: (itemId: string) => void;
   readOnly?: boolean;
 };
 
-export function HubMenuSaucesLibrary({ section, onAddSauce, onRemoveSauce, readOnly = false }: HubMenuSaucesLibraryProps) {
+export function HubMenuSaucesLibrary({
+  section,
+  onAddSauce,
+  onUpdateSaucePrice,
+  onRemoveSauce,
+  readOnly = false,
+}: HubMenuSaucesLibraryProps) {
   const [name, setName] = useState("");
   const [extraPrice, setExtraPrice] = useState("");
 
@@ -24,17 +36,17 @@ export function HubMenuSaucesLibrary({ section, onAddSauce, onRemoveSauce, readO
     [section.items],
   );
 
-  const addSauce = (label: string) => {
+  const addSauce = (label: string, priceValue = extraPrice) => {
     if (!label.trim()) {
       return;
     }
-    const parsedPrice = Number(extraPrice);
+    const parsedPrice = parseHubMenuPriceInput(priceValue, HUB_DEFAULT_SAUCE_EXTRA_LIBRARY_PRICE);
     onAddSauce(
       buildLocalMenuItem({
         categoryId: section.id,
         name: label.trim(),
         description: "",
-        price: Number.isFinite(parsedPrice) && parsedPrice >= 0 ? parsedPrice : 0,
+        price: parsedPrice,
         requiresIdVerification: false,
         isActive: true,
         components: [],
@@ -54,8 +66,8 @@ export function HubMenuSaucesLibrary({ section, onAddSauce, onRemoveSauce, readO
       <div>
         <strong style={{ fontSize: "0.95rem" }}>Sauces list</strong>
         <p style={{ margin: "6px 0 0", fontSize: "0.84rem", color: "#5b6470", lineHeight: 1.45 }}>
-          Add each sauce once. Suggestions run in order — + to add, × to skip. On products, tick which sauces customers
-          can pick (one included) and which can be added as paid extras.
+          Add each sauce once. Included sauce picks stay free on products — edit the extra portion price below (suggestions
+          default to {formatMenuMoney(HUB_DEFAULT_SAUCE_EXTRA_LIBRARY_PRICE)}).
         </p>
       </div>
 
@@ -82,7 +94,7 @@ export function HubMenuSaucesLibrary({ section, onAddSauce, onRemoveSauce, readO
               min={0}
               value={extraPrice}
               onChange={(e) => setExtraPrice(e.target.value)}
-              placeholder="0.50"
+              placeholder={HUB_DEFAULT_SAUCE_EXTRA_LIBRARY_PRICE.toFixed(2)}
             />
           </label>
           <button type="button" className="hub-menu-extras-library__add-btn" onClick={handleAdd}>
@@ -97,23 +109,28 @@ export function HubMenuSaucesLibrary({ section, onAddSauce, onRemoveSauce, readO
         <ul className="hub-menu-extras-library__list">
           {section.items.map((item) => (
             <li key={item.id} className="hub-menu-extras-library__row">
-              <span>
+              <span className="hub-menu-extras-library__row-name">
                 <strong>{item.name}</strong>
-                {Number(item.price) > 0 ? <> — extra {formatMenuMoney(Number(item.price))}</> : <> — included pick free</>}
               </span>
+              {readOnly ? (
+                <span>
+                  {Number(item.price) > 0 ? <>extra {formatMenuMoney(Number(item.price))}</> : <>included pick free</>}
+                </span>
+              ) : (
+                <label className="hub-menu-extras-library__price-field">
+                  <span>Extra £</span>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min={0}
+                    value={item.price}
+                    aria-label={`Extra portion price for ${item.name}`}
+                    onChange={(e) => onUpdateSaucePrice(item.id, Number(e.target.value) || 0)}
+                  />
+                </label>
+              )}
               {readOnly ? null : (
-                <button
-                  type="button"
-                  style={{
-                    border: "none",
-                    background: "transparent",
-                    color: "#b42318",
-                    fontWeight: 800,
-                    cursor: "pointer",
-                    fontSize: "0.8rem",
-                  }}
-                  onClick={() => onRemoveSauce(item.id)}
-                >
+                <button type="button" className="hub-menu-extras-library__remove-btn" onClick={() => onRemoveSauce(item.id)}>
                   Remove
                 </button>
               )}

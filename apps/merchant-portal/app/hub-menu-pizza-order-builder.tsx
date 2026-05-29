@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import type { HubMenuSection, MenuItem } from "@hull-eats/types";
 
 import { HubMenuBulkPastePanel } from "./hub-menu-bulk-paste-panel";
+import { HubMenuPizzaCategoryChoicesPanel } from "./hub-menu-pizza-category-choices";
 import {
   formatPizzaMenuSuggestionName,
   normalizeMenuSuggestionName,
@@ -548,6 +549,8 @@ export function HubMenuPizzaOrderBuilder({ section, readOnly = false, onPatchSec
         placeholder={`Paste pizza names — one per line — e.g.\nMargherita\nPepperoni from £9.50`}
         onApply={(rows) => applyBulkRows(rows, "pizza")}
       />
+
+      <HubMenuPizzaCategoryChoicesPanel section={section} readOnly={readOnly} onPatchSection={onPatchSection} />
 
       {PIZZA_MENU_ROW_KINDS.map(({ id, label }) => (
         <PizzaCategoryBlock

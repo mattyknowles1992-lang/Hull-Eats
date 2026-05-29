@@ -6,6 +6,7 @@ import {
   applyStorefrontPromotionsToMenu,
   customerFacingOptionGroupDescription,
   decodeHubMenuCategoryDescription,
+  isMenuItemPriceListable,
   normaliseDeliveryPricingForServe,
   getCategoryCustomerDescription,
   isStoreTakingOrdersNow,
@@ -356,7 +357,7 @@ export const findLiveMarketplaceMenu = async (slugOrId: string): Promise<Marketp
         description:
           getCategoryCustomerDescription({ description: section.description, presetKey: decoded.presetKey }) || undefined,
         subGroups: subGroupDefs.map((group) => group.label),
-        items: section.menuItems.map((item) => mapMenuItem(item)),
+        items: section.menuItems.map((item) => mapMenuItem(item)).filter((item) => isMenuItemPriceListable(item)),
       };
     })
     .filter((category) => category.items.length > 0);
