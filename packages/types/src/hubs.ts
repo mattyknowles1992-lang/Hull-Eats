@@ -10,7 +10,8 @@ import {
   type HullPostcodeZone,
 } from "./delivery-pricing";
 
-import { menuItemSchema, storeTypeSchema, storefrontStatusSchema } from "./catalog";
+import { menuItemSchema, storeTypeSchema, storefrontStatusSchema, type MenuItem } from "./catalog";
+import { sanitizeMenuItemMoneyFields, sanitizeMenuMoneyAmount } from "./menu-money";
 import { membershipRoleSchema } from "./rbac";
 import { normalizeOpeningHours, storeOpeningHoursSchema, type StoreOpeningHours } from "./store-opening-hours";
 import { hubPortalLocaleSchema } from "./hub-portal-locale";
@@ -285,10 +286,7 @@ const coerceInt = (value: unknown, fallback: number) => {
   return Number.isFinite(parsed) ? Math.round(parsed) : fallback;
 };
 
-const coerceNonNegative = (value: unknown, fallback = 0) => {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
-};
+const coerceNonNegative = (value: unknown, fallback = 0) => sanitizeMenuMoneyAmount(value, fallback);
 
 const normalizeMileFees = (value: unknown): [number, number, number, number, number] => {
   const source = Array.isArray(value) ? value.map((entry) => coerceNonNegative(entry, 0)) : [];
@@ -349,6 +347,10 @@ export const prepareMerchantWorkspaceUpdateBody = (raw: unknown): unknown => {
       const row = section as { id?: string; items?: unknown[] };
       return {
         ...row,
+        defaultPrice:
+          (row as { defaultPrice?: unknown }).defaultPrice == null
+            ? null
+            : sanitizeMenuMoneyAmount((row as { defaultPrice?: unknown }).defaultPrice),
         items: Array.isArray(row.items)
           ? row.items.map((item) => {
               if (!item || typeof item !== "object") {
@@ -359,12 +361,14 @@ export const prepareMerchantWorkspaceUpdateBody = (raw: unknown): unknown => {
                 typeof line.imageUrl === "string" && line.imageUrl.trim() === "" ? undefined : line.imageUrl;
               const menuSubGroup =
                 typeof line.menuSubGroup === "string" && line.menuSubGroup.trim() ? line.menuSubGroup.trim() : undefined;
-              return {
+              return sanitizeMenuItemMoneyFields({
                 ...line,
-                categoryId: line.categoryId ?? row.id,
+                categoryId: String(line.categoryId ?? row.id ?? ""),
                 imageUrl,
                 menuSubGroup,
-              };
+                price: line.price,
+                optionGroups: Array.isArray(line.optionGroups) ? line.optionGroups : [],
+              } as MenuItem);
             })
           : [],
       };

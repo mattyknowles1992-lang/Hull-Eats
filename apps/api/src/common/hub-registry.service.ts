@@ -18,6 +18,9 @@ import {
   normaliseDeliveryPricing,
   normalizeHubPortalLocale,
   normalizeOpeningHours,
+  sanitizeHubMenuSectionMoneyFields,
+  sanitizeMenuItemMoneyFields,
+  sanitizeMenuMoneyAmount,
   type MembershipRole,
   type StoreOpeningHours,
   updateHubPromotionInputSchema,
@@ -688,7 +691,8 @@ export class HubRegistryService {
     const { sections: persistedSections } = remapMenuSectionsForPersist(
       menuSections as Parameters<typeof remapMenuSectionsForPersist>[0],
     );
-    const { categoryIds: incomingSectionIds, itemIds: incomingItemIds } = persistedMenuEntityIds(persistedSections);
+    const sanitizedSections = persistedSections.map((section) => sanitizeHubMenuSectionMoneyFields(section));
+    const { categoryIds: incomingSectionIds, itemIds: incomingItemIds } = persistedMenuEntityIds(sanitizedSections);
 
     await prisma.menuItem.deleteMany({
       where: {
@@ -704,13 +708,13 @@ export class HubRegistryService {
       },
     });
 
-    for (const [sectionIndex, section] of persistedSections.entries()) {
+    for (const [sectionIndex, section] of sanitizedSections.entries()) {
       await prisma.menuCategory.upsert({
         where: { id: section.id },
         update: {
           name: section.name,
           description: encodeHubMenuCategoryDescription(section.presetKey, section.description ?? ""),
-          defaultPrice: section.defaultPrice,
+          defaultPrice: section.defaultPrice == null ? null : sanitizeMenuMoneyAmount(section.defaultPrice),
           sortOrder: sectionIndex,
           isActive: true,
         },
@@ -719,50 +723,51 @@ export class HubRegistryService {
           storeId,
           name: section.name,
           description: encodeHubMenuCategoryDescription(section.presetKey, section.description ?? ""),
-          defaultPrice: section.defaultPrice,
+          defaultPrice: section.defaultPrice == null ? null : sanitizeMenuMoneyAmount(section.defaultPrice),
           sortOrder: sectionIndex,
           isActive: true,
         },
       });
 
       await Promise.all(
-        section.items.map((item, itemIndex) =>
-          prisma.menuItem.upsert({
-            where: { id: item.id },
+        section.items.map((item, itemIndex) => {
+          const safeItem = sanitizeMenuItemMoneyFields(item);
+          return prisma.menuItem.upsert({
+            where: { id: safeItem.id },
             update: {
-              name: item.name,
-              description: item.description,
-              price: item.price,
-              imageUrl: item.imageUrl,
-              customisationConfig: this.buildCustomisationConfig(item),
-              isActive: item.isActive,
-              trackStock: item.trackStock,
-              stockQuantity: item.stockQuantity,
-              stockStatus: this.mapStockStatusToDb(item.stockStatus),
-              allowBackorder: item.allowBackorder,
-              maxPerOrder: item.maxPerOrder,
-              requiresIdVerification: item.requiresIdVerification ?? false,
+              name: safeItem.name,
+              description: safeItem.description,
+              price: safeItem.price,
+              imageUrl: safeItem.imageUrl,
+              customisationConfig: this.buildCustomisationConfig(safeItem),
+              isActive: safeItem.isActive,
+              trackStock: safeItem.trackStock,
+              stockQuantity: safeItem.stockQuantity,
+              stockStatus: this.mapStockStatusToDb(safeItem.stockStatus),
+              allowBackorder: safeItem.allowBackorder,
+              maxPerOrder: safeItem.maxPerOrder,
+              requiresIdVerification: safeItem.requiresIdVerification ?? false,
               sortOrder: itemIndex,
             },
             create: {
-              id: item.id,
+              id: safeItem.id,
               categoryId: section.id,
-              name: item.name,
-              description: item.description,
-              price: item.price,
-              imageUrl: item.imageUrl,
-              customisationConfig: this.buildCustomisationConfig(item),
-              isActive: item.isActive,
-              trackStock: item.trackStock,
-              stockQuantity: item.stockQuantity,
-              stockStatus: this.mapStockStatusToDb(item.stockStatus),
-              allowBackorder: item.allowBackorder,
-              maxPerOrder: item.maxPerOrder,
-              requiresIdVerification: item.requiresIdVerification ?? false,
+              name: safeItem.name,
+              description: safeItem.description,
+              price: safeItem.price,
+              imageUrl: safeItem.imageUrl,
+              customisationConfig: this.buildCustomisationConfig(safeItem),
+              isActive: safeItem.isActive,
+              trackStock: safeItem.trackStock,
+              stockQuantity: safeItem.stockQuantity,
+              stockStatus: this.mapStockStatusToDb(safeItem.stockStatus),
+              allowBackorder: safeItem.allowBackorder,
+              maxPerOrder: safeItem.maxPerOrder,
+              requiresIdVerification: safeItem.requiresIdVerification ?? false,
               sortOrder: itemIndex,
             },
-          }),
-        ),
+          });
+        }),
       );
     }
   }

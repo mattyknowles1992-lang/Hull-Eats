@@ -31,6 +31,7 @@ import {
   getMenuItemCustomerMinPrice,
   isMenuItemPriceListable,
   menuItemUsesSizePricing,
+  sanitizeMenuMoneyAmount,
 } from "@hull-eats/types";
 import { buildPizzaSizeOptionGroupFromRows } from "./pizza-size-draft";
 
@@ -726,10 +727,9 @@ export const HUB_DEFAULT_SAUCE_EXTRA_LIBRARY_PRICE = 0.5;
 export function parseHubMenuPriceInput(raw: string, fallback: number): number {
   const trimmed = raw.trim();
   if (!trimmed) {
-    return fallback;
+    return sanitizeMenuMoneyAmount(fallback);
   }
-  const parsed = Number(trimmed);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+  return sanitizeMenuMoneyAmount(trimmed, fallback);
 }
 
 /** Apply a template but keep an existing size group from the pizza size builder. */

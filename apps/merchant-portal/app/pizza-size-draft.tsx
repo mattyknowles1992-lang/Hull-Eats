@@ -2,7 +2,7 @@
 
 import type { CSSProperties } from "react";
 
-import type { HubMenuSection, MenuItem } from "@hull-eats/types";
+import { sanitizeMenuMoneyAmount, type MenuItem } from "@hull-eats/types";
 import {
   decodeHubMenuCategoryDescription,
   encodeHubMenuCategoryDescription,
@@ -255,7 +255,9 @@ export function expandPizzaPricesFromBase(
   return columns.map((column, index) => {
     const existing = rowByLabel.get(column.label);
     if (index > 0) {
-      running = Number((running + parsePizzaSizeStepAmount(stepByColumnKey[column.key] ?? "0")).toFixed(2));
+      running = sanitizeMenuMoneyAmount(
+        Number((running + parsePizzaSizeStepAmount(stepByColumnKey[column.key] ?? "0")).toFixed(2)),
+      );
     }
     return {
       key: existing?.key ?? column.key,
@@ -291,16 +293,16 @@ export function buildPizzaSizeOptionGroupFromRows(
   if (prices.some((p) => !Number.isFinite(p) || p < 0)) {
     return { error: "Enter a valid price for each selected size." };
   }
-  const basePrice = Math.min(...prices);
+  const basePrice = sanitizeMenuMoneyAmount(Math.min(...prices));
   const groupId = newId();
   type MenuOption = MenuItem["optionGroups"][number]["options"][number];
   const options: MenuOption[] = sortPizzaSizeRows(active).map((r) => {
-    const full = Number(r.price);
+    const full = sanitizeMenuMoneyAmount(Number(r.price));
     return {
       id: newId(),
       label: r.label.trim(),
       description: "",
-      priceDelta: Number((full - basePrice).toFixed(2)),
+      priceDelta: sanitizeMenuMoneyAmount(Number((full - basePrice).toFixed(2))),
       isDefault: false,
       maxQuantity: 1,
     };
@@ -312,7 +314,7 @@ export function buildPizzaSizeOptionGroupFromRows(
   }
 
   return {
-    basePrice: Number(basePrice.toFixed(2)),
+    basePrice: sanitizeMenuMoneyAmount(basePrice),
     optionGroups: [
       {
         id: groupId,
