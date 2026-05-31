@@ -8,6 +8,8 @@ import {
   formatMenuSubGroupLabel,
   getHubMenuOrderTicketConfig,
   groupMenuItemsBySubGroup,
+  groupMenuItemsBySubGroupTree,
+  parseMenuSubGroupLabel,
   readMenuSubGroupsFromSection,
   removeMenuSubGroupOnSection,
   renameMenuSubGroupOnSection,
@@ -25,18 +27,25 @@ import {
   getDrinkSizePrices,
   getItemSpiceHeat,
   getManualVariationRows,
+  itemHasPublishIssue,
   SPICE_HEAT_LEVELS,
   type BulkPasteRow,
+  type MenuPublishIssue,
 } from "./menu-studio-core";
 
 type Props = {
   section: HubMenuSection;
   readOnly?: boolean;
+  publishIssues?: MenuPublishIssue[];
   onPatchSection: (updater: (section: HubMenuSection) => HubMenuSection) => void;
 };
 
 function menuSubGroupKey(label: string | null): string {
   return label?.trim() ?? "";
+}
+
+function subGroupStorageLabel(type: string, formatKey: string): string {
+  return formatMenuSubGroupLabel(type, formatKey === type ? "" : formatKey);
 }
 
 function patchSectionItems(
@@ -97,7 +106,7 @@ function ticketRowFromBulkPaste(
   return item;
 }
 
-export function HubMenuOrderTicketBuilder({ section, readOnly = false, onPatchSection }: Props) {
+export function HubMenuOrderTicketBuilder({ section, readOnly = false, publishIssues = [], onPatchSection }: Props) {
   const config = getHubMenuOrderTicketConfig(section);
   if (!config) {
     return null;
@@ -134,6 +143,13 @@ export function HubMenuOrderTicketBuilder({ section, readOnly = false, onPatchSe
     }
 
     return blocks;
+  }, [config.useSubGroupHeaders, section.items, subGroupDefs]);
+
+  const familyTree = useMemo(() => {
+    if (!config.useSubGroupHeaders) {
+      return null;
+    }
+    return groupMenuItemsBySubGroupTree(section.items, subGroupDefs);
   }, [config.useSubGroupHeaders, section.items, subGroupDefs]);
 
   const [newHeaderType, setNewHeaderType] = useState("");
@@ -213,6 +229,57 @@ export function HubMenuOrderTicketBuilder({ section, readOnly = false, onPatchSe
   };
 
   const previewHeader = formatMenuSubGroupLabel(newHeaderType, newHeaderFormat);
+  const previewTree = previewHeader ? parseMenuSubGroupLabel(previewHeader) : null;
+
+  const renderOrderTicketBlock = (storedLabel: string | null, displayLabel: string, items: MenuItem[]) => (
+    <OrderTicketBlock
+      key={storedLabel ?? "__flat__"}
+      sectionId={section.id}
+      publishIssues={publishIssues}
+      config={config}
+      gridColumns={gridColumns}
+      headerLabel={displayLabel}
+      items={items}
+      readOnly={readOnly}
+      namePlaceholder={config.namePlaceholder}
+      onRenameHeader={
+        config.useSubGroupHeaders && storedLabel
+          ? (nextLabel) => {
+              const def = subGroupDefs.find((entry) => entry.label === storedLabel);
+              if (!def) {
+                return;
+              }
+              onPatchSection((current) => renameMenuSubGroupOnSection(current, def.id, nextLabel));
+              const oldKey = menuSubGroupKey(storedLabel);
+              const newKey = menuSubGroupKey(nextLabel);
+              patchSectionItems(onPatchSection, (itemsToPatch) =>
+                itemsToPatch.map((item) =>
+                  menuSubGroupKey(item.menuSubGroup ?? null) === oldKey ? { ...item, menuSubGroup: newKey } : item,
+                ),
+              );
+            }
+          : undefined
+      }
+      onRemoveHeader={
+        config.useSubGroupHeaders && storedLabel
+          ? () => {
+              const def = subGroupDefs.find((entry) => entry.label === storedLabel);
+              if (!def) {
+                return;
+              }
+              onPatchSection((current) => removeMenuSubGroupOnSection(current, def.id));
+            }
+          : undefined
+      }
+      onUpdateItem={updateItem}
+      onUpdateItemWithVariations={updateItemWithVariations}
+      onUpdateItemDrinkSizes={updateItemDrinkSizes}
+      onRemoveItem={removeItem}
+      onAddLine={() => addProductLine(storedLabel)}
+      onCopyPriceToAll={(price) => copyPriceToBlock(storedLabel, price)}
+      onCopyDrinkSizesToAll={(sizes) => copyDrinkSizesToBlock(storedLabel, sizes)}
+    />
+  );
 
   const applyBulkRows = (rows: BulkPasteRow[]) => {
     const created = rows
@@ -261,9 +328,18 @@ export function HubMenuOrderTicketBuilder({ section, readOnly = false, onPatchSe
               + Add header
             </button>
           </div>
-          {previewHeader ? (
+          {previewTree ? (
             <p className="hub-menu-order-builder__preview">
-              Customer will see header: <strong>{previewHeader}</strong>
+              Customer will see:{" "}
+              {previewTree.format ? (
+                <>
+                  <strong>{previewTree.type}</strong>
+                  <span aria-hidden="true"> → </span>
+                  <strong>{previewTree.format}</strong>
+                </>
+              ) : (
+                <strong>{previewTree.type}</strong>
+              )}
             </p>
           ) : null}
         </section>
@@ -273,58 +349,31 @@ export function HubMenuOrderTicketBuilder({ section, readOnly = false, onPatchSe
         <p className="hub-menu-order-builder__hint">Add your first header above, then add product lines underneath it.</p>
       ) : null}
 
-      {headerBlocks.map((group) => (
-        <OrderTicketBlock
-          key={group.label ?? "__flat__"}
-          config={config}
-          gridColumns={gridColumns}
-          headerLabel={group.label ?? "Products"}
-          items={group.items}
-          readOnly={readOnly}
-          namePlaceholder={config.namePlaceholder}
-          onRenameHeader={
-            config.useSubGroupHeaders && group.label
-              ? (nextLabel) => {
-                  const def = subGroupDefs.find((entry) => entry.label === group.label);
-                  if (!def) {
-                    return;
-                  }
-                  onPatchSection((current) => renameMenuSubGroupOnSection(current, def.id, nextLabel));
-                  const oldKey = menuSubGroupKey(group.label);
-                  const newKey = menuSubGroupKey(nextLabel);
-                  patchSectionItems(onPatchSection, (items) =>
-                    items.map((item) =>
-                      menuSubGroupKey(item.menuSubGroup ?? null) === oldKey ? { ...item, menuSubGroup: newKey } : item,
-                    ),
-                  );
-                }
-              : undefined
-          }
-          onRemoveHeader={
-            config.useSubGroupHeaders && group.label
-              ? () => {
-                  const def = subGroupDefs.find((entry) => entry.label === group.label);
-                  if (!def) {
-                    return;
-                  }
-                  onPatchSection((current) => removeMenuSubGroupOnSection(current, def.id));
-                }
-              : undefined
-          }
-          onUpdateItem={updateItem}
-          onUpdateItemWithVariations={updateItemWithVariations}
-          onUpdateItemDrinkSizes={updateItemDrinkSizes}
-          onRemoveItem={removeItem}
-          onAddLine={() => addProductLine(group.label)}
-          onCopyPriceToAll={(price) => copyPriceToBlock(group.label, price)}
-          onCopyDrinkSizesToAll={(sizes) => copyDrinkSizesToBlock(group.label, sizes)}
-        />
-      ))}
+      {config.useSubGroupHeaders && familyTree ? (
+        <>
+          {familyTree.ungrouped.length > 0 ? renderOrderTicketBlock(null, "Other", familyTree.ungrouped) : null}
+          {familyTree.branches.map((branch) => (
+            <div key={branch.type} className="hub-menu-order-builder__family-branch">
+              <h3 className="hub-menu-order-builder__family-type">{branch.type}</h3>
+              {branch.formats.map((format) => {
+                const storedLabel = subGroupStorageLabel(branch.type, format.label);
+                const displayLabel =
+                  format.label.trim() && format.label.trim() !== branch.type.trim() ? format.label : branch.type;
+                return renderOrderTicketBlock(storedLabel, displayLabel, format.items);
+              })}
+            </div>
+          ))}
+        </>
+      ) : (
+        headerBlocks.map((group) => renderOrderTicketBlock(group.label, group.label ?? "Products", group.items))
+      )}
     </div>
   );
 }
 
 function OrderTicketBlock({
+  sectionId,
+  publishIssues,
   config,
   gridColumns,
   headerLabel,
@@ -341,6 +390,8 @@ function OrderTicketBlock({
   onCopyPriceToAll,
   onCopyDrinkSizesToAll,
 }: {
+  sectionId: string;
+  publishIssues: MenuPublishIssue[];
   config: HubMenuOrderTicketConfig;
   gridColumns: string;
   headerLabel: string;
@@ -411,13 +462,23 @@ function OrderTicketBlock({
               ? variationRows.map((row) => row.label.trim()).filter(Boolean).join(", ")
               : "";
           const drinkSizes = getDrinkSizePrices(item);
+          const rowHasIssue = itemHasPublishIssue(publishIssues, sectionId, item.id);
+          const nameIssue = itemHasPublishIssue(publishIssues, sectionId, item.id, "item_name");
+          const priceIssue = itemHasPublishIssue(publishIssues, sectionId, item.id, "item_price");
+          const liveIssue = publishIssues.some((issue) => issue.field === "live_items" && issue.itemId === item.id);
 
           return (
-            <div key={item.id} className="hub-menu-order-builder__item-wrap">
+            <div
+              key={item.id}
+              id={`publish-issue-item-row-${item.id}`}
+              className={rowHasIssue ? "hub-menu-order-builder__item-wrap hub-menu-publish-issue-row" : "hub-menu-order-builder__item-wrap"}
+            >
               <div className="hub-menu-order-builder__row" role="row" style={{ gridTemplateColumns: gridColumns }}>
                 <label className="hub-menu-order-builder__cell">
                   <span className="hub-menu-order-builder__sr-only">Product name</span>
                   <input
+                    id={`publish-issue-item-name-${item.id}`}
+                    className={nameIssue ? "hub-menu-publish-issue-field" : undefined}
                     value={item.name}
                     disabled={readOnly}
                     placeholder={namePlaceholder}
@@ -460,6 +521,8 @@ function OrderTicketBlock({
                     <label className="hub-menu-order-builder__cell">
                       <span className="hub-menu-order-builder__sr-only">Price</span>
                       <input
+                        id={`publish-issue-item-price-${item.id}`}
+                        className={priceIssue ? "hub-menu-publish-issue-field" : undefined}
                         type="number"
                         min={0}
                         step="0.1"
@@ -531,7 +594,14 @@ function OrderTicketBlock({
                     />
                   </label>
                 ) : null}
-                <div className="hub-menu-order-builder__visibility-cell">
+                <div
+                  className={
+                    liveIssue
+                      ? "hub-menu-order-builder__visibility-cell hub-menu-publish-issue-panel"
+                      : "hub-menu-order-builder__visibility-cell"
+                  }
+                  id={liveIssue ? "publish-issue-no-live-items" : undefined}
+                >
                   <MenuItemVisibilitySelect
                     item={item}
                     readOnly={readOnly}

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 
 import { HUB_EXTRA_SUGGESTIONS, normalizeExtraSuggestionName } from "./hub-menu-extras-presets";
 import { HubMenuSuggestionStrip } from "./hub-menu-suggestion-strip";
+import { HubFreeTypeNumberInput } from "./hub-free-type-number-input";
 import { buildLocalMenuItem, formatMenuMoney, HUB_DEFAULT_EXTRA_LIBRARY_PRICE, parseHubMenuPriceInput } from "./menu-studio-core";
 
 import type { HubMenuSection, MenuItem } from "@hull-eats/types";
@@ -84,9 +85,6 @@ export function HubMenuExtrasLibrary({
           <label className="hub-menu-extras-library__field">
             <span style={{ fontSize: "0.78rem", fontWeight: 800, color: "#3d4652" }}>Price (£)</span>
             <input
-              type="number"
-              step="0.1"
-              min={0}
               value={price}
               onChange={(e) => setPrice(e.target.value)}
               placeholder={HUB_DEFAULT_EXTRA_LIBRARY_PRICE.toFixed(2)}
@@ -112,13 +110,11 @@ export function HubMenuExtrasLibrary({
               ) : (
                 <label className="hub-menu-extras-library__price-field">
                   <span>£</span>
-                  <input
-                    type="number"
-                    step="0.1"
+                  <HubFreeTypeNumberInput
                     min={0}
                     value={item.price}
                     aria-label={`Price for ${item.name}`}
-                    onChange={(e) => onUpdateToppingPrice(item.id, Number(e.target.value) || 0)}
+                    onCommit={(price) => onUpdateToppingPrice(item.id, price)}
                   />
                 </label>
               )}

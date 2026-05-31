@@ -4114,12 +4114,28 @@ button.filter-pill {
   margin-top: 20px;
 }
 
-.menu-subgroup-heading {
-  margin: 0 0 10px;
-  font-size: 1.05rem;
+.menu-subgroup-tree-branch {
+  margin-top: 20px;
+}
+
+.menu-subgroup-tree-branch + .menu-subgroup-tree-branch {
+  margin-top: 28px;
+}
+
+.menu-subgroup-tree-type {
+  margin: 0 0 12px;
+  font-size: 1.12rem;
   font-weight: 800;
   letter-spacing: 0.02em;
-  color: rgba(15, 17, 21, 0.88);
+  color: rgba(15, 17, 21, 0.92);
+}
+
+.menu-subgroup-heading {
+  margin: 0 0 10px;
+  font-size: 0.98rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: rgba(15, 17, 21, 0.78);
 }
 
 .menu-item-grid {
@@ -5060,6 +5076,14 @@ button.filter-pill {
   font-size: 0.95rem;
   font-weight: 800;
   color: var(--ink-strong);
+}
+
+.add-sheet-section-copy {
+  margin: 0;
+  padding: 0 16px 10px;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: rgba(15, 17, 21, 0.62);
 }
 
 .add-sheet-options {

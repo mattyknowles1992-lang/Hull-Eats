@@ -250,6 +250,7 @@ export function CheckoutClient({ store, menuItems, initialFulfillment = "deliver
         fulfillmentType,
         storeBasePostcode: store.postcode,
         legacyDeliveryFee: store.deliveryFee,
+        legacyMinimumOrderAmount: store.minimumOrderAmount,
         pricing: deliveryPricing,
         customerPostcode: formState.postcode.trim() || undefined,
       }),
@@ -817,7 +818,14 @@ export function CheckoutClient({ store, menuItems, initialFulfillment = "deliver
             )}
             <div className="glance-row">
               <span className="muted-copy">Minimum order</span>
-              <strong>{formatMoney(checkoutSession?.minimumOrderAmount ?? store.minimumOrderAmount ?? 0)}</strong>
+              <strong>
+                {formatMoney(
+                  checkoutSession?.minimumOrderAmount ??
+                    deliveryPreview.minimumOrderAmount ??
+                    store.minimumOrderAmount ??
+                    0,
+                )}
+              </strong>
             </div>
             <div className="glance-row">
               <span className="muted-copy">Checkout total</span>

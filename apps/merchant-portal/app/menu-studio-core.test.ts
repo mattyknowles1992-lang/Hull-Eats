@@ -59,7 +59,9 @@ describe("computeMenuPublishIssues", () => {
     ] as unknown as HubMenuSection[];
 
     const issues = computeMenuPublishIssues(sections);
-    expect(issues.some((issue) => issue.includes("Mystery box") && issue.includes("£0.00"))).toBe(true);
+    expect(issues.some((issue) => issue.message.includes("Mystery box") && issue.message.includes("£0.00"))).toBe(true);
+    expect(issues[0]?.field).toBe("item_price");
+    expect(issues[0]?.itemId).toBe("item-1");
   });
 });
 

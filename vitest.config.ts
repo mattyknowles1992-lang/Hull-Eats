@@ -16,7 +16,7 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["packages/**/*.test.ts", "apps/merchant-portal/**/*.test.ts"],
+    include: ["packages/**/*.test.ts", "apps/merchant-portal/**/*.test.ts", "apps/customer-web/**/*.test.ts"],
     passWithNoTests: false,
   },
 });

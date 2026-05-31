@@ -12,8 +12,7 @@ import {
   isHubMenuOrderTicketCategory,
   isHubMenuMealDealsCategory,
   isHubMenuSectionPizza,
-  writeMenuSubGroupsOnSection,
-  readMenuSubGroupsFromSection,
+  writeCategoryCustomerDescriptionOnSection,
   type HubMenuCategoryPresetChoice,
 } from "@hull-eats/types";
 
@@ -49,7 +48,10 @@ import {
   type HubMenuBoardKind,
   type HubMenuBoardPublishMode,
   type HubMenuBoardRecord,
+  type MenuPublishIssue,
   type MenuPublishSummary,
+  getPublishIssueDomTargetId,
+  itemHasPublishIssue,
 } from "./menu-studio-core";
 import { HubMenuItemIngredients } from "./hub-menu-item-ingredients";
 import { HubMenuItemOptionsPanel } from "./hub-menu-item-options-panel";
@@ -145,6 +147,11 @@ type HubMenuStudioProps = {
   onRemoveMealTemplate: (itemId: string) => void;
   publishDialogOpen: boolean;
   publishSummary: MenuPublishSummary;
+  publishIssues: MenuPublishIssue[];
+  focusedPublishIssueId: string | null;
+  publishWithKnownIssues: boolean;
+  onPublishWithKnownIssuesChange: (checked: boolean) => void;
+  onNavigateToPublishIssue: (issue: MenuPublishIssue) => void;
   menuPublishing: boolean;
   onCancelPublish: () => void;
   onConfirmPublish: () => void;
@@ -226,6 +233,11 @@ export function HubMenuStudio({
   onRemoveMealTemplate,
   publishDialogOpen,
   publishSummary,
+  publishIssues,
+  focusedPublishIssueId,
+  publishWithKnownIssues,
+  onPublishWithKnownIssuesChange,
+  onNavigateToPublishIssue,
   menuPublishing,
   onCancelPublish,
   onConfirmPublish,
@@ -289,6 +301,21 @@ export function HubMenuStudio({
   const usesOrderTicketBuilder = isHubMenuOrderTicketCategory(selectedCategory);
   const creatingOrderTicketItem = isHubMenuOrderTicketCategory(creatingItemSection);
   const editingOrderTicketItem = isHubMenuOrderTicketCategory(selectedCategory);
+
+  useEffect(() => {
+    if (!focusedPublishIssueId) {
+      return;
+    }
+    const issue = publishIssues.find((entry) => entry.id === focusedPublishIssueId);
+    if (!issue) {
+      return;
+    }
+    const targetId = getPublishIssueDomTargetId(issue);
+    const timer = window.setTimeout(() => {
+      document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 150);
+    return () => window.clearTimeout(timer);
+  }, [focusedPublishIssueId, publishIssues, selectedCategory?.id, selectedItemId, isCreatingNewItem]);
   const hubExtraToppings = getHubExtraToppingsFromSection(extrasSection);
   const hubSauces = getHubSaucesFromSection(saucesSection);
   const hubBurgerParts = getHubPartsFromSection(burgerPartsSection, "burger");
@@ -432,7 +459,7 @@ export function HubMenuStudio({
               burgerPartsTabMeta={formatPartSlotTabMeta(burgerPartsSection, "burger")}
               kebabPartsTabMeta={formatPartSlotTabMeta(kebabPartsSection, "kebab")}
             />
-            <section className="hub-menu-tab-add-category" style={sidebarAddCategory}>
+            <section id="publish-issue-no-categories" className="hub-menu-tab-add-category" style={sidebarAddCategory}>
               <p style={sectionLabel}>New category</p>
               {burgerPartsSection || kebabPartsSection ? (
                 <button
@@ -568,13 +595,10 @@ export function HubMenuStudio({
                           value={getCategoryCustomerDescription(selectedCategory)}
                           onChange={(event) =>
                             onPatchSelectedCategory((section) =>
-                              writeMenuSubGroupsOnSection(
-                                section,
-                                readMenuSubGroupsFromSection(section),
-                                event.target.value,
-                              ),
+                              writeCategoryCustomerDescriptionOnSection(section, event.target.value),
                             )
                           }
+                          placeholder="Optional note shown to customers under this category"
                         />
                       </label>
                     </div>
@@ -616,13 +640,10 @@ export function HubMenuStudio({
                           value={getCategoryCustomerDescription(selectedCategory)}
                           onChange={(event) =>
                             onPatchSelectedCategory((section) =>
-                              writeMenuSubGroupsOnSection(
-                                section,
-                                readMenuSubGroupsFromSection(section),
-                                event.target.value,
-                              ),
+                              writeCategoryCustomerDescriptionOnSection(section, event.target.value),
                             )
                           }
+                          placeholder="Optional note shown to customers under this category"
                         />
                       </label>
                     </div>
@@ -635,6 +656,7 @@ export function HubMenuStudio({
                   <HubMenuOrderTicketBuilder
                     section={selectedCategory}
                     readOnly={studioLocked}
+                    publishIssues={publishIssues}
                     onPatchSection={onPatchSelectedCategory}
                   />
                 </div>
@@ -651,10 +673,15 @@ export function HubMenuStudio({
                   </button>
                 </div>
                 <div style={itemRail}>
-                  {selectedCategory.items.map((item) => (
+                  {selectedCategory.items.map((item) => {
+                    const itemHasIssue =
+                      selectedCategory && itemHasPublishIssue(publishIssues, selectedCategory.id, item.id);
+                    return (
                     <button
                       key={item.id}
                       type="button"
+                      id={`publish-issue-item-row-${item.id}`}
+                      className={itemHasIssue ? "hub-menu-publish-issue-row" : undefined}
                       style={item.id === selectedItem?.id && !isCreatingNewItem ? itemRailButtonActive : itemRailButton}
                       onClick={() => onSelectItem(item.id)}
                     >
@@ -663,7 +690,8 @@ export function HubMenuStudio({
                         {getMenuItemPriceLabel(item)} · {describeMenuAvailability(getMenuAvailabilityMode(item)).label}
                       </span>
                     </button>
-                  ))}
+                    );
+                  })}
                   {selectedCategory.items.length === 0 ? (
                     <div style={emptyStateCard}>
                       No items yet. Tap <strong>+ Add item</strong> — e.g. 6 Chicken Wings or Margherita.
@@ -691,13 +719,10 @@ export function HubMenuStudio({
                         value={getCategoryCustomerDescription(selectedCategory)}
                         onChange={(event) =>
                           onPatchSelectedCategory((section) =>
-                            writeMenuSubGroupsOnSection(
-                              section,
-                              readMenuSubGroupsFromSection(section),
-                              event.target.value,
-                            ),
+                            writeCategoryCustomerDescriptionOnSection(section, event.target.value),
                           )
                         }
+                        placeholder="Optional note shown to customers under this category"
                       />
                     </label>
                   </div>
@@ -778,7 +803,6 @@ export function HubMenuStudio({
                           line={creatingComposeLine}
                           parts={creatingComposeLine === "burger" ? hubBurgerParts : hubKebabParts}
                           slotDefinitions={creatingComposeLine === "burger" ? burgerSlotDefinitions : kebabSlotDefinitions}
-                          extras={hubExtraToppings}
                           readOnly={studioLocked}
                           onUpdateItem={patchNewItemDraft}
                         />
@@ -837,8 +861,15 @@ export function HubMenuStudio({
             </section>
           ) : null}
 
-          {!isCreatingNewItem && selectedItem ? (
-            <section style={editItemPanel}>
+          {!isCreatingNewItem && selectedItem && selectedCategory ? (
+            <section
+              style={editItemPanel}
+              className={
+                itemHasPublishIssue(publishIssues, selectedCategory.id, selectedItem.id)
+                  ? "hub-menu-publish-issue-panel"
+                  : undefined
+              }
+            >
               <div style={panelHeaderRow}>
                 <div>
                   <p style={eyebrow}>Editing product</p>
@@ -863,6 +894,12 @@ export function HubMenuStudio({
                 <label style={field}>
                   <span style={darkFieldLabel}>Product name</span>
                   <input
+                    id={`publish-issue-item-name-${selectedItem.id}`}
+                    className={
+                      itemHasPublishIssue(publishIssues, selectedCategory.id, selectedItem.id, "item_name")
+                        ? "hub-menu-publish-issue-field"
+                        : undefined
+                    }
                     style={lightInput}
                     value={selectedItem.name}
                     onChange={(event) => onUpdateItem((current) => ({ ...current, name: event.target.value }))}
@@ -885,8 +922,14 @@ export function HubMenuStudio({
                   <label style={field}>
                     <span style={darkFieldLabel}>Price (£)</span>
                     <input
+                      id={`publish-issue-item-price-${selectedItem.id}`}
                       type="number"
                       step="0.1"
+                      className={
+                        itemHasPublishIssue(publishIssues, selectedCategory.id, selectedItem.id, "item_price")
+                          ? "hub-menu-publish-issue-field"
+                          : undefined
+                      }
                       style={lightInput}
                       value={moneyInput(selectedItem.price)}
                       onChange={(event) => onUpdateItem((current) => ({ ...current, price: Number(event.target.value) || 0 }))}
@@ -910,7 +953,6 @@ export function HubMenuStudio({
                           line={editingComposeLine}
                           parts={editingComposeLine === "burger" ? hubBurgerParts : hubKebabParts}
                           slotDefinitions={editingComposeLine === "burger" ? burgerSlotDefinitions : kebabSlotDefinitions}
-                          extras={hubExtraToppings}
                           readOnly={studioLocked}
                           onUpdateItem={onUpdateItem}
                         />
@@ -960,7 +1002,19 @@ export function HubMenuStudio({
                 </section>
               ) : null}
 
-              <section style={availabilityPanel}>
+              <section
+                style={availabilityPanel}
+                className={
+                  publishIssues.some((issue) => issue.field === "live_items" && issue.itemId === selectedItem.id)
+                    ? "hub-menu-publish-issue-panel"
+                    : undefined
+                }
+                id={
+                  publishIssues.some((issue) => issue.field === "live_items" && issue.itemId === selectedItem.id)
+                    ? "publish-issue-no-live-items"
+                    : undefined
+                }
+              >
                 <p style={sectionLabel}>Save as</p>
                 <p style={itemsPanelCopy}>
                   New items save as <strong>Live</strong> when you add them. Choose <strong>Hidden</strong> only if you
@@ -983,7 +1037,15 @@ export function HubMenuStudio({
               </label>
 
               {selectedIsMealDealsCategory ? (
-                <section style={choicesSection}>
+                <section
+                  style={choicesSection}
+                  id={`publish-issue-meal-deal-${selectedItem.id}`}
+                  className={
+                    itemHasPublishIssue(publishIssues, selectedCategory.id, selectedItem.id, "meal_deal_bundle")
+                      ? "hub-menu-publish-issue-panel"
+                      : undefined
+                  }
+                >
                   <p style={sectionLabel}>Meal deal contents</p>
                   <HubMenuMealDealBundlePicker
                     item={selectedItem}
@@ -993,7 +1055,15 @@ export function HubMenuStudio({
                   />
                 </section>
               ) : editingOrderTicketItem ? null : (
-                <section style={choicesSection}>
+                <section
+                  style={choicesSection}
+                  id={`publish-issue-item-options-${selectedItem.id}`}
+                  className={
+                    itemHasPublishIssue(publishIssues, selectedCategory.id, selectedItem.id, "option_group")
+                      ? "hub-menu-publish-issue-panel"
+                      : undefined
+                  }
+                >
                   <HubMenuItemOptionsPanel
                     item={selectedItem}
                     toppings={hubExtraToppings}
@@ -1041,6 +1111,9 @@ export function HubMenuStudio({
         summary={publishSummary}
         publishing={menuPublishing}
         publishingBoard={editingMenuBoard}
+        publishWithKnownIssues={publishWithKnownIssues}
+        onPublishWithKnownIssuesChange={onPublishWithKnownIssuesChange}
+        onNavigateToIssue={onNavigateToPublishIssue}
         onCancel={onCancelPublish}
         onConfirm={onConfirmPublish}
       />

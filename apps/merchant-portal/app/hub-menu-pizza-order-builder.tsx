@@ -104,7 +104,7 @@ function reapplyItemsForSizeColumns(section: HubMenuSection, tableConfig: PizzaS
 }
 
 function buildGridColumns(sizeCount: number): string {
-  return `minmax(180px, 1.6fr) repeat(${sizeCount}, minmax(76px, 0.78fr)) minmax(96px, 0.85fr) minmax(92px, auto) auto`;
+  return `minmax(180px, 1.6fr) repeat(${sizeCount}, 96px) minmax(110px, 0.85fr) minmax(88px, 0.75fr) auto`;
 }
 
 type PizzaCategoryBlockProps = {

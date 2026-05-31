@@ -34,6 +34,7 @@ import {
 
 import { HubConfigBackups } from "./hub-config-backups";
 import { HubDeliveryConfig } from "./hub-delivery-config";
+import { HubFreeTypeNumberInput } from "./hub-free-type-number-input";
 import { HubOpeningHoursEditor } from "./hub-opening-hours-editor";
 import { HubStorefrontImageField } from "./hub-storefront-image-field";
 import { HubMenuCustomisationBuilder } from "./hub-menu-customisation";
@@ -112,6 +113,7 @@ import {
   reconcileMenuSectionsAfterWorkspaceSave,
   computeMenuPublishIssues,
   customerFacingMenuSections,
+  type MenuPublishIssue,
   ensureStaffMenuSections,
   findBurgerPartsSection,
   findKebabPartsSection,
@@ -344,6 +346,8 @@ export default function MerchantPortalPage() {
   const [isCreatingNewItem, setIsCreatingNewItem] = useState(false);
   const [showChoiceSetupForItemId, setShowChoiceSetupForItemId] = useState<string | null>(null);
   const [menuPublishDialogOpen, setMenuPublishDialogOpen] = useState(false);
+  const [publishWithKnownIssues, setPublishWithKnownIssues] = useState(false);
+  const [focusedPublishIssueId, setFocusedPublishIssueId] = useState<string | null>(null);
   const [menuPreviewOpen, setMenuPreviewOpen] = useState(false);
   const [menuPublishing, setMenuPublishing] = useState(false);
   const [editingMenuBoardId, setEditingMenuBoardId] = useState<string | null>(null);
@@ -372,6 +376,12 @@ export default function MerchantPortalPage() {
     [menuBoards, editingMenuBoardId],
   );
   const menuPublishIssues = useMemo(() => computeMenuPublishIssues(menuSections), [menuSections]);
+
+  useEffect(() => {
+    if (focusedPublishIssueId && !menuPublishIssues.some((issue) => issue.id === focusedPublishIssueId)) {
+      setFocusedPublishIssueId(null);
+    }
+  }, [focusedPublishIssueId, menuPublishIssues]);
 
   const menuStats = useMemo(() => {
     const totalItems = menuSections.reduce((sum, section) => sum + (section.items?.length ?? 0), 0);
@@ -1445,7 +1455,21 @@ export default function MerchantPortalPage() {
   };
 
   const handleRequestPublishMenu = () => {
+    setPublishWithKnownIssues(false);
     setMenuPublishDialogOpen(true);
+  };
+
+  const handleNavigateToPublishIssue = (issue: MenuPublishIssue) => {
+    setMenuPublishDialogOpen(false);
+    setFocusedPublishIssueId(issue.id);
+    openHubSection("menu");
+    if (issue.sectionId) {
+      setSelectedCategoryId(issue.sectionId);
+      setIsCreatingNewItem(false);
+    }
+    if (issue.itemId) {
+      setSelectedItemId(issue.itemId);
+    }
   };
 
   const focusFirstCustomerCategory = (sections: HubMenuSection[]) => {
@@ -2776,6 +2800,11 @@ export default function MerchantPortalPage() {
               }}
               publishDialogOpen={menuPublishDialogOpen}
               publishSummary={menuPublishSummary}
+              publishIssues={menuPublishIssues}
+              focusedPublishIssueId={focusedPublishIssueId}
+              publishWithKnownIssues={publishWithKnownIssues}
+              onPublishWithKnownIssuesChange={setPublishWithKnownIssues}
+              onNavigateToPublishIssue={handleNavigateToPublishIssue}
               menuPublishing={menuPublishing}
               onCancelPublish={() => setMenuPublishDialogOpen(false)}
               onConfirmPublish={() => void handleSaveHub()}
@@ -3044,11 +3073,22 @@ export default function MerchantPortalPage() {
               <div className="he-two-col" style={{ ...twoColumnGrid, marginTop: burgerPartsSection || kebabPartsSection ? 28 : 0 }}>
                 <label style={field}>
                   <span style={darkFieldLabel}>{t("settings.deliveryEta")}</span>
-                  <input type="number" min={1} style={lightInput} value={hubSettings.etaMinutes} onChange={(event) => handleHubFieldChange("etaMinutes", Math.max(1, Number(event.target.value) || 1))} />
+                  <HubFreeTypeNumberInput
+                    integer
+                    min={1}
+                    style={lightInput}
+                    value={hubSettings.etaMinutes}
+                    onCommit={(etaMinutes) => handleHubFieldChange("etaMinutes", etaMinutes)}
+                  />
                 </label>
                 <label style={field}>
                   <span style={darkFieldLabel}>{t("settings.minimumOrder")}</span>
-                  <input type="number" step="0.01" style={lightInput} value={hubSettings.minimumOrderAmount} onChange={(event) => handleHubFieldChange("minimumOrderAmount", Number(event.target.value) || 0)} />
+                  <HubFreeTypeNumberInput
+                    min={0}
+                    style={lightInput}
+                    value={hubSettings.minimumOrderAmount}
+                    onCommit={(minimumOrderAmount) => handleHubFieldChange("minimumOrderAmount", minimumOrderAmount)}
+                  />
                 </label>
                 <label style={{ display: "flex", gridColumn: "1 / -1", gap: 12, alignItems: "center" }}>
                   <input
@@ -3062,14 +3102,14 @@ export default function MerchantPortalPage() {
                 {hubSettings.autoAcceptOrders ? (
                   <label style={field}>
                     <span style={darkFieldLabel}>{t("settings.autoAcceptMaxPrep")}</span>
-                    <input
-                      type="number"
+                    <HubFreeTypeNumberInput
+                      integer
                       min={5}
                       max={180}
                       style={lightInput}
                       value={hubSettings.autoAcceptMaxPrepMinutes}
-                      onChange={(event) =>
-                        handleHubFieldChange("autoAcceptMaxPrepMinutes", Math.min(180, Math.max(5, Number(event.target.value) || 60)))
+                      onCommit={(autoAcceptMaxPrepMinutes) =>
+                        handleHubFieldChange("autoAcceptMaxPrepMinutes", autoAcceptMaxPrepMinutes)
                       }
                     />
                   </label>
@@ -3534,32 +3574,30 @@ export default function MerchantPortalPage() {
                 </label>
                 <label style={field}>
                   <span style={darkFieldLabel}>Delivery ETA (minutes)</span>
-                  <input
-                    type="number"
+                  <HubFreeTypeNumberInput
+                    integer
                     min={1}
                     style={lightInput}
                     value={hubSettings.etaMinutes}
-                    onChange={(event) => handleHubFieldChange("etaMinutes", Math.max(1, Number(event.target.value) || 1))}
+                    onCommit={(etaMinutes) => handleHubFieldChange("etaMinutes", etaMinutes)}
                   />
                 </label>
                 <label style={field}>
                   <span style={darkFieldLabel}>Flat delivery fallback (£)</span>
-                  <input
-                    type="number"
-                    step="0.01"
+                  <HubFreeTypeNumberInput
+                    min={0}
                     style={lightInput}
                     value={hubSettings.deliveryFee}
-                    onChange={(event) => handleHubFieldChange("deliveryFee", Number(event.target.value) || 0)}
+                    onCommit={(deliveryFee) => handleHubFieldChange("deliveryFee", deliveryFee)}
                   />
                 </label>
                 <label style={field}>
                   <span style={darkFieldLabel}>Minimum order</span>
-                  <input
-                    type="number"
-                    step="0.01"
+                  <HubFreeTypeNumberInput
+                    min={0}
                     style={lightInput}
                     value={hubSettings.minimumOrderAmount}
-                    onChange={(event) => handleHubFieldChange("minimumOrderAmount", Number(event.target.value) || 0)}
+                    onCommit={(minimumOrderAmount) => handleHubFieldChange("minimumOrderAmount", minimumOrderAmount)}
                   />
                 </label>
                 <label style={{ display: "flex", gridColumn: "1 / -1", gap: 12, alignItems: "center" }}>
@@ -3574,14 +3612,14 @@ export default function MerchantPortalPage() {
                 {hubSettings.autoAcceptOrders ? (
                   <label style={field}>
                     <span style={darkFieldLabel}>Max prep when auto-accepting (minutes)</span>
-                    <input
-                      type="number"
+                    <HubFreeTypeNumberInput
+                      integer
                       min={5}
                       max={180}
                       style={lightInput}
                       value={hubSettings.autoAcceptMaxPrepMinutes}
-                      onChange={(event) =>
-                        handleHubFieldChange("autoAcceptMaxPrepMinutes", Math.min(180, Math.max(5, Number(event.target.value) || 60)))
+                      onCommit={(autoAcceptMaxPrepMinutes) =>
+                        handleHubFieldChange("autoAcceptMaxPrepMinutes", autoAcceptMaxPrepMinutes)
                       }
                     />
                   </label>
@@ -3631,13 +3669,11 @@ export default function MerchantPortalPage() {
                 {["Under 1 mile", "Under 2 miles", "Under 3 miles", "Under 4 miles", "Under 5 miles"].map((label, index) => (
                   <label key={label} style={field}>
                     <span style={darkFieldLabel}>{label}</span>
-                    <input
-                      type="number"
-                      step="0.01"
+                    <HubFreeTypeNumberInput
                       min={0}
                       style={lightInput}
-                      value={hubSettings.deliveryMileFees[index]}
-                      onChange={(event) => handleMileFeeBandChange(index, Number(event.target.value) || 0)}
+                      value={hubSettings.deliveryMileFees[index] ?? 0}
+                      onCommit={(fee) => handleMileFeeBandChange(index, fee)}
                     />
                   </label>
                 ))}

@@ -17,10 +17,14 @@
     "prisma:migrate:deploy": "tsx scripts/migrate-deploy.ts",
     "prisma:migrate:status": "tsx scripts/migrate-status.ts",
     "db:check": "tsx scripts/verify-database.ts",
+    "db:provision-cheeky-chicken": "tsx scripts/provision-cheeky-chicken-hub.ts",
+    "db:activate-cheeky-chicken-menu": "tsx scripts/activate-cheeky-chicken-menu.ts",
     "db:baseline": "tsx scripts/baseline-and-deploy.ts",
     "seed": "dotenv -e ../../.env -- tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@hull-eats/auth": "workspace:*",
+    "@hull-eats/types": "workspace:*",
     "@prisma/client": "^6.7.0"
   },
   "devDependencies": {

@@ -84,11 +84,13 @@ export function HubMenuItemExtrasPicker({
               <label style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
                 <input
                   type="checkbox"
+                  className="hub-menu-compose-tick"
                   checked={checked}
                   disabled={readOnly || !enabled}
                   onChange={(e) => onToggle(topping.id, e.target.checked)}
                 />
                 <span style={{ fontWeight: 700 }}>{topping.label}</span>
+                <span style={extraBadge}>Available as extra</span>
               </label>
               <label style={qtyField}>
                 <span>Incl.</span>
@@ -169,5 +171,13 @@ const qtyField: CSSProperties = {
   fontSize: "0.78rem",
   fontWeight: 700,
   color: "#3d4652",
+};
+
+const extraBadge: CSSProperties = {
+  marginLeft: "auto",
+  fontSize: "0.72rem",
+  fontWeight: 800,
+  color: "#0680a6",
+  letterSpacing: "0.02em",
 };
 

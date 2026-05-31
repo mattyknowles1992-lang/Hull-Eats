@@ -487,8 +487,25 @@ export type MenuItemDraftInput = {
   isActive?: boolean;
 };
 
+export type MenuPublishIssueField =
+  | "category_list"
+  | "live_items"
+  | "item_name"
+  | "item_price"
+  | "meal_deal_bundle"
+  | "option_group";
+
+export type MenuPublishIssue = {
+  id: string;
+  message: string;
+  field: MenuPublishIssueField;
+  sectionId?: string;
+  itemId?: string;
+  optionGroupId?: string;
+};
+
 export type MenuPublishSummary = {
-  issues: string[];
+  issues: MenuPublishIssue[];
   categoryCount: number;
   itemCount: number;
   liveCount: number;
@@ -883,7 +900,7 @@ export function reconcileMenuSectionsAfterWorkspaceSave(
 
 export type ComposeProductLine = "burger" | "kebab";
 
-export type BurgerPartSlot = "bun" | "meat" | "salad";
+export type BurgerPartSlot = "bun" | "meat" | "salad" | "sauce";
 export type KebabPartSlot = "bread" | "meat" | "salad";
 /** Slot key stored on each part item — defaults plus `custom-*` groups businesses add. */
 export type ComposePartSlot = string;
@@ -909,6 +926,7 @@ const BURGER_SLOT_LABELS: Record<BurgerPartSlot, string> = {
   bun: "Buns",
   meat: "Meat",
   salad: "Salad",
+  sauce: "Sauce",
 };
 
 const KEBAB_SLOT_LABELS: Record<KebabPartSlot, string> = {
@@ -921,7 +939,7 @@ const LEGACY_KIND_TO_BURGER_SLOT: Record<string, BurgerPartSlot> = {
   bread: "bun",
   protein: "meat",
   salad: "salad",
-  sauce: "salad",
+  sauce: "sauce",
   other: "salad",
 };
 
@@ -983,6 +1001,7 @@ export function defaultPartSlotDefinitions(line: ComposeProductLine): PartSlotDe
       { id: "slot-bun", key: "bun", label: BURGER_SLOT_LABELS.bun },
       { id: "slot-meat", key: "meat", label: BURGER_SLOT_LABELS.meat },
       { id: "slot-salad", key: "salad", label: BURGER_SLOT_LABELS.salad },
+      { id: "slot-sauce", key: "sauce", label: BURGER_SLOT_LABELS.sauce },
     ];
   }
   return [
@@ -1182,31 +1201,54 @@ export function describeCategoryItemBuilder(section: HubMenuSection | null | und
   return "Set name and price on each item. Add base, sauce, or crust under choices if needed.";
 }
 
-export function computeMenuPublishIssues(sections: HubMenuSection[]): string[] {
-  const issues: string[] = [];
+export function computeMenuPublishIssues(sections: HubMenuSection[]): MenuPublishIssue[] {
+  const issues: MenuPublishIssue[] = [];
   sections = customerFacingMenuSections(sections);
 
   if (sections.length === 0) {
-    issues.push("Add at least one menu category.");
+    issues.push({
+      id: "no-categories",
+      message: "Add at least one menu category.",
+      field: "category_list",
+    });
     return issues;
   }
 
   const liveItems = sections.flatMap((section) => section.items).filter((item) => item.isActive);
 
   if (liveItems.length === 0) {
-    issues.push("Turn at least one item live before publishing, or customers will see an empty menu.");
+    const firstSection = sections[0];
+    issues.push({
+      id: "no-live-items",
+      message: "Turn at least one item live before publishing, or customers will see an empty menu.",
+      field: "live_items",
+      sectionId: firstSection?.id,
+      itemId: firstSection?.items[0]?.id,
+    });
   }
 
   for (const section of sections) {
-    for (const item of section.items) {
+    for (const [itemIndex, item] of section.items.entries()) {
       if (!item.name.trim()) {
-        issues.push("Every item needs a name.");
+        issues.push({
+          id: `item-name:${section.id}:${item.id}`,
+          message: `"${section.name}" — row ${itemIndex + 1} needs a product name.`,
+          field: "item_name",
+          sectionId: section.id,
+          itemId: item.id,
+        });
       }
 
       if (isHubMenuMealDealsCategory(section) && item.isActive) {
         const bundle = getMealDealBundleSelection(item);
         if (bundle.mainIds.length === 0 || bundle.sideIds.length === 0 || bundle.drinkIds.length === 0) {
-          issues.push(`"${item.name.trim() || "Meal deal"}" needs at least one main, side, and drink from your menu.`);
+          issues.push({
+            id: `meal-deal:${section.id}:${item.id}`,
+            message: `"${item.name.trim() || "Meal deal"}" needs at least one main, side, and drink from your menu.`,
+            field: "meal_deal_bundle",
+            sectionId: section.id,
+            itemId: item.id,
+          });
         }
       }
 
@@ -1215,22 +1257,72 @@ export function computeMenuPublishIssues(sections: HubMenuSection[]): string[] {
       }
 
       if (Number.isNaN(item.price) || item.price < 0) {
-        issues.push(`"${item.name}" needs a valid price.`);
+        issues.push({
+          id: `item-invalid-price:${section.id}:${item.id}`,
+          message: `"${item.name.trim() || "Item"}" needs a valid price.`,
+          field: "item_price",
+          sectionId: section.id,
+          itemId: item.id,
+        });
       } else if (!isMenuItemPriceListable(item)) {
-        issues.push(
-          `"${item.name.trim() || "Item"}" is live at £0.00 — set a price before publishing (customers cannot order £0 items).`,
-        );
+        issues.push({
+          id: `item-price:${section.id}:${item.id}`,
+          message: `"${item.name.trim() || "Item"}" is live at £0.00 — set a price before publishing (customers cannot order £0 items).`,
+          field: "item_price",
+          sectionId: section.id,
+          itemId: item.id,
+        });
       }
 
       for (const group of item.optionGroups) {
         if (group.isRequired && group.options.filter((option) => option.label.trim()).length === 0) {
-          issues.push(`"${item.name}" — "${group.name || "Choice group"}" is required but has no options.`);
+          issues.push({
+            id: `option-group:${section.id}:${item.id}:${group.id}`,
+            message: `"${item.name.trim() || "Item"}" — "${group.name || "Choice group"}" is required but has no options.`,
+            field: "option_group",
+            sectionId: section.id,
+            itemId: item.id,
+            optionGroupId: group.id,
+          });
         }
       }
     }
   }
 
   return issues;
+}
+
+export function itemHasPublishIssue(
+  issues: MenuPublishIssue[],
+  sectionId: string,
+  itemId: string,
+  field?: MenuPublishIssueField,
+): boolean {
+  return issues.some(
+    (issue) =>
+      issue.sectionId === sectionId &&
+      issue.itemId === itemId &&
+      (field == null || issue.field === field),
+  );
+}
+
+export function getPublishIssueDomTargetId(issue: MenuPublishIssue): string {
+  if (issue.itemId && issue.field === "item_name") {
+    return `publish-issue-item-name-${issue.itemId}`;
+  }
+  if (issue.itemId && issue.field === "item_price") {
+    return `publish-issue-item-price-${issue.itemId}`;
+  }
+  if (issue.itemId && issue.field === "meal_deal_bundle") {
+    return `publish-issue-meal-deal-${issue.itemId}`;
+  }
+  if (issue.itemId && issue.field === "option_group") {
+    return `publish-issue-option-group-${issue.optionGroupId ?? issue.itemId}`;
+  }
+  if (issue.itemId) {
+    return `publish-issue-item-row-${issue.itemId}`;
+  }
+  return `publish-issue-${issue.id}`;
 }
 
 export type MenuPreviewCategory = {
@@ -2153,7 +2245,7 @@ export function applyExtraToppingsToItem(
   includedQtyById: Map<string, number> = new Map(),
 ): MenuItem {
   const withoutExtras = item.optionGroups.filter((group) => !isExtrasToppingsGroup(group));
-  if (!enabled || selectedIds.size === 0) {
+  if (!enabled) {
     return { ...item, optionGroups: withoutExtras };
   }
 
@@ -2166,23 +2258,20 @@ export function applyExtraToppingsToItem(
         label: topping.label,
         description: encodeExtraIncludedQuantity(includedQty),
         priceDelta: priceById.get(topping.id) ?? topping.price,
-        isDefault: includedQty > 0,
+        isDefault: false,
         maxQuantity: 8,
       };
     });
 
-  if (options.length === 0) {
-    return { ...item, optionGroups: withoutExtras };
-  }
-
-  const existingTitle = findExtrasToppingsGroup(item)?.name ?? EXTRAS_TOPPINGS_GROUP_NAME;
+  const existingGroup = findExtrasToppingsGroup(item);
+  const existingTitle = existingGroup?.name ?? EXTRAS_TOPPINGS_GROUP_NAME;
 
   return {
     ...item,
     optionGroups: [
       ...withoutExtras,
       {
-        id: createMenuDraftId("group"),
+        id: existingGroup?.id ?? createMenuDraftId("group"),
         name: existingTitle,
         description: "__HULL_EXTRAS__",
         selectionMode: "multiple" as const,
@@ -2317,24 +2406,20 @@ export function applySaucesToItem(
   extraPriceById: Map<string, number>,
 ): MenuItem {
   const withoutSauces = item.optionGroups.filter((group) => !isAnySaucesGroup(group));
-  if (!enabled || includedIds.size === 0) {
+  if (!enabled) {
     return { ...item, optionGroups: withoutSauces };
   }
 
   const includedOptions = sauces
     .filter((sauce) => includedIds.has(sauce.id))
-    .map((sauce, index) => ({
+    .map((sauce) => ({
       id: sauce.id,
       label: sauce.label,
       description: "",
       priceDelta: 0,
-      isDefault: index === 0,
+      isDefault: false,
       maxQuantity: 1,
     }));
-
-  if (includedOptions.length === 0) {
-    return { ...item, optionGroups: withoutSauces };
-  }
 
   const existingIncluded = findSaucesIncludedGroup(item);
   const groups: MenuOptionGroup[] = [
@@ -2344,8 +2429,8 @@ export function applySaucesToItem(
       name: existingIncluded?.name.trim() || SAUCES_INCLUDED_GROUP_NAME,
       description: "__HULL_SAUCES_INCLUDED__",
       selectionMode: "single",
-      isRequired: true,
-      minSelections: 1,
+      isRequired: includedOptions.length > 0,
+      minSelections: includedOptions.length > 0 ? 1 : 0,
       maxSelections: 1,
       showWhenValueIds: [],
       options: includedOptions,

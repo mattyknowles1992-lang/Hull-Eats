@@ -206,8 +206,6 @@ function describeHubSubtitle(hub: AdminHubSummary) {
   return `${typeLabel} / ${loginLabel} / ${leadTimeLabel}`;
 }
 
-const ultraAdminEmail = "hulleats@admin.com";
-
 function mapApiUserToRecord(user: AdminHubUserSummary): PlatformUserRecord {
   return {
     id: user.id,
@@ -281,7 +279,6 @@ export function AdminConsoleLive() {
   const [inboxNotice, setInboxNotice] = useState("");
 
   const platformUsers = useMemo(() => users.map(mapApiUserToRecord), [users]);
-  const isUltraAdmin = adminEmail.trim().toLowerCase() === ultraAdminEmail;
 
   const clearAdminSession = useCallback((notice = "") => {
     setIsLoggedIn(false);
@@ -878,14 +875,9 @@ export function AdminConsoleLive() {
               </label>
 
               <button type="submit" className="he-admin-button he-admin-button-primary he-admin-button-block">
-                Sign in as ultra admin
+                Sign in
               </button>
             </form>
-
-            <p className="he-admin-login-footnote">
-              Use the master account {ultraAdminEmail} for ultra admin access. Future audit logs can trace changes back to this
-              email.
-            </p>
 
             {sessionNotice ? <p className="he-admin-login-notice he-admin-login-notice-info">{sessionNotice}</p> : null}
             {loginError ? <p className="he-admin-login-notice he-admin-login-notice-error">{loginError}</p> : null}
@@ -963,7 +955,7 @@ export function AdminConsoleLive() {
                   fontWeight: 800,
                 }}
               >
-                {isUltraAdmin ? "Ultra admin" : "Admin session"}
+                Admin session
               </span>
               {adminEmail ? (
                 <span
@@ -1237,11 +1229,9 @@ export function AdminConsoleLive() {
                             {hub.acceptingOrders ? "Stop service" : "Start service"}
                           </button>
                         ) : null}
-                        {isUltraAdmin ? (
-                          <button type="button" style={styles.buttonPrimary} onClick={() => void handleImpersonateHub(hub)}>
-                            Login as hub
-                          </button>
-                        ) : null}
+                        <button type="button" style={styles.buttonPrimary} onClick={() => void handleImpersonateHub(hub)}>
+                          Open hub portal
+                        </button>
                         <button
                           type="button"
                           disabled={!canFeatureOnHomepage && !hub.homepageFeatured}

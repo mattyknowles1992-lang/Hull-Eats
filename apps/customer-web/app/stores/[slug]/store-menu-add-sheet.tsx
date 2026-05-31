@@ -8,8 +8,8 @@ import { getSelectedQuantityForOption } from "../../../src/lib/basket";
 import {
   getAddSheetGroupTitle,
   getAddSheetOptionPriceLabel,
+  showsAddSheetSaladSection,
   sortAddSheetOptionGroups,
-  usesItemAddSheet,
 } from "./store-menu-add-sheet-helpers";
 
 type Props = {
@@ -24,6 +24,7 @@ type Props = {
   onConfirm: () => void;
   onSpecialInstructionsChange: (value: string) => void;
   onAddQuantityChange: (quantity: number) => void;
+  onToggleRemovedComponent: (componentId: string) => void;
   onSetOptionQuantity: (
     groupId: string,
     optionId: string,
@@ -47,10 +48,13 @@ export function StoreMenuAddSheet({
   onConfirm,
   onSpecialInstructionsChange,
   onAddQuantityChange,
+  onToggleRemovedComponent,
   onSetOptionQuantity,
 }: Props) {
   const sortedGroups = sortAddSheetOptionGroups(visibleGroups);
   const intro = customerFacingMenuItemDescription(item.description);
+  const saladComponents = item.components.filter((component) => component.removable);
+  const showSaladSection = showsAddSheetSaladSection(item);
 
   const toggleSingleOption = (group: MenuItem["optionGroups"][number], optionId: string) => {
     onSetOptionQuantity(group.id, optionId, "single", 1, 1);
@@ -85,6 +89,37 @@ export function StoreMenuAddSheet({
           </header>
 
           {intro ? <p className="add-sheet-intro">{intro}</p> : null}
+
+          {showSaladSection ? (
+            <section className="add-sheet-section">
+              <h4 className="add-sheet-section-title">Add your salad</h4>
+              <p className="add-sheet-section-copy">Untick anything you do not want on your order.</p>
+              <ul className="add-sheet-options">
+                {saladComponents.map((component) => {
+                  const included = !selection.removedComponentIds.includes(component.id);
+                  const inputId = `salad-${component.id}`;
+
+                  return (
+                    <li key={component.id} className={`add-sheet-option${included ? " is-selected" : ""}`}>
+                      <label className="add-sheet-option-label" htmlFor={inputId}>
+                        <input
+                          id={inputId}
+                          type="checkbox"
+                          className="add-sheet-checkbox"
+                          checked={included}
+                          onChange={() => onToggleRemovedComponent(component.id)}
+                        />
+                        <span className="add-sheet-option-name">
+                          {component.quantity > 1 ? `${component.quantity}× ` : ""}
+                          {component.label}
+                        </span>
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ) : null}
 
           {sortedGroups.map((group) => (
             <section key={group.id} className="add-sheet-section">

@@ -95,6 +95,7 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
                 storePostcode={store.postcode}
                 storeAddress={storeAddress}
                 storeDeliveryFee={store.deliveryFee}
+                storeMinimumOrderAmount={store.minimumOrderAmount}
                 storeDeliveryPricing={store.deliveryPricing}
                 storeAcceptsOrders={storeAcceptsOrders}
                 categories={menu.categories}

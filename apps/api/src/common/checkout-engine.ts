@@ -115,16 +115,17 @@ const buildCheckoutSession = async (
   });
 
   const subtotalAmount = Number(lineItems.reduce((sum, line) => sum + line.lineTotal, 0).toFixed(2));
-  const minimumOrderAmount = Number(store.minimumOrderAmount ?? 0);
   const pricing = store.deliveryPricing ? normaliseDeliveryPricing(store.deliveryPricing) : null;
   const deliveryQuote = computeDeliveryQuote({
     fulfillmentType: input.fulfillmentType,
     storeBasePostcode: store.postcode,
     legacyDeliveryFee: store.deliveryFee,
+    legacyMinimumOrderAmount: store.minimumOrderAmount,
     pricing,
     customerPostcode: input.postcode,
   });
   const deliveryFee = deliveryQuote.blocked ? 0 : deliveryQuote.fee;
+  const minimumOrderAmount = deliveryQuote.minimumOrderAmount;
   const totalAmount = Number((subtotalAmount + deliveryFee).toFixed(2));
   const addressPresent =
     input.fulfillmentType === "pickup" || Boolean(input.customerAddressId || (input.addressLine1 && input.city && input.postcode));

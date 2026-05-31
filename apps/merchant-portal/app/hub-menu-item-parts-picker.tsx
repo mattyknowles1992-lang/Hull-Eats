@@ -7,13 +7,10 @@ import type { MenuItem } from "@hull-eats/types";
 
 import {
   componentFromMenuPart,
-  filterPartsNotListedAsExtras,
-  isLabelListedAsExtra,
   partSlotLabel,
   syncComposePartsFromSelection,
   type ComposePartSlot,
   type ComposeProductLine,
-  type HubExtraTopping,
   type HubMenuPart,
   type PartSlotDefinition,
 } from "./menu-studio-core";
@@ -23,7 +20,6 @@ type Props = {
   line: ComposeProductLine;
   parts: HubMenuPart[];
   slotDefinitions: PartSlotDefinition[];
-  extras: HubExtraTopping[];
   readOnly?: boolean;
   onUpdateItem: (updater: (item: MenuItem) => MenuItem) => void;
 };
@@ -33,12 +29,10 @@ export function HubMenuItemPartsPicker({
   line,
   parts,
   slotDefinitions,
-  extras,
   readOnly = false,
   onUpdateItem,
 }: Props) {
   const [syncDescription, setSyncDescription] = useState(true);
-  const availableParts = useMemo(() => filterPartsNotListedAsExtras(parts, extras), [parts, extras]);
 
   const selectedByPartId = useMemo(() => {
     const map = new Map<string, MenuItem["components"][number]>();
@@ -72,18 +66,13 @@ export function HubMenuItemPartsPicker({
     for (const slot of slotDefinitions) {
       groups.set(slot.key, []);
     }
-    for (const part of availableParts) {
+    for (const part of parts) {
       const bucket = groups.get(part.slot) ?? [];
       bucket.push(part);
       groups.set(part.slot, bucket);
     }
     return groups;
-  }, [availableParts, slotDefinitions]);
-
-  const extrasUsedAsBase = useMemo(
-    () => extras.filter((extra) => item.components.some((c) => normalize(c.label) === normalize(extra.label))),
-    [extras, item.components],
-  );
+  }, [parts, slotDefinitions]);
 
   const patchComponents = (components: MenuItem["components"]) => {
     onUpdateItem((current) =>
@@ -103,9 +92,6 @@ export function HubMenuItemPartsPicker({
   }, [parts, selectedByPartId]);
 
   const togglePart = (part: HubMenuPart, checked: boolean) => {
-    if (checked && isLabelListedAsExtra(part.label, extras)) {
-      return;
-    }
     const current = collectSelectedComponents();
     if (checked) {
       patchComponents([...current.filter((entry) => entry.id !== part.id), componentFromMenuPart(part)]);
@@ -124,7 +110,7 @@ export function HubMenuItemPartsPicker({
     return (
       <p style={empty}>
         Add base parts under <strong>{line === "burger" ? "Burger parts" : "Kebab parts"}</strong> on the left (buns,
-        meat, salad), then tick them here.
+        meat, salad, sauce), then tick them here.
       </p>
     );
   }
@@ -133,22 +119,15 @@ export function HubMenuItemPartsPicker({
     <section className="hub-menu-item-parts">
       <div style={headerRow}>
         <div>
-          <strong style={title}>Build this {line} from parts</strong>
+          <strong style={title}>Part of this item</strong>
           <p style={copy}>
-            Tick what makes up this product. <strong>One</strong> tick per group = fixed on the item (set quantity).
-            <strong> Two or more</strong> in the same group (e.g. two buns) = customer <strong>picks one</strong> on the
-            website. Paid add-ons (cheese, bacon…) go under <strong>Added extras</strong> on this item.
+            Green tick what makes up this product (bun, patty, salad, sauce). Nothing is ticked until you choose.
+            <strong> One</strong> tick per group = fixed on the item. <strong>Two or more</strong> in the same group =
+            customer picks one on the website. The same ingredient can also be ticked under{" "}
+            <strong>Added extras</strong> as a paid add-on.
           </p>
         </div>
       </div>
-
-      {extras.length > 0 ? (
-        <p style={hintBox}>
-          <strong>In Added extras already:</strong>{" "}
-          {extras.map((e) => e.label).join(", ")} — use <strong>Added extras on this item</strong> for those, not base
-          parts.
-        </p>
-      ) : null}
 
       <label style={syncRow}>
         <input
@@ -183,11 +162,13 @@ export function HubMenuItemPartsPicker({
                     <label style={checkLabel}>
                       <input
                         type="checkbox"
+                        className="hub-menu-compose-tick"
                         checked={checked}
                         disabled={readOnly}
                         onChange={(e) => togglePart(part, e.target.checked)}
                       />
                       <span>{part.label}</span>
+                      <span style={partBadge}>Part of this item</span>
                     </label>
                     {checked && selected ? (
                       <div style={qtyRow}>
@@ -221,13 +202,6 @@ export function HubMenuItemPartsPicker({
         );
       })}
 
-      {extrasUsedAsBase.length > 0 ? (
-        <p style={warn}>
-          {extrasUsedAsBase.map((e) => e.label).join(", ")} should be under <strong>Added extras</strong> on this item,
-          not base parts — remove from parts above if listed in Added extras.
-        </p>
-      ) : null}
-
       {item.components.length > 0 ? (
         <p style={summary}>
           <strong>On ticket:</strong>{" "}
@@ -236,10 +210,6 @@ export function HubMenuItemPartsPicker({
       ) : null}
     </section>
   );
-}
-
-function normalize(label: string) {
-  return label.trim().toLowerCase();
 }
 
 const headerRow: CSSProperties = {
@@ -251,15 +221,6 @@ const headerRow: CSSProperties = {
 };
 const title: CSSProperties = { fontSize: "0.92rem" };
 const copy: CSSProperties = { margin: "4px 0 0", fontSize: "0.8rem", color: "#5b6470", lineHeight: 1.4 };
-const hintBox: CSSProperties = {
-  margin: 0,
-  padding: "10px 12px",
-  borderRadius: 10,
-  background: "rgba(35, 205, 255, 0.1)",
-  border: "1px solid rgba(7, 155, 200, 0.25)",
-  fontSize: "0.82rem",
-  lineHeight: 1.45,
-};
 const syncRow: CSSProperties = { display: "flex", alignItems: "center", gap: 8, fontSize: "0.84rem", fontWeight: 600 };
 const empty: CSSProperties = { margin: 0, fontSize: "0.84rem", color: "#5b6470" };
 const groupTitle: CSSProperties = { margin: "0 0 6px", fontSize: "0.78rem", fontWeight: 800, color: "#064f68" };
@@ -273,7 +234,14 @@ const optionRow: CSSProperties = {
   border: "1px solid rgba(15, 17, 21, 0.1)",
   background: "#fafbfc",
 };
-const checkLabel: CSSProperties = { display: "flex", alignItems: "center", gap: 8, fontWeight: 700 };
+const checkLabel: CSSProperties = { display: "flex", alignItems: "center", gap: 8, fontWeight: 700, flexWrap: "wrap" };
+const partBadge: CSSProperties = {
+  marginLeft: "auto",
+  fontSize: "0.72rem",
+  fontWeight: 800,
+  color: "#0a7a3b",
+  letterSpacing: "0.02em",
+};
 const qtyRow: CSSProperties = { display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", paddingLeft: 26 };
 const qtyInput: CSSProperties = {
   width: 72,
@@ -286,4 +254,3 @@ const qtyInput: CSSProperties = {
 };
 const removeLabel: CSSProperties = { display: "flex", alignItems: "center", gap: 6, fontSize: "0.8rem" };
 const summary: CSSProperties = { margin: 0, fontSize: "0.82rem", color: "#3d4652", lineHeight: 1.45 };
-const warn: CSSProperties = { margin: 0, fontSize: "0.82rem", color: "#8a2121", lineHeight: 1.45 };

@@ -1,4 +1,5 @@
 import { decodeHubMenuCategoryDescription, encodeHubMenuCategoryDescription } from "./hub-menu-presets";
+import { stripHubPizzaCategoryChoicesMarker } from "./hub-menu-pizza-choices";
 import { stripHubPizzaSizeColumnsMarker } from "./hub-menu-pizza-columns";
 
 export type MenuSubGroupDefinition = {
@@ -7,6 +8,8 @@ export type MenuSubGroupDefinition = {
 };
 
 const MENU_SUBGROUPS_MARKER = /^__HULL_MENU_SUBGROUPS:([\s\S]*?)__(?:\r?\n)?([\s\S]*)$/;
+const HUB_INTERNAL_CATEGORY_MARKER =
+  /__HULL_(?:PIZZA_SIZE_COLUMNS|PIZZA_CATEGORY_CHOICES|MENU_SUBGROUPS):[\s\S]*?__/g;
 
 function parseMenuSubGroupsPayload(raw: string): MenuSubGroupDefinition[] {
   try {
@@ -62,13 +65,40 @@ function stripMenuSubGroupsMarker(description: string): string {
   return (match[2] ?? "").trim();
 }
 
-function encodeMenuSubGroupsInDescription(subGroups: MenuSubGroupDefinition[], userNote = ""): string {
+function stripAllHubInternalCategoryMarkers(description: string): string {
+  return stripHubPizzaCategoryChoicesMarker(stripHubPizzaSizeColumnsMarker(stripMenuSubGroupsMarker(description))).trim();
+}
+
+function extractHubInternalCategoryMarkers(description: string): { markers: string[]; userNote: string } {
+  const markers = [...description.matchAll(HUB_INTERNAL_CATEGORY_MARKER)].map((match) => match[0]);
+  return {
+    markers,
+    userNote: stripAllHubInternalCategoryMarkers(description),
+  };
+}
+
+function encodeMenuSubGroupsMarker(subGroups: MenuSubGroupDefinition[]): string {
   const payload = JSON.stringify({
     subGroups: subGroups.map((group) => ({ id: group.id, label: group.label })),
   });
-  const note = stripMenuSubGroupsMarker(userNote.trim());
-  const marker = `__HULL_MENU_SUBGROUPS:${payload}__`;
-  return note ? `${marker}\n${note}` : marker;
+  return `__HULL_MENU_SUBGROUPS:${payload}__`;
+}
+
+function assembleCategoryDescription(markers: string[], userNote = ""): string {
+  const parts = markers.filter(Boolean);
+  const note = userNote.trim();
+  if (note) {
+    parts.push(note);
+  }
+  return parts.join("\n");
+}
+
+function encodeMenuSubGroupsInDescription(subGroups: MenuSubGroupDefinition[], userNote = ""): string {
+  const note = stripAllHubInternalCategoryMarkers(userNote.trim());
+  if (subGroups.length === 0) {
+    return note;
+  }
+  return assembleCategoryDescription([encodeMenuSubGroupsMarker(subGroups)], note);
 }
 
 /** Sub-group headings configured on a menu category (e.g. Cans, Milkshakes under Drinks). */
@@ -89,7 +119,21 @@ export function getCategoryCustomerDescription(section: {
   presetKey?: string | null;
 }): string {
   const decoded = decodeHubMenuCategoryDescription(section.description ?? "");
-  return stripHubPizzaSizeColumnsMarker(stripMenuSubGroupsMarker(decoded.description));
+  return stripAllHubInternalCategoryMarkers(decoded.description);
+}
+
+/** Update the customer-facing category note without touching hub-only description markers. */
+export function writeCategoryCustomerDescriptionOnSection<T extends { description?: string | null; presetKey?: string | null }>(
+  section: T,
+  customerDescription: string,
+): T {
+  const decoded = decodeHubMenuCategoryDescription(section.description ?? "");
+  const { markers } = extractHubInternalCategoryMarkers(decoded.description);
+  const description = assembleCategoryDescription(markers, customerDescription);
+  return {
+    ...section,
+    description: encodeHubMenuCategoryDescription(section.presetKey ?? null, description),
+  };
 }
 
 export function writeMenuSubGroupsOnSection<T extends { description?: string | null; presetKey?: string | null }>(
@@ -98,8 +142,12 @@ export function writeMenuSubGroupsOnSection<T extends { description?: string | n
   customerDescription?: string,
 ): T {
   const decoded = decodeHubMenuCategoryDescription(section.description ?? "");
-  const note = customerDescription ?? stripMenuSubGroupsMarker(decoded.description);
-  const description = encodeMenuSubGroupsInDescription(subGroups, note);
+  const { markers, userNote } = extractHubInternalCategoryMarkers(decoded.description);
+  const note = customerDescription ?? userNote;
+  const nonSubgroupMarkers = markers.filter((marker) => !marker.startsWith("__HULL_MENU_SUBGROUPS:"));
+  const nextMarkers =
+    subGroups.length > 0 ? [...nonSubgroupMarkers, encodeMenuSubGroupsMarker(subGroups)] : nonSubgroupMarkers;
+  const description = assembleCategoryDescription(nextMarkers, note);
   return {
     ...section,
     description: encodeHubMenuCategoryDescription(section.presetKey ?? null, description),
@@ -152,6 +200,65 @@ export function removeMenuSubGroupOnSection<T extends { description?: string | n
 export type MenuItemWithSubGroup = {
   menuSubGroup?: string | null;
 };
+
+export const MENU_SUBGROUP_LABEL_SEPARATOR = " — ";
+
+/** Split a stored header label such as `Fizzy — Cans` into type + format. */
+export function parseMenuSubGroupLabel(label: string): { type: string; format: string } {
+  const trimmed = label.trim();
+  if (!trimmed) {
+    return { type: "", format: "" };
+  }
+  const separatorIndex = trimmed.indexOf(MENU_SUBGROUP_LABEL_SEPARATOR);
+  if (separatorIndex === -1) {
+    return { type: trimmed, format: "" };
+  }
+  return {
+    type: trimmed.slice(0, separatorIndex).trim(),
+    format: trimmed.slice(separatorIndex + MENU_SUBGROUP_LABEL_SEPARATOR.length).trim(),
+  };
+}
+
+export type MenuSubGroupTreeBranch<T> = {
+  type: string;
+  formats: Array<{ label: string; items: T[] }>;
+};
+
+/** Nest flat subgroup labels into a family tree (Drinks → Fizzy → Cans). */
+export function groupMenuItemsBySubGroupTree<T extends MenuItemWithSubGroup>(
+  items: T[],
+  subGroupDefinitions: MenuSubGroupDefinition[],
+): { branches: MenuSubGroupTreeBranch<T>[]; ungrouped: T[] } {
+  const flat = groupMenuItemsBySubGroup(items, subGroupDefinitions).filter((section) => section.label);
+  const branchOrder: string[] = [];
+  const branches = new Map<string, Map<string, T[]>>();
+
+  for (const section of flat) {
+    const label = section.label!;
+    const { type, format } = parseMenuSubGroupLabel(label);
+    if (!type) {
+      continue;
+    }
+    if (!branches.has(type)) {
+      branches.set(type, new Map());
+      branchOrder.push(type);
+    }
+    const formats = branches.get(type)!;
+    const formatKey = format || label;
+    formats.set(formatKey, section.items);
+  }
+
+  return {
+    branches: branchOrder.map((type) => ({
+      type,
+      formats: [...(branches.get(type)?.entries() ?? [])].map(([label, branchItems]) => ({
+        label,
+        items: branchItems,
+      })),
+    })),
+    ungrouped: groupMenuItemsBySubGroup(items, subGroupDefinitions).find((section) => !section.label)?.items ?? [],
+  };
+}
 
 /** Group items for customer menu display using category sub-group order. */
 export function groupMenuItemsBySubGroup<T extends MenuItemWithSubGroup>(

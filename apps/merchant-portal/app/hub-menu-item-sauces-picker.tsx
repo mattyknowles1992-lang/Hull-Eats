@@ -64,7 +64,7 @@ export function HubMenuItemSaucesPicker({
       </label>
 
       <div style={enabled ? block : blockDisabled}>
-        <p style={sectionTitle}>Included sauce (customer picks one)</p>
+        <p style={sectionTitle}>Part of this item (customer picks one included sauce)</p>
         <div style={toolbar}>
           <button type="button" style={linkButton} disabled={readOnly || !enabled} onClick={onSelectAllIncluded}>
             Select all
@@ -80,12 +80,13 @@ export function HubMenuItemSaucesPicker({
               <label key={`inc-${sauce.id}`} style={optionRow}>
                 <input
                   type="checkbox"
+                  className="hub-menu-compose-tick"
                   checked={checked}
                   disabled={readOnly || !enabled}
                   onChange={(e) => onIncludedToggle(sauce.id, e.target.checked)}
                 />
                 <span style={{ flex: 1, fontWeight: 700 }}>{sauce.label}</span>
-                <span style={priceHint}>Free with item</span>
+                <span style={partBadge}>Part of this item</span>
               </label>
             );
           })}
@@ -111,11 +112,13 @@ export function HubMenuItemSaucesPicker({
                 <label key={`ext-${sauce.id}`} style={optionRow}>
                   <input
                     type="checkbox"
+                    className="hub-menu-compose-tick"
                     checked={checked}
                     disabled={readOnly || !enabled || !extraEnabled}
                     onChange={(e) => onExtraToggle(sauce.id, e.target.checked)}
                   />
                   <span style={{ flex: 1, fontWeight: 700 }}>{sauce.label}</span>
+                  <span style={extraBadge}>Available as extra</span>
                   <input
                     type="number"
                     step="0.1"
@@ -181,3 +184,17 @@ const optionRow: CSSProperties = {
 };
 
 const priceHint: CSSProperties = { fontSize: "0.78rem", color: "#5b6470", fontWeight: 600 };
+
+const partBadge: CSSProperties = {
+  fontSize: "0.72rem",
+  fontWeight: 800,
+  color: "#0a7a3b",
+  letterSpacing: "0.02em",
+};
+
+const extraBadge: CSSProperties = {
+  fontSize: "0.72rem",
+  fontWeight: 800,
+  color: "#0680a6",
+  letterSpacing: "0.02em",
+};

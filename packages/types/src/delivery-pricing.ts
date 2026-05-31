@@ -15,6 +15,8 @@ export type DeliveryMode = z.infer<typeof deliveryModeSchema>;
 export const deliveryDistanceRangeSchema = z.object({
   maxMiles: z.number().min(0.1).max(40),
   fee: z.number().nonnegative(),
+  /** When set, overrides the store flat minimum for customers in this distance band. */
+  minimumOrderAmount: z.number().nonnegative().nullable().default(null),
 });
 export type DeliveryDistanceRange = z.infer<typeof deliveryDistanceRangeSchema>;
 
@@ -46,6 +48,8 @@ export const hullPostcodeZoneSchema = z.object({
   code: z.string().min(2).max(8),
   radiusMiles: z.number().min(0.1).max(40),
   fee: z.number().nonnegative().nullable().default(null),
+  /** When set, overrides the store flat minimum for customers in this postcode block. */
+  minimumOrderAmount: z.number().nonnegative().nullable().default(null),
   /** Legacy whole-area flag; kept in sync with enabledSectors on read/write. */
   enabled: z.boolean(),
   /** Sector digits enabled for this outward (HU7 0, HU7 1, …). Empty + enabled=true means all sectors. */
@@ -118,9 +122,34 @@ export const createDefaultHullPostcodeZones = (): HullPostcodeZone[] =>
     code,
     radiusMiles: 1.5,
     fee: null,
+    minimumOrderAmount: null,
     enabled: false,
     enabledSectors: [],
   }));
+
+const parseDeliveryDistanceRange = (entry: unknown): DeliveryDistanceRange | null => {
+  if (!entry || typeof entry !== "object") {
+    return null;
+  }
+  const row = entry as { maxMiles?: unknown; fee?: unknown; minimumOrderAmount?: unknown };
+  const maxMiles = Number(row.maxMiles);
+  const fee = Number(row.fee);
+  if (!Number.isFinite(maxMiles) || !Number.isFinite(fee) || fee < 0) {
+    return null;
+  }
+  const minimumRaw = row.minimumOrderAmount;
+  const minimumOrderAmount =
+    minimumRaw == null || minimumRaw === ""
+      ? null
+      : Number.isFinite(Number(minimumRaw)) && Number(minimumRaw) >= 0
+        ? Number(Number(minimumRaw).toFixed(2))
+        : null;
+  return {
+    maxMiles: Math.min(40, Math.max(0.1, Number(maxMiles.toFixed(2)))),
+    fee: Number(fee.toFixed(2)),
+    minimumOrderAmount,
+  };
+};
 
 export const normalizeDeliveryDistanceRanges = (
   value: unknown,
@@ -128,29 +157,15 @@ export const normalizeDeliveryDistanceRanges = (
 ): DeliveryDistanceRange[] => {
   const fromValue = Array.isArray(value)
     ? value
-        .map((entry) => {
-          if (!entry || typeof entry !== "object") {
-            return null;
-          }
-          const row = entry as { maxMiles?: unknown; fee?: unknown };
-          const maxMiles = Number(row.maxMiles);
-          const fee = Number(row.fee);
-          if (!Number.isFinite(maxMiles) || !Number.isFinite(fee) || fee < 0) {
-            return null;
-          }
-          return {
-            maxMiles: Math.min(40, Math.max(0.1, Number(maxMiles.toFixed(2)))),
-            fee: Number(fee.toFixed(2)),
-          } satisfies DeliveryDistanceRange;
-        })
+        .map((entry) => parseDeliveryDistanceRange(entry))
         .filter((entry): entry is DeliveryDistanceRange => entry !== null)
     : [];
 
-  const fromLegacy =
+  const fromLegacy: DeliveryDistanceRange[] =
     fromValue.length > 0
       ? fromValue
       : (legacyFees ?? [])
-          .map((fee, index) => {
+          .map((fee, index): DeliveryDistanceRange | null => {
             const amount = Number(fee);
             if (!Number.isFinite(amount) || amount <= 0) {
               return null;
@@ -158,7 +173,8 @@ export const normalizeDeliveryDistanceRanges = (
             return {
               maxMiles: index + 1,
               fee: Number(amount.toFixed(2)),
-            } satisfies DeliveryDistanceRange;
+              minimumOrderAmount: null,
+            };
           })
           .filter((entry): entry is DeliveryDistanceRange => entry !== null);
 
@@ -214,7 +230,7 @@ export const mergeHullPostcodeZones = (saved: HullPostcodeZone[] | undefined): H
   return listKnownHullOutwardCodes().map((code) => {
     const existing = byCode.get(code);
     if (!existing) {
-      return { code, radiusMiles: 1.5, fee: null, enabled: false, enabledSectors: [] };
+      return { code, radiusMiles: 1.5, fee: null, minimumOrderAmount: null, enabled: false, enabledSectors: [] };
     }
 
     const enabledSectors = getHullZoneEnabledSectors({
@@ -228,6 +244,12 @@ export const mergeHullPostcodeZones = (saved: HullPostcodeZone[] | undefined): H
       code,
       radiusMiles: Math.min(40, Math.max(0.1, existing.radiusMiles)),
       fee: existing.fee == null ? null : Number.isFinite(Number(existing.fee)) ? Number(Number(existing.fee).toFixed(2)) : null,
+      minimumOrderAmount:
+        existing.minimumOrderAmount == null
+          ? null
+          : Number.isFinite(Number(existing.minimumOrderAmount))
+            ? Number(Number(existing.minimumOrderAmount).toFixed(2))
+            : null,
       enabledSectors,
       enabled: enabledSectors.length > 0,
     };
@@ -299,6 +321,7 @@ export const normaliseDeliveryPricing = (raw: unknown): StoreDeliveryPricing => 
         code,
         radiusMiles: base.radiusMiles,
         fee: null,
+        minimumOrderAmount: null,
         enabled: legacySet.has(code),
         enabledSectors: [],
       })),
@@ -467,9 +490,55 @@ const pickMileBandFee = (miles: number, fees: number[]): number => {
   return fees[4] ?? 0;
 };
 
+const pickDistanceRange = (miles: number, ranges: DeliveryDistanceRange[]): DeliveryDistanceRange | null =>
+  ranges.find((range) => miles <= range.maxMiles + 0.0001) ?? null;
+
 const pickDistanceRangeFee = (miles: number, ranges: DeliveryDistanceRange[]): number | null => {
-  const match = ranges.find((range) => miles <= range.maxMiles + 0.0001);
+  const match = pickDistanceRange(miles, ranges);
   return match ? Number(match.fee.toFixed(2)) : null;
+};
+
+export const resolveDeliveryMinimumOrder = (args: {
+  legacyMinimumOrderAmount?: number;
+  range?: DeliveryDistanceRange | null;
+  zone?: HullPostcodeZone | null;
+}): number => {
+  const legacy = Number(args.legacyMinimumOrderAmount ?? 0);
+  if (args.zone?.minimumOrderAmount != null && Number.isFinite(Number(args.zone.minimumOrderAmount))) {
+    return Number(Number(args.zone.minimumOrderAmount).toFixed(2));
+  }
+  if (args.range?.minimumOrderAmount != null && Number.isFinite(Number(args.range.minimumOrderAmount))) {
+    return Number(Number(args.range.minimumOrderAmount).toFixed(2));
+  }
+  return Number(legacy.toFixed(2));
+};
+
+const previewMinimumOrderAmount = (args: {
+  legacyMinimumOrderAmount?: number;
+  pricing?: StoreDeliveryPricing | null;
+}): number => {
+  const legacy = Number(args.legacyMinimumOrderAmount ?? 0);
+  const pricing = args.pricing ? normaliseDeliveryPricingForServe(args.pricing) : null;
+  if (!pricing) {
+    return Number(legacy.toFixed(2));
+  }
+
+  const candidates = [legacy];
+  if (pricing.mode === "postcode_zones") {
+    for (const zone of pricing.postcodeZones) {
+      if (zone.minimumOrderAmount != null) {
+        candidates.push(Number(zone.minimumOrderAmount));
+      }
+    }
+  } else {
+    for (const range of pricing.distanceRanges) {
+      if (range.minimumOrderAmount != null) {
+        candidates.push(Number(range.minimumOrderAmount));
+      }
+    }
+  }
+
+  return Number(Math.min(...candidates).toFixed(2));
 };
 
 const hasAnyMileFee = (fees: number[]) => fees.some((value) => value > 0);
@@ -499,6 +568,8 @@ const minPositiveMileFee = (fees: number[]): number | null => {
 
 export type DeliveryQuote = {
   fee: number;
+  /** Effective minimum order for this quote (distance/postcode band or store default). */
+  minimumOrderAmount: number;
   /** True until a customer postcode is supplied for delivery. */
   needsPostcode: boolean;
   /** True when fee is a platform default or legacy flat because mile pricing is not configured. */
@@ -538,11 +609,20 @@ export const computeDeliveryQuote = (args: {
   fulfillmentType: "delivery" | "pickup";
   storeBasePostcode: string;
   legacyDeliveryFee?: number;
+  legacyMinimumOrderAmount?: number;
   pricing?: StoreDeliveryPricing | null;
   customerPostcode?: string | null;
 }): DeliveryQuote => {
+  const legacyMinimumOrderAmount = Number(args.legacyMinimumOrderAmount ?? 0);
+
   if (args.fulfillmentType !== "delivery") {
-    return { fee: 0, needsPostcode: false, isDefaultPricing: true, blocked: false };
+    return {
+      fee: 0,
+      minimumOrderAmount: Number(legacyMinimumOrderAmount.toFixed(2)),
+      needsPostcode: false,
+      isDefaultPricing: true,
+      blocked: false,
+    };
   }
 
   const pricing = args.pricing ? normaliseDeliveryPricingForServe(args.pricing) : null;
@@ -581,6 +661,10 @@ export const computeDeliveryQuote = (args: {
           : PLATFORM_DEFAULT_DELIVERY_GBP;
     return {
       fee,
+      minimumOrderAmount: previewMinimumOrderAmount({
+        legacyMinimumOrderAmount,
+        pricing,
+      }),
       needsPostcode: true,
       isDefaultPricing: !usesConfiguredPricing,
       blocked: false,
@@ -589,7 +673,13 @@ export const computeDeliveryQuote = (args: {
 
   if (!enforceCoverage) {
     const fee = legacy > 0 ? Number(legacy.toFixed(2)) : PLATFORM_DEFAULT_DELIVERY_GBP;
-    return { fee, needsPostcode: false, isDefaultPricing: true, blocked: false };
+    return {
+      fee,
+      minimumOrderAmount: Number(legacyMinimumOrderAmount.toFixed(2)),
+      needsPostcode: false,
+      isDefaultPricing: true,
+      blocked: false,
+    };
   }
 
   const cfg = pricing!;
@@ -603,6 +693,7 @@ export const computeDeliveryQuote = (args: {
   if (!originPoint) {
     return {
       fee: 0,
+      minimumOrderAmount: Number(legacyMinimumOrderAmount.toFixed(2)),
       needsPostcode: false,
       isDefaultPricing: false,
       blocked: true,
@@ -613,6 +704,7 @@ export const computeDeliveryQuote = (args: {
   if (!destPoint) {
     return {
       fee: 0,
+      minimumOrderAmount: Number(legacyMinimumOrderAmount.toFixed(2)),
       needsPostcode: false,
       isDefaultPricing: false,
       blocked: true,
@@ -626,6 +718,7 @@ export const computeDeliveryQuote = (args: {
     if (!zone || !hullZoneHasCoverage(zone)) {
       return {
         fee: 0,
+        minimumOrderAmount: Number(legacyMinimumOrderAmount.toFixed(2)),
         needsPostcode: false,
         isDefaultPricing: false,
         blocked: true,
@@ -638,6 +731,7 @@ export const computeDeliveryQuote = (args: {
       if (!isHullZoneSectorEnabled(zone, customerSector.sector)) {
         return {
           fee: 0,
+          minimumOrderAmount: Number(legacyMinimumOrderAmount.toFixed(2)),
           needsPostcode: false,
           isDefaultPricing: false,
           blocked: true,
@@ -650,6 +744,7 @@ export const computeDeliveryQuote = (args: {
     if (milesFromShop > cfg.radiusMiles + 0.001) {
       return {
         fee: 0,
+        minimumOrderAmount: Number(legacyMinimumOrderAmount.toFixed(2)),
         needsPostcode: false,
         isDefaultPricing: false,
         blocked: true,
@@ -659,6 +754,7 @@ export const computeDeliveryQuote = (args: {
   }
 
   const milesForFee = haversineMiles(originPoint, destPoint);
+  const matchedRange = rangeConfigured ? pickDistanceRange(milesForFee, cfg.distanceRanges) : null;
   const configuredFee =
     cfg.mode === "postcode_zones"
       ? zone?.fee != null
@@ -675,8 +771,14 @@ export const computeDeliveryQuote = (args: {
       : legacy > 0
         ? Number(legacy.toFixed(2))
         : PLATFORM_DEFAULT_DELIVERY_GBP;
+  const minimumOrderAmount = resolveDeliveryMinimumOrder({
+    legacyMinimumOrderAmount,
+    range: cfg.mode === "business_radius" ? matchedRange : null,
+    zone: cfg.mode === "postcode_zones" ? zone : null,
+  });
   return {
     fee,
+    minimumOrderAmount,
     needsPostcode: false,
     isDefaultPricing: configuredFee == null,
     blocked: false,

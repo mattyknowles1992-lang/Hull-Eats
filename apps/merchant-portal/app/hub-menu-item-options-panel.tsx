@@ -14,7 +14,6 @@ import {
   applyExtraToppingsToItem,
   applyMealUpgradeToItem,
   applySaucesToItem,
-  buildAllToppingSelection,
   findSaucesIncludedGroup,
   findSaucesExtraGroup,
   getItemExtraToppingSelection,
@@ -98,14 +97,17 @@ function ItemSaucesBlock({
       readOnly={readOnly}
       onEnabledChange={(enabled) => {
         if (enabled) {
-          const defaults = new Set(sauces.map((sauce) => sauce.id));
-          patch(true, defaults, false, new Set(), selection.extraPriceById);
+          patch(true, new Set(), false, new Set(), selection.extraPriceById);
           return;
         }
         patch(false, new Set(), false, new Set(), selection.extraPriceById);
       }}
-      onSelectAllIncluded={() => patch(selection.enabled, new Set(sauces.map((s) => s.id)), selection.extraEnabled, selection.extraIds, selection.extraPriceById)}
-      onClearIncluded={() => patch(false, new Set(), false, new Set(), selection.extraPriceById)}
+      onSelectAllIncluded={() =>
+        patch(selection.enabled, new Set(sauces.map((s) => s.id)), selection.extraEnabled, selection.extraIds, selection.extraPriceById)
+      }
+      onClearIncluded={() =>
+        patch(selection.enabled, new Set(), selection.extraEnabled, selection.extraIds, selection.extraPriceById)
+      }
       onIncludedToggle={(id, checked) => {
         const next = new Set(selection.includedIds);
         if (checked) {
@@ -113,12 +115,10 @@ function ItemSaucesBlock({
         } else {
           next.delete(id);
         }
-        patch(selection.enabled || next.size > 0, next, selection.extraEnabled, selection.extraIds, selection.extraPriceById);
+        patch(true, next, selection.extraEnabled, selection.extraIds, selection.extraPriceById);
       }}
       onExtraEnabledChange={(extraEnabled) => {
-        const extraIds =
-          extraEnabled && selection.extraIds.size === 0 ? new Set(sauces.map((s) => s.id)) : selection.extraIds;
-        patch(selection.enabled, selection.includedIds, extraEnabled, extraIds, selection.extraPriceById);
+        patch(selection.enabled, selection.includedIds, extraEnabled, selection.extraIds, selection.extraPriceById);
       }}
       onExtraToggle={(id, checked) => {
         const next = new Set(selection.extraIds);
@@ -178,9 +178,7 @@ function ItemExtrasBlock({
       readOnly={readOnly}
       onEnabledChange={(enabled) => {
         if (enabled) {
-          const defaults = buildAllToppingSelection(toppings);
-          const included = new Map(toppings.map((t) => [t.id, 0]));
-          patch(true, defaults.selectedIds, defaults.priceById, included);
+          patch(true, new Set(), new Map(), new Map());
           return;
         }
         patch(false, new Set(), new Map(), new Map());
@@ -480,16 +478,14 @@ export function HubMenuItemOptionsPanel({ item, toppings, sauces, mealTemplates,
     if (toppings.length === 0) {
       return;
     }
-    const { selectedIds, priceById } = buildAllToppingSelection(toppings);
-    onUpdateItem((current) => applyExtraToppingsToItem(current, true, toppings, selectedIds, priceById, new Map()));
+    onUpdateItem((current) => applyExtraToppingsToItem(current, true, toppings, new Set(), new Map(), new Map()));
   };
 
   const addSaucesBlock = () => {
     if (sauces.length === 0) {
       return;
     }
-    const includedIds = new Set(sauces.map((sauce) => sauce.id));
-    onUpdateItem((current) => applySaucesToItem(current, true, sauces, includedIds, false, new Set(), new Map()));
+    onUpdateItem((current) => applySaucesToItem(current, true, sauces, new Set(), false, new Set(), new Map()));
   };
 
   const addMealBlock = () => {

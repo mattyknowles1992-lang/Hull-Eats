@@ -175,7 +175,7 @@ export const getDefaultCustomisationSelection = (item: MenuItem): BasketCustomis
     const defaultOptions = group.options.filter((option) => option.isDefault);
 
     if (group.selectionMode === "single") {
-      const fallback = defaultOptions[0] ?? (group.isRequired ? group.options[0] : undefined);
+      const fallback = defaultOptions[0];
 
       if (fallback) {
         current[fallback.id] = 1;
@@ -184,29 +184,9 @@ export const getDefaultCustomisationSelection = (item: MenuItem): BasketCustomis
       return current;
     }
 
-    let remaining = getGroupMinimum(group);
-
     defaultOptions.forEach((option) => {
-      if (remaining <= 0) {
-        return;
-      }
-
-      const quantity = Math.min(option.maxQuantity, Math.max(1, remaining));
-      current[option.id] = quantity;
-      remaining -= quantity;
+      current[option.id] = 1;
     });
-
-    if (remaining > 0) {
-      group.options.forEach((option) => {
-        if (remaining <= 0 || current[option.id]) {
-          return;
-        }
-
-        const quantity = Math.min(option.maxQuantity, remaining);
-        current[option.id] = quantity;
-        remaining -= quantity;
-      });
-    }
 
     return current;
   }, {});
@@ -220,8 +200,9 @@ export const getDefaultCustomisationSelection = (item: MenuItem): BasketCustomis
 export const getVisibleOptionGroups = (item: MenuItem, selectedOptionQuantities: Record<string, number>) =>
   item.optionGroups.filter(
     (group) =>
-      group.showWhenValueIds.length === 0 ||
-      group.showWhenValueIds.some((valueId) => (selectedOptionQuantities[valueId] ?? 0) > 0),
+      group.options.length > 0 &&
+      (group.showWhenValueIds.length === 0 ||
+        group.showWhenValueIds.some((valueId) => (selectedOptionQuantities[valueId] ?? 0) > 0)),
   );
 
 export const getSelectedQuantityForOption = (selection: BasketCustomisationSelection, optionId: string) =>

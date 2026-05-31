@@ -2,23 +2,37 @@
 
 import type { CSSProperties } from "react";
 
-import type { HubMenuBoardRecord, MenuPublishSummary } from "./menu-studio-core";
+import type { HubMenuBoardRecord, MenuPublishIssue, MenuPublishSummary } from "./menu-studio-core";
 
 type HubMenuPublishDialogProps = {
   open: boolean;
   summary: MenuPublishSummary;
   publishing: boolean;
   publishingBoard?: HubMenuBoardRecord | null;
+  publishWithKnownIssues: boolean;
+  onPublishWithKnownIssuesChange: (checked: boolean) => void;
+  onNavigateToIssue: (issue: MenuPublishIssue) => void;
   onCancel: () => void;
   onConfirm: () => void;
 };
 
-export function HubMenuPublishDialog({ open, summary, publishing, publishingBoard, onCancel, onConfirm }: HubMenuPublishDialogProps) {
+export function HubMenuPublishDialog({
+  open,
+  summary,
+  publishing,
+  publishingBoard,
+  publishWithKnownIssues,
+  onPublishWithKnownIssuesChange,
+  onNavigateToIssue,
+  onCancel,
+  onConfirm,
+}: HubMenuPublishDialogProps) {
   if (!open) {
     return null;
   }
 
   const hasBlockingIssues = summary.issues.length > 0;
+  const canPublish = !hasBlockingIssues || publishWithKnownIssues;
 
   return (
     <div style={backdrop} role="presentation" onClick={onCancel}>
@@ -66,13 +80,26 @@ export function HubMenuPublishDialog({ open, summary, publishing, publishingBoar
         ) : null}
 
         {hasBlockingIssues ? (
-          <div className="he-hub-banner" role="alert">
+          <div className="he-hub-banner he-hub-banner--error" role="alert">
             <strong>Fix these before publishing</strong>
-            <ul>
+            <p style={issueHint}>Click an issue to jump to it in the menu builder. Fields stay highlighted in red until fixed.</p>
+            <ul className="hub-menu-publish-issue-list">
               {summary.issues.map((issue) => (
-                <li key={issue}>{issue}</li>
+                <li key={issue.id}>
+                  <button type="button" className="hub-menu-publish-issue-link" onClick={() => onNavigateToIssue(issue)}>
+                    {issue.message}
+                  </button>
+                </li>
               ))}
             </ul>
+            <label style={overrideRow}>
+              <input
+                type="checkbox"
+                checked={publishWithKnownIssues}
+                onChange={(event) => onPublishWithKnownIssuesChange(event.target.checked)}
+              />
+              <span>Publish with known issues</span>
+            </label>
           </div>
         ) : (
           <div className="he-hub-banner" role="status">
@@ -84,7 +111,7 @@ export function HubMenuPublishDialog({ open, summary, publishing, publishingBoar
           <button type="button" style={secondaryButton} onClick={onCancel} disabled={publishing}>
             Keep editing
           </button>
-          <button type="button" className="he-portal-primary" style={primaryButton} onClick={onConfirm} disabled={publishing || hasBlockingIssues}>
+          <button type="button" className="he-portal-primary" style={primaryButton} onClick={onConfirm} disabled={publishing || !canPublish}>
             {publishing ? "Publishing…" : publishingBoard ? `Publish ${publishingBoard.name}` : "Publish to live menu"}
           </button>
         </div>
@@ -138,6 +165,16 @@ const statCard: CSSProperties = {
   textAlign: "center",
 };
 const changeList: CSSProperties = { margin: 0, paddingLeft: 20, color: "#3d4652", lineHeight: 1.6 };
+const issueHint: CSSProperties = { margin: "8px 0 0", fontSize: "0.84rem", lineHeight: 1.45 };
+const overrideRow: CSSProperties = {
+  display: "flex",
+  alignItems: "flex-start",
+  gap: 8,
+  marginTop: 12,
+  fontSize: "0.88rem",
+  fontWeight: 700,
+  cursor: "pointer",
+};
 const actions: CSSProperties = { display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "flex-end", marginTop: 4 };
 const secondaryButton: CSSProperties = {
   border: "1px solid rgba(15, 17, 21, 0.16)",

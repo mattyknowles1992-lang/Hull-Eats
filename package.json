@@ -16,6 +16,8 @@
     "db:deploy": "corepack pnpm --filter @hull-eats/db prisma:migrate:deploy",
     "db:status": "corepack pnpm --filter @hull-eats/db prisma:migrate:status",
     "db:check": "corepack pnpm --filter @hull-eats/db db:check",
+    "db:provision-cheeky-chicken": "corepack pnpm --filter @hull-eats/db db:provision-cheeky-chicken",
+    "db:activate-cheeky-chicken-menu": "corepack pnpm --filter @hull-eats/db db:activate-cheeky-chicken-menu",
     "db:baseline": "corepack pnpm --filter @hull-eats/db exec tsx scripts/baseline-and-deploy.ts",
     "db:seed": "pnpm --filter @hull-eats/db seed",
     "db:diff": "node ./packages/db/node_modules/dotenv-cli/cli.js -e ./.env -- node ./packages/db/node_modules/prisma/build/index.js migrate diff --from-schema-datasource ./packages/db/prisma/schema.prisma --to-schema-datamodel ./packages/db/prisma/schema.prisma --script",

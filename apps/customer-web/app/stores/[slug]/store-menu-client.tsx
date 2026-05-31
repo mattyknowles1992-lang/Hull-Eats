@@ -26,7 +26,7 @@ import {
 import {
   computeDeliveryQuote,
   customerFacingOptionGroupDescription,
-  groupMenuItemsBySubGroup,
+  groupMenuItemsBySubGroupTree,
   DELIVERY_NOT_AVAILABLE_TO_POSTCODE_MESSAGE,
   hubAllowsCollection,
   hubAllowsDelivery,
@@ -59,6 +59,7 @@ type StoreMenuClientProps = {
   storePostcode: string;
   storeAddress?: string;
   storeDeliveryFee?: number;
+  storeMinimumOrderAmount?: number;
   storeDeliveryPricing?: StoreSummary["deliveryPricing"];
   storeAcceptsOrders?: boolean;
   categories: MenuCategory[];
@@ -198,6 +199,7 @@ export function StoreMenuClient({
   storePostcode,
   storeAddress,
   storeDeliveryFee,
+  storeMinimumOrderAmount,
   storeDeliveryPricing,
   storeAcceptsOrders = true,
   categories,
@@ -430,10 +432,11 @@ export function StoreMenuClient({
         fulfillmentType,
         storeBasePostcode: storePostcode,
         legacyDeliveryFee: storeDeliveryFee,
+        legacyMinimumOrderAmount: storeMinimumOrderAmount,
         pricing: deliveryPricing,
         customerPostcode: deliveryPostcodeInput.trim() || undefined,
       }),
-    [fulfillmentType, storePostcode, storeDeliveryFee, deliveryPricing, deliveryPostcodeInput],
+    [fulfillmentType, storePostcode, storeDeliveryFee, storeMinimumOrderAmount, deliveryPricing, deliveryPostcodeInput],
   );
 
   const showFloatingBasket = itemCount > 0 && !activeItem;
@@ -957,14 +960,13 @@ export function StoreMenuClient({
 
           {isExpanded ? (
             <div className="menu-category-items-panel" id={`menu-category-items-${category.id}`}>
-              {groupMenuItemsBySubGroup(
-                category.items,
-                (category.subGroups ?? []).map((label) => ({ id: label, label })),
-              ).map((section) => (
-                <div key={section.label ?? `${category.id}-main`} className="menu-subgroup-block">
-                  {section.label ? <h4 className="menu-subgroup-heading">{section.label}</h4> : null}
+              {(() => {
+                const subGroupDefs = (category.subGroups ?? []).map((label) => ({ id: label, label }));
+                const tree = groupMenuItemsBySubGroupTree(category.items, subGroupDefs);
+
+                const renderItemGrid = (items: MenuItem[]) => (
                   <div className="menu-item-grid">
-                    {section.items.map((item) => {
+                    {items.map((item) => {
                       const listing = getMenuItemListingLine(item);
                       const fullDescription = customerFacingMenuItemDescription(item.description);
                       const orderable = isMenuItemOrderable(item, storeIsOpenNow);
@@ -1019,8 +1021,34 @@ export function StoreMenuClient({
                       );
                     })}
                   </div>
-                </div>
-              ))}
+                );
+
+                if (tree.branches.length === 0) {
+                  return renderItemGrid(category.items);
+                }
+
+                return (
+                  <>
+                    {tree.ungrouped.length > 0 ? (
+                      <div className="menu-subgroup-block">{renderItemGrid(tree.ungrouped)}</div>
+                    ) : null}
+                    {tree.branches.map((branch) => (
+                      <div key={branch.type} className="menu-subgroup-tree-branch">
+                        <h4 className="menu-subgroup-tree-type">{branch.type}</h4>
+                        {branch.formats.map((format) => {
+                          const showFormatHeading = format.label.trim() && format.label.trim() !== branch.type.trim();
+                          return (
+                            <div key={`${branch.type}-${format.label}`} className="menu-subgroup-block">
+                              {showFormatHeading ? <h5 className="menu-subgroup-heading">{format.label}</h5> : null}
+                              {renderItemGrid(format.items)}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </>
+                );
+              })()}
             </div>
           ) : null}
         </section>
@@ -1057,6 +1085,7 @@ export function StoreMenuClient({
                 onConfirm={confirmCustomisation}
                 onSpecialInstructionsChange={setSpecialInstructions}
                 onAddQuantityChange={setAddQuantity}
+                onToggleRemovedComponent={toggleRemovedComponent}
                 onSetOptionQuantity={setOptionQuantity}
               />
             ) : (

@@ -28,7 +28,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useHubPortalI18n } from "@hull-eats/i18n";
 
-import { HUB_DISTANCE_MILE_INPUT_STEP, HUB_PRICE_INPUT_STEP } from "./hub-input-steps";
+import { HubFreeTypeNumberInput } from "./hub-free-type-number-input";
 
 import "leaflet/dist/leaflet.css";
 
@@ -367,19 +367,38 @@ export function HubDeliveryConfig({
   };
 
   const setZoneFee = useCallback(
-    (outwardCode: string, nextFee: string) => {
+    (outwardCode: string, nextFee: number | null) => {
       if (readOnly) {
         return;
       }
       const upper = outwardCode.toUpperCase();
-      const parsed = nextFee.trim() === "" ? null : Math.max(0, Number(nextFee) || 0);
       patchZones(
         zonesRef.current.map((zone) =>
           zone.code !== upper
             ? zone
             : {
                 ...zone,
-                fee: parsed == null ? null : Number(parsed.toFixed(2)),
+                fee: nextFee == null ? null : Number(nextFee.toFixed(2)),
+              },
+        ),
+      );
+    },
+    [readOnly],
+  );
+
+  const setZoneMinimumOrder = useCallback(
+    (outwardCode: string, nextMinimum: number | null) => {
+      if (readOnly) {
+        return;
+      }
+      const upper = outwardCode.toUpperCase();
+      patchZones(
+        zonesRef.current.map((zone) =>
+          zone.code !== upper
+            ? zone
+            : {
+                ...zone,
+                minimumOrderAmount: nextMinimum == null ? null : Number(nextMinimum.toFixed(2)),
               },
         ),
       );
@@ -394,9 +413,16 @@ export function HubDeliveryConfig({
     const lastRange = radiusRanges[radiusRanges.length - 1];
     const nextMaxMiles = Math.min(40, Number(((lastRange?.maxMiles ?? 0) + 1).toFixed(1)));
     onChange({
-      deliveryDistanceRanges: [...radiusRanges, { maxMiles: Math.max(0.5, nextMaxMiles), fee: settings.deliveryFee }],
+      deliveryDistanceRanges: [
+        ...radiusRanges,
+        {
+          maxMiles: Math.max(0.5, nextMaxMiles),
+          fee: settings.deliveryFee,
+          minimumOrderAmount: settings.minimumOrderAmount,
+        },
+      ],
     });
-  }, [onChange, radiusRanges, readOnly, settings.deliveryFee]);
+  }, [onChange, radiusRanges, readOnly, settings.deliveryFee, settings.minimumOrderAmount]);
 
   const updateDistanceRange = useCallback(
     (index: number, patch: Partial<DeliveryDistanceRange>) => {
@@ -1006,19 +1032,13 @@ export function HubDeliveryConfig({
         <div style={{ display: "grid", gap: 14 }}>
           <label style={styles.field}>
             <span style={styles.darkFieldLabel}>Delivery radius from your business (miles)</span>
-            <input
-              type="number"
+            <HubFreeTypeNumberInput
               min={0.1}
               max={40}
-              step={HUB_DISTANCE_MILE_INPUT_STEP}
               style={styles.lightInput}
               value={settings.deliveryRadiusMiles}
               disabled={readOnly}
-              onChange={(event) =>
-                onChange({
-                  deliveryRadiusMiles: Math.min(40, Math.max(0.1, Number(event.target.value) || 5)),
-                })
-              }
+              onCommit={(deliveryRadiusMiles) => onChange({ deliveryRadiusMiles })}
             />
             <p style={styles.subtleInfo}>
               Orange circle shows your delivery radius. The shop pin is placed from your hub postcode using UK postcode
@@ -1028,23 +1048,33 @@ export function HubDeliveryConfig({
 
           <label style={styles.field}>
             <span style={styles.darkFieldLabel}>Flat delivery fee (£)</span>
-            <input
-              type="number"
+            <HubFreeTypeNumberInput
               min={0}
-              step={HUB_PRICE_INPUT_STEP}
               style={styles.lightInput}
               value={settings.deliveryFee}
               disabled={readOnly}
-              onChange={(event) => onChange({ deliveryFee: Math.max(0, Number(event.target.value) || 0) })}
+              onCommit={(deliveryFee) => onChange({ deliveryFee })}
             />
             <p style={styles.subtleInfo}>Used across the radius unless one of the custom distance ranges below matches first.</p>
           </label>
 
+          <label style={styles.field}>
+            <span style={styles.darkFieldLabel}>Flat minimum order (£)</span>
+            <HubFreeTypeNumberInput
+              min={0}
+              style={styles.lightInput}
+              value={settings.minimumOrderAmount}
+              disabled={readOnly}
+              onCommit={(minimumOrderAmount) => onChange({ minimumOrderAmount })}
+            />
+            <p style={styles.subtleInfo}>Default minimum for nearby delivery. Custom ranges and postcode blocks can override this.</p>
+          </label>
+
           <div style={{ display: "grid", gap: 12 }}>
             <div>
-              <span style={styles.darkFieldLabel}>Custom distance ranges (£)</span>
+              <span style={styles.darkFieldLabel}>Custom distance ranges</span>
               <p style={{ ...styles.subtleInfo, margin: "6px 0 0" }}>
-                Add as many radius price blocks as you need. Hull Eats will use the first range that covers the customer.
+                Set delivery fee and minimum order per distance band. Hull Eats uses the first range that covers the customer.
               </p>
             </div>
             <div style={distanceRangeListStyle}>
@@ -1052,35 +1082,35 @@ export function HubDeliveryConfig({
                 <div key={`${range.maxMiles}-${index}`} style={distanceRangeRowStyle}>
                   <label style={styles.field}>
                     <span style={styles.darkFieldLabel}>Up to miles</span>
-                    <input
-                      type="number"
+                    <HubFreeTypeNumberInput
                       min={0.1}
                       max={40}
-                      step={HUB_DISTANCE_MILE_INPUT_STEP}
                       style={styles.lightInput}
                       value={range.maxMiles}
                       disabled={readOnly}
-                      onChange={(event) =>
-                        updateDistanceRange(index, {
-                          maxMiles: Math.min(40, Math.max(0.1, Number(event.target.value) || 0.1)),
-                        })
-                      }
+                      onCommit={(maxMiles) => updateDistanceRange(index, { maxMiles })}
                     />
                   </label>
                   <label style={styles.field}>
                     <span style={styles.darkFieldLabel}>Fee (£)</span>
-                    <input
-                      type="number"
+                    <HubFreeTypeNumberInput
                       min={0}
-                      step={HUB_PRICE_INPUT_STEP}
                       style={styles.lightInput}
                       value={range.fee}
                       disabled={readOnly}
-                      onChange={(event) =>
-                        updateDistanceRange(index, {
-                          fee: Math.max(0, Number(event.target.value) || 0),
-                        })
-                      }
+                      onCommit={(fee) => updateDistanceRange(index, { fee })}
+                    />
+                  </label>
+                  <label style={styles.field}>
+                    <span style={styles.darkFieldLabel}>Min order (£)</span>
+                    <HubFreeTypeNumberInput
+                      nullable
+                      min={0}
+                      style={styles.lightInput}
+                      value={range.minimumOrderAmount ?? null}
+                      disabled={readOnly}
+                      placeholder={settings.minimumOrderAmount > 0 ? settings.minimumOrderAmount.toFixed(2) : "Uses flat minimum"}
+                      onCommit={(minimumOrderAmount) => updateDistanceRange(index, { minimumOrderAmount })}
                     />
                   </label>
                   <button
@@ -1181,20 +1211,34 @@ export function HubDeliveryConfig({
                     <>
                       <div style={postcodeFeeRowStyle}>
                         <label style={styles.field}>
-                          <span style={styles.darkFieldLabel}>Price for {code} (£)</span>
-                          <input
-                            type="number"
+                          <span style={styles.darkFieldLabel}>Delivery fee for {code} (£)</span>
+                          <HubFreeTypeNumberInput
+                            nullable
                             min={0}
-                            step={HUB_PRICE_INPUT_STEP}
                             style={styles.lightInput}
-                            value={zone.fee ?? ""}
+                            value={zone.fee}
                             disabled={readOnly}
                             placeholder={settings.deliveryFee > 0 ? settings.deliveryFee.toFixed(2) : "Uses flat fee"}
-                            onChange={(event) => setZoneFee(code, event.target.value)}
+                            onCommit={(fee) => setZoneFee(code, fee)}
                           />
                           <p style={styles.subtleInfo}>
                             Leave blank to fall back to the hub flat delivery fee. Enter `0` if this postcode block should be free.
                           </p>
+                        </label>
+                        <label style={styles.field}>
+                          <span style={styles.darkFieldLabel}>Minimum order for {code} (£)</span>
+                          <HubFreeTypeNumberInput
+                            nullable
+                            min={0}
+                            style={styles.lightInput}
+                            value={zone.minimumOrderAmount}
+                            disabled={readOnly}
+                            placeholder={
+                              settings.minimumOrderAmount > 0 ? settings.minimumOrderAmount.toFixed(2) : "Uses flat minimum"
+                            }
+                            onCommit={(minimumOrderAmount) => setZoneMinimumOrder(code, minimumOrderAmount)}
+                          />
+                          <p style={styles.subtleInfo}>Leave blank to use the hub flat minimum order for this postcode block.</p>
                         </label>
                       </div>
                       <div style={sectorToolbarStyle}>

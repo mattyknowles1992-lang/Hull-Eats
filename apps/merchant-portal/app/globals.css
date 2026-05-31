@@ -627,6 +627,54 @@ textarea {
   color: #064f68;
 }
 
+.hub-menu-order-builder__family-branch {
+  display: grid;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.hub-menu-order-builder__family-type {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #064f68;
+  letter-spacing: 0.02em;
+}
+
+.hub-menu-compose-tick {
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border: 2px solid rgba(15, 17, 21, 0.22);
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  position: relative;
+}
+
+.hub-menu-compose-tick:checked {
+  border-color: #12a150;
+  background: #12a150;
+}
+
+.hub-menu-compose-tick:checked::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 2px;
+  width: 6px;
+  height: 11px;
+  border: solid #fff;
+  border-width: 0 2.5px 2.5px 0;
+  transform: rotate(45deg);
+}
+
+.hub-menu-compose-tick:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .hub-menu-order-builder__header-fields {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -1054,7 +1102,11 @@ textarea {
   justify-content: flex-end;
   gap: 4px;
   text-align: center;
-  min-width: 0;
+  width: 100%;
+  max-width: 96px;
+  min-height: 92px;
+  justify-self: center;
+  box-sizing: border-box;
 }
 
 .hub-menu-pizza-builder__size-label {
@@ -1099,6 +1151,10 @@ textarea {
   align-items: center;
   justify-content: center;
   text-align: center;
+  width: 100%;
+  max-width: 96px;
+  justify-self: center;
+  box-sizing: border-box;
 }
 
 .hub-menu-pizza-builder__copy-head {
@@ -2343,6 +2399,53 @@ textarea {
   color: #5c1818;
 }
 
+.hub-menu-publish-issue-list {
+  margin: 10px 0 0;
+  padding-left: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+
+.hub-menu-publish-issue-link {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #9b1c1c;
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.hub-menu-publish-issue-link:hover {
+  color: #6d1111;
+}
+
+.hub-menu-publish-issue-field {
+  outline: 2px solid #c62828 !important;
+  outline-offset: 1px;
+  border-color: #c62828 !important;
+  background: rgba(198, 40, 40, 0.08) !important;
+  box-shadow: 0 0 0 3px rgba(198, 40, 40, 0.12);
+}
+
+.hub-menu-publish-issue-row,
+.hub-menu-publish-issue-panel {
+  outline: 2px solid rgba(198, 40, 40, 0.55);
+  outline-offset: 2px;
+  border-radius: 12px;
+  background: rgba(198, 40, 40, 0.05);
+}
+
+.hub-menu-publish-issue-row {
+  border-color: #c62828 !important;
+}
+
 .he-hub-banner--toast {
   margin-top: 10px;
   margin-bottom: 4px;
@@ -2840,4 +2943,9 @@ textarea {
     min-height: 240px;
     height: min(42vh, 360px);
   }
+}
+
+.hub-free-type-number-input--invalid {
+  border-color: #b42318 !important;
+  box-shadow: 0 0 0 1px rgba(180, 35, 24, 0.18);
 }
