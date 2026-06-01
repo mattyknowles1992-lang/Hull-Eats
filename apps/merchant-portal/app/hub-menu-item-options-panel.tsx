@@ -7,16 +7,21 @@ import type { MenuItem } from "@hull-eats/types";
 
 import { HubMenuItemExtrasPicker } from "./hub-menu-item-extras";
 import { HubMenuItemMealPicker } from "./hub-menu-item-meal-picker";
+import { HubMenuItemSaladPicker } from "./hub-menu-item-salad-picker";
 import { HubMenuItemSaucesPicker } from "./hub-menu-item-sauces-picker";
 import {
   addItemCustomOptionGroup,
   addItemOptionToGroup,
   applyExtraToppingsToItem,
   applyMealUpgradeToItem,
+  applySaladToItem,
   applySaucesToItem,
   findSaucesIncludedGroup,
   findSaucesExtraGroup,
+  findSaladIncludedGroup,
+  findSaladExtraGroup,
   getItemExtraToppingSelection,
+  getItemSaladSelection,
   getItemSauceSelection,
   listItemOptionBlocks,
   removeItemOptionBlock,
@@ -26,12 +31,15 @@ import {
   updateItemOptionInGroup,
   updateExtrasGroupTitle,
   updateMealChoiceGroupTitle,
+  updateSaladIncludedGroupTitle,
+  updateSaladExtraGroupTitle,
   updateSaucesIncludedGroupTitle,
   updateSaucesExtraGroupTitle,
   findExtrasToppingsGroup,
   findMealChoiceGroup,
   type HubExtraTopping,
   type HubMealTemplate,
+  type HubSaladOption,
   type HubSauceOption,
   type ItemOptionBlock,
 } from "./menu-studio-core";
@@ -40,6 +48,7 @@ type Props = {
   item: MenuItem;
   toppings: HubExtraTopping[];
   sauces: HubSauceOption[];
+  salads: HubSaladOption[];
   mealTemplates: HubMealTemplate[];
   readOnly?: boolean;
   onUpdateItem: (updater: (item: MenuItem) => MenuItem) => void;
@@ -153,11 +162,14 @@ function ItemExtrasBlock({
 
   const patch = (
     enabled: boolean,
-    selectedIds: Set<string>,
+    paidExtraIds: Set<string>,
     priceById: Map<string, number>,
     includedQtyById: Map<string, number>,
+    maxAddMoreById: Map<string, number>,
   ) => {
-    onUpdateItem((current) => applyExtraToppingsToItem(current, enabled, toppings, selectedIds, priceById, includedQtyById));
+    onUpdateItem((current) =>
+      applyExtraToppingsToItem(current, enabled, toppings, paidExtraIds, priceById, includedQtyById, maxAddMoreById),
+    );
   };
 
   if (toppings.length === 0) {
@@ -172,41 +184,139 @@ function ItemExtrasBlock({
     <HubMenuItemExtrasPicker
       toppings={toppings}
       enabled={selection.enabled}
-      selectedIds={selection.selectedIds}
+      paidExtraIds={selection.paidExtraIds}
       priceById={selection.priceById}
       includedQtyById={selection.includedQtyById}
+      maxAddMoreById={selection.maxAddMoreById}
       readOnly={readOnly}
       onEnabledChange={(enabled) => {
-        if (enabled) {
-          patch(true, new Set(), new Map(), new Map());
+        if (!enabled) {
+          patch(false, new Set(), new Map(), new Map(), new Map());
           return;
         }
-        patch(false, new Set(), new Map(), new Map());
+        patch(true, selection.paidExtraIds, selection.priceById, selection.includedQtyById, selection.maxAddMoreById);
       }}
-      onSelectAll={() => patch(true, new Set(toppings.map((t) => t.id)), selection.priceById, selection.includedQtyById)}
-      onClearAll={() => patch(false, new Set(), selection.priceById, selection.includedQtyById)}
-      onToggle={(id, checked) => {
-        const next = new Set(selection.selectedIds);
+      onSelectAllPaid={() => {
+        const paid = new Set(toppings.map((t) => t.id));
+        const maxAddMore = new Map(toppings.map((t) => [t.id, selection.maxAddMoreById.get(t.id) ?? 8]));
+        patch(true, paid, selection.priceById, selection.includedQtyById, maxAddMore);
+      }}
+      onClearAll={() => patch(true, new Set(), selection.priceById, new Map(), selection.maxAddMoreById)}
+      onIncludedToggle={(id, checked) => {
         const included = new Map(selection.includedQtyById);
         if (checked) {
-          next.add(id);
-          if (!included.has(id)) {
-            included.set(id, 0);
+          included.set(id, Math.max(1, included.get(id) ?? 1));
+        } else {
+          included.delete(id);
+        }
+        patch(true, selection.paidExtraIds, selection.priceById, included, selection.maxAddMoreById);
+      }}
+      onPaidExtraToggle={(id, checked) => {
+        const paid = new Set(selection.paidExtraIds);
+        const maxAddMore = new Map(selection.maxAddMoreById);
+        if (checked) {
+          paid.add(id);
+          if (!maxAddMore.has(id)) {
+            maxAddMore.set(id, 8);
           }
         } else {
-          next.delete(id);
+          paid.delete(id);
         }
-        patch(true, next, selection.priceById, included);
+        patch(true, paid, selection.priceById, selection.includedQtyById, maxAddMore);
       }}
       onPriceChange={(id, price) => {
         const next = new Map(selection.priceById);
         next.set(id, price);
-        patch(selection.enabled, selection.selectedIds, next, selection.includedQtyById);
+        patch(selection.enabled, selection.paidExtraIds, next, selection.includedQtyById, selection.maxAddMoreById);
       }}
       onIncludedQtyChange={(id, quantity) => {
-        const next = new Map(selection.includedQtyById);
-        next.set(id, quantity);
-        patch(selection.enabled, selection.selectedIds, selection.priceById, next);
+        const included = new Map(selection.includedQtyById);
+        if (quantity <= 0) {
+          included.delete(id);
+        } else {
+          included.set(id, quantity);
+        }
+        patch(selection.enabled, selection.paidExtraIds, selection.priceById, included, selection.maxAddMoreById);
+      }}
+      onMaxAddMoreChange={(id, quantity) => {
+        const maxAddMore = new Map(selection.maxAddMoreById);
+        maxAddMore.set(id, quantity);
+        patch(selection.enabled, selection.paidExtraIds, selection.priceById, selection.includedQtyById, maxAddMore);
+      }}
+    />
+  );
+}
+
+function ItemSaladBlock({
+  item,
+  salads,
+  readOnly,
+  onUpdateItem,
+}: {
+  item: MenuItem;
+  salads: HubSaladOption[];
+  readOnly: boolean;
+  onUpdateItem: Props["onUpdateItem"];
+}) {
+  const selection = getItemSaladSelection(item);
+
+  const patch = (
+    enabled: boolean,
+    includedIds: Set<string>,
+    extraEnabled: boolean,
+    extraIds: Set<string>,
+    extraPriceById: Map<string, number>,
+  ) => {
+    onUpdateItem((current) => applySaladToItem(current, enabled, salads, includedIds, extraEnabled, extraIds, extraPriceById));
+  };
+
+  return (
+    <HubMenuItemSaladPicker
+      salads={salads}
+      enabled={selection.enabled}
+      includedIds={selection.includedIds}
+      extraEnabled={selection.extraEnabled}
+      extraIds={selection.extraIds}
+      extraPriceById={selection.extraPriceById}
+      readOnly={readOnly}
+      onEnabledChange={(enabled) => {
+        if (!enabled) {
+          patch(false, new Set(), false, new Set(), selection.extraPriceById);
+          return;
+        }
+        patch(true, new Set(), false, new Set(), selection.extraPriceById);
+      }}
+      onSelectAllIncluded={() =>
+        patch(selection.enabled, new Set(salads.map((s) => s.id)), selection.extraEnabled, selection.extraIds, selection.extraPriceById)
+      }
+      onClearIncluded={() =>
+        patch(selection.enabled, new Set(), selection.extraEnabled, selection.extraIds, selection.extraPriceById)
+      }
+      onIncludedToggle={(id, checked) => {
+        const next = new Set(selection.includedIds);
+        if (checked) {
+          next.add(id);
+        } else {
+          next.delete(id);
+        }
+        patch(true, next, selection.extraEnabled, selection.extraIds, selection.extraPriceById);
+      }}
+      onExtraEnabledChange={(extraEnabled) => {
+        patch(selection.enabled, selection.includedIds, extraEnabled, selection.extraIds, selection.extraPriceById);
+      }}
+      onExtraToggle={(id, checked) => {
+        const next = new Set(selection.extraIds);
+        if (checked) {
+          next.add(id);
+        } else {
+          next.delete(id);
+        }
+        patch(selection.enabled, selection.includedIds, selection.extraEnabled, next, selection.extraPriceById);
+      }}
+      onExtraPriceChange={(id, price) => {
+        const next = new Map(selection.extraPriceById);
+        next.set(id, price);
+        patch(selection.enabled, selection.includedIds, selection.extraEnabled, selection.extraIds, next);
       }}
     />
   );
@@ -308,6 +418,7 @@ function OptionBlockCard({
   item,
   toppings,
   sauces,
+  salads,
   mealTemplates,
   readOnly,
   reorderableIndex,
@@ -319,6 +430,7 @@ function OptionBlockCard({
   item: MenuItem;
   toppings: HubExtraTopping[];
   sauces: HubSauceOption[];
+  salads: HubSaladOption[];
   mealTemplates: HubMealTemplate[];
   readOnly: boolean;
   reorderableIndex: number;
@@ -332,6 +444,8 @@ function OptionBlockCard({
   const extrasGroup = block.kind === "extras" ? findExtrasToppingsGroup(item) : null;
   const saucesIncludedGroup = block.kind === "sauces" ? findSaucesIncludedGroup(item) : null;
   const saucesExtraGroup = block.kind === "sauces" ? findSaucesExtraGroup(item) : null;
+  const saladIncludedGroup = block.kind === "salad" ? findSaladIncludedGroup(item) : null;
+  const saladExtraGroup = block.kind === "salad" ? findSaladExtraGroup(item) : null;
   const mealGroup = block.kind === "meal" ? findMealChoiceGroup(item) : null;
 
   const handleDragStart = (event: DragEvent<HTMLSpanElement>) => {
@@ -420,6 +534,29 @@ function OptionBlockCard({
                 onChange={(e) => onUpdateItem((current) => updateSaucesExtraGroupTitle(current, e.target.value))}
               />
             </label>
+          ) : block.kind === "salad" && saladIncludedGroup ? (
+            <label style={titleField}>
+              <span style={fieldLabel}>Included salad title (customer sees)</span>
+              <input
+                style={input}
+                disabled={readOnly}
+                value={saladIncludedGroup.name}
+                placeholder="Salad"
+                onChange={(e) => onUpdateItem((current) => updateSaladIncludedGroupTitle(current, e.target.value))}
+              />
+              <span style={blockMeta}>Customer can remove included salad choices</span>
+            </label>
+          ) : block.kind === "salad" && saladExtraGroup && !saladIncludedGroup ? (
+            <label style={titleField}>
+              <span style={fieldLabel}>Extra salad title (customer sees)</span>
+              <input
+                style={input}
+                disabled={readOnly}
+                value={saladExtraGroup.name}
+                placeholder="Extra salad"
+                onChange={(e) => onUpdateItem((current) => updateSaladExtraGroupTitle(current, e.target.value))}
+              />
+            </label>
           ) : block.kind === "meal" && mealGroup ? (
             <label style={titleField}>
               <span style={fieldLabel}>Title (customer sees)</span>
@@ -430,7 +567,7 @@ function OptionBlockCard({
                 placeholder="Make it a meal"
                 onChange={(e) => onUpdateItem((current) => updateMealChoiceGroupTitle(current, e.target.value))}
               />
-              <span style={blockMeta}>Choices: On its own, or your meal upgrade label</span>
+              <span style={blockMeta}>Tick below to offer a meal upgrade on this item only</span>
             </label>
           ) : (
             <strong style={blockTitle}>{block.label}</strong>
@@ -438,6 +575,7 @@ function OptionBlockCard({
           {block.kind === "custom" ? <span style={blockMeta}>Variation / option group</span> : null}
           {block.kind === "extras" && !extrasGroup ? <span style={blockMeta}>From your master extras list</span> : null}
           {block.kind === "sauces" ? <span style={blockMeta}>From your master sauces list</span> : null}
+          {block.kind === "salad" ? <span style={blockMeta}>From your master salad list</span> : null}
           {block.kind === "meal" && !mealGroup ? <span style={blockMeta}>Meal upgrade template</span> : null}
         </div>
         {readOnly || !block.canRemove ? null : (
@@ -449,6 +587,7 @@ function OptionBlockCard({
 
       {block.kind === "extras" ? <ItemExtrasBlock item={item} toppings={toppings} readOnly={readOnly} onUpdateItem={onUpdateItem} /> : null}
       {block.kind === "sauces" ? <ItemSaucesBlock item={item} sauces={sauces} readOnly={readOnly} onUpdateItem={onUpdateItem} /> : null}
+      {block.kind === "salad" ? <ItemSaladBlock item={item} salads={salads} readOnly={readOnly} onUpdateItem={onUpdateItem} /> : null}
       {block.kind === "meal" ? (
         <HubMenuItemMealPicker item={item} templates={mealTemplates} readOnly={readOnly} onUpdateItem={onUpdateItem} />
       ) : null}
@@ -462,12 +601,13 @@ function OptionBlockCard({
   );
 }
 
-export function HubMenuItemOptionsPanel({ item, toppings, sauces, mealTemplates, readOnly = false, onUpdateItem }: Props) {
+export function HubMenuItemOptionsPanel({ item, toppings, sauces, salads, mealTemplates, readOnly = false, onUpdateItem }: Props) {
   const blocks = listItemOptionBlocks(item);
   const reorderable = blocks.filter((block) => block.canReorder);
   const fixed = blocks.filter((block) => !block.canReorder);
   const hasExtras = blocks.some((b) => b.kind === "extras");
   const hasSauces = blocks.some((b) => b.kind === "sauces");
+  const hasSalad = blocks.some((b) => b.kind === "salad");
   const hasMeal = blocks.some((b) => b.kind === "meal");
 
   const handleReorder = (from: number, to: number) => {
@@ -478,7 +618,7 @@ export function HubMenuItemOptionsPanel({ item, toppings, sauces, mealTemplates,
     if (toppings.length === 0) {
       return;
     }
-    onUpdateItem((current) => applyExtraToppingsToItem(current, true, toppings, new Set(), new Map(), new Map()));
+    onUpdateItem((current) => applyExtraToppingsToItem(current, true, toppings, new Set(), new Map(), new Map(), new Map()));
   };
 
   const addSaucesBlock = () => {
@@ -486,6 +626,13 @@ export function HubMenuItemOptionsPanel({ item, toppings, sauces, mealTemplates,
       return;
     }
     onUpdateItem((current) => applySaucesToItem(current, true, sauces, new Set(), false, new Set(), new Map()));
+  };
+
+  const addSaladBlock = () => {
+    if (salads.length === 0) {
+      return;
+    }
+    onUpdateItem((current) => applySaladToItem(current, true, salads, new Set(), false, new Set(), new Map()));
   };
 
   const addMealBlock = () => {
@@ -496,7 +643,7 @@ export function HubMenuItemOptionsPanel({ item, toppings, sauces, mealTemplates,
     onUpdateItem((current) =>
       applyMealUpgradeToItem(
         current,
-        true,
+        false,
         template,
         new Set(template.sides.map((s) => s.id)),
         new Set(template.drinks.map((d) => d.id)),
@@ -521,6 +668,7 @@ export function HubMenuItemOptionsPanel({ item, toppings, sauces, mealTemplates,
           item={item}
           toppings={toppings}
           sauces={sauces}
+          salads={salads}
           mealTemplates={mealTemplates}
           readOnly={readOnly}
           reorderableIndex={-1}
@@ -537,6 +685,7 @@ export function HubMenuItemOptionsPanel({ item, toppings, sauces, mealTemplates,
           item={item}
           toppings={toppings}
           sauces={sauces}
+          salads={salads}
           mealTemplates={mealTemplates}
           readOnly={readOnly}
           reorderableIndex={index}
@@ -559,6 +708,11 @@ export function HubMenuItemOptionsPanel({ item, toppings, sauces, mealTemplates,
           {!hasSauces && sauces.length > 0 ? (
             <button type="button" style={secondaryBtn} onClick={addSaucesBlock}>
               + Sauces on this item
+            </button>
+          ) : null}
+          {!hasSalad && salads.length > 0 ? (
+            <button type="button" style={secondaryBtn} onClick={addSaladBlock}>
+              + Salad on this item
             </button>
           ) : null}
           {!hasMeal && mealTemplates.length > 0 ? (

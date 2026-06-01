@@ -9,15 +9,11 @@ import { isHubMenuStaffLibrarySection } from "@hull-eats/types";
 type HubMenuCategoryTabsProps = {
   customerSections: HubMenuSection[];
   extrasSection: HubMenuSection | null;
-  burgerPartsSection: HubMenuSection | null;
-  kebabPartsSection: HubMenuSection | null;
   mealSection: HubMenuSection | null;
   selectedSectionId: string | null;
   readOnly: boolean;
   onSelectSection: (sectionId: string) => void;
   onReorderCategory: (sectionId: string, toIndex: number) => void;
-  burgerPartsTabMeta?: string;
-  kebabPartsTabMeta?: string;
 };
 
 function TabGrip({
@@ -50,15 +46,11 @@ function TabGrip({
 export function HubMenuCategoryTabs({
   customerSections,
   extrasSection,
-  burgerPartsSection,
-  kebabPartsSection,
   mealSection,
   selectedSectionId,
   readOnly,
   onSelectSection,
   onReorderCategory,
-  burgerPartsTabMeta = "Buns, meat, salad",
-  kebabPartsTabMeta = "Bread, meat, salad",
 }: HubMenuCategoryTabsProps) {
   const rowRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const dragEnabled = !readOnly && customerSections.length > 1;
@@ -91,7 +83,7 @@ export function HubMenuCategoryTabs({
     onReorderCategory(sectionId, toIndex);
   };
 
-  const hasStaffTabs = Boolean(extrasSection || burgerPartsSection || kebabPartsSection || mealSection);
+  const hasStaffTabs = Boolean(extrasSection || mealSection);
 
   return (
     <nav className="hub-menu-tab-rail" aria-label="Menu sections">
@@ -109,40 +101,8 @@ export function HubMenuCategoryTabs({
               }}
             >
               <span className="hub-menu-tab-label">
-                <span className="hub-menu-tab-name">Extras &amp; sauces</span>
-                <span className="hub-menu-tab-meta">Toppings and sauce lists</span>
-              </span>
-            </button>
-          ) : null}
-
-          {burgerPartsSection ? (
-            <button
-              type="button"
-              className={`hub-menu-tab hub-menu-tab--parts${selectedSectionId === burgerPartsSection.id ? " is-active" : ""}`}
-              onClick={(event) => {
-                event.preventDefault();
-                onSelectSection(burgerPartsSection.id);
-              }}
-            >
-              <span className="hub-menu-tab-label">
-                <span className="hub-menu-tab-name">Burger parts</span>
-                <span className="hub-menu-tab-meta">{burgerPartsTabMeta}</span>
-              </span>
-            </button>
-          ) : null}
-
-          {kebabPartsSection ? (
-            <button
-              type="button"
-              className={`hub-menu-tab hub-menu-tab--parts${selectedSectionId === kebabPartsSection.id ? " is-active" : ""}`}
-              onClick={(event) => {
-                event.preventDefault();
-                onSelectSection(kebabPartsSection.id);
-              }}
-            >
-              <span className="hub-menu-tab-label">
-                <span className="hub-menu-tab-name">Kebab parts</span>
-                <span className="hub-menu-tab-meta">{kebabPartsTabMeta}</span>
+                <span className="hub-menu-tab-name">Extras, salad &amp; sauces</span>
+                <span className="hub-menu-tab-meta">Toppings, salad, and sauce lists</span>
               </span>
             </button>
           ) : null}

@@ -18,6 +18,8 @@
     "prisma:migrate:status": "tsx scripts/migrate-status.ts",
     "db:check": "tsx scripts/verify-database.ts",
     "db:provision-cheeky-chicken": "tsx scripts/provision-cheeky-chicken-hub.ts",
+    "db:provision-east-hull-pizza": "tsx scripts/provision-east-hull-pizza-hub.ts",
+    "db:provision-costa-coffee": "tsx scripts/provision-costa-coffee-hub.ts",
     "db:activate-cheeky-chicken-menu": "tsx scripts/activate-cheeky-chicken-menu.ts",
     "db:baseline": "tsx scripts/baseline-and-deploy.ts",
     "seed": "dotenv -e ../../.env -- tsx prisma/seed.ts"

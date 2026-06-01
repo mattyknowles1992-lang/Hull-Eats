@@ -6,8 +6,14 @@ import { encodeHubMenuCategoryDescription } from "@hull-eats/types";
 import { prisma } from "@hull-eats/db";
 import { StoreType } from "@prisma/client";
 
-import { buildCheekyChickenMenuSections, buildCheekyChickenDeliveryConfig, buildCheekyChickenOpeningHours, CHEEKY_CHICKEN_BUSINESS, CHEEKY_CHICKEN_HUB } from "./cheeky-chicken-menu-data.js";
 import { activateStoreMenuLive } from "./activate-cheeky-chicken-menu.js";
+import {
+  buildEastHullPizzaDeliveryConfig,
+  buildEastHullPizzaMenuSections,
+  buildEastHullPizzaOpeningHours,
+  EAST_HULL_PIZZA_BUSINESS,
+  EAST_HULL_PIZZA_HUB,
+} from "./east-hull-pizza-menu-data.js";
 import { loadRootEnv } from "./env.js";
 
 function slugify(value: string): string {
@@ -20,14 +26,18 @@ function slugify(value: string): string {
 }
 
 function buildCustomisationConfig(item: MenuItem) {
-  return {
+  const config: Record<string, unknown> = {
     components: item.components ?? [],
     optionGroups: item.optionGroups ?? [],
   };
+  if (item.menuSubGroup?.trim()) {
+    config.hubMenuSubGroup = item.menuSubGroup.trim();
+  }
+  return config;
 }
 
 async function persistStoreOpeningHours(storeId: string) {
-  const openingHours = buildCheekyChickenOpeningHours();
+  const openingHours = buildEastHullPizzaOpeningHours();
   await prisma.storeHour.deleteMany({ where: { storeId } });
   await prisma.storeHour.createMany({
     data: openingHours.map((day) => ({
@@ -44,11 +54,11 @@ async function persistBusinessSettings(storeId: string) {
   await prisma.store.update({
     where: { id: storeId },
     data: {
-      deliveryFee: CHEEKY_CHICKEN_BUSINESS.deliveryFee,
-      minimumOrderAmount: CHEEKY_CHICKEN_BUSINESS.minimumOrderAmount,
-      etaMinutes: CHEEKY_CHICKEN_BUSINESS.etaMinutes,
-      onboardingMessage: CHEEKY_CHICKEN_BUSINESS.onboardingMessage,
-      deliveryConfig: buildCheekyChickenDeliveryConfig(),
+      deliveryFee: EAST_HULL_PIZZA_BUSINESS.deliveryFee,
+      minimumOrderAmount: EAST_HULL_PIZZA_BUSINESS.minimumOrderAmount,
+      etaMinutes: EAST_HULL_PIZZA_BUSINESS.etaMinutes,
+      onboardingMessage: EAST_HULL_PIZZA_BUSINESS.onboardingMessage,
+      deliveryConfig: buildEastHullPizzaDeliveryConfig(),
     },
   });
 }
@@ -139,9 +149,9 @@ async function persistMenuSections(storeId: string, menuSections: HubMenuSection
 async function main() {
   loadRootEnv();
 
-  const slug = slugify(CHEEKY_CHICKEN_HUB.businessName);
-  const ownerEmail = CHEEKY_CHICKEN_HUB.ownerEmail.trim().toLowerCase();
-  const menuSections = buildCheekyChickenMenuSections();
+  const slug = slugify(EAST_HULL_PIZZA_HUB.businessName);
+  const ownerEmail = EAST_HULL_PIZZA_HUB.ownerEmail.trim().toLowerCase();
+  const menuSections = buildEastHullPizzaMenuSections();
 
   let merchant = await prisma.merchant.findUnique({ where: { slug } });
   let store = merchant ? await prisma.store.findFirst({ where: { merchantId: merchant.id }, orderBy: { createdAt: "asc" } }) : null;
@@ -153,7 +163,7 @@ async function main() {
       data: {
         id: randomUUID(),
         slug,
-        name: CHEEKY_CHICKEN_HUB.businessName,
+        name: EAST_HULL_PIZZA_HUB.businessName,
         supportEmail: ownerEmail,
         isActive: true,
       },
@@ -164,20 +174,20 @@ async function main() {
         id: randomUUID(),
         merchantId: merchant.id,
         slug,
-        name: CHEEKY_CHICKEN_HUB.businessName,
+        name: EAST_HULL_PIZZA_HUB.businessName,
         type: StoreType.TAKEAWAY,
         storefrontStatus: "ONBOARDING",
         menuSetupComplete: false,
-        addressLine1: "Cheeky Chicken",
-        city: CHEEKY_CHICKEN_HUB.city,
-        postcode: CHEEKY_CHICKEN_HUB.postcode,
+        addressLine1: "East Hull Pizza",
+        city: EAST_HULL_PIZZA_HUB.city,
+        postcode: EAST_HULL_PIZZA_HUB.postcode,
         timezone: "Europe/London",
-        cuisineLabel: CHEEKY_CHICKEN_HUB.cuisineLabel,
-        onboardingMessage: CHEEKY_CHICKEN_BUSINESS.onboardingMessage,
-        deliveryFee: CHEEKY_CHICKEN_BUSINESS.deliveryFee,
-        minimumOrderAmount: CHEEKY_CHICKEN_BUSINESS.minimumOrderAmount,
-        etaMinutes: CHEEKY_CHICKEN_BUSINESS.etaMinutes,
-        deliveryConfig: buildCheekyChickenDeliveryConfig(),
+        cuisineLabel: EAST_HULL_PIZZA_HUB.cuisineLabel,
+        onboardingMessage: EAST_HULL_PIZZA_BUSINESS.onboardingMessage,
+        deliveryFee: EAST_HULL_PIZZA_BUSINESS.deliveryFee,
+        minimumOrderAmount: EAST_HULL_PIZZA_BUSINESS.minimumOrderAmount,
+        etaMinutes: EAST_HULL_PIZZA_BUSINESS.etaMinutes,
+        deliveryConfig: buildEastHullPizzaDeliveryConfig(),
         isActive: false,
       },
     });
@@ -191,10 +201,10 @@ async function main() {
         where: { id: existingUser.id },
         data: {
           merchantId: merchant.id,
-          fullName: `${CHEEKY_CHICKEN_HUB.businessName} Owner`,
+          fullName: `${EAST_HULL_PIZZA_HUB.businessName} Owner`,
           email: ownerEmail,
           username: ownerEmail,
-          passwordHash: hashPassword(CHEEKY_CHICKEN_HUB.password),
+          passwordHash: hashPassword(EAST_HULL_PIZZA_HUB.password),
           role: "OWNER",
           status: "ACTIVE",
           isActive: true,
@@ -206,10 +216,10 @@ async function main() {
         data: {
           id: randomUUID(),
           merchantId: merchant.id,
-          fullName: `${CHEEKY_CHICKEN_HUB.businessName} Owner`,
+          fullName: `${EAST_HULL_PIZZA_HUB.businessName} Owner`,
           email: ownerEmail,
           username: ownerEmail,
-          passwordHash: hashPassword(CHEEKY_CHICKEN_HUB.password),
+          passwordHash: hashPassword(EAST_HULL_PIZZA_HUB.password),
           role: "OWNER",
           status: "ACTIVE",
           isActive: true,
@@ -220,7 +230,7 @@ async function main() {
     await prisma.hubUser.updateMany({
       where: { merchantId: merchant.id, role: "OWNER" },
       data: {
-        passwordHash: hashPassword(CHEEKY_CHICKEN_HUB.password),
+        passwordHash: hashPassword(EAST_HULL_PIZZA_HUB.password),
         email: ownerEmail,
         username: ownerEmail,
       },
@@ -234,25 +244,24 @@ async function main() {
   const activation = await activateStoreMenuLive(store.id);
 
   const itemCount = menuSections.reduce((total, section) => total + section.items.length, 0);
-  const customerCategories = menuSections.filter((section) => !section.presetKey?.includes("library")).length;
+  const customerCategories = menuSections.filter(
+    (section) => !section.presetKey?.includes("library"),
+  ).length;
 
   console.log("");
-  console.log("Cheeky Chicken hub ready");
-  console.log(`  Hub: ${CHEEKY_CHICKEN_HUB.businessName}`);
+  console.log("East Hull Pizza hub ready");
+  console.log(`  Hub: ${EAST_HULL_PIZZA_HUB.businessName}`);
   console.log(`  Slug: ${slug}`);
   console.log(`  Merchant id: ${merchant.id}`);
   console.log(`  Store id: ${store.id}`);
   console.log(`  Login email: ${ownerEmail}`);
-  console.log(`  Password: ${CHEEKY_CHICKEN_HUB.password}`);
+  console.log(`  Password: ${EAST_HULL_PIZZA_HUB.password}`);
   console.log(`  Menu sections: ${menuSections.length} (${customerCategories} customer categories)`);
   console.log(`  Menu items: ${itemCount} (${activation.itemsUpdated} saved live)`);
   console.log(`  Hidden items in DB: ${activation.hiddenAfter}`);
-  console.log(`  Meal upgrade: £${CHEEKY_CHICKEN_HUB.mealUpgradePrice.toFixed(2)} (Regular fries & can)`);
-  console.log(`  Min order: £${CHEEKY_CHICKEN_BUSINESS.minimumOrderAmount.toFixed(2)}`);
-  console.log(`  Delivery from: £${CHEEKY_CHICKEN_BUSINESS.deliveryFee.toFixed(2)} (${CHEEKY_CHICKEN_BUSINESS.deliveryDistanceRanges.length} distance tiers)`);
-  console.log(`  Opening: Mon–Sun ${CHEEKY_CHICKEN_BUSINESS.openingTime}–${CHEEKY_CHICKEN_BUSINESS.closingTime}`);
-  console.log(`  Collection: Mon–Sun ${CHEEKY_CHICKEN_BUSINESS.pickupFromTime}–${CHEEKY_CHICKEN_BUSINESS.closingTime} (note in hub message; shared opening-hours schedule is delivery window)`);
-  console.log(`  Hub ${createdHub ? "created" : "updated"} — customer menu items are provisioned live.`);
+  console.log(`  Min order: £${EAST_HULL_PIZZA_BUSINESS.minimumOrderAmount.toFixed(2)}`);
+  console.log(`  Delivery from: £${EAST_HULL_PIZZA_BUSINESS.deliveryFee.toFixed(2)}`);
+  console.log(`  Hub ${createdHub ? "created" : "updated"} — all menu items provisioned live.`);
   console.log("");
 }
 

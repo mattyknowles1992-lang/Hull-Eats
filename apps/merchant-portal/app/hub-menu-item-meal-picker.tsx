@@ -50,7 +50,7 @@ export function HubMenuItemMealPicker({ item, templates, readOnly = false, onUpd
             patch(e.target.checked, template.id, sideIds, drinkIds);
           }}
         />
-        <strong>Let customers make it a meal</strong>
+        <strong>Offer meal upgrade on this item</strong>
       </label>
 
       {selection.enabled ? (

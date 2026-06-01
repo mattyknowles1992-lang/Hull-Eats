@@ -44,7 +44,6 @@ import {
   loadBrowserMenuDraft,
   saveBrowserMenuDraft,
 } from "./hub-menu-browser-draft";
-import { HubMenuPartsSettingsWorkbench } from "./hub-menu-parts-settings-workbench";
 import { HubMenuStudio } from "./hub-menu-studio";
 import { HubTransientBanner } from "./hub-transient-banner";
 import { HE_BRAND } from "./portal-brand";
@@ -115,9 +114,8 @@ import {
   customerFacingMenuSections,
   type MenuPublishIssue,
   ensureStaffMenuSections,
-  findBurgerPartsSection,
-  findKebabPartsSection,
   findExtrasLibrarySection,
+  findSaladLibrarySection,
   findSaucesLibrarySection,
   findMealLibrarySection,
   getMealDealBundleSelection,
@@ -130,6 +128,7 @@ import {
   switchToMenuBoard,
   updateMenuBoardInConfig,
   updateExtrasLibraryItemPrice,
+  updateSaladLibraryItemPrice,
   updateSaucesLibraryItemPrice,
   type ComposeProductLine,
   type HubMenuBoardKind,
@@ -325,7 +324,6 @@ export default function MerchantPortalPage() {
   const [supportOrderNumber, setSupportOrderNumber] = useState("");
   const [supportNotice, setSupportNotice] = useState("");
   const [supportSending, setSupportSending] = useState(false);
-  const [partsOptionSettingsLine, setPartsOptionSettingsLine] = useState<ComposeProductLine | null>(null);
   const [menuHubPersistState, setMenuHubPersistState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const menuSaveInFlightRef = useRef(false);
   const menuSectionsRef = useRef(menuSections);
@@ -367,8 +365,7 @@ export default function MerchantPortalPage() {
 
   const extrasSection = useMemo(() => findExtrasLibrarySection(menuSections), [menuSections]);
   const saucesSection = useMemo(() => findSaucesLibrarySection(menuSections), [menuSections]);
-  const burgerPartsSection = useMemo(() => findBurgerPartsSection(menuSections), [menuSections]);
-  const kebabPartsSection = useMemo(() => findKebabPartsSection(menuSections), [menuSections]);
+  const saladSection = useMemo(() => findSaladLibrarySection(menuSections), [menuSections]);
   const mealSection = useMemo(() => findMealLibrarySection(menuSections), [menuSections]);
   const menuBoards = useMemo(() => readMenuBoardsConfig(menuSections).boards, [menuSections]);
   const editingMenuBoard = useMemo(
@@ -437,15 +434,11 @@ export default function MerchantPortalPage() {
     setPizzaSizeRows(createInitialPizzaSizeRows());
   }, [newItem.sectionId]);
 
-  const openPartsOptionSettings = useCallback(
-    (line?: ComposeProductLine) => {
-      setMobileNavOpen(false);
-      setActiveHubSection("settings");
-      setActiveHubPanel("settings");
-      setPartsOptionSettingsLine(line ?? (burgerPartsSection ? "burger" : kebabPartsSection ? "kebab" : null));
-    },
-    [burgerPartsSection, kebabPartsSection],
-  );
+  const openPartsOptionSettings = useCallback(() => {
+    setMobileNavOpen(false);
+    setActiveHubSection("settings");
+    setActiveHubPanel("settings");
+  }, []);
 
   const openHubSection = (section: HubSection) => {
     setMobileNavOpen(false);
@@ -2698,66 +2691,35 @@ export default function MerchantPortalPage() {
                   ),
                 );
               }}
-              burgerPartsSection={burgerPartsSection}
-              kebabPartsSection={kebabPartsSection}
-              onAddBurgerPart={(item) => {
-                if (!burgerPartsSection) {
+              saladSection={saladSection}
+              onAddSalad={(item) => {
+                if (!saladSection) {
                   return;
                 }
                 updateMenuSections((current) =>
                   current.map((section) =>
-                    section.id === burgerPartsSection.id ? { ...section, items: [...section.items, item] } : section,
+                    section.id === saladSection.id ? { ...section, items: [...section.items, item] } : section,
                   ),
                 );
               }}
-              onRemoveBurgerPart={(itemId) => {
-                if (!burgerPartsSection) {
+              onUpdateSaladPrice={(itemId, extraPrice) => {
+                if (!saladSection) {
+                  return;
+                }
+                updateMenuSections((current) =>
+                  updateSaladLibraryItemPrice(current, saladSection.id, itemId, extraPrice),
+                );
+              }}
+              onRemoveSalad={(itemId) => {
+                if (!saladSection) {
                   return;
                 }
                 updateMenuSections((current) =>
                   current.map((section) =>
-                    section.id === burgerPartsSection.id
+                    section.id === saladSection.id
                       ? { ...section, items: section.items.filter((item) => item.id !== itemId) }
                       : section,
                   ),
-                );
-              }}
-              onAddKebabPart={(item) => {
-                if (!kebabPartsSection) {
-                  return;
-                }
-                updateMenuSections((current) =>
-                  current.map((section) =>
-                    section.id === kebabPartsSection.id ? { ...section, items: [...section.items, item] } : section,
-                  ),
-                );
-              }}
-              onRemoveKebabPart={(itemId) => {
-                if (!kebabPartsSection) {
-                  return;
-                }
-                updateMenuSections((current) =>
-                  current.map((section) =>
-                    section.id === kebabPartsSection.id
-                      ? { ...section, items: section.items.filter((item) => item.id !== itemId) }
-                      : section,
-                  ),
-                );
-              }}
-              onUpdateBurgerPartsSection={(updater) => {
-                if (!burgerPartsSection) {
-                  return;
-                }
-                updateMenuSections((current) =>
-                  current.map((section) => (section.id === burgerPartsSection.id ? updater(section) : section)),
-                );
-              }}
-              onUpdateKebabPartsSection={(updater) => {
-                if (!kebabPartsSection) {
-                  return;
-                }
-                updateMenuSections((current) =>
-                  current.map((section) => (section.id === kebabPartsSection.id ? updater(section) : section)),
                 );
               }}
               mealSection={mealSection}
@@ -3021,56 +2983,7 @@ export default function MerchantPortalPage() {
                 <h2 style={sectionTitle}>{t("settings.operationsBackups")}</h2>
                 <p style={panelCopyDark}>{t("settings.operationsBackupsCopy")}</p>
               </div>
-              {burgerPartsSection || kebabPartsSection ? (
-                <HubMenuPartsSettingsWorkbench
-                  burgerPartsSection={burgerPartsSection}
-                  kebabPartsSection={kebabPartsSection}
-                  initialLine={partsOptionSettingsLine}
-                  readOnly={!hubAccess?.canEditWorkspace}
-                  onUpdateBurgerPartsSection={(updater) => {
-                    if (!burgerPartsSection) {
-                      return;
-                    }
-                    updateMenuSections((current) =>
-                      current.map((section) => (section.id === burgerPartsSection.id ? updater(section) : section)),
-                    );
-                  }}
-                  onUpdateKebabPartsSection={(updater) => {
-                    if (!kebabPartsSection) {
-                      return;
-                    }
-                    updateMenuSections((current) =>
-                      current.map((section) => (section.id === kebabPartsSection.id ? updater(section) : section)),
-                    );
-                  }}
-                  onRemoveBurgerPart={(itemId) => {
-                    if (!burgerPartsSection) {
-                      return;
-                    }
-                    updateMenuSections((current) =>
-                      current.map((section) =>
-                        section.id === burgerPartsSection.id
-                          ? { ...section, items: section.items.filter((item) => item.id !== itemId) }
-                          : section,
-                      ),
-                    );
-                  }}
-                  onRemoveKebabPart={(itemId) => {
-                    if (!kebabPartsSection) {
-                      return;
-                    }
-                    updateMenuSections((current) =>
-                      current.map((section) =>
-                        section.id === kebabPartsSection.id
-                          ? { ...section, items: section.items.filter((item) => item.id !== itemId) }
-                          : section,
-                      ),
-                    );
-                  }}
-                />
-              ) : null}
-
-              <div className="he-two-col" style={{ ...twoColumnGrid, marginTop: burgerPartsSection || kebabPartsSection ? 28 : 0 }}>
+              <div className="he-two-col" style={twoColumnGrid}>
                 <label style={field}>
                   <span style={darkFieldLabel}>{t("settings.deliveryEta")}</span>
                   <HubFreeTypeNumberInput

@@ -17,12 +17,11 @@ import {
 } from "@hull-eats/types";
 
 import { HubMenuCategoryTabs, isMenuStudioStaffSection } from "./hub-menu-category-tabs";
-import { HubMenuComposePartsPanel } from "./hub-menu-compose-parts-panel";
 import { HubMenuExtrasLibrary } from "./hub-menu-extras-library";
+import { HubMenuSaladLibrary } from "./hub-menu-salad-library";
 import { HubMenuSaucesLibrary } from "./hub-menu-sauces-library";
 import { HubMenuOrderTicketBuilder } from "./hub-menu-order-ticket-builder";
 import { HubMenuPizzaOrderBuilder } from "./hub-menu-pizza-order-builder";
-import { HubMenuItemPartsPicker } from "./hub-menu-item-parts-picker";
 import { HubMenuItemSubGroupField } from "./hub-menu-item-subgroup-field";
 import { HubMenuPublishDialog } from "./hub-menu-publish-dialog";
 import { MenuItemVisibilitySelect } from "./hub-menu-item-visibility-select";
@@ -33,17 +32,14 @@ import {
   describeCategoryItemBuilder,
   describeMenuAvailability,
   formatMenuMoney,
-  formatPartSlotTabMeta,
   getCategoryItemBuilderMode,
   getHubExtraToppingsFromSection,
   getHubSaucesFromSection,
-  getHubPartsFromSection,
+  getHubSaladsFromSection,
   getHubMealTemplatesFromSection,
-  readPartSlotDefinitions,
   getMenuAvailabilityMode,
   getMenuItemPriceLabel,
   itemUsesSizePricing,
-  type ComposeProductLine,
   type MenuAvailabilityMode,
   type HubMenuBoardKind,
   type HubMenuBoardPublishMode,
@@ -127,21 +123,17 @@ type HubMenuStudioProps = {
   onOpenImport: () => void;
   extrasSection: HubMenuSection | null;
   saucesSection: HubMenuSection | null;
-  burgerPartsSection: HubMenuSection | null;
-  kebabPartsSection: HubMenuSection | null;
+  saladSection: HubMenuSection | null;
   mealSection: HubMenuSection | null;
-  onAddBurgerPart: (item: MenuItem) => void;
-  onRemoveBurgerPart: (itemId: string) => void;
-  onAddKebabPart: (item: MenuItem) => void;
-  onRemoveKebabPart: (itemId: string) => void;
-  onUpdateBurgerPartsSection: (updater: (section: HubMenuSection) => HubMenuSection) => void;
-  onUpdateKebabPartsSection: (updater: (section: HubMenuSection) => HubMenuSection) => void;
   onAddExtraTopping: (item: MenuItem) => void;
   onUpdateExtraToppingPrice: (itemId: string, price: number) => void;
   onRemoveExtraTopping: (itemId: string) => void;
   onAddSauce: (item: MenuItem) => void;
   onUpdateSaucePrice: (itemId: string, extraPrice: number) => void;
   onRemoveSauce: (itemId: string) => void;
+  onAddSalad: (item: MenuItem) => void;
+  onUpdateSaladPrice: (itemId: string, extraPrice: number) => void;
+  onRemoveSalad: (itemId: string) => void;
   onAddMealTemplate: (item: MenuItem) => void;
   onUpdateMealTemplate: (itemId: string, updater: (item: MenuItem) => MenuItem) => void;
   onRemoveMealTemplate: (itemId: string) => void;
@@ -213,21 +205,17 @@ export function HubMenuStudio({
   onOpenImport,
   extrasSection,
   saucesSection,
-  burgerPartsSection,
-  kebabPartsSection,
+  saladSection,
   mealSection,
-  onAddBurgerPart,
-  onRemoveBurgerPart,
-  onAddKebabPart,
-  onRemoveKebabPart,
-  onUpdateBurgerPartsSection,
-  onUpdateKebabPartsSection,
   onAddExtraTopping,
   onUpdateExtraToppingPrice,
   onRemoveExtraTopping,
   onAddSauce,
   onUpdateSaucePrice,
   onRemoveSauce,
+  onAddSalad,
+  onUpdateSaladPrice,
+  onRemoveSalad,
   onAddMealTemplate,
   onUpdateMealTemplate,
   onRemoveMealTemplate,
@@ -318,27 +306,7 @@ export function HubMenuStudio({
   }, [focusedPublishIssueId, publishIssues, selectedCategory?.id, selectedItemId, isCreatingNewItem]);
   const hubExtraToppings = getHubExtraToppingsFromSection(extrasSection);
   const hubSauces = getHubSaucesFromSection(saucesSection);
-  const hubBurgerParts = getHubPartsFromSection(burgerPartsSection, "burger");
-  const hubKebabParts = getHubPartsFromSection(kebabPartsSection, "kebab");
-  const burgerSlotDefinitions = useMemo(() => readPartSlotDefinitions(burgerPartsSection, "burger"), [burgerPartsSection]);
-  const kebabSlotDefinitions = useMemo(() => readPartSlotDefinitions(kebabPartsSection, "kebab"), [kebabPartsSection]);
-  const creatingComposeLine: ComposeProductLine | null =
-    creatingItemBuilderMode === "burger-compose" ? "burger" : creatingItemBuilderMode === "kebab-compose" ? "kebab" : null;
-  const editingComposeLine: ComposeProductLine | null = (() => {
-    if (!selectedItem || !selectedCategory) {
-      return null;
-    }
-    const mode = getCategoryItemBuilderMode(selectedCategory);
-    if (mode === "burger-compose") {
-      return "burger";
-    }
-    if (mode === "kebab-compose") {
-      return "kebab";
-    }
-    return null;
-  })();
-  const creatingItemUsesParts = creatingComposeLine !== null;
-  const editingItemUsesParts = editingComposeLine !== null;
+  const hubSalads = getHubSaladsFromSection(saladSection);
   useEffect(() => {
     if (selectedItem && editingPizzaItem && itemUsesSizePricing(selectedItem) && selectedCategory) {
       setEditPizzaSizeRows(
@@ -348,15 +316,13 @@ export function HubMenuStudio({
   }, [selectedItem?.id, editingPizzaItem, selectedCategory?.description, selectedCategory?.presetKey]);
 
   const showExtrasPanel = Boolean(extrasSection && selectedCategory?.id === extrasSection.id);
-  const showBurgerPartsPanel = Boolean(burgerPartsSection && selectedCategory?.id === burgerPartsSection.id);
-  const showKebabPartsPanel = Boolean(kebabPartsSection && selectedCategory?.id === kebabPartsSection.id);
 
   const showMealsPanel = Boolean(mealSection && selectedCategory?.id === mealSection.id);
   const selectedIsMealDealsCategory = isHubMenuMealDealsCategory(selectedCategory);
   const creatingIsMealDealsCategory = isHubMenuMealDealsCategory(creatingItemSection);
   const editingMenuBoard = menuBoards.find((board) => board.id === editingMenuBoardId) ?? null;
   const showCategoryBuilder = Boolean(selectedCategory && !isMenuStudioStaffSection(selectedCategory));
-  const staffPanelOnly = (showExtrasPanel || showBurgerPartsPanel || showKebabPartsPanel || showMealsPanel) && !showCategoryBuilder;
+  const staffPanelOnly = (showExtrasPanel || showMealsPanel) && !showCategoryBuilder;
 
   return (
     <section className="hub-menu-studio" style={studioShell}>
@@ -374,7 +340,7 @@ export function HubMenuStudio({
           <p style={eyebrow}>Menu studio</p>
           <h2 style={studioTitle}>Menu builder</h2>
           <p style={studioCopy}>
-            Set up extras and burger/kebab parts first, then add products. Changes save automatically in the background.
+            Set up extras, salad, and sauces first, then add products. Changes save automatically in the background.
             {menuHubPersistState === "saving" ? " Saving now…" : null}
           </p>
         </div>
@@ -436,9 +402,8 @@ export function HubMenuStudio({
         <div className="he-hub-banner" role="status">
           <strong>Build your menu faster</strong>
           <p>
-            Set up <strong>Extras &amp; sauces</strong> and <strong>Burger parts</strong> / <strong>Kebab parts</strong> on the
-            left first. Add <strong>Make it a meal</strong> if you use meal deals. Then create customer categories and add
-            products — tick extras and sauces on each item.
+            Set up <strong>Extras, salad &amp; sauces</strong> on the left first. Add <strong>Make it a meal</strong> on
+            individual items when needed. Then create customer categories and tick extras, salad, and sauces per product.
             Work saves automatically; use <strong>Publish</strong> when customers should see it live.
           </p>
         </div>
@@ -449,28 +414,14 @@ export function HubMenuStudio({
             <HubMenuCategoryTabs
               customerSections={visibleSections}
               extrasSection={extrasSection}
-              burgerPartsSection={burgerPartsSection}
-              kebabPartsSection={kebabPartsSection}
               mealSection={mealSection}
               selectedSectionId={selectedCategory?.id ?? null}
               readOnly={studioLocked}
               onSelectSection={onSelectCategory}
               onReorderCategory={onReorderCategory}
-              burgerPartsTabMeta={formatPartSlotTabMeta(burgerPartsSection, "burger")}
-              kebabPartsTabMeta={formatPartSlotTabMeta(kebabPartsSection, "kebab")}
             />
             <section id="publish-issue-no-categories" className="hub-menu-tab-add-category" style={sidebarAddCategory}>
               <p style={sectionLabel}>New category</p>
-              {burgerPartsSection || kebabPartsSection ? (
-                <button
-                  type="button"
-                  className="hub-menu-tab-config-btn hub-menu-tab-config-btn--category"
-                  disabled={studioLocked || !onOpenPartsOptionSettings}
-                  onClick={() => onOpenPartsOptionSettings?.()}
-                >
-                  Edit or add option groups
-                </button>
-              ) : null}
               <label style={field}>
                 <span style={darkFieldLabel}>Type</span>
                 <select
@@ -516,6 +467,15 @@ export function HubMenuStudio({
                     onRemoveTopping={onRemoveExtraTopping}
                     readOnly={studioLocked}
                   />
+                  {saladSection ? (
+                    <HubMenuSaladLibrary
+                      section={saladSection}
+                      onAddSalad={onAddSalad}
+                      onUpdateSaladPrice={onUpdateSaladPrice}
+                      onRemoveSalad={onRemoveSalad}
+                      readOnly={studioLocked}
+                    />
+                  ) : null}
                   {saucesSection ? (
                     <HubMenuSaucesLibrary
                       section={saucesSection}
@@ -525,32 +485,6 @@ export function HubMenuStudio({
                       readOnly={studioLocked}
                     />
                   ) : null}
-                </div>
-              ) : null}
-
-              {showBurgerPartsPanel && burgerPartsSection ? (
-                <div className="hub-menu-staff-library-editor">
-                  <HubMenuComposePartsPanel
-                    line="burger"
-                    section={burgerPartsSection}
-                    extras={hubExtraToppings}
-                    onAddPart={onAddBurgerPart}
-                    onRemovePart={onRemoveBurgerPart}
-                    readOnly={studioLocked}
-                  />
-                </div>
-              ) : null}
-
-              {showKebabPartsPanel && kebabPartsSection ? (
-                <div className="hub-menu-staff-library-editor">
-                  <HubMenuComposePartsPanel
-                    line="kebab"
-                    section={kebabPartsSection}
-                    extras={hubExtraToppings}
-                    onAddPart={onAddKebabPart}
-                    onRemovePart={onRemoveKebabPart}
-                    readOnly={studioLocked}
-                  />
                 </div>
               ) : null}
 
@@ -797,18 +731,7 @@ export function HubMenuStudio({
                 {creatingOrderTicketItem ? null : (
                   <>
                     <div style={{ gridColumn: "1 / -1" }}>
-                      {creatingItemUsesParts && creatingComposeLine ? (
-                        <HubMenuItemPartsPicker
-                          item={newItemDraft}
-                          line={creatingComposeLine}
-                          parts={creatingComposeLine === "burger" ? hubBurgerParts : hubKebabParts}
-                          slotDefinitions={creatingComposeLine === "burger" ? burgerSlotDefinitions : kebabSlotDefinitions}
-                          readOnly={studioLocked}
-                          onUpdateItem={patchNewItemDraft}
-                        />
-                      ) : (
-                        <HubMenuItemIngredients item={newItemDraft} readOnly={studioLocked} onUpdateItem={patchNewItemDraft} />
-                      )}
+                      <HubMenuItemIngredients item={newItemDraft} readOnly={studioLocked} onUpdateItem={patchNewItemDraft} />
                     </div>
                     <label style={{ ...field, gridColumn: "1 / -1" }}>
                       <span style={darkFieldLabel}>Description (customer sees)</span>
@@ -838,6 +761,7 @@ export function HubMenuStudio({
                     item={newItemDraft}
                     toppings={hubExtraToppings}
                     sauces={hubSauces}
+                    salads={hubSalads}
                     mealTemplates={mealTemplates}
                     readOnly={studioLocked}
                     onUpdateItem={patchNewItemDraft}
@@ -947,18 +871,7 @@ export function HubMenuStudio({
                 {editingOrderTicketItem ? null : (
                   <>
                     <div style={{ gridColumn: "1 / -1" }}>
-                      {editingItemUsesParts && editingComposeLine ? (
-                        <HubMenuItemPartsPicker
-                          item={selectedItem}
-                          line={editingComposeLine}
-                          parts={editingComposeLine === "burger" ? hubBurgerParts : hubKebabParts}
-                          slotDefinitions={editingComposeLine === "burger" ? burgerSlotDefinitions : kebabSlotDefinitions}
-                          readOnly={studioLocked}
-                          onUpdateItem={onUpdateItem}
-                        />
-                      ) : (
-                        <HubMenuItemIngredients item={selectedItem} readOnly={studioLocked} onUpdateItem={onUpdateItem} />
-                      )}
+                      <HubMenuItemIngredients item={selectedItem} readOnly={studioLocked} onUpdateItem={onUpdateItem} />
                     </div>
                     <label style={{ ...field, gridColumn: "1 / -1" }}>
                       <span style={darkFieldLabel}>Description (customer sees)</span>
@@ -1068,6 +981,7 @@ export function HubMenuStudio({
                     item={selectedItem}
                     toppings={hubExtraToppings}
                     sauces={hubSauces}
+                    salads={hubSalads}
                     mealTemplates={mealTemplates}
                     readOnly={studioLocked}
                     onUpdateItem={onUpdateItem}
@@ -1095,7 +1009,7 @@ export function HubMenuStudio({
                     <strong> Kebab parts</strong> under Hub setup.
                   </p>
                 </div>
-              ) : !showExtrasPanel && !showBurgerPartsPanel && !showKebabPartsPanel && !showMealsPanel ? (
+              ) : !showExtrasPanel && !showMealsPanel ? (
                 <div style={emptyStateCard}>
                   Pick a customer category tab, or add one under <strong>New category</strong> on the left.
                 </div>

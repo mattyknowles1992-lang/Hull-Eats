@@ -17,6 +17,8 @@
     "db:status": "corepack pnpm --filter @hull-eats/db prisma:migrate:status",
     "db:check": "corepack pnpm --filter @hull-eats/db db:check",
     "db:provision-cheeky-chicken": "corepack pnpm --filter @hull-eats/db db:provision-cheeky-chicken",
+    "db:provision-east-hull-pizza": "corepack pnpm --filter @hull-eats/db db:provision-east-hull-pizza",
+    "db:provision-costa-coffee": "corepack pnpm --filter @hull-eats/db db:provision-costa-coffee",
     "db:activate-cheeky-chicken-menu": "corepack pnpm --filter @hull-eats/db db:activate-cheeky-chicken-menu",
     "db:baseline": "corepack pnpm --filter @hull-eats/db exec tsx scripts/baseline-and-deploy.ts",
     "db:seed": "pnpm --filter @hull-eats/db seed",

@@ -2,22 +2,22 @@
 
 import type { CSSProperties } from "react";
 
-import type { HubSauceOption } from "./menu-studio-core";
+import type { HubSaladOption } from "./menu-studio-core";
 
-type HubMenuItemSaucesPickerProps = {
-  sauces: HubSauceOption[];
+type HubMenuItemSaladPickerProps = {
+  salads: HubSaladOption[];
   enabled: boolean;
   includedIds: Set<string>;
   extraEnabled: boolean;
   extraIds: Set<string>;
   extraPriceById: Map<string, number>;
   onEnabledChange: (enabled: boolean) => void;
-  onIncludedToggle: (sauceId: string, checked: boolean) => void;
+  onIncludedToggle: (saladId: string, checked: boolean) => void;
   onSelectAllIncluded: () => void;
   onClearIncluded: () => void;
   onExtraEnabledChange: (enabled: boolean) => void;
-  onExtraToggle: (sauceId: string, checked: boolean) => void;
-  onExtraPriceChange: (sauceId: string, price: number) => void;
+  onExtraToggle: (saladId: string, checked: boolean) => void;
+  onExtraPriceChange: (saladId: string, price: number) => void;
   readOnly?: boolean;
 };
 
@@ -32,8 +32,8 @@ const panel: CSSProperties = {
 
 const sectionTitle: CSSProperties = { margin: 0, fontSize: "0.88rem", fontWeight: 800, color: "#101216" };
 
-export function HubMenuItemSaucesPicker({
-  sauces,
+export function HubMenuItemSaladPicker({
+  salads,
   enabled,
   includedIds,
   extraEnabled,
@@ -47,11 +47,11 @@ export function HubMenuItemSaucesPicker({
   onExtraToggle,
   onExtraPriceChange,
   readOnly = false,
-}: HubMenuItemSaucesPickerProps) {
-  if (sauces.length === 0) {
+}: HubMenuItemSaladPickerProps) {
+  if (salads.length === 0) {
     return (
       <p style={{ margin: 0, fontSize: "0.84rem", color: "#5b6470" }}>
-        Add sauces under <strong>Added extras</strong> → <strong>Sauces list</strong> on the left first.
+        Add salad choices under <strong>Salad list</strong> on the left first.
       </p>
     );
   }
@@ -60,11 +60,11 @@ export function HubMenuItemSaucesPicker({
     <div style={panel}>
       <label style={toggleRow}>
         <input type="checkbox" checked={enabled} disabled={readOnly} onChange={(e) => onEnabledChange(e.target.checked)} />
-        <strong>Let customers choose a sauce on this item</strong>
+        <strong>Let customers customise salad on this item</strong>
       </label>
 
       <div style={enabled ? block : blockDisabled}>
-        <p style={sectionTitle}>Part of this item (customer picks one included sauce)</p>
+        <p style={sectionTitle}>Included with this item (customer can remove)</p>
         <div style={toolbar}>
           <button type="button" style={linkButton} disabled={readOnly || !enabled} onClick={onSelectAllIncluded}>
             Select all
@@ -74,18 +74,18 @@ export function HubMenuItemSaucesPicker({
           </button>
         </div>
         <div style={optionList}>
-          {sauces.map((sauce) => {
-            const checked = enabled && includedIds.has(sauce.id);
+          {salads.map((salad) => {
+            const checked = enabled && includedIds.has(salad.id);
             return (
-              <label key={`inc-${sauce.id}`} style={optionRow}>
+              <label key={`inc-${salad.id}`} style={optionRow}>
                 <input
                   type="checkbox"
                   className="hub-menu-compose-tick"
                   checked={checked}
                   disabled={readOnly || !enabled}
-                  onChange={(e) => onIncludedToggle(sauce.id, e.target.checked)}
+                  onChange={(e) => onIncludedToggle(salad.id, e.target.checked)}
                 />
-                <span style={{ flex: 1, fontWeight: 700 }}>{sauce.label}</span>
+                <span style={{ flex: 1, fontWeight: 700 }}>{salad.label}</span>
               </label>
             );
           })}
@@ -100,23 +100,23 @@ export function HubMenuItemSaucesPicker({
             disabled={readOnly || !enabled}
             onChange={(e) => onExtraEnabledChange(e.target.checked)}
           />
-          <strong>Also allow paid extra sauce portions</strong>
+          <strong>Also allow paid extra salad portions</strong>
         </label>
         {extraEnabled ? (
           <div style={optionList}>
-            {sauces.map((sauce) => {
-              const checked = enabled && extraEnabled && extraIds.has(sauce.id);
-              const price = extraPriceById.get(sauce.id) ?? sauce.extraPrice;
+            {salads.map((salad) => {
+              const checked = enabled && extraEnabled && extraIds.has(salad.id);
+              const price = extraPriceById.get(salad.id) ?? salad.extraPrice;
               return (
-                <label key={`ext-${sauce.id}`} style={optionRow}>
+                <label key={`ext-${salad.id}`} style={optionRow}>
                   <input
                     type="checkbox"
                     className="hub-menu-compose-tick"
                     checked={checked}
                     disabled={readOnly || !enabled || !extraEnabled}
-                    onChange={(e) => onExtraToggle(sauce.id, e.target.checked)}
+                    onChange={(e) => onExtraToggle(salad.id, e.target.checked)}
                   />
-                  <span style={{ flex: 1, fontWeight: 700 }}>{sauce.label}</span>
+                  <span style={{ flex: 1, fontWeight: 700 }}>{salad.label}</span>
                   <input
                     type="number"
                     step="0.1"
@@ -125,7 +125,7 @@ export function HubMenuItemSaucesPicker({
                     className="hub-menu-item-extras__price"
                     style={{ opacity: enabled && extraEnabled && checked ? 1 : 0.45 }}
                     value={price}
-                    onChange={(e) => onExtraPriceChange(sauce.id, Number(e.target.value) || 0)}
+                    onChange={(e) => onExtraPriceChange(salad.id, Number(e.target.value) || 0)}
                   />
                 </label>
               );
@@ -180,4 +180,3 @@ const optionRow: CSSProperties = {
   background: "rgba(15, 17, 21, 0.03)",
   cursor: "pointer",
 };
-

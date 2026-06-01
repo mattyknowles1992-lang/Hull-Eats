@@ -7,15 +7,18 @@ import type { HubExtraTopping } from "./menu-studio-core";
 type HubMenuItemExtrasPickerProps = {
   toppings: HubExtraTopping[];
   enabled: boolean;
-  selectedIds: Set<string>;
+  paidExtraIds: Set<string>;
   priceById: Map<string, number>;
   includedQtyById: Map<string, number>;
+  maxAddMoreById: Map<string, number>;
   onEnabledChange: (enabled: boolean) => void;
-  onToggle: (toppingId: string, checked: boolean) => void;
-  onSelectAll: () => void;
+  onIncludedToggle: (toppingId: string, checked: boolean) => void;
+  onPaidExtraToggle: (toppingId: string, checked: boolean) => void;
+  onSelectAllPaid: () => void;
   onClearAll: () => void;
   onPriceChange: (toppingId: string, price: number) => void;
   onIncludedQtyChange: (toppingId: string, quantity: number) => void;
+  onMaxAddMoreChange: (toppingId: string, quantity: number) => void;
   readOnly?: boolean;
 };
 
@@ -31,15 +34,18 @@ const panel: CSSProperties = {
 export function HubMenuItemExtrasPicker({
   toppings,
   enabled,
-  selectedIds,
+  paidExtraIds,
   priceById,
   includedQtyById,
+  maxAddMoreById,
   onEnabledChange,
-  onToggle,
-  onSelectAll,
+  onIncludedToggle,
+  onPaidExtraToggle,
+  onSelectAllPaid,
   onClearAll,
   onPriceChange,
   onIncludedQtyChange,
+  onMaxAddMoreChange,
   readOnly = false,
 }: HubMenuItemExtrasPickerProps) {
   if (toppings.length === 0) {
@@ -59,38 +65,42 @@ export function HubMenuItemExtrasPicker({
           disabled={readOnly}
           onChange={(e) => onEnabledChange(e.target.checked)}
         />
-        <strong>Let customers add extras on this item</strong>
+        <strong>Let customers customise extras on this item</strong>
       </label>
       <p style={{ margin: 0, fontSize: "0.8rem", color: "#5b6470", lineHeight: 1.4 }}>
-        <strong>Included qty</strong> = comes with the item at no extra cost. <strong>Extra £</strong> = charged for each
-        portion above the included amount (or for every portion if included is 0).
+        <strong>Included</strong> = comes with the item (no extra charge). <strong>Add more (paid)</strong> = customers can
+        buy extra portions up to your max. You can use included only, paid only, or both.
       </p>
 
       <div style={enabled ? toppingList : toppingListDisabled}>
         <div style={toolbar}>
-          <button type="button" style={linkButton} disabled={readOnly || !enabled} onClick={onSelectAll}>
-            Select all
+          <button type="button" style={linkButton} disabled={readOnly || !enabled} onClick={onSelectAllPaid}>
+            Enable all paid extras
           </button>
           <button type="button" style={linkButton} disabled={readOnly || !enabled} onClick={onClearAll}>
             Clear all
           </button>
         </div>
         {toppings.map((topping) => {
-          const checked = enabled && selectedIds.has(topping.id);
-          const price = priceById.get(topping.id) ?? topping.price;
+          const includedOn = enabled && (includedQtyById.get(topping.id) ?? 0) > 0;
+          const paidOn = enabled && paidExtraIds.has(topping.id);
           const includedQty = includedQtyById.get(topping.id) ?? 0;
+          const price = priceById.get(topping.id) ?? topping.price;
+          const maxAddMore = maxAddMoreById.get(topping.id) ?? 8;
+          const rowActive = includedOn || paidOn;
+
           return (
             <div key={topping.id} style={optionRow}>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
+              <span style={{ fontWeight: 700, minWidth: 100, flex: "1 1 120px" }}>{topping.label}</span>
+              <label style={miniToggle}>
                 <input
                   type="checkbox"
                   className="hub-menu-compose-tick"
-                  checked={checked}
+                  checked={includedOn}
                   disabled={readOnly || !enabled}
-                  onChange={(e) => onToggle(topping.id, e.target.checked)}
+                  onChange={(e) => onIncludedToggle(topping.id, e.target.checked)}
                 />
-                <span style={{ fontWeight: 700 }}>{topping.label}</span>
-                <span style={extraBadge}>Available as extra</span>
+                <span>Included</span>
               </label>
               <label style={qtyField}>
                 <span>Incl.</span>
@@ -98,9 +108,30 @@ export function HubMenuItemExtrasPicker({
                   type="number"
                   min={0}
                   max={8}
-                  disabled={readOnly || !enabled || !checked}
+                  disabled={readOnly || !enabled || !includedOn}
                   value={includedQty}
                   onChange={(e) => onIncludedQtyChange(topping.id, Math.max(0, Number(e.target.value) || 0))}
+                />
+              </label>
+              <label style={miniToggle}>
+                <input
+                  type="checkbox"
+                  className="hub-menu-compose-tick"
+                  checked={paidOn}
+                  disabled={readOnly || !enabled}
+                  onChange={(e) => onPaidExtraToggle(topping.id, e.target.checked)}
+                />
+                <span>Add more</span>
+              </label>
+              <label style={qtyField}>
+                <span>Max</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={99}
+                  disabled={readOnly || !enabled || !paidOn}
+                  value={maxAddMore}
+                  onChange={(e) => onMaxAddMoreChange(topping.id, Math.max(0, Number(e.target.value) || 0))}
                 />
               </label>
               <label style={qtyField}>
@@ -109,12 +140,15 @@ export function HubMenuItemExtrasPicker({
                   type="number"
                   step="0.1"
                   min={0}
-                  disabled={readOnly || !enabled || !checked}
+                  disabled={readOnly || !enabled || !paidOn}
                   className="hub-menu-item-extras__price"
                   value={price}
                   onChange={(e) => onPriceChange(topping.id, Number(e.target.value) || 0)}
                 />
               </label>
+              {!rowActive && enabled ? (
+                <span style={{ fontSize: "0.72rem", color: "#9aa3ad", fontWeight: 600 }}>Off for this item</span>
+              ) : null}
             </div>
           );
         })}
@@ -164,7 +198,7 @@ const optionRow: CSSProperties = {
   background: "rgba(15, 17, 21, 0.03)",
 };
 
-const qtyField: CSSProperties = {
+const miniToggle: CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: 6,
@@ -173,11 +207,11 @@ const qtyField: CSSProperties = {
   color: "#3d4652",
 };
 
-const extraBadge: CSSProperties = {
-  marginLeft: "auto",
-  fontSize: "0.72rem",
-  fontWeight: 800,
-  color: "#0680a6",
-  letterSpacing: "0.02em",
+const qtyField: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 6,
+  fontSize: "0.78rem",
+  fontWeight: 700,
+  color: "#3d4652",
 };
-

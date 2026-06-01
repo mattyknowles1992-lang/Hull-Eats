@@ -72,6 +72,22 @@ export const PIZZA_CRUST_SUGGESTIONS: readonly string[] = [
   "Garlic Crust",
 ];
 
+export const HUB_SALAD_SUGGESTIONS: readonly string[] = [
+  "Lettuce",
+  "Tomato",
+  "Onion",
+  "Red Onion",
+  "Cucumber",
+  "Gherkin",
+  "Pickles",
+  "Mixed Salad",
+  "Spinach",
+  "Rocket",
+  "Coleslaw",
+  "Mayo",
+  "Salad",
+];
+
 export const HUB_SAUCE_SUGGESTIONS: readonly string[] = [
   "Garlic Sauce",
   "Garlic Mayo",

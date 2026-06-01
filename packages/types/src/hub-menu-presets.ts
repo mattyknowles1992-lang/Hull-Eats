@@ -26,6 +26,9 @@ export const HUB_MENU_EXTRAS_LIBRARY_PRESET = "extras-library";
 /** Internal category for hub-wide sauce choices (hidden on customer menu). */
 export const HUB_MENU_SAUCES_LIBRARY_PRESET = "sauces-library";
 
+/** Internal category for salad / garnish choices (hidden on customer menu). */
+export const HUB_MENU_SALAD_LIBRARY_PRESET = "salad-library";
+
 /** Internal category for meal-upgrade templates (hidden on customer menu). */
 export const HUB_MENU_MEAL_LIBRARY_PRESET = "meal-upgrades-library";
 
@@ -100,6 +103,12 @@ export function isHubMenuSaucesLibrarySection(
   return section?.presetKey === HUB_MENU_SAUCES_LIBRARY_PRESET;
 }
 
+export function isHubMenuSaladLibrarySection(
+  section: { presetKey?: string | null; name?: string } | null | undefined,
+): boolean {
+  return section?.presetKey === HUB_MENU_SALAD_LIBRARY_PRESET;
+}
+
 export function isHubMenuMealLibrarySection(
   section: { presetKey?: string | null; name?: string } | null | undefined,
 ): boolean {
@@ -146,6 +155,7 @@ export function isHubMenuStaffLibrarySection(
   return (
     isHubMenuExtrasLibrarySection(section) ||
     isHubMenuSaucesLibrarySection(section) ||
+    isHubMenuSaladLibrarySection(section) ||
     isHubMenuMealLibrarySection(section) ||
     isHubMenuComposePartsSection(section) ||
     isHubMenuMenuBoardsConfigSection(section)
@@ -406,6 +416,7 @@ export function customerFacingOptionGroupDescription(description?: string | null
 }
 
 const EXTRA_INCLUDED_QTY_PREFIX = /^__HULL_EXTRA_INCLUDED:(\d+)__$/;
+const EXTRA_PAID_MARKER = /^__HULL_EXTRA_PAID__$/;
 
 /** Free quantity bundled with the item before `priceDelta` applies (extras library on hub items). */
 export function parseExtraIncludedQuantity(description?: string | null | undefined): number {
@@ -421,14 +432,35 @@ export function parseExtraIncludedQuantity(description?: string | null | undefin
   return 0;
 }
 
-export function encodeExtraIncludedQuantity(includedQuantity: number, note = ""): string {
-  const qty = Math.max(0, Math.floor(includedQuantity));
-  const marker = qty > 0 ? `__HULL_EXTRA_INCLUDED:${qty}__` : "";
-  const text = note.trim();
-  if (marker && text) {
-    return `${marker}\n${text}`;
+/** Whether customers can pay to add more portions beyond the included quantity. */
+export function parseExtraAllowPaid(description?: string | null | undefined): boolean {
+  if (!description?.trim()) {
+    return false;
   }
-  return marker || text;
+  return description
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .some((line) => EXTRA_PAID_MARKER.test(line));
+}
+
+export function encodeExtraIncludedQuantity(
+  includedQuantity: number,
+  note = "",
+  options?: { allowPaid?: boolean },
+): string {
+  const qty = Math.max(0, Math.floor(includedQuantity));
+  const lines: string[] = [];
+  if (qty > 0) {
+    lines.push(`__HULL_EXTRA_INCLUDED:${qty}__`);
+  }
+  if (options?.allowPaid) {
+    lines.push("__HULL_EXTRA_PAID__");
+  }
+  const text = note.trim();
+  if (text) {
+    lines.push(text);
+  }
+  return lines.join("\n");
 }
 
 export function customerFacingOptionDescription(description?: string | null): string {

@@ -1,3 +1,5 @@
+import { fileURLToPath } from "node:url";
+
 import { prisma } from "@hull-eats/db";
 import { hubConfigSnapshotPayloadSchema } from "@hull-eats/types";
 import type { HubMenuSection, MenuItem } from "@hull-eats/types";
@@ -29,7 +31,7 @@ export function activateAllMenuSectionsLive(menuSections: HubMenuSection[]): Hub
   }));
 }
 
-export async function activateCheekyChickenStoreMenu(storeId: string) {
+export async function activateStoreMenuLive(storeId: string) {
   const beforeHidden = await prisma.menuItem.count({
     where: { category: { storeId }, isActive: false },
   });
@@ -90,7 +92,7 @@ async function main() {
     throw new Error(`Cheeky Chicken store not found (slug: ${slug}). Run db:provision-cheeky-chicken first.`);
   }
 
-  const result = await activateCheekyChickenStoreMenu(store.id);
+  const result = await activateStoreMenuLive(store.id);
 
   console.log("");
   console.log(`Cheeky Chicken — all menu items set live.`);
@@ -105,7 +107,14 @@ async function main() {
   console.log("");
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : error);
-  process.exit(1);
-});
+/** @deprecated Use activateStoreMenuLive */
+export const activateCheekyChickenStoreMenu = activateStoreMenuLive;
+
+const isDirectRun = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
+
+if (isDirectRun) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : error);
+    process.exit(1);
+  });
+}
