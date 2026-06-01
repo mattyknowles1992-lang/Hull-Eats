@@ -6,8 +6,10 @@ import { customerFacingMenuItemDescription } from "@hull-eats/types";
 import type { BasketCustomisationSelection } from "../../../src/lib/basket";
 import { getSelectedQuantityForOption } from "../../../src/lib/basket";
 import {
+  filterAddSheetOptionGroups,
   getAddSheetGroupTitle,
   getAddSheetOptionPriceLabel,
+  isMealChoiceGroup,
   showsAddSheetSaladSection,
   sortAddSheetOptionGroups,
 } from "./store-menu-add-sheet-helpers";
@@ -51,7 +53,7 @@ export function StoreMenuAddSheet({
   onToggleRemovedComponent,
   onSetOptionQuantity,
 }: Props) {
-  const sortedGroups = sortAddSheetOptionGroups(visibleGroups);
+  const sortedGroups = sortAddSheetOptionGroups(filterAddSheetOptionGroups(visibleGroups, item));
   const intro = customerFacingMenuItemDescription(item.description);
   const saladComponents = item.components.filter((component) => component.removable);
   const showSaladSection = showsAddSheetSaladSection(item);
@@ -121,41 +123,66 @@ export function StoreMenuAddSheet({
             </section>
           ) : null}
 
-          {sortedGroups.map((group) => (
-            <section key={group.id} className="add-sheet-section">
-              <h4 className="add-sheet-section-title">{getAddSheetGroupTitle(group)}</h4>
-              <ul className="add-sheet-options">
-                {group.options.map((option) => {
-                  const selectedQuantity = getSelectedQuantityForOption(selection, option.id);
-                  const selected = selectedQuantity > 0;
-                  const priceLabel = getAddSheetOptionPriceLabel(option);
-                  const inputId = `${group.id}-${option.id}`;
+          {sortedGroups.map((group) => {
+            const mealChoice = isMealChoiceGroup(group);
 
-                  return (
-                    <li key={option.id} className={`add-sheet-option${selected ? " is-selected" : ""}`}>
-                      <label className="add-sheet-option-label" htmlFor={inputId}>
-                        <input
-                          id={inputId}
-                          type="checkbox"
-                          className="add-sheet-checkbox"
-                          checked={selected}
-                          onChange={() => {
-                            if (group.selectionMode === "single") {
-                              toggleSingleOption(group, option.id);
-                              return;
-                            }
-                            toggleMultipleOption(group, option.id, option.maxQuantity, selected);
-                          }}
-                        />
-                        <span className="add-sheet-option-name">{option.label}</span>
-                        {priceLabel ? <span className="add-sheet-option-price">{priceLabel}</span> : null}
-                      </label>
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-          ))}
+            return (
+              <section key={group.id} className="add-sheet-section">
+                <h4 className="add-sheet-section-title">{getAddSheetGroupTitle(group)}</h4>
+                {mealChoice ? (
+                  <div className="add-sheet-meal-choices" role="radiogroup" aria-label={getAddSheetGroupTitle(group)}>
+                    {group.options.map((option) => {
+                      const selected = getSelectedQuantityForOption(selection, option.id) > 0;
+                      const priceLabel = getAddSheetOptionPriceLabel(option);
+                      return (
+                        <button
+                          key={option.id}
+                          type="button"
+                          className={`add-sheet-meal-choice${selected ? " is-selected" : ""}`}
+                          aria-pressed={selected}
+                          onClick={() => toggleSingleOption(group, option.id)}
+                        >
+                          <span className="add-sheet-meal-choice-label">{option.label}</span>
+                          {priceLabel ? <span className="add-sheet-option-price">{priceLabel}</span> : null}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <ul className="add-sheet-options">
+                    {group.options.map((option) => {
+                      const selectedQuantity = getSelectedQuantityForOption(selection, option.id);
+                      const selected = selectedQuantity > 0;
+                      const priceLabel = getAddSheetOptionPriceLabel(option);
+                      const inputId = `${group.id}-${option.id}`;
+
+                      return (
+                        <li key={option.id} className={`add-sheet-option${selected ? " is-selected" : ""}`}>
+                          <label className="add-sheet-option-label" htmlFor={inputId}>
+                            <input
+                              id={inputId}
+                              type="checkbox"
+                              className="add-sheet-checkbox"
+                              checked={selected}
+                              onChange={() => {
+                                if (group.selectionMode === "single") {
+                                  toggleSingleOption(group, option.id);
+                                  return;
+                                }
+                                toggleMultipleOption(group, option.id, option.maxQuantity, selected);
+                              }}
+                            />
+                            <span className="add-sheet-option-name">{option.label}</span>
+                            {priceLabel ? <span className="add-sheet-option-price">{priceLabel}</span> : null}
+                          </label>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </section>
+            );
+          })}
 
           <section className="add-sheet-section add-sheet-section--field">
             <h4 className="add-sheet-section-title">Special Instructions</h4>

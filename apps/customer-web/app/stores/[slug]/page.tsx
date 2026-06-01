@@ -1,17 +1,32 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { deliveryFeeFromForStorefront } from "@hull-eats/types";
 
+import { JsonLd } from "../../../src/components/json-ld";
 import { AppSwitcher } from "../../app-switcher";
 import { fetchMarketplaceMenu, fetchMarketplaceStore } from "../../../src/lib/marketplace";
+import { buildStoreMetadata } from "../../../src/lib/seo";
+import { buildBreadcrumbJsonLd, buildStoreRestaurantJsonLd } from "../../../src/lib/seo-json-ld";
 import { formatStoreAddress } from "../../../src/lib/store-address";
 import { BasketButton } from "./basket-button";
 import { StoreMenuClient } from "./store-menu-client";
 
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const store = await fetchMarketplaceStore(slug, { revalidateSeconds: 600 });
+
+  if (!store) {
+    return {};
+  }
+
+  return buildStoreMetadata(store);
+}
+
 export default async function StorePage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = await params;
-  const liveStore = await fetchMarketplaceStore(resolvedParams.slug);
+  const liveStore = await fetchMarketplaceStore(resolvedParams.slug, { revalidateSeconds: 300 });
   const store = liveStore;
   if (!store) {
     notFound();
@@ -30,6 +45,15 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
 
   return (
     <main className="shell">
+      <JsonLd
+        data={[
+          buildBreadcrumbJsonLd([
+            { name: "Hull Eats", path: "/" },
+            { name: store.name, path: `/stores/${store.slug}` },
+          ]),
+          buildStoreRestaurantJsonLd(store, menu.items.length),
+        ]}
+      />
       <header className="topbar">
         <div className="brand-pill">
           <Link href="/" className="icon-button">

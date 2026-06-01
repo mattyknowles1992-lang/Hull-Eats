@@ -35,6 +35,23 @@ import {
   isMenuItemPriceListable,
   menuItemUsesSizePricing,
   sanitizeMenuMoneyAmount,
+  encodeMealBundleOptionDescription,
+  encodeMealDealItemDescription,
+  encodeMealDealStepGroupDescription,
+  decodeMealBundleMenuItemId,
+  isMealDealCustomerItem,
+  isMealDealStepGroup,
+  parseMealDealConfigFromDescription,
+  stripMealDealConfigFromDescription,
+  MEAL_BUNDLE_DRINK_GROUP,
+  MEAL_BUNDLE_MAIN_GROUP,
+  MEAL_BUNDLE_SIDE_GROUP,
+  type HubMealDealConfig,
+  type HubMealDealStep,
+  type MealDealStepSource,
+  resolveMealDealStepProductIds as resolveMealDealStepProductIdsShared,
+  buildMealDealStepOptionGroups as buildMealDealStepOptionGroupsShared,
+  applyMealDealConfigToMenuItem as applyMealDealConfigToMenuItemShared,
 } from "@hull-eats/types";
 import { buildPizzaSizeOptionGroupFromRows } from "./pizza-size-draft";
 
@@ -55,6 +72,44 @@ export type HubSaladOption = HubSauceOption;
 
 export const EXTRAS_TOPPINGS_GROUP_NAME = "Extra toppings";
 const EXTRAS_TOPPINGS_MARKER = /^__HULL_EXTRAS__/;
+const CATEGORY_EXTRAS_FROM_MARKER = /__HULL_EXTRAS_FROM_CATEGORY:([^_\s]+)__/;
+
+export const CATEGORY_EXTRAS_CONFIG_ITEM_ID = "hull-category-extras-config";
+const CATEGORY_EXTRAS_CFG_PREFIX = /^__HULL_CATEGORY_EXTRAS:(.+?)__$/s;
+
+export type HubCategoryExtrasAssignment = {
+  categoryId: string;
+  paidExtraIds: string[];
+  includedQtyById: Record<string, number>;
+  maxAddMoreById: Record<string, number>;
+  priceById: Record<string, number>;
+  itemIds: string[];
+};
+
+export type HubCategoryExtrasConfig = {
+  assignments: HubCategoryExtrasAssignment[];
+};
+
+export function encodeExtrasGroupDescription(categoryId?: string | null): string {
+  if (categoryId) {
+    return `__HULL_EXTRAS__ __HULL_EXTRAS_FROM_CATEGORY:${categoryId}__`;
+  }
+  return "__HULL_EXTRAS__";
+}
+
+export function parseExtrasCategoryId(group: MenuOptionGroup): string | null {
+  const match = group.description?.match(CATEGORY_EXTRAS_FROM_MARKER);
+  return match?.[1] ?? null;
+}
+
+export function getItemExtrasCategoryId(item: MenuItem): string | null {
+  const group = findExtrasToppingsGroup(item);
+  return group ? parseExtrasCategoryId(group) : null;
+}
+
+export function isItemExtrasManagedByCategory(item: MenuItem): boolean {
+  return getItemExtrasCategoryId(item) != null;
+}
 
 export const SAUCES_INCLUDED_GROUP_NAME = "Sauces";
 export const SAUCES_EXTRA_GROUP_NAME = "Extra sauce";
@@ -512,6 +567,7 @@ export type MenuCategoryDraftInput = {
 };
 
 export type MenuItemDraftInput = {
+  id?: string;
   categoryId: string;
   name: string;
   description: string;
@@ -850,7 +906,7 @@ export function buildLocalMenuCategory(input: MenuCategoryDraftInput): HubMenuSe
 
 export function buildLocalMenuItem(input: MenuItemDraftInput): MenuItem {
   return {
-    id: createMenuDraftId("item"),
+    id: input.id ?? createMenuDraftId("item"),
     categoryId: input.categoryId,
     name: input.name.trim(),
     description: input.description.trim(),
@@ -1213,9 +1269,7 @@ export function getCategoryItemBuilderMode(section: HubMenuSection | null | unde
 }
 
 export function isMealDealBundleItem(item: MenuItem): boolean {
-  return item.optionGroups.some((group) =>
-    [MEAL_BUNDLE_MAIN_GROUP, MEAL_BUNDLE_SIDE_GROUP, MEAL_BUNDLE_DRINK_GROUP].includes(group.name),
-  );
+  return isMealDealCustomerItem(item);
 }
 
 export function describeCategoryItemBuilder(section: HubMenuSection | null | undefined): string {
@@ -1234,7 +1288,7 @@ export function describeCategoryItemBuilder(section: HubMenuSection | null | und
     return ticketConfig.introBody;
   }
   if (isHubMenuMealDealsCategory(section)) {
-    return "Set one bundle price, then pick items from your menu for main, side, and drink choices.";
+    return "Set one bundle price, then add steps (food, drink, dessert, etc.) — pick products, whole categories, or the full menu for each step.";
   }
   return "Set name and price on each item. Add base, sauce, or crust under choices if needed.";
 }
@@ -1278,11 +1332,15 @@ export function computeMenuPublishIssues(sections: HubMenuSection[]): MenuPublis
       }
 
       if (isHubMenuMealDealsCategory(section) && item.isActive) {
-        const bundle = getMealDealBundleSelection(item);
-        if (bundle.mainIds.length === 0 || bundle.sideIds.length === 0 || bundle.drinkIds.length === 0) {
+        const config = getMealDealConfig(item);
+        const menuProducts = listPickableMenuProducts(sections);
+        const emptyStep = config.steps.find(
+          (step) => step.required && resolveMealDealStepProductIds(step, menuProducts).length === 0,
+        );
+        if (config.steps.length === 0 || emptyStep) {
           issues.push({
             id: `meal-deal:${section.id}:${item.id}`,
-            message: `"${item.name.trim() || "Meal deal"}" needs at least one main, side, and drink from your menu.`,
+            message: `"${item.name.trim() || "Meal deal"}" needs at least one product (or category) in each required step.`,
             field: "meal_deal_bundle",
             sectionId: section.id,
             itemId: item.id,
@@ -1375,31 +1433,274 @@ export function findExtrasLibrarySection(sections: HubMenuSection[]): HubMenuSec
   return sections.find((section) => isHubMenuExtrasLibrarySection(section)) ?? null;
 }
 
+export function isCategoryExtrasConfigItem(item: MenuItem): boolean {
+  return item.id === CATEGORY_EXTRAS_CONFIG_ITEM_ID;
+}
+
 export function getHubExtraToppingsFromSection(section: HubMenuSection | null): HubExtraTopping[] {
   if (!section) {
     return [];
   }
-  return section.items.map((item) => ({
-    id: item.id,
-    label: item.name.trim(),
-    price: Number(item.price) || 0,
+  return section.items
+    .filter((item) => !isCategoryExtrasConfigItem(item))
+    .map((item) => ({
+      id: item.id,
+      label: item.name.trim(),
+      price: Number(item.price) || 0,
+    }));
+}
+
+function parseCategoryExtrasConfigPayload(raw: string): HubCategoryExtrasConfig | null {
+  try {
+    const parsed = JSON.parse(raw) as Partial<HubCategoryExtrasConfig>;
+    if (!parsed || typeof parsed !== "object") {
+      return null;
+    }
+    const assignments = Array.isArray(parsed.assignments) ? parsed.assignments : [];
+    return {
+      assignments: assignments
+        .filter((entry): entry is HubCategoryExtrasAssignment => Boolean(entry && typeof entry === "object"))
+        .map((entry) => ({
+          categoryId: String(entry.categoryId ?? ""),
+          paidExtraIds: Array.isArray(entry.paidExtraIds) ? entry.paidExtraIds.map(String) : [],
+          includedQtyById:
+            entry.includedQtyById && typeof entry.includedQtyById === "object"
+              ? Object.fromEntries(
+                  Object.entries(entry.includedQtyById).map(([key, value]) => [key, Math.max(0, Number(value) || 0)]),
+                )
+              : {},
+          maxAddMoreById:
+            entry.maxAddMoreById && typeof entry.maxAddMoreById === "object"
+              ? Object.fromEntries(
+                  Object.entries(entry.maxAddMoreById).map(([key, value]) => [key, Math.max(0, Number(value) || 0)]),
+                )
+              : {},
+          priceById:
+            entry.priceById && typeof entry.priceById === "object"
+              ? Object.fromEntries(
+                  Object.entries(entry.priceById).map(([key, value]) => [key, Math.max(0, Number(value) || 0)]),
+                )
+              : {},
+          itemIds: Array.isArray(entry.itemIds) ? entry.itemIds.map(String) : [],
+        }))
+        .filter((entry) => entry.categoryId.length > 0),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function encodeCategoryExtrasConfig(config: HubCategoryExtrasConfig): string {
+  return `__HULL_CATEGORY_EXTRAS:${JSON.stringify(config)}__`;
+}
+
+export function readCategoryExtrasConfig(sections: HubMenuSection[]): HubCategoryExtrasConfig {
+  const section = findExtrasLibrarySection(sections);
+  const item = section?.items.find((entry) => entry.id === CATEGORY_EXTRAS_CONFIG_ITEM_ID);
+  const match = item?.description?.match(CATEGORY_EXTRAS_CFG_PREFIX);
+  if (match?.[1]) {
+    const parsed = parseCategoryExtrasConfigPayload(match[1]);
+    if (parsed) {
+      return parsed;
+    }
+  }
+  return { assignments: [] };
+}
+
+export function writeCategoryExtrasConfig(sections: HubMenuSection[], config: HubCategoryExtrasConfig): HubMenuSection[] {
+  const encoded = encodeCategoryExtrasConfig(config);
+  const section = findExtrasLibrarySection(sections);
+  if (!section) {
+    return sections;
+  }
+  const configItem =
+    section.items.find((entry) => entry.id === CATEGORY_EXTRAS_CONFIG_ITEM_ID) ??
+    buildLocalMenuItem({
+      id: CATEGORY_EXTRAS_CONFIG_ITEM_ID,
+      categoryId: section.id,
+      name: "Category extras data",
+      description: encoded,
+      price: 0,
+      requiresIdVerification: false,
+      isActive: false,
+      components: [],
+      optionGroups: [],
+    });
+
+  return sections.map((entry) =>
+    entry.id === section.id
+      ? {
+          ...entry,
+          items: [
+            ...entry.items.filter((row) => row.id !== CATEGORY_EXTRAS_CONFIG_ITEM_ID),
+            { ...configItem, description: encoded },
+          ],
+        }
+      : entry,
+  );
+}
+
+export function getCategoryExtrasAssignment(
+  sections: HubMenuSection[],
+  categoryId: string,
+): HubCategoryExtrasAssignment | null {
+  return readCategoryExtrasConfig(sections).assignments.find((entry) => entry.categoryId === categoryId) ?? null;
+}
+
+function assignmentToMaps(assignment: HubCategoryExtrasAssignment) {
+  return {
+    paidExtraIds: new Set(assignment.paidExtraIds),
+    includedQtyById: new Map(Object.entries(assignment.includedQtyById)),
+    maxAddMoreById: new Map(Object.entries(assignment.maxAddMoreById)),
+    priceById: new Map(Object.entries(assignment.priceById)),
+  };
+}
+
+function applyCategoryExtrasToItem(
+  item: MenuItem,
+  assignment: HubCategoryExtrasAssignment,
+  toppings: HubExtraTopping[],
+): MenuItem {
+  const { paidExtraIds, includedQtyById, maxAddMoreById, priceById } = assignmentToMaps(assignment);
+  const withDefaults = new Map(priceById);
+  for (const topping of toppings) {
+    if (!withDefaults.has(topping.id)) {
+      withDefaults.set(topping.id, topping.price);
+    }
+  }
+  return applyExtraToppingsToItem(
+    item,
+    true,
+    toppings,
+    paidExtraIds,
+    withDefaults,
+    includedQtyById,
+    maxAddMoreById,
+    assignment.categoryId,
+  );
+}
+
+export function applyCategoryExtrasAssignment(
+  sections: HubMenuSection[],
+  assignment: HubCategoryExtrasAssignment,
+  toppings: HubExtraTopping[],
+): HubMenuSection[] {
+  const config = readCategoryExtrasConfig(sections);
+  const nextAssignments = config.assignments.filter((entry) => entry.categoryId !== assignment.categoryId);
+  nextAssignments.push(assignment);
+  let next = writeCategoryExtrasConfig(sections, { assignments: nextAssignments });
+
+  const category = customerFacingMenuSections(next).find((section) => section.id === assignment.categoryId);
+  const targetIds = new Set(assignment.itemIds);
+  if (!category) {
+    return next;
+  }
+
+  next = next.map((section) => {
+    if (section.id !== assignment.categoryId) {
+      return section;
+    }
+    return {
+      ...section,
+      items: section.items.map((item) => {
+        if (targetIds.has(item.id)) {
+          return applyCategoryExtrasToItem(item, assignment, toppings);
+        }
+        if (getItemExtrasCategoryId(item) === assignment.categoryId) {
+          return applyExtraToppingsToItem(item, false, toppings, new Set(), new Map());
+        }
+        return item;
+      }),
+    };
+  });
+
+  return next;
+}
+
+export function detachItemFromCategoryExtras(sections: HubMenuSection[], itemId: string): HubMenuSection[] {
+  let categoryId: string | null = null;
+  for (const section of customerFacingMenuSections(sections)) {
+    const item = section.items.find((entry) => entry.id === itemId);
+    if (item) {
+      categoryId = getItemExtrasCategoryId(item);
+      break;
+    }
+  }
+  if (!categoryId) {
+    return sections;
+  }
+
+  const config = readCategoryExtrasConfig(sections);
+  const nextAssignments = config.assignments.map((entry) =>
+    entry.categoryId === categoryId
+      ? { ...entry, itemIds: entry.itemIds.filter((id) => id !== itemId) }
+      : entry,
+  );
+  let next = writeCategoryExtrasConfig(sections, { assignments: nextAssignments });
+
+  next = next.map((section) => ({
+    ...section,
+    items: section.items.map((item) => {
+      if (item.id !== itemId) {
+        return item;
+      }
+      const group = findExtrasToppingsGroup(item);
+      if (!group || parseExtrasCategoryId(group) !== categoryId) {
+        return item;
+      }
+      const selection = getItemExtraToppingSelection(item);
+      const toppingsForDetach = getHubExtraToppingsFromSection(findExtrasLibrarySection(next));
+      return applyExtraToppingsToItem(
+        item,
+        selection.enabled,
+        toppingsForDetach,
+        selection.paidExtraIds,
+        selection.priceById,
+        selection.includedQtyById,
+        selection.maxAddMoreById,
+        null,
+      );
+    }),
   }));
+
+  return next;
 }
 
 export function buildExtrasLibrarySection(): HubMenuSection {
+  const sectionId = createMenuDraftId("section");
   return {
-    id: createMenuDraftId("section"),
+    id: sectionId,
     name: "Extra toppings",
     description: "Topping list for pizzas and customisable items.",
     presetKey: HUB_MENU_EXTRAS_LIBRARY_PRESET,
     defaultPrice: 0,
-    items: [],
+    items: [
+      buildLocalMenuItem({
+        id: CATEGORY_EXTRAS_CONFIG_ITEM_ID,
+        categoryId: sectionId,
+        name: "Category extras data",
+        description: encodeCategoryExtrasConfig({ assignments: [] }),
+        price: 0,
+        requiresIdVerification: false,
+        isActive: false,
+        components: [],
+        optionGroups: [],
+      }),
+    ],
   };
+}
+
+export function ensureCategoryExtrasConfigItem(sections: HubMenuSection[]): HubMenuSection[] {
+  const section = findExtrasLibrarySection(sections);
+  if (!section || section.items.some((item) => item.id === CATEGORY_EXTRAS_CONFIG_ITEM_ID)) {
+    return sections;
+  }
+  return writeCategoryExtrasConfig(sections, readCategoryExtrasConfig(sections));
 }
 
 export function ensureExtrasLibrarySection(sections: HubMenuSection[]): HubMenuSection[] {
   if (findExtrasLibrarySection(sections)) {
-    return sections;
+    return ensureCategoryExtrasConfigItem(sections);
   }
   return [buildExtrasLibrarySection(), ...sections];
 }
@@ -1774,10 +2075,7 @@ export function applyMenuBoardPublish(
   return next;
 }
 
-export const MEAL_BUNDLE_MAIN_GROUP = "Main (pick one)";
-export const MEAL_BUNDLE_SIDE_GROUP = "Side (pick one)";
-export const MEAL_BUNDLE_DRINK_GROUP = "Drink (pick one)";
-const MEAL_BUNDLE_ITEM_REF = /^__HULL_MENU_ITEM_REF:([a-zA-Z0-9_-]+)__$/;
+export { MEAL_BUNDLE_MAIN_GROUP, MEAL_BUNDLE_SIDE_GROUP, MEAL_BUNDLE_DRINK_GROUP };
 
 export type MealDealBundleSlot = "main" | "side" | "drink";
 
@@ -1786,15 +2084,6 @@ export type MealDealBundleSelection = {
   sideIds: string[];
   drinkIds: string[];
 };
-
-export function encodeMealBundleOptionDescription(menuItemId: string): string {
-  return `__HULL_MENU_ITEM_REF:${menuItemId}__`;
-}
-
-export function decodeMealBundleMenuItemId(description: string | null | undefined): string | null {
-  const match = (description ?? "").trim().match(MEAL_BUNDLE_ITEM_REF);
-  return match?.[1] ?? null;
-}
 
 function mealBundleGroupName(slot: MealDealBundleSlot): string {
   if (slot === "main") {
@@ -1880,6 +2169,102 @@ export function applyMealDealBundleToItem(
 
 export function createEmptyMealDealBundleSelection(): MealDealBundleSelection {
   return { mainIds: [], sideIds: [], drinkIds: [] };
+}
+
+export type { HubMealDealConfig, HubMealDealStep, MealDealStepSource };
+
+export function getMealDealConfig(item: MenuItem): HubMealDealConfig {
+  const fromDescription = parseMealDealConfigFromDescription(item.description);
+  if (fromDescription && fromDescription.steps.length > 0) {
+    return fromDescription;
+  }
+  return mealDealConfigFromLegacyBundle(item);
+}
+
+function mealDealConfigFromLegacyBundle(item: MenuItem): HubMealDealConfig {
+  const legacy = getMealDealBundleSelection(item);
+  const steps: HubMealDealStep[] = [];
+  if (legacy.mainIds.length > 0) {
+    steps.push({
+      id: "main",
+      label: MEAL_BUNDLE_MAIN_GROUP.replace(" (pick one)", ""),
+      source: "pick_products",
+      productIds: legacy.mainIds,
+      categoryIds: [],
+      required: true,
+    });
+  }
+  if (legacy.sideIds.length > 0) {
+    steps.push({
+      id: "side",
+      label: MEAL_BUNDLE_SIDE_GROUP.replace(" (pick one)", ""),
+      source: "pick_products",
+      productIds: legacy.sideIds,
+      categoryIds: [],
+      required: true,
+    });
+  }
+  if (legacy.drinkIds.length > 0) {
+    steps.push({
+      id: "drink",
+      label: MEAL_BUNDLE_DRINK_GROUP.replace(" (pick one)", ""),
+      source: "pick_products",
+      productIds: legacy.drinkIds,
+      categoryIds: [],
+      required: true,
+    });
+  }
+  return { steps };
+}
+
+export function resolveMealDealStepProductIds(step: HubMealDealStep, menuProducts: PickableMenuProduct[]): string[] {
+  return resolveMealDealStepProductIdsShared(step, menuProducts);
+}
+
+export function buildMealDealStepOptionGroups(
+  config: HubMealDealConfig,
+  menuProducts: PickableMenuProduct[],
+): MenuItem["optionGroups"] {
+  return buildMealDealStepOptionGroupsShared(config, menuProducts, () => createMenuDraftId("group"));
+}
+
+export function applyMealDealConfigToItem(
+  item: MenuItem,
+  config: HubMealDealConfig,
+  menuProducts: PickableMenuProduct[],
+): MenuItem {
+  return applyMealDealConfigToMenuItemShared(item, config, menuProducts, () => createMenuDraftId("group"));
+}
+
+export function createEmptyMealDealConfig(): HubMealDealConfig {
+  return {
+    steps: [
+      {
+        id: createMenuDraftId("meal-step"),
+        label: "Main",
+        source: "pick_products",
+        productIds: [],
+        categoryIds: [],
+        required: true,
+      },
+      {
+        id: createMenuDraftId("meal-step"),
+        label: "Side",
+        source: "pick_products",
+        productIds: [],
+        categoryIds: [],
+        required: true,
+      },
+      {
+        id: createMenuDraftId("meal-step"),
+        label: "Drink",
+        source: "pick_products",
+        productIds: [],
+        categoryIds: [],
+        required: true,
+      },
+    ],
+  };
 }
 
 export function findBurgerPartsSection(sections: HubMenuSection[]): HubMenuSection | null {
@@ -2083,6 +2468,9 @@ export function listPickableMenuProducts(sections: HubMenuSection[]): PickableMe
   const products: PickableMenuProduct[] = [];
 
   for (const section of customerFacingMenuSections(sections)) {
+    if (isHubMenuMealDealsCategory(section)) {
+      continue;
+    }
     for (const item of section.items) {
       if (getMenuAvailabilityMode(item) === "hidden") {
         continue;
@@ -2288,6 +2676,7 @@ export function sortMenuSectionsForStudio(sections: HubMenuSection[]): HubMenuSe
 
 export function getItemExtraToppingSelection(item: MenuItem): {
   enabled: boolean;
+  managedByCategoryId: string | null;
   paidExtraIds: Set<string>;
   priceById: Map<string, number>;
   includedQtyById: Map<string, number>;
@@ -2297,12 +2686,14 @@ export function getItemExtraToppingSelection(item: MenuItem): {
   if (!group) {
     return {
       enabled: false,
+      managedByCategoryId: null,
       paidExtraIds: new Set(),
       priceById: new Map(),
       includedQtyById: new Map(),
       maxAddMoreById: new Map(),
     };
   }
+  const managedByCategoryId = parseExtrasCategoryId(group);
   const priceById = new Map<string, number>();
   const includedQtyById = new Map<string, number>();
   const maxAddMoreById = new Map<string, number>();
@@ -2324,6 +2715,7 @@ export function getItemExtraToppingSelection(item: MenuItem): {
 
   return {
     enabled: true,
+    managedByCategoryId,
     paidExtraIds,
     priceById,
     includedQtyById,
@@ -2339,6 +2731,7 @@ export function applyExtraToppingsToItem(
   priceById: Map<string, number>,
   includedQtyById: Map<string, number> = new Map(),
   maxAddMoreById: Map<string, number> = new Map(),
+  categoryId?: string | null,
 ): MenuItem {
   const withoutExtras = item.optionGroups.filter((group) => !isExtrasToppingsGroup(group));
   if (!enabled) {
@@ -2367,6 +2760,8 @@ export function applyExtraToppingsToItem(
 
   const existingGroup = findExtrasToppingsGroup(item);
   const existingTitle = existingGroup?.name ?? EXTRAS_TOPPINGS_GROUP_NAME;
+  const resolvedCategoryId =
+    categoryId === undefined ? parseExtrasCategoryId(existingGroup ?? { description: "" } as MenuOptionGroup) : categoryId;
 
   return {
     ...item,
@@ -2375,7 +2770,7 @@ export function applyExtraToppingsToItem(
       {
         id: existingGroup?.id ?? createMenuDraftId("group"),
         name: existingTitle,
-        description: "__HULL_EXTRAS__",
+        description: encodeExtrasGroupDescription(resolvedCategoryId),
         selectionMode: "multiple" as const,
         isRequired: false,
         minSelections: 0,

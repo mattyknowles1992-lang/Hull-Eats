@@ -3,7 +3,10 @@ import { describe, expect, it } from "vitest";
 import type { HubMenuSection } from "@hull-eats/types";
 
 import {
+  applyCategoryExtrasAssignment,
   computeMenuPublishIssues,
+  detachItemFromCategoryExtras,
+  getItemExtrasCategoryId,
   normalizeMenuSectionsForPortal,
   updateExtrasLibraryItemPrice,
 } from "./menu-studio-core";
@@ -110,5 +113,80 @@ describe("updateExtrasLibraryItemPrice", () => {
     const next = updateExtrasLibraryItemPrice(sections, "extras", extraId, 2);
     expect(next[0]?.items[0]?.price).toBe(2);
     expect(next[1]?.items[0]?.optionGroups[0]?.options[0]?.priceDelta).toBe(2);
+  });
+});
+
+describe("applyCategoryExtrasAssignment", () => {
+  it("applies category extras to selected items and marks them as category-managed", () => {
+    const extraId = "extra-cheese";
+    const sections = [
+      {
+        id: "extras",
+        name: "Extra toppings",
+        description: "",
+        presetKey: "extras-library",
+        items: [
+          {
+            id: "hull-category-extras-config",
+            categoryId: "extras",
+            name: "Category extras data",
+            description: "__HULL_CATEGORY_EXTRAS:{\"assignments\":[]}__",
+            price: 0,
+            isActive: false,
+            components: [],
+            optionGroups: [],
+          },
+          { id: extraId, categoryId: "extras", name: "Cheese", description: "", price: 1, isActive: true, components: [], optionGroups: [] },
+        ],
+      },
+      {
+        id: "burgers",
+        name: "Burgers",
+        description: "",
+        items: [
+          {
+            id: "burger-1",
+            categoryId: "burgers",
+            name: "Classic",
+            description: "",
+            price: 7,
+            isActive: true,
+            components: [],
+            optionGroups: [],
+          },
+          {
+            id: "burger-2",
+            categoryId: "burgers",
+            name: "Deluxe",
+            description: "",
+            price: 9,
+            isActive: true,
+            components: [],
+            optionGroups: [],
+          },
+        ],
+      },
+    ] as unknown as HubMenuSection[];
+
+    const toppings = [{ id: extraId, label: "Cheese", price: 1 }];
+    const updated = applyCategoryExtrasAssignment(
+      sections,
+      {
+        categoryId: "burgers",
+        paidExtraIds: [extraId],
+        includedQtyById: {},
+        maxAddMoreById: { [extraId]: 3 },
+        priceById: { [extraId]: 1 },
+        itemIds: ["burger-1"],
+      },
+      toppings,
+    );
+
+    expect(getItemExtrasCategoryId(updated[1]!.items[0]!)).toBe("burgers");
+    expect(getItemExtrasCategoryId(updated[1]!.items[1]!)).toBeNull();
+
+    const detached = detachItemFromCategoryExtras(updated, "burger-1");
+    expect(getItemExtrasCategoryId(detached[1]!.items[0]!)).toBeNull();
+    expect(detached[1]!.items[0]!.optionGroups.some((group) => group.description?.includes("__HULL_EXTRAS__"))).toBe(true);
   });
 });

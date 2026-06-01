@@ -167,7 +167,7 @@ async function main() {
         name: CHEEKY_CHICKEN_HUB.businessName,
         type: StoreType.TAKEAWAY,
         storefrontStatus: "ONBOARDING",
-        menuSetupComplete: false,
+        menuSetupComplete: true,
         addressLine1: "Cheeky Chicken",
         city: CHEEKY_CHICKEN_HUB.city,
         postcode: CHEEKY_CHICKEN_HUB.postcode,

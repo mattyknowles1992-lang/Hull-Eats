@@ -13,6 +13,8 @@ export * from "./hub-portal-locale";
 export * from "./hub-menu-presets";
 export * from "./menu-list-pricing";
 export * from "./menu-money";
+export * from "./meal-deals";
+export * from "./menu-item-ordering";
 export * from "./hub-menu-pizza-columns";
 export * from "./hub-menu-pizza-choices";
 export * from "./hub-menu-subgroups";

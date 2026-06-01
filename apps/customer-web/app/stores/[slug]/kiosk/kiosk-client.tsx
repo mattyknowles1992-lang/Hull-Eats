@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 
-import type { MenuItem } from "@hull-eats/types";
+import { menuItemRequiresCustomerConfiguration, type MenuItem } from "@hull-eats/types";
 
 import {
   addConfiguredItemToBasket,
+  addMealDealToBasket,
   clearBasket,
   getBasketItemCount,
   getBasketLineDetails,
@@ -23,10 +25,19 @@ import {
 } from "../../../../src/lib/basket";
 import { createCheckoutSession, placeCheckoutOrder } from "../../../../src/lib/api";
 import { playOrderSuccessDelight, saveActiveOrderSnapshot } from "../../../../src/lib/customer-experience";
+import { StoreMenuAddSheet } from "../store-menu-add-sheet";
+import { usesItemAddSheet } from "../store-menu-add-sheet-helpers";
+import {
+  isMealDealCategoryItem,
+  mealDealPicksToSnapshots,
+  StoreMenuMealDealSheet,
+  type MealDealPick,
+} from "../store-menu-meal-deal-sheet";
 
 type MenuCategory = {
   id: string;
   name: string;
+  presetKey?: string | null;
   description?: string;
   items: MenuItem[];
 };
@@ -44,7 +55,10 @@ export function KioskMenuClient({ storeId, storeSlug, storeName, categories }: K
   const [activeCategoryId, setActiveCategoryId] = useState(categories[0]?.id ?? "all");
   const [basket, setBasket] = useState<StoreBasket | null>(null);
   const [activeItem, setActiveItem] = useState<MenuItem | null>(null);
+  const [activeMealDeal, setActiveMealDeal] = useState<MenuItem | null>(null);
   const [selection, setSelection] = useState<BasketCustomisationSelection | null>(null);
+  const [addQuantity, setAddQuantity] = useState(1);
+  const [specialInstructions, setSpecialInstructions] = useState("");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [exitTapCount, setExitTapCount] = useState(0);
   const [exitUnlocked, setExitUnlocked] = useState(false);
@@ -105,18 +119,74 @@ export function KioskMenuClient({ storeId, storeSlug, storeName, categories }: K
   };
 
   const openItem = (item: MenuItem) => {
-    if (item.components.length === 0 && item.optionGroups.length === 0) {
+    const category = categories.find((entry) => entry.id === item.categoryId);
+
+    if (isMealDealCategoryItem(item, categories)) {
+      setActiveMealDeal(item);
+      setActiveItem(null);
+      setSelection(null);
+      setAddQuantity(1);
+      setSpecialInstructions("");
+      return;
+    }
+
+    if (!menuItemRequiresCustomerConfiguration(item, category?.presetKey)) {
       addConfiguredItemToBasket({ storeId, storeSlug, storeName }, item, getDefaultCustomisationSelection(item));
       return;
     }
 
+    setActiveMealDeal(null);
     setActiveItem(item);
     setSelection(getDefaultCustomisationSelection(item));
+    setAddQuantity(1);
+    setSpecialInstructions("");
   };
 
   const closeItem = () => {
     setActiveItem(null);
     setSelection(null);
+    setAddQuantity(1);
+    setSpecialInstructions("");
+  };
+
+  const closeMealDeal = () => {
+    setActiveMealDeal(null);
+    setAddQuantity(1);
+    setSpecialInstructions("");
+  };
+
+  const confirmMealDeal = (
+    picks: MealDealPick[],
+    dealSelection: BasketCustomisationSelection,
+    notes: string,
+    quantity: number,
+  ) => {
+    if (!activeMealDeal) {
+      return;
+    }
+
+    addMealDealToBasket(
+      { storeId, storeSlug, storeName },
+      activeMealDeal,
+      dealSelection,
+      mealDealPicksToSnapshots(picks),
+      { quantity, notes },
+    );
+    closeMealDeal();
+  };
+
+  const confirmCustomisation = () => {
+    if (!activeItem || !selection || validationErrors.length > 0) {
+      return;
+    }
+
+    addConfiguredItemToBasket(
+      { storeId, storeSlug, storeName },
+      activeItem,
+      selection,
+      { quantity: addQuantity, notes: specialInstructions },
+    );
+    closeItem();
   };
 
   const toggleExitHotspot = () => {
@@ -147,8 +217,9 @@ export function KioskMenuClient({ storeId, storeSlug, storeName, categories }: K
   };
 
   const setOptionQuantity = (
-    group: MenuItem["optionGroups"][number],
+    groupId: string,
     optionId: string,
+    selectionMode: "single" | "multiple",
     requestedQuantity: number,
     optionMaxQuantity: number,
   ) => {
@@ -157,8 +228,15 @@ export function KioskMenuClient({ storeId, storeSlug, storeName, categories }: K
         return current;
       }
 
-      if (group.selectionMode === "single") {
+      const group = activeItem.optionGroups.find((entry) => entry.id === groupId);
+
+      if (!group) {
+        return current;
+      }
+
+      if (selectionMode === "single") {
         const nextQuantities = { ...current.selectedOptionQuantities };
+
         group.options.forEach((option) => {
           delete nextQuantities[option.id];
         });
@@ -167,16 +245,20 @@ export function KioskMenuClient({ storeId, storeSlug, storeName, categories }: K
           nextQuantities[optionId] = 1;
         }
 
-        return synchroniseSelection(activeItem, { ...current, selectedOptionQuantities: nextQuantities });
+        return synchroniseSelection(activeItem, {
+          ...current,
+          selectedOptionQuantities: nextQuantities,
+        });
       }
 
       const nextQuantities = { ...current.selectedOptionQuantities };
+      const groupCount = group.options.reduce((sum, option) => sum + (nextQuantities[option.id] ?? 0), 0);
       const currentQuantity = nextQuantities[optionId] ?? 0;
       const desiredQuantity = Math.max(0, Math.min(optionMaxQuantity, requestedQuantity));
-      const currentGroupCount = group.options.reduce((sum, option) => sum + (nextQuantities[option.id] ?? 0), 0);
       const maximumSelections = group.maxSelections ?? Number.POSITIVE_INFINITY;
+      const nextGroupCount = groupCount - currentQuantity + desiredQuantity;
 
-      if (currentGroupCount - currentQuantity + desiredQuantity > maximumSelections) {
+      if (nextGroupCount > maximumSelections) {
         return current;
       }
 
@@ -186,7 +268,10 @@ export function KioskMenuClient({ storeId, storeSlug, storeName, categories }: K
         nextQuantities[optionId] = desiredQuantity;
       }
 
-      return synchroniseSelection(activeItem, { ...current, selectedOptionQuantities: nextQuantities });
+      return synchroniseSelection(activeItem, {
+        ...current,
+        selectedOptionQuantities: nextQuantities,
+      });
     });
   };
 
@@ -416,7 +501,44 @@ export function KioskMenuClient({ storeId, storeSlug, storeName, categories }: K
         </section>
       ) : null}
 
-      {activeItem && selection ? (
+      {activeMealDeal
+        ? createPortal(
+            <StoreMenuMealDealSheet
+              dealItem={activeMealDeal}
+              categories={categories}
+              addQuantity={addQuantity}
+              specialInstructions={specialInstructions}
+              onClose={closeMealDeal}
+              onConfirm={confirmMealDeal}
+              onSpecialInstructionsChange={setSpecialInstructions}
+              onAddQuantityChange={setAddQuantity}
+            />,
+            document.body,
+          )
+        : null}
+
+      {activeItem && selection && usesItemAddSheet(activeItem)
+        ? createPortal(
+            <StoreMenuAddSheet
+              item={activeItem}
+              selection={selection}
+              visibleGroups={visibleOptionGroups}
+              addQuantity={addQuantity}
+              specialInstructions={specialInstructions}
+              itemTotal={activeItem.price + activeDetails.customisationTotal}
+              validationErrors={validationErrors}
+              onClose={closeItem}
+              onConfirm={confirmCustomisation}
+              onSpecialInstructionsChange={setSpecialInstructions}
+              onAddQuantityChange={setAddQuantity}
+              onToggleRemovedComponent={toggleRemovedComponent}
+              onSetOptionQuantity={setOptionQuantity}
+            />,
+            document.body,
+          )
+        : null}
+
+      {activeItem && selection && !usesItemAddSheet(activeItem) ? (
         <div className="kiosk-modal-backdrop">
           <section className="kiosk-modal">
             <div className="kiosk-modal-heading">
@@ -462,7 +584,15 @@ export function KioskMenuClient({ storeId, storeSlug, storeName, categories }: K
                         key={option.id}
                         type="button"
                         className={`kiosk-choice-button${quantity > 0 ? " is-selected" : ""}`}
-                        onClick={() => setOptionQuantity(group, option.id, quantity > 0 ? 0 : 1, option.maxQuantity)}
+                        onClick={() =>
+                          setOptionQuantity(
+                            group.id,
+                            option.id,
+                            group.selectionMode,
+                            quantity > 0 ? 0 : 1,
+                            option.maxQuantity,
+                          )
+                        }
                       >
                         <strong>{option.label}</strong>
                         {option.priceDelta ? <span>+ {formatMoney(option.priceDelta)}</span> : null}

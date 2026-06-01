@@ -1,9 +1,11 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import type { StoreSummary } from "@hull-eats/types";
 import { deliveryFeeFromForStorefront } from "@hull-eats/types";
 
+import { JsonLd } from "../../../src/components/json-ld";
 import { AppSwitcher } from "../../app-switcher";
 import { fetchMarketplaceStores } from "../../../src/lib/marketplace";
 import {
@@ -13,9 +15,35 @@ import {
   storeMatchesMarketplaceCategory,
   textMatchesMarketplaceSubcategory,
 } from "../../../src/lib/marketplace-categories";
+import { buildCategoryMetadata } from "../../../src/lib/seo";
+import { buildBreadcrumbJsonLd, buildItemListJsonLd } from "../../../src/lib/seo-json-ld";
+import { absoluteUrl } from "../../../src/lib/site-url";
 
 export function generateStaticParams() {
   return marketplaceCategories.map((category) => ({ category: category.slug }));
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ category: string }> }): Promise<Metadata> {
+  const { category: categorySlug } = await params;
+  const category = getMarketplaceCategory(categorySlug);
+
+  if (!category) {
+    return {};
+  }
+
+  const stores = (await fetchMarketplaceStores({ revalidateSeconds: 600 })) ?? [];
+  const matchingCount = stores.filter((store) =>
+    storeMatchesMarketplaceCategory(
+      store,
+      category,
+      [store.name, store.type, store.city, store.cuisineLabel, store.onboardingMessage]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase(),
+    ),
+  ).length;
+
+  return buildCategoryMetadata(category, matchingCount);
 }
 
 function getSearchableStoreText(store: StoreSummary) {
@@ -59,7 +87,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ categ
     notFound();
   }
 
-  const liveStores = (await fetchMarketplaceStores()) ?? [];
+  const liveStores = (await fetchMarketplaceStores({ revalidateSeconds: 300 })) ?? [];
   const matchingStores = liveStores.filter((store) => storeMatchesMarketplaceCategory(store, category, getSearchableStoreText(store)));
   const visibleSubcategories = category.subcategories.slice(0, 4);
   const extraSubcategories = category.subcategories.slice(4);
@@ -67,6 +95,24 @@ export default async function CategoryPage({ params }: { params: Promise<{ categ
 
   return (
     <main className="shell customer-marketplace">
+      <JsonLd
+        data={[
+          buildBreadcrumbJsonLd([
+            { name: "Hull Eats", path: "/" },
+            { name: category.label, path: `/categories/${category.slug}` },
+          ]),
+          buildItemListJsonLd({
+            name: `${category.label} delivery in Hull`,
+            description: category.description,
+            path: `/categories/${category.slug}`,
+            items: matchingStores.map((store) => ({
+              name: store.name,
+              url: absoluteUrl(`/stores/${store.slug}`),
+              description: store.cuisineLabel,
+            })),
+          }),
+        ]}
+      />
       <header className="topbar">
         <div className="brand-pill">
           <Link href="/" className="icon-button">

@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import type { MenuItem } from "@hull-eats/types";
 
 import {
+  filterAddSheetOptionGroups,
   getAddSheetGroupTitle,
+  isMealChoiceGroup,
   showsAddSheetSaladSection,
   sortAddSheetOptionGroups,
   usesBurgerAddSheet,
@@ -79,7 +81,101 @@ describe("store-menu-add-sheet-helpers", () => {
     expect(groups.map((group) => group.id)).toEqual(["meal", "sauce", "extras"]);
   });
 
+  it("uses add sheet for any item with option groups", () => {
+    const item = baseItem({
+      optionGroups: [
+        {
+          id: "custom",
+          name: "Spice level",
+          description: "",
+          selectionMode: "single",
+          isRequired: true,
+          minSelections: 1,
+          maxSelections: 1,
+          showWhenValueIds: [],
+          options: [{ id: "mild", label: "Mild", description: "", priceDelta: 0, isDefault: true, maxQuantity: 1 }],
+        },
+      ],
+    });
+    expect(usesItemAddSheet(item)).toBe(true);
+  });
+
+  it("hides salad components when hub extras are configured", () => {
+    const item = baseItem({
+      components: [{ id: "c1", label: "Lettuce", quantity: 1, removable: true }],
+      optionGroups: [
+        {
+          id: "extras",
+          name: "Added extras",
+          description: "__HULL_EXTRAS__",
+          selectionMode: "multiple",
+          isRequired: false,
+          minSelections: 0,
+          maxSelections: null,
+          showWhenValueIds: [],
+          options: [],
+        },
+      ],
+    });
+    expect(showsAddSheetSaladSection(item)).toBe(false);
+  });
+
+  it("filters sauce groups on burger-style items with hub extras", () => {
+    const groups = [
+      {
+        id: "meal",
+        name: "Make it a meal",
+        description: "__HULL_MEAL_CHOICE__",
+        selectionMode: "single" as const,
+        isRequired: true,
+        minSelections: 1,
+        maxSelections: 1,
+        showWhenValueIds: [],
+        options: [],
+      },
+      {
+        id: "sauce",
+        name: "Sauces",
+        description: "__HULL_SAUCES_INCLUDED__",
+        selectionMode: "single" as const,
+        isRequired: true,
+        minSelections: 1,
+        maxSelections: 1,
+        showWhenValueIds: [],
+        options: [],
+      },
+      {
+        id: "extras",
+        name: "Added extras",
+        description: "__HULL_EXTRAS__",
+        selectionMode: "multiple" as const,
+        isRequired: false,
+        minSelections: 0,
+        maxSelections: null,
+        showWhenValueIds: [],
+        options: [],
+      },
+    ];
+    const item = baseItem({ optionGroups: groups });
+    expect(filterAddSheetOptionGroups(groups, item).map((group) => group.id)).toEqual(["meal", "extras"]);
+    expect(isMealChoiceGroup(groups[0]!)).toBe(true);
+  });
+
   it("labels customer-facing section titles", () => {
+    expect(
+      getAddSheetGroupTitle({
+        id: "m1",
+        name: "Make it a meal",
+        description: "__HULL_MEAL_CHOICE__",
+        selectionMode: "single",
+        isRequired: true,
+        minSelections: 1,
+        maxSelections: 1,
+        showWhenValueIds: [],
+        options: [],
+      }),
+    ).toBe("How would you like it?");
+
     expect(
       getAddSheetGroupTitle({
         id: "s1",

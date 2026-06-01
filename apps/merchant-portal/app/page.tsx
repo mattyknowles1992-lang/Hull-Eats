@@ -118,7 +118,11 @@ import {
   findSaladLibrarySection,
   findSaucesLibrarySection,
   findMealLibrarySection,
-  getMealDealBundleSelection,
+  applyMealDealConfigToItem,
+  createEmptyMealDealConfig,
+  getMealDealConfig,
+  listPickableMenuProducts,
+  resolveMealDealStepProductIds,
   getHubExtraToppingsFromSection,
   mergeMenuTemplateWithExistingSizes,
   menuTemplateCards,
@@ -127,9 +131,12 @@ import {
   switchToMainMenu,
   switchToMenuBoard,
   updateMenuBoardInConfig,
+  applyCategoryExtrasAssignment,
+  detachItemFromCategoryExtras,
   updateExtrasLibraryItemPrice,
   updateSaladLibraryItemPrice,
   updateSaucesLibraryItemPrice,
+  CATEGORY_EXTRAS_CONFIG_ITEM_ID,
   type ComposeProductLine,
   type HubMenuBoardKind,
   type HubMenuBoardPublishMode,
@@ -1674,19 +1681,22 @@ export default function MerchantPortalPage() {
     }
 
     if (isHubMenuMealDealsCategory(targetSection)) {
-      const bundle = getMealDealBundleSelection({
-        ...buildLocalMenuItem({
-          categoryId: newItem.sectionId,
-          name: newItem.name,
-          description: newItem.description,
-          price: Number(newItem.price) || 0,
-          requiresIdVerification: newItem.requiresIdVerification,
-          components: newItemComponents,
-          optionGroups: newItemOptionGroups,
-        }),
+      const draft = buildLocalMenuItem({
+        categoryId: newItem.sectionId,
+        name: newItem.name,
+        description: newItem.description,
+        price: Number(newItem.price) || 0,
+        requiresIdVerification: newItem.requiresIdVerification,
+        components: newItemComponents,
+        optionGroups: newItemOptionGroups,
       });
-      if (bundle.mainIds.length === 0 || bundle.sideIds.length === 0 || bundle.drinkIds.length === 0) {
-        setMenuNotice("Pick at least one main, side, and drink from your menu for this meal deal.");
+      const config = getMealDealConfig(draft);
+      const menuProducts = listPickableMenuProducts(menuSections);
+      const emptyStep = config.steps.find(
+        (step) => step.required && resolveMealDealStepProductIds(step, menuProducts).length === 0,
+      );
+      if (config.steps.length === 0 || emptyStep) {
+        setMenuNotice("Configure each meal deal step with at least one menu product or category before saving.");
         return;
       }
     }
@@ -1726,6 +1736,16 @@ export default function MerchantPortalPage() {
       components: newItemComponents.filter((component) => component.label.trim()),
       optionGroups: isPizza ? [...optionGroups, ...newItemOptionGroups] : newItemOptionGroups,
     });
+
+    if (isHubMenuMealDealsCategory(targetSection)) {
+      const config = getMealDealConfig(createdItem);
+      const menuProducts = listPickableMenuProducts(menuSections);
+      createdItem = applyMealDealConfigToItem(
+        createdItem,
+        config.steps.length > 0 ? config : createEmptyMealDealConfig(),
+        menuProducts,
+      );
+    }
 
     createdItem = applyMenuAvailabilityMode(createdItem, availabilityMode);
     createdItem = mergeItemDescriptionWithComponents(createdItem, true);
@@ -2649,7 +2669,7 @@ export default function MerchantPortalPage() {
                 );
               }}
               onRemoveExtraTopping={(itemId) => {
-                if (!extrasSection) {
+                if (!extrasSection || itemId === CATEGORY_EXTRAS_CONFIG_ITEM_ID) {
                   return;
                 }
                 updateMenuSections((current) =>
@@ -2659,6 +2679,15 @@ export default function MerchantPortalPage() {
                       : section,
                   ),
                 );
+              }}
+              onApplyCategoryExtras={(assignment) => {
+                updateMenuSections((current) => {
+                  const toppings = getHubExtraToppingsFromSection(findExtrasLibrarySection(current));
+                  return applyCategoryExtrasAssignment(current, assignment, toppings);
+                });
+              }}
+              onDetachItemFromCategoryExtras={(itemId) => {
+                updateMenuSections((current) => detachItemFromCategoryExtras(current, itemId));
               }}
               saucesSection={saucesSection}
               onAddSauce={(item) => {

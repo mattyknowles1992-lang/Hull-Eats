@@ -5,30 +5,51 @@ import { useMemo, useState } from "react";
 import { HUB_EXTRA_SUGGESTIONS, normalizeExtraSuggestionName } from "./hub-menu-extras-presets";
 import { HubMenuSuggestionStrip } from "./hub-menu-suggestion-strip";
 import { HubFreeTypeNumberInput } from "./hub-free-type-number-input";
-import { buildLocalMenuItem, formatMenuMoney, HUB_DEFAULT_EXTRA_LIBRARY_PRICE, parseHubMenuPriceInput } from "./menu-studio-core";
+import { HubMenuCategoryExtrasAssign } from "./hub-menu-category-extras-assign";
+import {
+  buildLocalMenuItem,
+  formatMenuMoney,
+  getHubExtraToppingsFromSection,
+  HUB_DEFAULT_EXTRA_LIBRARY_PRICE,
+  isCategoryExtrasConfigItem,
+  parseHubMenuPriceInput,
+  type HubCategoryExtrasAssignment,
+} from "./menu-studio-core";
 
 import type { HubMenuSection, MenuItem } from "@hull-eats/types";
 
 type HubMenuExtrasLibraryProps = {
   section: HubMenuSection;
+  menuSections: HubMenuSection[];
   onAddTopping: (item: MenuItem) => void;
   onUpdateToppingPrice: (itemId: string, price: number) => void;
   onRemoveTopping: (itemId: string) => void;
+  onApplyCategoryExtras?: (assignment: HubCategoryExtrasAssignment) => void;
   readOnly?: boolean;
 };
 
 export function HubMenuExtrasLibrary({
   section,
+  menuSections,
   onAddTopping,
   onUpdateToppingPrice,
   onRemoveTopping,
+  onApplyCategoryExtras,
   readOnly = false,
 }: HubMenuExtrasLibraryProps) {
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
+  const [assignOpen, setAssignOpen] = useState(false);
+  const toppings = useMemo(() => getHubExtraToppingsFromSection(section), [section]);
 
   const existingNameKeys = useMemo(
-    () => new Set(section.items.map((item) => normalizeExtraSuggestionName(item.name)).filter(Boolean)),
+    () =>
+      new Set(
+        section.items
+          .filter((item) => !isCategoryExtrasConfigItem(item))
+          .map((item) => normalizeExtraSuggestionName(item.name))
+          .filter(Boolean),
+      ),
     [section.items],
   );
 
@@ -59,12 +80,24 @@ export function HubMenuExtrasLibrary({
 
   return (
     <section className="hub-menu-extras-library">
-      <div>
-        <strong style={{ fontSize: "0.95rem" }}>Added extras list</strong>
-        <p style={{ margin: "6px 0 0", fontSize: "0.84rem", color: "#5b6470", lineHeight: 1.45 }}>
-          Toppings only — three suggestions at a time (+ to add, × for next). Defaults to {formatMenuMoney(HUB_DEFAULT_EXTRA_LIBRARY_PRICE)}.
-          Bases and crusts belong on the pizza category, not here.
-        </p>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "flex-start", justifyContent: "space-between" }}>
+        <div>
+          <strong style={{ fontSize: "0.95rem" }}>Added extras list</strong>
+          <p style={{ margin: "6px 0 0", fontSize: "0.84rem", color: "#5b6470", lineHeight: 1.45 }}>
+            Toppings only — three suggestions at a time (+ to add, × for next). Defaults to{" "}
+            {formatMenuMoney(HUB_DEFAULT_EXTRA_LIBRARY_PRICE)}. Bases and crusts belong on the pizza category, not here.
+          </p>
+        </div>
+        {!readOnly && onApplyCategoryExtras ? (
+          <button
+            type="button"
+            className="hub-menu-extras-library__add-btn"
+            style={{ flexShrink: 0 }}
+            onClick={() => setAssignOpen(true)}
+          >
+            Assign extras to category
+          </button>
+        ) : null}
       </div>
 
       <HubMenuSuggestionStrip
@@ -96,11 +129,11 @@ export function HubMenuExtrasLibrary({
         </div>
       ) : null}
 
-      {section.items.length === 0 ? (
+      {section.items.filter((item) => !isCategoryExtrasConfigItem(item)).length === 0 ? (
         <p style={{ margin: 0, fontSize: "0.84rem", color: "#5b6470" }}>No extras yet — add pepperoni, ham, mushrooms, etc.</p>
       ) : (
         <ul className="hub-menu-extras-library__list">
-          {section.items.map((item) => (
+          {section.items.filter((item) => !isCategoryExtrasConfigItem(item)).map((item) => (
             <li key={item.id} className="hub-menu-extras-library__row">
               <span className="hub-menu-extras-library__row-name">
                 <strong>{item.name}</strong>
@@ -130,6 +163,15 @@ export function HubMenuExtrasLibrary({
           ))}
         </ul>
       )}
+
+      <HubMenuCategoryExtrasAssign
+        open={assignOpen}
+        menuSections={menuSections}
+        toppings={toppings}
+        readOnly={readOnly}
+        onClose={() => setAssignOpen(false)}
+        onApply={(assignment) => onApplyCategoryExtras?.(assignment)}
+      />
     </section>
   );
 }

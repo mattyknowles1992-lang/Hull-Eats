@@ -9,6 +9,7 @@ import { customerFacingMenuItemDescription, customerFacingOptionDescription, par
 
 import {
   addConfiguredItemToBasket,
+  addMealDealToBasket,
   clearBasket,
   getBasketItemCount,
   getBasketLineDetails,
@@ -43,10 +44,18 @@ import { getBrowserSupabaseClient } from "../../../src/lib/supabase-browser";
 import { fetchMarketplaceStore } from "../../../src/lib/marketplace";
 import { StoreMenuAddSheet } from "./store-menu-add-sheet";
 import { usesItemAddSheet } from "./store-menu-add-sheet-helpers";
+import { menuItemRequiresCustomerConfiguration } from "../../../src/lib/menu-item-ordering";
+import {
+  isMealDealCategoryItem,
+  mealDealPicksToSnapshots,
+  StoreMenuMealDealSheet,
+  type MealDealPick,
+} from "./store-menu-meal-deal-sheet";
 
 type MenuCategory = {
   id: string;
   name: string;
+  presetKey?: string | null;
   description?: string;
   subGroups?: string[];
   items: MenuItem[];
@@ -207,6 +216,7 @@ export function StoreMenuClient({
 }: StoreMenuClientProps) {
   const [basket, setBasket] = useState<StoreBasket | null>(null);
   const [activeItem, setActiveItem] = useState<MenuItem | null>(null);
+  const [activeMealDeal, setActiveMealDeal] = useState<MenuItem | null>(null);
   const [selection, setSelection] = useState<BasketCustomisationSelection | null>(null);
   const [addQuantity, setAddQuantity] = useState(1);
   const [specialInstructions, setSpecialInstructions] = useState("");
@@ -439,7 +449,7 @@ export function StoreMenuClient({
     [fulfillmentType, storePostcode, storeDeliveryFee, storeMinimumOrderAmount, deliveryPricing, deliveryPostcodeInput],
   );
 
-  const showFloatingBasket = itemCount > 0 && !activeItem;
+  const showFloatingBasket = itemCount > 0 && !activeItem && !activeMealDeal;
 
   useLayoutEffect(() => {
     if (!isClient || !showFloatingBasket) {
@@ -514,7 +524,18 @@ export function StoreMenuClient({
       return;
     }
 
-    if (item.components.length === 0 && item.optionGroups.length === 0) {
+    const category = categories.find((entry) => entry.id === item.categoryId);
+
+    if (isMealDealCategoryItem(item, categories)) {
+      setActiveMealDeal(item);
+      setActiveItem(null);
+      setSelection(null);
+      setAddQuantity(1);
+      setSpecialInstructions("");
+      return;
+    }
+
+    if (!menuItemRequiresCustomerConfiguration(item, category?.presetKey)) {
       addConfiguredItemToBasket(
         {
           storeId,
@@ -529,10 +550,38 @@ export function StoreMenuClient({
       return;
     }
 
+    setActiveMealDeal(null);
     setActiveItem(item);
     setSelection(getDefaultCustomisationSelection(item));
     setAddQuantity(1);
     setSpecialInstructions("");
+  };
+
+  const closeMealDeal = () => {
+    setActiveMealDeal(null);
+    setAddQuantity(1);
+    setSpecialInstructions("");
+  };
+
+  const confirmMealDeal = (
+    picks: MealDealPick[],
+    dealSelection: BasketCustomisationSelection,
+    notes: string,
+    quantity: number,
+  ) => {
+    if (!activeMealDeal) {
+      return;
+    }
+    addMealDealToBasket(
+      { storeId, storeSlug, storeName },
+      activeMealDeal,
+      dealSelection,
+      mealDealPicksToSnapshots(picks),
+      { quantity, notes },
+    );
+    setAddedMessage(`${activeMealDeal.name} added to your basket`);
+    setAddedItemId(activeMealDeal.id);
+    closeMealDeal();
   };
 
   const toggleCategoryExpanded = (categoryId: string) => {
@@ -1011,7 +1060,7 @@ export function StoreMenuClient({
                                   ? "Closed"
                                   : !orderable
                                     ? "Unavailable"
-                                    : item.components.length > 0 || item.optionGroups.length > 0
+                                    : menuItemRequiresCustomerConfiguration(item, category.presetKey)
                                       ? "Customise and add"
                                       : "Add"}
                               </button>
@@ -1069,6 +1118,22 @@ export function StoreMenuClient({
           </div>
         </section>
       ) : null}
+
+      {isClient && activeMealDeal
+        ? createPortal(
+            <StoreMenuMealDealSheet
+              dealItem={activeMealDeal}
+              categories={categories}
+              addQuantity={addQuantity}
+              specialInstructions={specialInstructions}
+              onClose={closeMealDeal}
+              onConfirm={confirmMealDeal}
+              onSpecialInstructionsChange={setSpecialInstructions}
+              onAddQuantityChange={setAddQuantity}
+            />,
+            document.body,
+          )
+        : null}
 
       {isClient && activeItem && selection
         ? createPortal(
@@ -1268,6 +1333,22 @@ export function StoreMenuClient({
 
             </div>
 
+            <section className="customise-block">
+              <div className="customise-group-header">
+                <div>
+                  <h4>Special instructions</h4>
+                  <p className="customise-group-meta">Optional — allergies, no salt, etc.</p>
+                </div>
+              </div>
+              <textarea
+                className="form-input form-textarea"
+                value={specialInstructions}
+                placeholder="Example: No pepper / sugar / salt please."
+                rows={2}
+                onChange={(event) => setSpecialInstructions(event.target.value)}
+              />
+            </section>
+
             <div className="customise-modal-footer button-row">
               <button type="button" className="glass-button" onClick={closeCustomise}>
                 Cancel
@@ -1278,7 +1359,7 @@ export function StoreMenuClient({
                 onClick={confirmCustomisation}
                 disabled={selectionValidationErrors.length > 0}
               >
-                Add item
+                Add to basket
               </button>
             </div>
           </section>

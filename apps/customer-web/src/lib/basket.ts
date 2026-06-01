@@ -23,6 +23,16 @@ export type BasketComponentSnapshot = {
   removed: boolean;
 };
 
+export type MealDealPickSnapshot = {
+  groupId: string;
+  groupName: string;
+  menuItemId: string;
+  menuItemName: string;
+  selectedOptionQuantities: Record<string, number>;
+  removedComponentIds: string[];
+  nestedCustomisationTotal: number;
+};
+
 export type BasketLine = {
   lineId: string;
   menuItemId: string;
@@ -37,6 +47,7 @@ export type BasketLine = {
   selectedOptions: BasketSelectedOption[];
   removedComponents: BasketRemovedComponent[];
   components: BasketComponentSnapshot[];
+  mealDealPicks?: MealDealPickSnapshot[];
 };
 
 export type StoreBasket = {
@@ -277,12 +288,21 @@ const buildLineSignature = (
   menuItemId: string,
   selection: BasketCustomisationSelection,
   notes?: string,
+  mealDealPicks?: MealDealPickSnapshot[],
 ) =>
   JSON.stringify({
     menuItemId,
     selectedOptionQuantities: normaliseOptionQuantities(selection.selectedOptionQuantities),
     removedComponentIds: sortValues(selection.removedComponentIds),
     notes: notes?.trim() || "",
+    mealDealPicks: mealDealPicks
+      ? mealDealPicks.map((pick) => ({
+          groupId: pick.groupId,
+          menuItemId: pick.menuItemId,
+          selectedOptionQuantities: normaliseOptionQuantities(pick.selectedOptionQuantities),
+          removedComponentIds: sortValues(pick.removedComponentIds),
+        }))
+      : undefined,
   });
 
 export const loadBasket = (storeSlug: string): StoreBasket | null => {
@@ -368,6 +388,83 @@ export const addConfiguredItemToBasket = (
       selectedOptions: details.selectedOptions,
       removedComponents: details.removedComponents,
       components: details.components,
+    });
+  }
+
+  saveBasket(current);
+};
+
+export const addMealDealToBasket = (
+  store: Pick<StoreBasket, "storeId" | "storeSlug" | "storeName">,
+  dealItem: MenuItem,
+  selection: BasketCustomisationSelection,
+  mealDealPicks: MealDealPickSnapshot[],
+  options?: { quantity?: number; notes?: string },
+) => {
+  const current =
+    loadBasket(store.storeSlug) ?? {
+      ...store,
+      items: [],
+    };
+
+  const quantity = Math.max(1, Math.floor(options?.quantity ?? 1));
+  const notes = options?.notes?.trim() || undefined;
+  const dealDetails = getBasketLineDetails(dealItem, selection);
+  const nestedTotal = Number(
+    mealDealPicks.reduce((sum, pick) => sum + pick.nestedCustomisationTotal, 0).toFixed(2),
+  );
+  const signature = buildLineSignature(dealItem.id, selection, notes, mealDealPicks);
+  const existing = current.items.find((entry) => entry.lineId === signature);
+
+  const flattenedSelectedOptions = [
+    ...dealDetails.selectedOptions,
+    ...mealDealPicks.flatMap((pick) =>
+      getBasketLineDetails(
+        {
+          id: pick.menuItemId,
+          categoryId: "",
+          name: pick.menuItemName,
+          description: "",
+          price: 0,
+          isActive: true,
+          trackStock: false,
+          stockQuantity: null,
+          stockStatus: "in_stock",
+          allowBackorder: false,
+          maxPerOrder: null,
+          requiresIdVerification: false,
+          sortOrder: 0,
+          components: [],
+          optionGroups: [],
+        },
+        {
+          selectedOptionQuantities: pick.selectedOptionQuantities,
+          removedComponentIds: pick.removedComponentIds,
+        },
+      ).selectedOptions.map((option) => ({
+        ...option,
+        groupName: `${pick.menuItemName} — ${option.groupName}`,
+      })),
+    ),
+  ];
+
+  if (existing) {
+    existing.quantity += quantity;
+  } else {
+    current.items.push({
+      lineId: signature,
+      menuItemId: dealItem.id,
+      name: dealItem.name,
+      quantity,
+      unitPrice: Number((dealItem.price + nestedTotal).toFixed(2)),
+      requiresIdVerification: dealItem.requiresIdVerification ?? false,
+      notes,
+      selectedOptionQuantities: normaliseOptionQuantities(selection.selectedOptionQuantities),
+      removedComponentIds: [],
+      selectedOptions: flattenedSelectedOptions,
+      removedComponents: [],
+      components: [],
+      mealDealPicks,
     });
   }
 

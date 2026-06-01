@@ -5,7 +5,10 @@ import type { PropsWithChildren } from "react";
 import "./globals.css";
 
 import { ActiveOrderStrip } from "../src/components/active-order-strip";
+import { JsonLd } from "../src/components/json-ld";
 import { SiteFooter } from "../src/components/site-footer";
+import { buildOrganizationJsonLd, buildWebSiteJsonLd } from "../src/lib/seo-json-ld";
+import { buildRootMetadata } from "../src/lib/seo";
 
 const headingFont = Fraunces({
   subsets: ["latin"],
@@ -17,10 +20,7 @@ const bodyFont = Manrope({
   variable: "--font-body",
 });
 
-export const metadata: Metadata = {
-  title: "Hull Eats",
-  description: "Mobile-first ordering platform for restaurants, takeaways, and shops in Hull.",
-};
+export const metadata: Metadata = buildRootMetadata();
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -31,8 +31,9 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: PropsWithChildren) {
   return (
-    <html lang="en" className={`${headingFont.variable} ${bodyFont.variable}`}>
+    <html lang="en-GB" className={`${headingFont.variable} ${bodyFont.variable}`}>
       <body>
+        <JsonLd data={[buildOrganizationJsonLd(), buildWebSiteJsonLd()]} />
         <a className="he-skip-link" href="#site-main">
           Skip to main content
         </a>

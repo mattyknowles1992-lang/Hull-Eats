@@ -1,8 +1,12 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { buildNoIndexMetadata } from "../../../../src/lib/seo";
 import { fetchMarketplaceMenu, fetchMarketplaceStore } from "../../../../src/lib/marketplace";
 import { KioskMenuClient } from "./kiosk-client";
+
+export const metadata: Metadata = buildNoIndexMetadata("Kiosk ordering");
 
 export default async function StoreKioskPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = await params;

@@ -393,12 +393,14 @@ export function isHubMenuSectionPizza(section: { presetKey?: string | null; name
 const HULL_INTERNAL_OPTION_LINE = /^__HULL_[A-Z0-9_]+(?::[^_]*)?__$/i;
 const HULL_SPICE_DESC_PREFIX = /^__HULL_SPICE:[a-z-]+__(?:\r?\n)?/i;
 const HULL_PIZZA_KIND_DESC_PREFIX = /^__HULL_PIZZA_KIND:(pizza|garlic_bread|calzone)__(?:\r?\n)?/i;
+const HULL_MEAL_DEAL_CONFIG_PREFIX = /^__HULL_MEAL_DEAL_CONFIG:[\s\S]*?__(?:\r?\n)?/i;
 
 /** Strip hub-internal markers from menu item descriptions before customers see them. */
 export function customerFacingMenuItemDescription(description?: string | null): string {
   return (description ?? "")
     .replace(HULL_SPICE_DESC_PREFIX, "")
     .replace(HULL_PIZZA_KIND_DESC_PREFIX, "")
+    .replace(HULL_MEAL_DEAL_CONFIG_PREFIX, "")
     .trim();
 }
 

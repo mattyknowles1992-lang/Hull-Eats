@@ -4,6 +4,7 @@ import {
   isHullMarketplaceResaleEnabled,
   isHullServicesEnabled,
 } from "../lib/customer-product-flags";
+import { seoLandingHubLinks } from "../lib/seo-landing-pages";
 
 const year = new Date().getFullYear();
 
@@ -49,6 +50,17 @@ export function SiteFooter() {
               <li>
                 <Link href="/legal/terms-hull-eats">Terms — ordering & account</Link>
               </li>
+            </ul>
+          </div>
+
+          <div className="site-footer-column">
+            <h2 className="site-footer-heading">Food in Hull</h2>
+            <ul className="site-footer-list">
+              {seoLandingHubLinks.slice(0, 6).map((link) => (
+                <li key={link.href}>
+                  <Link href={link.href}>{link.label}</Link>
+                </li>
+              ))}
             </ul>
           </div>
 

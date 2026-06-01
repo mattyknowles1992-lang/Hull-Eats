@@ -4,7 +4,12 @@ const SAUCES_INCLUDED_MARKER = /__HULL_SAUCES_INCLUDED__/;
 const SAUCES_EXTRA_MARKER = /__HULL_SAUCES_EXTRA__/;
 const EXTRAS_MARKER = /__HULL_EXTRAS__/;
 const MEAL_CHOICE_MARKER = /__HULL_MEAL_CHOICE__/;
+const MEAL_DISABLED_MARKER = /__HULL_MEAL_DISABLED__/;
 const PART_CHOICE_MARKER = /^__HULL_PART_CHOICE:(burger|kebab):([a-z0-9_-]+)__$/;
+const SALAD_INCLUDED_MARKER = /__HULL_SALAD_INCLUDED__/;
+const SALAD_EXTRA_MARKER = /__HULL_SALAD_EXTRA__/;
+
+export const MEAL_ON_ITS_OWN_LABEL = "On its own";
 
 function parsePartChoiceSlot(group: MenuItem["optionGroups"][number]): { line: string; slot: string } | null {
   const match = (group.description ?? "").trim().match(PART_CHOICE_MARKER);
@@ -12,6 +17,21 @@ function parsePartChoiceSlot(group: MenuItem["optionGroups"][number]): { line: s
     return null;
   }
   return { line: match[1], slot: match[2] };
+}
+
+export function isMealChoiceGroup(group: MenuItem["optionGroups"][number]): boolean {
+  return MEAL_CHOICE_MARKER.test(group.description ?? "") && !MEAL_DISABLED_MARKER.test(group.description ?? "");
+}
+
+export function isPizzaMenuItem(item: MenuItem): boolean {
+  if (/__HULL_PIZZA_KIND:/i.test(item.description)) {
+    return true;
+  }
+  return item.optionGroups.some((group) => group.isRequired && /size/i.test(group.name));
+}
+
+export function hasHubExtrasGroup(item: MenuItem): boolean {
+  return item.optionGroups.some((group) => EXTRAS_MARKER.test(group.description ?? ""));
 }
 
 export function usesBurgerAddSheet(item: MenuItem): boolean {
@@ -26,25 +46,65 @@ export function usesBurgerAddSheet(item: MenuItem): boolean {
       SAUCES_EXTRA_MARKER.test(description) ||
       EXTRAS_MARKER.test(description) ||
       MEAL_CHOICE_MARKER.test(description) ||
-      PART_CHOICE_MARKER.test(description.trim())
+      PART_CHOICE_MARKER.test(description.trim()) ||
+      SALAD_INCLUDED_MARKER.test(description) ||
+      SALAD_EXTRA_MARKER.test(description)
     );
   });
 }
 
 export function usesItemAddSheet(item: MenuItem): boolean {
-  if (/__HULL_PIZZA_KIND:/i.test(item.description)) {
+  if (isPizzaMenuItem(item)) {
     return true;
   }
 
-  if (item.optionGroups.some((group) => group.isRequired && /size/i.test(group.name))) {
+  if (usesBurgerAddSheet(item)) {
     return true;
   }
 
-  return usesBurgerAddSheet(item);
+  return item.optionGroups.length > 0 || item.components.some((component) => component.removable);
 }
 
 export function showsAddSheetSaladSection(item: MenuItem): boolean {
-  return item.components.some((component) => component.removable);
+  if (!item.components.some((component) => component.removable)) {
+    return false;
+  }
+
+  if (hasHubExtrasGroup(item)) {
+    return false;
+  }
+
+  if (item.optionGroups.some((group) => parsePartChoiceSlot(group)?.slot === "salad")) {
+    return false;
+  }
+
+  return true;
+}
+
+/** Burger-style items with hub extras use the extras list instead of separate sauce / part-salad groups. */
+export function filterAddSheetOptionGroups(
+  groups: MenuItem["optionGroups"],
+  item: MenuItem,
+): MenuItem["optionGroups"] {
+  const burgerStyle = hasHubExtrasGroup(item) && !isPizzaMenuItem(item);
+  if (!burgerStyle) {
+    return groups;
+  }
+
+  return groups.filter((group) => {
+    const description = group.description ?? "";
+    if (SAUCES_INCLUDED_MARKER.test(description) || SAUCES_EXTRA_MARKER.test(description)) {
+      return false;
+    }
+    if (SALAD_INCLUDED_MARKER.test(description) || SALAD_EXTRA_MARKER.test(description)) {
+      return false;
+    }
+    const partChoice = parsePartChoiceSlot(group);
+    if (partChoice?.slot === "salad") {
+      return false;
+    }
+    return true;
+  });
 }
 
 function groupSortRank(group: MenuItem["optionGroups"][number]): number {
@@ -91,6 +151,9 @@ export function sortAddSheetOptionGroups(groups: MenuItem["optionGroups"]): Menu
 export function getAddSheetGroupTitle(group: MenuItem["optionGroups"][number]): string {
   const description = group.description ?? "";
 
+  if (isMealChoiceGroup(group)) {
+    return "How would you like it?";
+  }
   if (SAUCES_INCLUDED_MARKER.test(description)) {
     return "Add your sauce";
   }

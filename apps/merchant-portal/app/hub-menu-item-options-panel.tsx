@@ -51,6 +51,8 @@ type Props = {
   salads: HubSaladOption[];
   mealTemplates: HubMealTemplate[];
   readOnly?: boolean;
+  extrasManagedByCategoryName?: string | null;
+  onDetachFromCategoryExtras?: () => void;
   onUpdateItem: (updater: (item: MenuItem) => MenuItem) => void;
 };
 
@@ -151,11 +153,15 @@ function ItemExtrasBlock({
   item,
   toppings,
   readOnly,
+  extrasManagedByCategoryName,
+  onDetachFromCategoryExtras,
   onUpdateItem,
 }: {
   item: MenuItem;
   toppings: HubExtraTopping[];
   readOnly: boolean;
+  extrasManagedByCategoryName?: string | null;
+  onDetachFromCategoryExtras?: () => void;
   onUpdateItem: Props["onUpdateItem"];
 }) {
   const selection = getItemExtraToppingSelection(item);
@@ -189,6 +195,8 @@ function ItemExtrasBlock({
       includedQtyById={selection.includedQtyById}
       maxAddMoreById={selection.maxAddMoreById}
       readOnly={readOnly}
+      managedByCategoryName={extrasManagedByCategoryName}
+      onDetachFromCategory={onDetachFromCategoryExtras}
       onEnabledChange={(enabled) => {
         if (!enabled) {
           patch(false, new Set(), new Map(), new Map(), new Map());
@@ -421,6 +429,8 @@ function OptionBlockCard({
   salads,
   mealTemplates,
   readOnly,
+  extrasManagedByCategoryName,
+  onDetachFromCategoryExtras,
   reorderableIndex,
   reorderableCount,
   onUpdateItem,
@@ -433,6 +443,8 @@ function OptionBlockCard({
   salads: HubSaladOption[];
   mealTemplates: HubMealTemplate[];
   readOnly: boolean;
+  extrasManagedByCategoryName?: string | null;
+  onDetachFromCategoryExtras?: () => void;
   reorderableIndex: number;
   reorderableCount: number;
   onUpdateItem: Props["onUpdateItem"];
@@ -505,7 +517,7 @@ function OptionBlockCard({
               <span style={fieldLabel}>Title (customer sees)</span>
               <input
                 style={input}
-                disabled={readOnly}
+                disabled={readOnly || Boolean(extrasManagedByCategoryName)}
                 value={extrasGroup.name}
                 placeholder="e.g. Added extras, Toppings"
                 onChange={(e) => onUpdateItem((current) => updateExtrasGroupTitle(current, e.target.value))}
@@ -585,7 +597,16 @@ function OptionBlockCard({
         )}
       </header>
 
-      {block.kind === "extras" ? <ItemExtrasBlock item={item} toppings={toppings} readOnly={readOnly} onUpdateItem={onUpdateItem} /> : null}
+      {block.kind === "extras" ? (
+        <ItemExtrasBlock
+          item={item}
+          toppings={toppings}
+          readOnly={readOnly}
+          extrasManagedByCategoryName={extrasManagedByCategoryName}
+          onDetachFromCategoryExtras={onDetachFromCategoryExtras}
+          onUpdateItem={onUpdateItem}
+        />
+      ) : null}
       {block.kind === "sauces" ? <ItemSaucesBlock item={item} sauces={sauces} readOnly={readOnly} onUpdateItem={onUpdateItem} /> : null}
       {block.kind === "salad" ? <ItemSaladBlock item={item} salads={salads} readOnly={readOnly} onUpdateItem={onUpdateItem} /> : null}
       {block.kind === "meal" ? (
@@ -601,7 +622,17 @@ function OptionBlockCard({
   );
 }
 
-export function HubMenuItemOptionsPanel({ item, toppings, sauces, salads, mealTemplates, readOnly = false, onUpdateItem }: Props) {
+export function HubMenuItemOptionsPanel({
+  item,
+  toppings,
+  sauces,
+  salads,
+  mealTemplates,
+  readOnly = false,
+  extrasManagedByCategoryName = null,
+  onDetachFromCategoryExtras,
+  onUpdateItem,
+}: Props) {
   const blocks = listItemOptionBlocks(item);
   const reorderable = blocks.filter((block) => block.canReorder);
   const fixed = blocks.filter((block) => !block.canReorder);
@@ -671,6 +702,8 @@ export function HubMenuItemOptionsPanel({ item, toppings, sauces, salads, mealTe
           salads={salads}
           mealTemplates={mealTemplates}
           readOnly={readOnly}
+          extrasManagedByCategoryName={extrasManagedByCategoryName}
+          onDetachFromCategoryExtras={onDetachFromCategoryExtras}
           reorderableIndex={-1}
           reorderableCount={reorderable.length}
           onUpdateItem={onUpdateItem}
@@ -688,6 +721,8 @@ export function HubMenuItemOptionsPanel({ item, toppings, sauces, salads, mealTe
           salads={salads}
           mealTemplates={mealTemplates}
           readOnly={readOnly}
+          extrasManagedByCategoryName={extrasManagedByCategoryName}
+          onDetachFromCategoryExtras={onDetachFromCategoryExtras}
           reorderableIndex={index}
           reorderableCount={reorderable.length}
           onUpdateItem={onUpdateItem}

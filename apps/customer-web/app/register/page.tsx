@@ -1,7 +1,11 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
+import { buildNoIndexMetadata } from "../../src/lib/seo";
 import { AppSwitcher } from "../app-switcher";
 import { RegisterForm } from "./register-form";
+
+export const metadata: Metadata = buildNoIndexMetadata("Create account");
 
 export default function RegisterPage() {
   return (

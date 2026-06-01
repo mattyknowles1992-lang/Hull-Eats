@@ -20,6 +20,8 @@ type HubMenuItemExtrasPickerProps = {
   onIncludedQtyChange: (toppingId: string, quantity: number) => void;
   onMaxAddMoreChange: (toppingId: string, quantity: number) => void;
   readOnly?: boolean;
+  managedByCategoryName?: string | null;
+  onDetachFromCategory?: () => void;
 };
 
 const panel: CSSProperties = {
@@ -47,7 +49,11 @@ export function HubMenuItemExtrasPicker({
   onIncludedQtyChange,
   onMaxAddMoreChange,
   readOnly = false,
+  managedByCategoryName = null,
+  onDetachFromCategory,
 }: HubMenuItemExtrasPickerProps) {
+  const categoryLocked = Boolean(managedByCategoryName);
+  const effectiveReadOnly = readOnly || categoryLocked;
   if (toppings.length === 0) {
     return (
       <p style={{ margin: 0, fontSize: "0.84rem", color: "#5b6470" }}>
@@ -72,12 +78,12 @@ export function HubMenuItemExtrasPicker({
         buy extra portions up to your max. You can use included only, paid only, or both.
       </p>
 
-      <div style={enabled ? toppingList : toppingListDisabled}>
+      <div style={enabled && !categoryLocked ? toppingList : toppingListDisabled}>
         <div style={toolbar}>
-          <button type="button" style={linkButton} disabled={readOnly || !enabled} onClick={onSelectAllPaid}>
+          <button type="button" style={linkButton} disabled={effectiveReadOnly || !enabled} onClick={onSelectAllPaid}>
             Enable all paid extras
           </button>
-          <button type="button" style={linkButton} disabled={readOnly || !enabled} onClick={onClearAll}>
+          <button type="button" style={linkButton} disabled={effectiveReadOnly || !enabled} onClick={onClearAll}>
             Clear all
           </button>
         </div>
@@ -97,7 +103,7 @@ export function HubMenuItemExtrasPicker({
                   type="checkbox"
                   className="hub-menu-compose-tick"
                   checked={includedOn}
-                  disabled={readOnly || !enabled}
+                  disabled={effectiveReadOnly || !enabled}
                   onChange={(e) => onIncludedToggle(topping.id, e.target.checked)}
                 />
                 <span>Included</span>
@@ -108,7 +114,7 @@ export function HubMenuItemExtrasPicker({
                   type="number"
                   min={0}
                   max={8}
-                  disabled={readOnly || !enabled || !includedOn}
+                  disabled={effectiveReadOnly || !enabled || !includedOn}
                   value={includedQty}
                   onChange={(e) => onIncludedQtyChange(topping.id, Math.max(0, Number(e.target.value) || 0))}
                 />
@@ -118,7 +124,7 @@ export function HubMenuItemExtrasPicker({
                   type="checkbox"
                   className="hub-menu-compose-tick"
                   checked={paidOn}
-                  disabled={readOnly || !enabled}
+                  disabled={effectiveReadOnly || !enabled}
                   onChange={(e) => onPaidExtraToggle(topping.id, e.target.checked)}
                 />
                 <span>Add more</span>
@@ -129,7 +135,7 @@ export function HubMenuItemExtrasPicker({
                   type="number"
                   min={0}
                   max={99}
-                  disabled={readOnly || !enabled || !paidOn}
+                  disabled={effectiveReadOnly || !enabled || !paidOn}
                   value={maxAddMore}
                   onChange={(e) => onMaxAddMoreChange(topping.id, Math.max(0, Number(e.target.value) || 0))}
                 />
@@ -140,7 +146,7 @@ export function HubMenuItemExtrasPicker({
                   type="number"
                   step="0.1"
                   min={0}
-                  disabled={readOnly || !enabled || !paidOn}
+                  disabled={effectiveReadOnly || !enabled || !paidOn}
                   className="hub-menu-item-extras__price"
                   value={price}
                   onChange={(e) => onPriceChange(topping.id, Number(e.target.value) || 0)}

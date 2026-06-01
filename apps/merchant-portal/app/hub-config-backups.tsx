@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { HubConfigSnapshot, HubMenuSection, HubSettings } from "@hull-eats/types";
 import { HUB_CONFIG_SNAPSHOT_LIMIT } from "@hull-eats/types";
@@ -69,6 +69,21 @@ const inputStyle: CSSProperties = {
   flex: "1 1 180px",
 };
 
+async function readApiErrorMessage(response: Response, fallback: string): Promise<string> {
+  try {
+    const body = (await response.json()) as { message?: string | string[] };
+    if (Array.isArray(body.message)) {
+      return body.message.join(", ");
+    }
+    if (typeof body.message === "string" && body.message.trim()) {
+      return body.message;
+    }
+  } catch {
+    // ignore parse errors
+  }
+  return fallback;
+}
+
 export function HubConfigBackups({
   apiBaseUrl,
   hubId,
@@ -79,29 +94,43 @@ export function HubConfigBackups({
   onNotice,
 }: HubConfigBackupsProps) {
   const { t } = useHubPortalI18n();
+  const onNoticeRef = useRef(onNotice);
+  onNoticeRef.current = onNotice;
+
   const [snapshots, setSnapshots] = useState<HubConfigSnapshot[]>([]);
   const [backupName, setBackupName] = useState("");
   const [renameDrafts, setRenameDrafts] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const loadSnapshots = useCallback(async () => {
+    setLoading(true);
     const base = apiBaseUrl.replace(/\/$/, "");
     const response = await fetch(`${base}/v1/merchant/hubs/${encodeURIComponent(hubId)}/config-snapshots`, {
       headers: { Authorization: `Bearer ${merchantToken}` },
     });
     if (!response.ok) {
-      throw new Error(`Could not load config backups (${response.status})`);
+      const message = await readApiErrorMessage(
+        response,
+        `Could not load config backups (${response.status})`,
+      );
+      throw new Error(message);
     }
     const body = (await response.json()) as HubConfigSnapshot[];
     setSnapshots(body);
     setRenameDrafts(Object.fromEntries(body.map((entry) => [entry.id, entry.name])));
+    setLoadError(null);
   }, [apiBaseUrl, hubId, merchantToken]);
 
   useEffect(() => {
-    void loadSnapshots().catch((error: unknown) => {
-      onNotice(error instanceof Error ? error.message : t("errors.couldNotLoadBackups"));
-    });
-  }, [loadSnapshots, onNotice]);
+    void loadSnapshots()
+      .catch((error: unknown) => {
+        setLoadError(error instanceof Error ? error.message : t("errors.couldNotLoadBackups"));
+        setSnapshots([]);
+      })
+      .finally(() => setLoading(false));
+  }, [loadSnapshots, t]);
 
   const handleSaveBackup = async () => {
     setBusy("save");
@@ -120,13 +149,13 @@ export function HubConfigBackups({
         }),
       });
       if (!response.ok) {
-        throw new Error(`Save backup failed (${response.status})`);
+        throw new Error(await readApiErrorMessage(response, `Save backup failed (${response.status})`));
       }
       setBackupName("");
       await loadSnapshots();
-      onNotice(t("settings.backupSaved"));
+      onNoticeRef.current(t("settings.backupSaved"));
     } catch (error) {
-      onNotice(error instanceof Error ? error.message : t("settings.backupSaveFailed"));
+      onNoticeRef.current(error instanceof Error ? error.message : t("settings.backupSaveFailed"));
     } finally {
       setBusy(null);
     }
@@ -152,13 +181,13 @@ export function HubConfigBackups({
         },
       );
       if (!response.ok) {
-        throw new Error(`Restore failed (${response.status})`);
+        throw new Error(await readApiErrorMessage(response, `Restore failed (${response.status})`));
       }
       const workspace = (await response.json()) as { settings: HubSettings; menuSections: HubMenuSection[] };
       onRestore({ settings: workspace.settings, menuSections: workspace.menuSections });
-      onNotice(t("settings.restoreSuccess", { name: snapshot.name }));
+      onNoticeRef.current(t("settings.restoreSuccess", { name: snapshot.name }));
     } catch (error) {
-      onNotice(error instanceof Error ? error.message : t("settings.restoreFailed"));
+      onNoticeRef.current(error instanceof Error ? error.message : t("settings.restoreFailed"));
     } finally {
       setBusy(null);
     }
@@ -184,12 +213,12 @@ export function HubConfigBackups({
         },
       );
       if (!response.ok) {
-        throw new Error(`Rename failed (${response.status})`);
+        throw new Error(await readApiErrorMessage(response, `Rename failed (${response.status})`));
       }
       await loadSnapshots();
-      onNotice(t("settings.backupRenamed"));
+      onNoticeRef.current(t("settings.backupRenamed"));
     } catch (error) {
-      onNotice(error instanceof Error ? error.message : t("settings.renameFailed"));
+      onNoticeRef.current(error instanceof Error ? error.message : t("settings.renameFailed"));
     } finally {
       setBusy(null);
     }
@@ -204,6 +233,30 @@ export function HubConfigBackups({
         </p>
       </div>
 
+      {loadError ? (
+        <div
+          style={{
+            padding: "10px 12px",
+            borderRadius: 12,
+            border: "1px solid rgba(198, 40, 40, 0.25)",
+            background: "rgba(198, 40, 40, 0.06)",
+            color: "#8b1a1a",
+            fontSize: "0.86rem",
+            lineHeight: 1.45,
+          }}
+        >
+          {loadError}
+          <button
+            type="button"
+            style={{ ...secondaryBtn, marginTop: 10, display: "block" }}
+            disabled={busy != null}
+            onClick={() => void loadSnapshots().catch(() => undefined)}
+          >
+            Retry
+          </button>
+        </div>
+      ) : null}
+
       <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
         <input
           style={inputStyle}
@@ -211,12 +264,19 @@ export function HubConfigBackups({
           value={backupName}
           onChange={(event) => setBackupName(event.target.value)}
         />
-        <button type="button" style={primaryBtn} disabled={busy != null} onClick={() => void handleSaveBackup()}>
+        <button
+          type="button"
+          style={primaryBtn}
+          disabled={busy != null || loading || Boolean(loadError)}
+          onClick={() => void handleSaveBackup()}
+        >
           {busy === "save" ? t("common.saving") : t("settings.saveSetupBackup")}
         </button>
       </div>
 
-      {snapshots.length === 0 ? (
+      {loading ? (
+        <p style={{ margin: 0, color: "#5b6470" }}>Loading backups…</p>
+      ) : snapshots.length === 0 && !loadError ? (
         <p style={{ margin: 0, color: "#5b6470" }}>{t("settings.noBackupsHint")}</p>
       ) : (
         <div style={{ display: "grid", gap: 10 }}>

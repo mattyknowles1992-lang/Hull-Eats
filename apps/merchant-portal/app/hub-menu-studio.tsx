@@ -34,6 +34,7 @@ import {
   formatMenuMoney,
   getCategoryItemBuilderMode,
   getHubExtraToppingsFromSection,
+  getItemExtrasCategoryId,
   getHubSaucesFromSection,
   getHubSaladsFromSection,
   getHubMealTemplatesFromSection,
@@ -128,6 +129,8 @@ type HubMenuStudioProps = {
   onAddExtraTopping: (item: MenuItem) => void;
   onUpdateExtraToppingPrice: (itemId: string, price: number) => void;
   onRemoveExtraTopping: (itemId: string) => void;
+  onApplyCategoryExtras?: (assignment: import("./menu-studio-core").HubCategoryExtrasAssignment) => void;
+  onDetachItemFromCategoryExtras?: (itemId: string) => void;
   onAddSauce: (item: MenuItem) => void;
   onUpdateSaucePrice: (itemId: string, extraPrice: number) => void;
   onRemoveSauce: (itemId: string) => void;
@@ -210,6 +213,8 @@ export function HubMenuStudio({
   onAddExtraTopping,
   onUpdateExtraToppingPrice,
   onRemoveExtraTopping,
+  onApplyCategoryExtras,
+  onDetachItemFromCategoryExtras,
   onAddSauce,
   onUpdateSaucePrice,
   onRemoveSauce,
@@ -252,6 +257,11 @@ export function HubMenuStudio({
   const editingPizzaItem = Boolean(selectedItem && (categoryIsPizza || isHubMenuSectionPizza(creatingItemSection)));
   const [editPizzaSizeRows, setEditPizzaSizeRows] = useState<PizzaSizeRow[]>(() => createInitialPizzaSizeRows());
   const mealTemplates = getHubMealTemplatesFromSection(mealSection, menuSections);
+  const selectedItemExtrasCategoryId = selectedItem ? getItemExtrasCategoryId(selectedItem) : null;
+  const selectedItemExtrasCategoryName =
+    selectedItemExtrasCategoryId != null
+      ? (menuSections.find((section) => section.id === selectedItemExtrasCategoryId)?.name ?? "category")
+      : null;
   const creatingItemIsPizza = isHubMenuSectionPizza(creatingItemSection);
   const creatingItemBuilderMode = getCategoryItemBuilderMode(creatingItemSection ?? selectedCategory);
 
@@ -462,9 +472,11 @@ export function HubMenuStudio({
                 <div className="hub-menu-staff-library-editor" style={{ display: "grid", gap: 24 }}>
                   <HubMenuExtrasLibrary
                     section={extrasSection}
+                    menuSections={menuSections}
                     onAddTopping={onAddExtraTopping}
                     onUpdateToppingPrice={onUpdateExtraToppingPrice}
                     onRemoveTopping={onRemoveExtraTopping}
+                    onApplyCategoryExtras={onApplyCategoryExtras}
                     readOnly={studioLocked}
                   />
                   {saladSection ? (
@@ -984,6 +996,12 @@ export function HubMenuStudio({
                     salads={hubSalads}
                     mealTemplates={mealTemplates}
                     readOnly={studioLocked}
+                    extrasManagedByCategoryName={selectedItemExtrasCategoryName}
+                    onDetachFromCategoryExtras={
+                      selectedItemExtrasCategoryId && onDetachItemFromCategoryExtras
+                        ? () => onDetachItemFromCategoryExtras(selectedItem.id)
+                        : undefined
+                    }
                     onUpdateItem={onUpdateItem}
                   />
                 </section>

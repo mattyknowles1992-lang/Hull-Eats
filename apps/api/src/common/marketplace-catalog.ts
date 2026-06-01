@@ -4,7 +4,6 @@ import { prisma } from "@hull-eats/db";
 import type { MenuItem, StoreSummary, StorefrontPromotionBanner } from "@hull-eats/types";
 import {
   applyStorefrontPromotionsToMenu,
-  customerFacingOptionGroupDescription,
   decodeHubMenuCategoryDescription,
   isMenuItemPriceListable,
   normaliseDeliveryPricingForServe,
@@ -92,13 +91,9 @@ const mapMenuItem = (item: {
     sortOrder: item.sortOrder,
     requiresIdVerification: Boolean(item.requiresIdVerification),
     components: Array.isArray(customisationConfig.components) ? customisationConfig.components : [],
-    optionGroups: (Array.isArray(customisationConfig.optionGroups)
+    optionGroups: Array.isArray(customisationConfig.optionGroups)
       ? (customisationConfig.optionGroups as MenuItem["optionGroups"])
-      : []
-    ).map((group) => ({
-      ...group,
-      description: customerFacingOptionGroupDescription(group.description),
-    })),
+      : [],
     menuSubGroup:
       typeof customisationConfig.hubMenuSubGroup === "string" && customisationConfig.hubMenuSubGroup.trim()
         ? customisationConfig.hubMenuSubGroup.trim()
@@ -354,6 +349,7 @@ export const findLiveMarketplaceMenu = async (slugOrId: string): Promise<Marketp
       return {
         id: section.id,
         name: section.name,
+        presetKey: decoded.presetKey,
         description:
           getCategoryCustomerDescription({ description: section.description, presetKey: decoded.presetKey }) || undefined,
         subGroups: subGroupDefs.map((group) => group.label),

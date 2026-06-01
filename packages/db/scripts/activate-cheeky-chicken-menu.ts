@@ -41,6 +41,11 @@ export async function activateStoreMenuLive(storeId: string) {
     data: { isActive: true, stockStatus: "IN_STOCK" },
   });
 
+  await prisma.store.update({
+    where: { id: storeId },
+    data: { menuSetupComplete: true },
+  });
+
   const snapshots = await prisma.hubConfigSnapshot.findMany({
     where: { storeId },
     select: { id: true, payload: true },

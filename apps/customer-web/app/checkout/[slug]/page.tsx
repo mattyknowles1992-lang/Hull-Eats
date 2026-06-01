@@ -1,10 +1,14 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { buildNoIndexMetadata } from "../../../src/lib/seo";
 import { AppSwitcher } from "../../app-switcher";
 import { fetchMarketplaceMenu, fetchMarketplaceStore } from "../../../src/lib/marketplace";
 import { parseFulfillmentPreference } from "../../../src/lib/fulfillment-preference";
 import { CheckoutClient } from "./checkout-client";
+
+export const metadata: Metadata = buildNoIndexMetadata("Checkout");
 
 export default async function CheckoutPage({
   params,

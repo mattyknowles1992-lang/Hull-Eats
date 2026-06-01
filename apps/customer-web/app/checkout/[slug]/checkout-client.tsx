@@ -309,6 +309,7 @@ export function CheckoutClient({ store, menuItems, initialFulfillment = "deliver
       items: basket.items.map((item) => ({
         menuItemId: item.menuItemId,
         quantity: item.quantity,
+        notes: item.notes,
         removedComponentIds: item.removedComponentIds,
         selectedOptionQuantities: item.selectedOptionQuantities,
       })),
@@ -816,17 +817,22 @@ export function CheckoutClient({ store, menuItems, initialFulfillment = "deliver
                 <strong>No delivery fee</strong>
               </div>
             )}
-            <div className="glance-row">
-              <span className="muted-copy">Minimum order</span>
-              <strong>
-                {formatMoney(
-                  checkoutSession?.minimumOrderAmount ??
-                    deliveryPreview.minimumOrderAmount ??
-                    store.minimumOrderAmount ??
-                    0,
-                )}
-              </strong>
-            </div>
+            {(() => {
+              const minimumOrderAmount =
+                checkoutSession?.minimumOrderAmount ??
+                deliveryPreview.minimumOrderAmount ??
+                store.minimumOrderAmount ??
+                0;
+              if (minimumOrderAmount <= 0 || localSubtotal >= minimumOrderAmount) {
+                return null;
+              }
+              return (
+                <div className="glance-row">
+                  <span className="muted-copy">Minimum order</span>
+                  <strong>{formatMoney(minimumOrderAmount)}</strong>
+                </div>
+              );
+            })()}
             <div className="glance-row">
               <span className="muted-copy">Checkout total</span>
               <strong>

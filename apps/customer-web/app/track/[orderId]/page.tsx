@@ -1,4 +1,9 @@
+import type { Metadata } from "next";
+
+import { buildNoIndexMetadata } from "../../../src/lib/seo";
 import { TrackingClient } from "./tracking-client";
+
+export const metadata: Metadata = buildNoIndexMetadata("Track order");
 
 type TrackingPageProps = {
   params: Promise<{

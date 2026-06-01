@@ -3,6 +3,11 @@ import { randomUUID } from "node:crypto";
 import type { HubMenuSection, MenuItem, StoreOpeningHours } from "@hull-eats/types";
 import { STORE_OPENING_DAY_OF_WEEK } from "@hull-eats/types";
 
+import {
+  applyMealDealConfigToMenuItem,
+  type HubMealDealConfig,
+} from "@hull-eats/types";
+
 import { COSTA_COFFEE_MENU_CATALOG } from "./costa-coffee-menu-catalog.js";
 
 export const COSTA_COFFEE_HUB = {
@@ -120,8 +125,99 @@ export function buildCostaCoffeeDeliveryConfig() {
   };
 }
 
+function listMenuProductRefs(sections: HubMenuSection[]) {
+  const products: Array<{ id: string; name: string; categoryId: string }> = [];
+  for (const section of sections) {
+    if (section.presetKey === "meal-deals") {
+      continue;
+    }
+    for (const item of section.items) {
+      if (item.name.trim()) {
+        products.push({ id: item.id, name: item.name.trim(), categoryId: section.id });
+      }
+    }
+  }
+  return products;
+}
+
+function sectionIdsByNames(sections: HubMenuSection[], names: string[]): string[] {
+  const wanted = new Set(names.map((name) => name.toLowerCase()));
+  return sections.filter((section) => wanted.has(section.name.trim().toLowerCase())).map((section) => section.id);
+}
+
+function wireCostaMealDeals(sections: HubMenuSection[]): HubMenuSection[] {
+  const products = listMenuProductRefs(sections);
+  const dealsSection = sections.find((section) => section.presetKey === "meal-deals");
+  if (!dealsSection) {
+    return sections;
+  }
+
+  const foodCategoryIds = sectionIdsByNames(sections, [
+    "Main Meals",
+    "Pastries, Baps & Breakfast",
+    "Sandwiches & Toasties",
+    "What's New",
+    "Muffins, Cakes and Bakes",
+  ]);
+  const drinkCategoryIds = sectionIdsByNames(sections, [
+    "Coffee",
+    "Iced Drinks & Cold Brew",
+    "Fruit Coolers",
+    "Chillers",
+    "Hot Chocolate & More",
+    "Teas & Infusions",
+    "Chilled Drinks",
+  ]);
+  const snackCategoryIds = sectionIdsByNames(sections, ["Crisps & Snacks"]);
+
+  const configsByDealName: Record<string, HubMealDealConfig> = {
+    "Lunch Meal For 1": {
+      steps: [
+        { id: "food", label: "Food", source: "pick_categories", productIds: [], categoryIds: foodCategoryIds, required: true },
+        { id: "drink", label: "Drink", source: "pick_categories", productIds: [], categoryIds: drinkCategoryIds, required: true },
+      ],
+    },
+    "Lunch + Crisps Meal for 1": {
+      steps: [
+        { id: "food", label: "Food", source: "pick_categories", productIds: [], categoryIds: foodCategoryIds, required: true },
+        { id: "snack", label: "Crisps", source: "pick_categories", productIds: [], categoryIds: snackCategoryIds, required: true },
+        { id: "drink", label: "Drink", source: "pick_categories", productIds: [], categoryIds: drinkCategoryIds, required: true },
+      ],
+    },
+    "Afternoon Coffee & Cake Deal": {
+      steps: [
+        { id: "drink", label: "Drink", source: "pick_categories", productIds: [], categoryIds: drinkCategoryIds, required: true },
+        {
+          id: "cake",
+          label: "Cake or bake",
+          source: "pick_categories",
+          productIds: [],
+          categoryIds: sectionIdsByNames(sections, ["Muffins, Cakes and Bakes"]),
+          required: true,
+        },
+      ],
+    },
+  };
+
+  return sections.map((section) => {
+    if (section.id !== dealsSection.id) {
+      return section;
+    }
+    return {
+      ...section,
+      items: section.items.map((item) => {
+        const config = configsByDealName[item.name.trim()];
+        if (!config) {
+          return item;
+        }
+        return applyMealDealConfigToMenuItem(item, config, products, () => randomUUID());
+      }),
+    };
+  });
+}
+
 export function buildCostaCoffeeMenuSections(): HubMenuSection[] {
-  return COSTA_COFFEE_MENU_CATALOG.map((category) => {
+  const sections = COSTA_COFFEE_MENU_CATALOG.map((category) => {
     const sectionId = randomUUID();
     const presetKey = resolveSectionPresetKey(category.name, category.presetKey);
 
@@ -146,4 +242,5 @@ export function buildCostaCoffeeMenuSections(): HubMenuSection[] {
       items,
     };
   });
+  return wireCostaMealDeals(sections);
 }
