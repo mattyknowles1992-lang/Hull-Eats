@@ -4,12 +4,15 @@ import { prisma } from "@hull-eats/db";
 import type { MenuItem, StoreSummary, StorefrontPromotionBanner } from "@hull-eats/types";
 import {
   applyStorefrontPromotionsToMenu,
+  buildStorefrontEnrichmentContext,
   decodeHubMenuCategoryDescription,
-  isMenuItemPriceListable,
-  normaliseDeliveryPricingForServe,
+  enrichStorefrontMenuItem,
   getCategoryCustomerDescription,
+  isMenuItemPriceListable,
   isStoreTakingOrdersNow,
+  normaliseDeliveryPricingForServe,
   normalizeOpeningHours,
+  readCategoryExtrasConfigItemDescription,
   readMenuSubGroupsFromSection,
   type StoreOpeningHours,
 } from "@hull-eats/types";
@@ -327,6 +330,26 @@ export const findLiveMarketplaceMenu = async (slugOrId: string): Promise<Marketp
     }
   }
 
+  const extrasLibrarySection = store.menuCategories.find((section) => {
+    const decoded = decodeHubMenuCategoryDescription(section.description ?? "");
+    return decoded.presetKey === "extras-library";
+  });
+
+  const extrasConfigDescription = readCategoryExtrasConfigItemDescription(
+    (extrasLibrarySection?.menuItems ?? []).map((item) => ({
+      id: item.id,
+      description: item.description ?? "",
+    })),
+  );
+
+  const extraToppings = (extrasLibrarySection?.menuItems ?? [])
+    .filter((item) => item.id !== "hull-category-extras-config" && item.isActive)
+    .map((item) => ({
+      id: item.id,
+      name: item.name,
+      price: Number(item.price ?? 0),
+    }));
+
   const categories = store.menuCategories
     .map((section) => {
       const decoded = decodeHubMenuCategoryDescription(section.description);
@@ -335,6 +358,9 @@ export const findLiveMarketplaceMenu = async (slugOrId: string): Promise<Marketp
     .filter(
       ({ decoded }) =>
         decoded.presetKey !== "extras-library" &&
+        decoded.presetKey !== "sauces-library" &&
+        decoded.presetKey !== "salad-library" &&
+        decoded.presetKey !== "side-seasonings-library" &&
         decoded.presetKey !== "meal-upgrades-library" &&
         decoded.presetKey !== "burger-kebab-parts-library" &&
         decoded.presetKey !== "burger-parts-library" &&
@@ -346,6 +372,14 @@ export const findLiveMarketplaceMenu = async (slugOrId: string): Promise<Marketp
         description: section.description,
         presetKey: decoded.presetKey,
       });
+      const enrichmentContext = buildStorefrontEnrichmentContext({
+        sectionId: section.id,
+        sectionDescription: section.description ?? "",
+        sectionPresetKey: decoded.presetKey,
+        extrasConfigDescription,
+        extraToppings,
+      });
+
       return {
         id: section.id,
         name: section.name,
@@ -353,7 +387,9 @@ export const findLiveMarketplaceMenu = async (slugOrId: string): Promise<Marketp
         description:
           getCategoryCustomerDescription({ description: section.description, presetKey: decoded.presetKey }) || undefined,
         subGroups: subGroupDefs.map((group) => group.label),
-        items: section.menuItems.map((item) => mapMenuItem(item)).filter((item) => isMenuItemPriceListable(item)),
+        items: section.menuItems
+          .map((item) => enrichStorefrontMenuItem(mapMenuItem(item), enrichmentContext))
+          .filter((item) => isMenuItemPriceListable(item)),
       };
     })
     .filter((category) => category.items.length > 0);

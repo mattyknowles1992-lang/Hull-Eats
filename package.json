@@ -19,6 +19,8 @@
     "db:provision-cheeky-chicken": "corepack pnpm --filter @hull-eats/db db:provision-cheeky-chicken",
     "db:provision-east-hull-pizza": "corepack pnpm --filter @hull-eats/db db:provision-east-hull-pizza",
     "db:provision-costa-coffee": "corepack pnpm --filter @hull-eats/db db:provision-costa-coffee",
+    "db:apply-test-pizza-sizes": "corepack pnpm --filter @hull-eats/db db:apply-test-pizza-sizes",
+    "db:apply-pizza-category-extras": "corepack pnpm --filter @hull-eats/db db:apply-pizza-category-extras",
     "db:activate-cheeky-chicken-menu": "corepack pnpm --filter @hull-eats/db db:activate-cheeky-chicken-menu",
     "db:baseline": "corepack pnpm --filter @hull-eats/db exec tsx scripts/baseline-and-deploy.ts",
     "db:seed": "pnpm --filter @hull-eats/db seed",

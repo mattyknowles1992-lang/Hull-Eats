@@ -29,6 +29,9 @@ export const HUB_MENU_SAUCES_LIBRARY_PRESET = "sauces-library";
 /** Internal category for salad / garnish choices (hidden on customer menu). */
 export const HUB_MENU_SALAD_LIBRARY_PRESET = "salad-library";
 
+/** Internal category for chips/fries seasoning choices (hidden on customer menu). */
+export const HUB_MENU_SIDE_SEASONINGS_LIBRARY_PRESET = "side-seasonings-library";
+
 /** Internal category for meal-upgrade templates (hidden on customer menu). */
 export const HUB_MENU_MEAL_LIBRARY_PRESET = "meal-upgrades-library";
 
@@ -109,6 +112,12 @@ export function isHubMenuSaladLibrarySection(
   return section?.presetKey === HUB_MENU_SALAD_LIBRARY_PRESET;
 }
 
+export function isHubMenuSideSeasoningsLibrarySection(
+  section: { presetKey?: string | null; name?: string } | null | undefined,
+): boolean {
+  return section?.presetKey === HUB_MENU_SIDE_SEASONINGS_LIBRARY_PRESET;
+}
+
 export function isHubMenuMealLibrarySection(
   section: { presetKey?: string | null; name?: string } | null | undefined,
 ): boolean {
@@ -156,6 +165,7 @@ export function isHubMenuStaffLibrarySection(
     isHubMenuExtrasLibrarySection(section) ||
     isHubMenuSaucesLibrarySection(section) ||
     isHubMenuSaladLibrarySection(section) ||
+    isHubMenuSideSeasoningsLibrarySection(section) ||
     isHubMenuMealLibrarySection(section) ||
     isHubMenuComposePartsSection(section) ||
     isHubMenuMenuBoardsConfigSection(section)

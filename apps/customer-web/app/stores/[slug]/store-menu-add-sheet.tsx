@@ -53,7 +53,9 @@ export function StoreMenuAddSheet({
   onToggleRemovedComponent,
   onSetOptionQuantity,
 }: Props) {
-  const sortedGroups = sortAddSheetOptionGroups(filterAddSheetOptionGroups(visibleGroups, item));
+  const sortedGroups = sortAddSheetOptionGroups(filterAddSheetOptionGroups(visibleGroups, item)).filter(
+    (group) => group.options.length > 0,
+  );
   const intro = customerFacingMenuItemDescription(item.description);
   const saladComponents = item.components.filter((component) => component.removable);
   const showSaladSection = showsAddSheetSaladSection(item);
@@ -103,7 +105,11 @@ export function StoreMenuAddSheet({
 
                   return (
                     <li key={component.id} className={`add-sheet-option${included ? " is-selected" : ""}`}>
-                      <label className="add-sheet-option-label" htmlFor={inputId}>
+                      <label
+                        className="add-sheet-option-label"
+                        htmlFor={inputId}
+                        onMouseDown={(event) => event.preventDefault()}
+                      >
                         <input
                           id={inputId}
                           type="checkbox"
@@ -123,6 +129,13 @@ export function StoreMenuAddSheet({
             </section>
           ) : null}
 
+          {sortedGroups.length === 0 && item.optionGroups.length > 0 ? (
+            <p className="add-sheet-intro" role="status">
+              Choose &quot;Make it a meal&quot; above to pick your side and drink, or complete any required options for
+              this item.
+            </p>
+          ) : null}
+
           {sortedGroups.map((group) => {
             const mealChoice = isMealChoiceGroup(group);
 
@@ -140,6 +153,7 @@ export function StoreMenuAddSheet({
                           type="button"
                           className={`add-sheet-meal-choice${selected ? " is-selected" : ""}`}
                           aria-pressed={selected}
+                          onMouseDown={(event) => event.preventDefault()}
                           onClick={() => toggleSingleOption(group, option.id)}
                         >
                           <span className="add-sheet-meal-choice-label">{option.label}</span>
@@ -158,13 +172,17 @@ export function StoreMenuAddSheet({
 
                       return (
                         <li key={option.id} className={`add-sheet-option${selected ? " is-selected" : ""}`}>
-                          <label className="add-sheet-option-label" htmlFor={inputId}>
-                            <input
-                              id={inputId}
-                              type="checkbox"
-                              className="add-sheet-checkbox"
-                              checked={selected}
-                              onChange={() => {
+                      <label
+                        className="add-sheet-option-label"
+                        htmlFor={inputId}
+                        onMouseDown={(event) => event.preventDefault()}
+                      >
+                        <input
+                          id={inputId}
+                          type="checkbox"
+                          className="add-sheet-checkbox"
+                          checked={selected}
+                          onChange={() => {
                                 if (group.selectionMode === "single") {
                                   toggleSingleOption(group, option.id);
                                   return;

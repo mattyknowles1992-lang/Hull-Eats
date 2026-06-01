@@ -88,6 +88,16 @@ export const HUB_SALAD_SUGGESTIONS: readonly string[] = [
   "Salad",
 ];
 
+export const HUB_SIDE_SEASONING_SUGGESTIONS: readonly string[] = [
+  "Salt",
+  "Chip spice",
+  "Salt & vinegar",
+  "Salt & pepper",
+  "Pepper",
+  "Vinegar",
+  "Spice",
+];
+
 export const HUB_SAUCE_SUGGESTIONS: readonly string[] = [
   "Garlic Sauce",
   "Garlic Mayo",

@@ -2,14 +2,19 @@ import { randomUUID } from "node:crypto";
 
 import type { HubMenuSection, MenuItem, StoreOpeningHours } from "@hull-eats/types";
 import {
+  applyPizzaSizeTableToHubMenuSection,
+  applyStandardTestPizzaSizesToMenuItem,
+  buildStandardTestPizzaSizeTable,
   HUB_MENU_BURGER_PARTS_PRESET,
   HUB_MENU_EXTRAS_LIBRARY_PRESET,
   HUB_MENU_MEAL_LIBRARY_PRESET,
   HUB_MENU_SAUCES_LIBRARY_PRESET,
+  menuItemHasPizzaKindMarker,
   STORE_OPENING_DAY_OF_WEEK,
 } from "@hull-eats/types";
 
 import { EAST_HULL_PIZZA_MENU_CATALOG } from "./east-hull-pizza-menu-catalog.js";
+import { applyPizzaCategoryExtrasToSections } from "./pizza-category-extras-lib.js";
 
 export const EAST_HULL_PIZZA_HUB = {
   businessName: "East Hull Pizza",
@@ -336,6 +341,8 @@ export function buildEastHullPizzaMenuSections(): HubMenuSection[] {
     },
   ];
 
+  const testPizzaSizeTable = buildStandardTestPizzaSizeTable();
+
   const customerSections: HubMenuSection[] = EAST_HULL_PIZZA_MENU_CATALOG.map((category) => {
     const sectionId = randomUUID();
     const presetKey = resolveSectionPresetKey(category.name);
@@ -375,7 +382,7 @@ export function buildEastHullPizzaMenuSections(): HubMenuSection[] {
       });
     });
 
-    return {
+    let section: HubMenuSection = {
       id: sectionId,
       name: category.name,
       description: category.categoryDescription ?? "",
@@ -383,7 +390,19 @@ export function buildEastHullPizzaMenuSections(): HubMenuSection[] {
       defaultPrice: null,
       items,
     };
+
+    if (presetKey === "pizza") {
+      section = applyPizzaSizeTableToHubMenuSection(section, testPizzaSizeTable);
+      section = {
+        ...section,
+        items: section.items.map((item) =>
+          menuItemHasPizzaKindMarker(item) ? applyStandardTestPizzaSizesToMenuItem(item) : item,
+        ),
+      };
+    }
+
+    return section;
   });
 
-  return [...staffSections, ...customerSections];
+  return applyPizzaCategoryExtrasToSections([...staffSections, ...customerSections]);
 }

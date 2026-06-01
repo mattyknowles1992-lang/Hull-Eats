@@ -19,6 +19,7 @@ import {
 import { HubMenuCategoryTabs, isMenuStudioStaffSection } from "./hub-menu-category-tabs";
 import { HubMenuExtrasLibrary } from "./hub-menu-extras-library";
 import { HubMenuSaladLibrary } from "./hub-menu-salad-library";
+import { HubMenuSideSeasoningsLibrary } from "./hub-menu-side-seasonings-library";
 import { HubMenuSaucesLibrary } from "./hub-menu-sauces-library";
 import { HubMenuOrderTicketBuilder } from "./hub-menu-order-ticket-builder";
 import { HubMenuPizzaOrderBuilder } from "./hub-menu-pizza-order-builder";
@@ -37,6 +38,7 @@ import {
   getItemExtrasCategoryId,
   getHubSaucesFromSection,
   getHubSaladsFromSection,
+  getHubSideSeasoningsFromSection,
   getHubMealTemplatesFromSection,
   getMenuAvailabilityMode,
   getMenuItemPriceLabel,
@@ -125,6 +127,7 @@ type HubMenuStudioProps = {
   extrasSection: HubMenuSection | null;
   saucesSection: HubMenuSection | null;
   saladSection: HubMenuSection | null;
+  sideSeasoningsSection: HubMenuSection | null;
   mealSection: HubMenuSection | null;
   onAddExtraTopping: (item: MenuItem) => void;
   onUpdateExtraToppingPrice: (itemId: string, price: number) => void;
@@ -137,6 +140,8 @@ type HubMenuStudioProps = {
   onAddSalad: (item: MenuItem) => void;
   onUpdateSaladPrice: (itemId: string, extraPrice: number) => void;
   onRemoveSalad: (itemId: string) => void;
+  onAddSideSeasoning: (item: MenuItem) => void;
+  onRemoveSideSeasoning: (itemId: string) => void;
   onAddMealTemplate: (item: MenuItem) => void;
   onUpdateMealTemplate: (itemId: string, updater: (item: MenuItem) => MenuItem) => void;
   onRemoveMealTemplate: (itemId: string) => void;
@@ -209,6 +214,7 @@ export function HubMenuStudio({
   extrasSection,
   saucesSection,
   saladSection,
+  sideSeasoningsSection,
   mealSection,
   onAddExtraTopping,
   onUpdateExtraToppingPrice,
@@ -221,6 +227,8 @@ export function HubMenuStudio({
   onAddSalad,
   onUpdateSaladPrice,
   onRemoveSalad,
+  onAddSideSeasoning,
+  onRemoveSideSeasoning,
   onAddMealTemplate,
   onUpdateMealTemplate,
   onRemoveMealTemplate,
@@ -317,6 +325,7 @@ export function HubMenuStudio({
   const hubExtraToppings = getHubExtraToppingsFromSection(extrasSection);
   const hubSauces = getHubSaucesFromSection(saucesSection);
   const hubSalads = getHubSaladsFromSection(saladSection);
+  const hubSideSeasonings = getHubSideSeasoningsFromSection(sideSeasoningsSection);
   useEffect(() => {
     if (selectedItem && editingPizzaItem && itemUsesSizePricing(selectedItem) && selectedCategory) {
       setEditPizzaSizeRows(
@@ -494,6 +503,14 @@ export function HubMenuStudio({
                       onAddSauce={onAddSauce}
                       onUpdateSaucePrice={onUpdateSaucePrice}
                       onRemoveSauce={onRemoveSauce}
+                      readOnly={studioLocked}
+                    />
+                  ) : null}
+                  {sideSeasoningsSection ? (
+                    <HubMenuSideSeasoningsLibrary
+                      section={sideSeasoningsSection}
+                      onAddSeasoning={onAddSideSeasoning}
+                      onRemoveSeasoning={onRemoveSideSeasoning}
                       readOnly={studioLocked}
                     />
                   ) : null}
@@ -774,6 +791,7 @@ export function HubMenuStudio({
                     toppings={hubExtraToppings}
                     sauces={hubSauces}
                     salads={hubSalads}
+                    sideSeasonings={hubSideSeasonings}
                     mealTemplates={mealTemplates}
                     readOnly={studioLocked}
                     onUpdateItem={patchNewItemDraft}
@@ -994,6 +1012,7 @@ export function HubMenuStudio({
                     toppings={hubExtraToppings}
                     sauces={hubSauces}
                     salads={hubSalads}
+                    sideSeasonings={hubSideSeasonings}
                     mealTemplates={mealTemplates}
                     readOnly={studioLocked}
                     extrasManagedByCategoryName={selectedItemExtrasCategoryName}

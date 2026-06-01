@@ -1,4 +1,4 @@
-import type { MenuItem } from "@hull-eats/types";
+import { repairMealUpgradeOptionGroups, type MenuItem } from "@hull-eats/types";
 import { parseExtraIncludedQuantity } from "@hull-eats/types";
 
 export type BasketSelectedOption = {
@@ -116,10 +116,11 @@ const getVisibleGroupIds = (item: MenuItem, selectedOptionQuantities: Record<str
 };
 
 export const synchroniseSelection = (item: MenuItem, selection: BasketCustomisationSelection): BasketCustomisationSelection => {
+  const normalisedItem = repairMealUpgradeOptionGroups(item);
   const nextQuantities = { ...selection.selectedOptionQuantities };
-  const visibleGroupIds = getVisibleGroupIds(item, nextQuantities);
+  const visibleGroupIds = getVisibleGroupIds(normalisedItem, nextQuantities);
 
-  item.optionGroups.forEach((group) => {
+  normalisedItem.optionGroups.forEach((group) => {
     const groupOptionIds = new Set(group.options.map((option) => option.id));
 
     if (!visibleGroupIds.has(group.id)) {
@@ -155,7 +156,7 @@ export const synchroniseSelection = (item: MenuItem, selection: BasketCustomisat
       }
     }
 
-    if (group.selectionMode === "multiple" && getGroupSelectionCount(item, group.id, nextQuantities) === 0) {
+    if (group.selectionMode === "multiple" && getGroupSelectionCount(normalisedItem, group.id, nextQuantities) === 0) {
       const defaultOptions = group.options.filter((option) => option.isDefault);
       const requiredMinimum = getGroupMinimum(group);
 
@@ -209,7 +210,7 @@ export const getDefaultCustomisationSelection = (item: MenuItem): BasketCustomis
 };
 
 export const getVisibleOptionGroups = (item: MenuItem, selectedOptionQuantities: Record<string, number>) =>
-  item.optionGroups.filter(
+  repairMealUpgradeOptionGroups(item).optionGroups.filter(
     (group) =>
       group.options.length > 0 &&
       (group.showWhenValueIds.length === 0 ||

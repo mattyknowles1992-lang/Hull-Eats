@@ -15,8 +15,10 @@ import {
   HUB_MENU_EXTRAS_LIBRARY_PRESET,
   HUB_MENU_SAUCES_LIBRARY_PRESET,
   HUB_MENU_SALAD_LIBRARY_PRESET,
+  HUB_MENU_SIDE_SEASONINGS_LIBRARY_PRESET,
   HUB_MENU_MEAL_LIBRARY_PRESET,
   isHubMenuSaladLibrarySection,
+  isHubMenuSideSeasoningsLibrarySection,
   isHubMenuSaucesLibrarySection,
   isHubMenuBurgerKebabPartsSection,
   isHubMenuBurgerMenuCategory,
@@ -69,6 +71,11 @@ export type HubSauceOption = {
 };
 
 export type HubSaladOption = HubSauceOption;
+
+export type HubSideSeasoningOption = {
+  id: string;
+  label: string;
+};
 
 export const EXTRAS_TOPPINGS_GROUP_NAME = "Extra toppings";
 const EXTRAS_TOPPINGS_MARKER = /^__HULL_EXTRAS__/;
@@ -182,6 +189,25 @@ export function findSaladIncludedGroup(item: MenuItem): MenuOptionGroup | null {
 
 export function findSaladExtraGroup(item: MenuItem): MenuOptionGroup | null {
   return item.optionGroups.find((group) => isSaladExtraGroup(group)) ?? null;
+}
+
+export const SIDE_SEASONINGS_GROUP_NAME = "Seasoning";
+const SIDE_SEASONINGS_MARKER = /^__HULL_SIDE_SEASONINGS__/;
+
+export function isSideSeasoningsGroup(group: MenuOptionGroup): boolean {
+  if (SIDE_SEASONINGS_MARKER.test(group.description ?? "")) {
+    return true;
+  }
+  return group.name.trim() === SIDE_SEASONINGS_GROUP_NAME;
+}
+
+export function findSideSeasoningsGroup(item: MenuItem): MenuOptionGroup | null {
+  return item.optionGroups.find((group) => isSideSeasoningsGroup(group)) ?? null;
+}
+
+export function isLikelyChipsOrFriesItem(item: MenuItem): boolean {
+  const name = item.name.trim().toLowerCase();
+  return /\b(chips?|fries|wedges|potato\s*skins?)\b/.test(name);
 }
 
 export const MANUAL_VARIATIONS_GROUP_NAME = "Options";
@@ -1776,6 +1802,43 @@ export function ensureSaladLibrarySection(sections: HubMenuSection[]): HubMenuSe
   return [...sections.slice(0, insertAt), buildSaladLibrarySection(), ...sections.slice(insertAt)];
 }
 
+export function findSideSeasoningsLibrarySection(sections: HubMenuSection[]): HubMenuSection | null {
+  return sections.find((section) => isHubMenuSideSeasoningsLibrarySection(section)) ?? null;
+}
+
+export function getHubSideSeasoningsFromSection(section: HubMenuSection | null): HubSideSeasoningOption[] {
+  if (!section) {
+    return [];
+  }
+  return section.items.map((item) => ({
+    id: item.id,
+    label: item.name.trim(),
+  }));
+}
+
+export function buildSideSeasoningsLibrarySection(): HubMenuSection {
+  return {
+    id: createMenuDraftId("section"),
+    name: "Chips & sides seasoning",
+    description: "Salt, spice, vinegar, and other free seasonings — customers tick what they want on chips and sides.",
+    presetKey: HUB_MENU_SIDE_SEASONINGS_LIBRARY_PRESET,
+    defaultPrice: 0,
+    items: [],
+  };
+}
+
+export function ensureSideSeasoningsLibrarySection(sections: HubMenuSection[]): HubMenuSection[] {
+  if (findSideSeasoningsLibrarySection(sections)) {
+    return sections;
+  }
+  const saladIndex = sections.findIndex((section) => isHubMenuSaladLibrarySection(section));
+  const saucesIndex = sections.findIndex((section) => isHubMenuSaucesLibrarySection(section));
+  const extrasIndex = sections.findIndex((section) => isHubMenuExtrasLibrarySection(section));
+  const insertAt =
+    saladIndex >= 0 ? saladIndex + 1 : saucesIndex >= 0 ? saucesIndex + 1 : extrasIndex >= 0 ? extrasIndex + 1 : 0;
+  return [...sections.slice(0, insertAt), buildSideSeasoningsLibrarySection(), ...sections.slice(insertAt)];
+}
+
 export function findMealLibrarySection(sections: HubMenuSection[]): HubMenuSection | null {
   return sections.find((section) => isHubMenuMealLibrarySection(section)) ?? null;
 }
@@ -2657,6 +2720,7 @@ export function sortMenuSectionsForStudio(sections: HubMenuSection[]): HubMenuSe
   const extras = staff.find((section) => isHubMenuExtrasLibrarySection(section));
   const sauces = staff.find((section) => isHubMenuSaucesLibrarySection(section));
   const salads = staff.find((section) => isHubMenuSaladLibrarySection(section));
+  const sideSeasonings = staff.find((section) => isHubMenuSideSeasoningsLibrarySection(section));
   const meals = staff.find((section) => isHubMenuMealLibrarySection(section));
   const boards = staff.find((section) => isHubMenuMenuBoardsConfigSection(section));
   const otherStaff = staff.filter(
@@ -2664,6 +2728,7 @@ export function sortMenuSectionsForStudio(sections: HubMenuSection[]): HubMenuSe
       !isHubMenuExtrasLibrarySection(section) &&
       !isHubMenuSaucesLibrarySection(section) &&
       !isHubMenuSaladLibrarySection(section) &&
+      !isHubMenuSideSeasoningsLibrarySection(section) &&
       !isHubMenuMealLibrarySection(section) &&
       !isHubMenuBurgerPartsSection(section) &&
       !isHubMenuKebabPartsSection(section) &&
@@ -2671,7 +2736,7 @@ export function sortMenuSectionsForStudio(sections: HubMenuSection[]): HubMenuSe
       !isHubMenuMenuBoardsConfigSection(section),
   );
   const customer = customerFacingMenuSections(sections);
-  return [...[extras, sauces, salads, meals, boards].filter(Boolean), ...otherStaff, ...customer] as HubMenuSection[];
+  return [...[extras, sauces, salads, sideSeasonings, meals, boards].filter(Boolean), ...otherStaff, ...customer] as HubMenuSection[];
 }
 
 export function getItemExtraToppingSelection(item: MenuItem): {
@@ -3148,6 +3213,70 @@ export function updateSaladExtraGroupTitle(item: MenuItem, title: string): MenuI
   return updateItemOptionGroup(item, group.id, { name: title.trim() || SALAD_EXTRA_GROUP_NAME });
 }
 
+export function getItemSideSeasoningsSelection(item: MenuItem): {
+  enabled: boolean;
+  offeredIds: Set<string>;
+} {
+  const group = findSideSeasoningsGroup(item);
+  if (!group) {
+    return { enabled: false, offeredIds: new Set() };
+  }
+  return {
+    enabled: true,
+    offeredIds: new Set(group.options.map((option) => option.id)),
+  };
+}
+
+export function applySideSeasoningsToItem(
+  item: MenuItem,
+  enabled: boolean,
+  seasonings: HubSideSeasoningOption[],
+  offeredIds: Set<string>,
+): MenuItem {
+  const withoutSeasonings = item.optionGroups.filter((group) => !isSideSeasoningsGroup(group));
+  if (!enabled) {
+    return { ...item, optionGroups: withoutSeasonings };
+  }
+
+  const options = seasonings
+    .filter((seasoning) => offeredIds.has(seasoning.id))
+    .map((seasoning) => ({
+      id: seasoning.id,
+      label: seasoning.label,
+      description: "",
+      priceDelta: 0,
+      isDefault: false,
+      maxQuantity: 1,
+    }));
+
+  const existing = findSideSeasoningsGroup(item);
+  return {
+    ...item,
+    optionGroups: [
+      ...withoutSeasonings,
+      {
+        id: existing?.id ?? createMenuDraftId("group"),
+        name: existing?.name.trim() || SIDE_SEASONINGS_GROUP_NAME,
+        description: "__HULL_SIDE_SEASONINGS__",
+        selectionMode: "multiple",
+        isRequired: false,
+        minSelections: 0,
+        maxSelections: null,
+        showWhenValueIds: [],
+        options,
+      },
+    ],
+  };
+}
+
+export function updateSideSeasoningsGroupTitle(item: MenuItem, title: string): MenuItem {
+  const group = findSideSeasoningsGroup(item);
+  if (!group) {
+    return item;
+  }
+  return updateItemOptionGroup(item, group.id, { name: title.trim() || SIDE_SEASONINGS_GROUP_NAME });
+}
+
 export type ManualVariationRow = { id: string; label: string; price: string };
 
 export function getManualVariationRows(item: MenuItem): ManualVariationRow[] {
@@ -3199,6 +3328,7 @@ export type ItemOptionBlockKind =
   | "extras"
   | "sauces"
   | "salad"
+  | "side_seasonings"
   | "meal"
   | "custom"
   | "pizza_sizes"
@@ -3328,6 +3458,19 @@ export function listItemOptionBlocks(item: MenuItem): ItemOptionBlock[] {
         id: `block-salad-extra-${group.id}`,
         kind: "salad",
         label: group.name.trim() || SALAD_EXTRA_GROUP_NAME,
+        groupIds: [group.id],
+        canReorder: true,
+        canRemove: true,
+      });
+      index += 1;
+      continue;
+    }
+
+    if (isSideSeasoningsGroup(group)) {
+      blocks.push({
+        id: `block-side-seasonings-${group.id}`,
+        kind: "side_seasonings",
+        label: group.name.trim() || SIDE_SEASONINGS_GROUP_NAME,
         groupIds: [group.id],
         canReorder: true,
         canRemove: true,
@@ -3738,8 +3881,8 @@ export function buildMealUpgradeOptionGroups(
   selectedDrinkIds: Set<string>,
   customerGroupTitle = MEAL_CHOICE_GROUP_DEFAULT_NAME,
 ): MenuItem["optionGroups"] {
-  const seed = createMenuDraftId("meal");
-  const mealYesId = `${seed}-meal-yes`;
+  const mealYesId = `hull-meal-yes-${template.id}`;
+  const mealNoId = `hull-meal-no-${template.id}`;
   const sides = template.sides.filter((side) => selectedSideIds.has(side.id));
   const drinks = template.drinks.filter((drink) => selectedDrinkIds.has(drink.id));
   const upgradeLabel = template.label.trim() || MEAL_CHOICE_GROUP_DEFAULT_NAME;
@@ -3756,7 +3899,7 @@ export function buildMealUpgradeOptionGroups(
       showWhenValueIds: [],
       options: [
         {
-          id: `${seed}-no-meal`,
+          id: mealNoId,
           label: MEAL_ON_ITS_OWN_LABEL,
           description: "",
           priceDelta: 0,

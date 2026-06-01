@@ -8,6 +8,7 @@ import type { MenuItem } from "@hull-eats/types";
 import { HubMenuItemExtrasPicker } from "./hub-menu-item-extras";
 import { HubMenuItemMealPicker } from "./hub-menu-item-meal-picker";
 import { HubMenuItemSaladPicker } from "./hub-menu-item-salad-picker";
+import { HubMenuItemSideSeasoningsPicker } from "./hub-menu-item-side-seasonings-picker";
 import { HubMenuItemSaucesPicker } from "./hub-menu-item-sauces-picker";
 import {
   addItemCustomOptionGroup,
@@ -15,14 +16,18 @@ import {
   applyExtraToppingsToItem,
   applyMealUpgradeToItem,
   applySaladToItem,
+  applySideSeasoningsToItem,
   applySaucesToItem,
   findSaucesIncludedGroup,
   findSaucesExtraGroup,
   findSaladIncludedGroup,
   findSaladExtraGroup,
+  findSideSeasoningsGroup,
   getItemExtraToppingSelection,
   getItemSaladSelection,
+  getItemSideSeasoningsSelection,
   getItemSauceSelection,
+  isLikelyChipsOrFriesItem,
   listItemOptionBlocks,
   removeItemOptionBlock,
   removeItemOptionFromGroup,
@@ -33,6 +38,7 @@ import {
   updateMealChoiceGroupTitle,
   updateSaladIncludedGroupTitle,
   updateSaladExtraGroupTitle,
+  updateSideSeasoningsGroupTitle,
   updateSaucesIncludedGroupTitle,
   updateSaucesExtraGroupTitle,
   findExtrasToppingsGroup,
@@ -40,6 +46,7 @@ import {
   type HubExtraTopping,
   type HubMealTemplate,
   type HubSaladOption,
+  type HubSideSeasoningOption,
   type HubSauceOption,
   type ItemOptionBlock,
 } from "./menu-studio-core";
@@ -49,6 +56,7 @@ type Props = {
   toppings: HubExtraTopping[];
   sauces: HubSauceOption[];
   salads: HubSaladOption[];
+  sideSeasonings: HubSideSeasoningOption[];
   mealTemplates: HubMealTemplate[];
   readOnly?: boolean;
   extrasManagedByCategoryName?: string | null;
@@ -255,6 +263,52 @@ function ItemExtrasBlock({
   );
 }
 
+function ItemSideSeasoningsBlock({
+  item,
+  seasonings,
+  readOnly,
+  onUpdateItem,
+}: {
+  item: MenuItem;
+  seasonings: HubSideSeasoningOption[];
+  readOnly: boolean;
+  onUpdateItem: Props["onUpdateItem"];
+}) {
+  const selection = getItemSideSeasoningsSelection(item);
+
+  const patch = (enabled: boolean, offeredIds: Set<string>) => {
+    onUpdateItem((current) => applySideSeasoningsToItem(current, enabled, seasonings, offeredIds));
+  };
+
+  return (
+    <HubMenuItemSideSeasoningsPicker
+      seasonings={seasonings}
+      enabled={selection.enabled}
+      offeredIds={selection.offeredIds}
+      chipsOrFriesHint={isLikelyChipsOrFriesItem(item)}
+      readOnly={readOnly}
+      onEnabledChange={(enabled) => {
+        if (!enabled) {
+          patch(false, new Set());
+          return;
+        }
+        patch(true, selection.offeredIds);
+      }}
+      onSelectAllOffered={() => patch(selection.enabled, new Set(seasonings.map((entry) => entry.id)))}
+      onClearOffered={() => patch(selection.enabled, new Set())}
+      onOfferedToggle={(id, checked) => {
+        const next = new Set(selection.offeredIds);
+        if (checked) {
+          next.add(id);
+        } else {
+          next.delete(id);
+        }
+        patch(true, next);
+      }}
+    />
+  );
+}
+
 function ItemSaladBlock({
   item,
   salads,
@@ -427,6 +481,7 @@ function OptionBlockCard({
   toppings,
   sauces,
   salads,
+  sideSeasonings,
   mealTemplates,
   readOnly,
   extrasManagedByCategoryName,
@@ -441,6 +496,7 @@ function OptionBlockCard({
   toppings: HubExtraTopping[];
   sauces: HubSauceOption[];
   salads: HubSaladOption[];
+  sideSeasonings: HubSideSeasoningOption[];
   mealTemplates: HubMealTemplate[];
   readOnly: boolean;
   extrasManagedByCategoryName?: string | null;
@@ -458,6 +514,7 @@ function OptionBlockCard({
   const saucesExtraGroup = block.kind === "sauces" ? findSaucesExtraGroup(item) : null;
   const saladIncludedGroup = block.kind === "salad" ? findSaladIncludedGroup(item) : null;
   const saladExtraGroup = block.kind === "salad" ? findSaladExtraGroup(item) : null;
+  const sideSeasoningsGroup = block.kind === "side_seasonings" ? findSideSeasoningsGroup(item) : null;
   const mealGroup = block.kind === "meal" ? findMealChoiceGroup(item) : null;
 
   const handleDragStart = (event: DragEvent<HTMLSpanElement>) => {
@@ -569,6 +626,18 @@ function OptionBlockCard({
                 onChange={(e) => onUpdateItem((current) => updateSaladExtraGroupTitle(current, e.target.value))}
               />
             </label>
+          ) : block.kind === "side_seasonings" && sideSeasoningsGroup ? (
+            <label style={titleField}>
+              <span style={fieldLabel}>Seasoning title (customer sees)</span>
+              <input
+                style={input}
+                disabled={readOnly}
+                value={sideSeasoningsGroup.name}
+                placeholder="Seasoning"
+                onChange={(e) => onUpdateItem((current) => updateSideSeasoningsGroupTitle(current, e.target.value))}
+              />
+              <span style={blockMeta}>Customer ticks each seasoning they want (salt, spice, vinegar, etc.)</span>
+            </label>
           ) : block.kind === "meal" && mealGroup ? (
             <label style={titleField}>
               <span style={fieldLabel}>Title (customer sees)</span>
@@ -588,6 +657,9 @@ function OptionBlockCard({
           {block.kind === "extras" && !extrasGroup ? <span style={blockMeta}>From your master extras list</span> : null}
           {block.kind === "sauces" ? <span style={blockMeta}>From your master sauces list</span> : null}
           {block.kind === "salad" ? <span style={blockMeta}>From your master salad list</span> : null}
+          {block.kind === "side_seasonings" ? (
+            <span style={blockMeta}>From your chips &amp; sides seasoning list</span>
+          ) : null}
           {block.kind === "meal" && !mealGroup ? <span style={blockMeta}>Meal upgrade template</span> : null}
         </div>
         {readOnly || !block.canRemove ? null : (
@@ -609,6 +681,14 @@ function OptionBlockCard({
       ) : null}
       {block.kind === "sauces" ? <ItemSaucesBlock item={item} sauces={sauces} readOnly={readOnly} onUpdateItem={onUpdateItem} /> : null}
       {block.kind === "salad" ? <ItemSaladBlock item={item} salads={salads} readOnly={readOnly} onUpdateItem={onUpdateItem} /> : null}
+      {block.kind === "side_seasonings" ? (
+        <ItemSideSeasoningsBlock
+          item={item}
+          seasonings={sideSeasonings}
+          readOnly={readOnly}
+          onUpdateItem={onUpdateItem}
+        />
+      ) : null}
       {block.kind === "meal" ? (
         <HubMenuItemMealPicker item={item} templates={mealTemplates} readOnly={readOnly} onUpdateItem={onUpdateItem} />
       ) : null}
@@ -627,6 +707,7 @@ export function HubMenuItemOptionsPanel({
   toppings,
   sauces,
   salads,
+  sideSeasonings,
   mealTemplates,
   readOnly = false,
   extrasManagedByCategoryName = null,
@@ -639,6 +720,7 @@ export function HubMenuItemOptionsPanel({
   const hasExtras = blocks.some((b) => b.kind === "extras");
   const hasSauces = blocks.some((b) => b.kind === "sauces");
   const hasSalad = blocks.some((b) => b.kind === "salad");
+  const hasSideSeasonings = blocks.some((b) => b.kind === "side_seasonings");
   const hasMeal = blocks.some((b) => b.kind === "meal");
 
   const handleReorder = (from: number, to: number) => {
@@ -664,6 +746,13 @@ export function HubMenuItemOptionsPanel({
       return;
     }
     onUpdateItem((current) => applySaladToItem(current, true, salads, new Set(), false, new Set(), new Map()));
+  };
+
+  const addSideSeasoningsBlock = () => {
+    if (sideSeasonings.length === 0) {
+      return;
+    }
+    onUpdateItem((current) => applySideSeasoningsToItem(current, true, sideSeasonings, new Set()));
   };
 
   const addMealBlock = () => {
@@ -700,6 +789,7 @@ export function HubMenuItemOptionsPanel({
           toppings={toppings}
           sauces={sauces}
           salads={salads}
+          sideSeasonings={sideSeasonings}
           mealTemplates={mealTemplates}
           readOnly={readOnly}
           extrasManagedByCategoryName={extrasManagedByCategoryName}
@@ -719,6 +809,7 @@ export function HubMenuItemOptionsPanel({
           toppings={toppings}
           sauces={sauces}
           salads={salads}
+          sideSeasonings={sideSeasonings}
           mealTemplates={mealTemplates}
           readOnly={readOnly}
           extrasManagedByCategoryName={extrasManagedByCategoryName}
@@ -748,6 +839,11 @@ export function HubMenuItemOptionsPanel({
           {!hasSalad && salads.length > 0 ? (
             <button type="button" style={secondaryBtn} onClick={addSaladBlock}>
               + Salad on this item
+            </button>
+          ) : null}
+          {!hasSideSeasonings && sideSeasonings.length > 0 ? (
+            <button type="button" style={secondaryBtn} onClick={addSideSeasoningsBlock}>
+              + Seasoning on this item
             </button>
           ) : null}
           {!hasMeal && mealTemplates.length > 0 ? (

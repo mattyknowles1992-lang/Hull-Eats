@@ -730,12 +730,17 @@ function buildBurgerPaidExtrasGroup(extraItems: MenuItem[]): MenuItem["optionGro
   ];
 }
 
-function buildMealUpgradeGroups(templateId: string, upgradePrice: number, sideLabel: string, drinkLabel: string): MenuItem["optionGroups"] {
-  const seed = randomUUID();
-  const mealYesId = `${seed}-meal-yes`;
-  const sideId = `${seed}-side`;
-  const drinkId = `${seed}-drink`;
-  return [
+type MealDrinkOption = { id: string; label: string; priceDelta?: number };
+
+function buildMealUpgradeGroups(
+  templateId: string,
+  upgradePrice: number,
+  sideLabel: string,
+  drinkOptions: MealDrinkOption[],
+): MenuItem["optionGroups"] {
+  const mealYesId = `hull-meal-yes-${templateId}`;
+  const mealNoId = `hull-meal-no-${templateId}`;
+  const groups: MenuItem["optionGroups"] = [
     {
       id: randomUUID(),
       name: "Make it a meal",
@@ -746,8 +751,15 @@ function buildMealUpgradeGroups(templateId: string, upgradePrice: number, sideLa
       maxSelections: 1,
       showWhenValueIds: [],
       options: [
-        { id: `${seed}-no-meal`, label: "On its own", description: "", priceDelta: 0, isDefault: true, maxQuantity: 1 },
-        { id: mealYesId, label: "Make it a meal", description: "", priceDelta: upgradePrice, isDefault: false, maxQuantity: 1 },
+        { id: mealNoId, label: "On its own", description: "", priceDelta: 0, isDefault: true, maxQuantity: 1 },
+        {
+          id: mealYesId,
+          label: "Make it a meal",
+          description: "",
+          priceDelta: upgradePrice,
+          isDefault: false,
+          maxQuantity: 1,
+        },
       ],
     },
     {
@@ -759,20 +771,44 @@ function buildMealUpgradeGroups(templateId: string, upgradePrice: number, sideLa
       minSelections: 1,
       maxSelections: 1,
       showWhenValueIds: [mealYesId],
-      options: [{ id: sideId, label: sideLabel, description: "", priceDelta: 0, isDefault: true, maxQuantity: 1 }],
-    },
-    {
-      id: randomUUID(),
-      name: "Choose your drink",
-      description: "",
-      selectionMode: "single",
-      isRequired: true,
-      minSelections: 1,
-      maxSelections: 1,
-      showWhenValueIds: [mealYesId],
-      options: [{ id: drinkId, label: drinkLabel, description: "", priceDelta: 0, isDefault: true, maxQuantity: 1 }],
+      options: [
+        {
+          id: `hull-meal-side-${templateId}`,
+          label: sideLabel,
+          description: "",
+          priceDelta: 0,
+          isDefault: true,
+          maxQuantity: 1,
+        },
+      ],
     },
   ];
+
+  const drinks =
+    drinkOptions.length > 0
+      ? drinkOptions
+      : [{ id: `hull-meal-drink-${templateId}`, label: "Can of drink", priceDelta: 0 }];
+
+  groups.push({
+    id: randomUUID(),
+    name: "Choose your drink",
+    description: "",
+    selectionMode: "single",
+    isRequired: true,
+    minSelections: 1,
+    maxSelections: 1,
+    showWhenValueIds: [mealYesId],
+    options: drinks.map((drink, index) => ({
+      id: drink.id,
+      label: drink.label,
+      description: "",
+      priceDelta: drink.priceDelta ?? 0,
+      isDefault: index === 0,
+      maxQuantity: 1,
+    })),
+  });
+
+  return groups;
 }
 
 function buildPickThreeExtrasGroup(extraItems: MenuItem[]): MenuItem["optionGroups"] {
@@ -914,7 +950,36 @@ export function buildCheekyChickenMenuSections(): HubMenuSection[] {
   ];
 
   const parsedCategories = parseCheekyChickenMenu(CHEEKY_CHICKEN_MENU_TEXT);
+  const drinksParsed = parsedCategories.find((category) => category.name === "DRINKS");
+  const drinkSectionId = randomUUID();
+  const drinkCatalogItems =
+    drinksParsed?.items.map((entry) =>
+      buildMenuItem({
+        id: randomUUID(),
+        categoryId: drinkSectionId,
+        name: entry.name,
+        price: entry.price,
+        isActive: true,
+      }),
+    ) ?? [];
+  const drinkOptions: MealDrinkOption[] = drinkCatalogItems.map((item) => ({
+    id: item.id,
+    label: item.name,
+    priceDelta: 0,
+  }));
+
   const customerSections: HubMenuSection[] = parsedCategories.map((category) => {
+    if (category.name === "DRINKS") {
+      return {
+        id: drinkSectionId,
+        name: "Drinks",
+        description: "",
+        presetKey: null,
+        defaultPrice: null,
+        items: drinkCatalogItems,
+      };
+    }
+
     const sectionId = randomUUID();
     const presetKey = BURGER_CATEGORY_NAMES.has(category.name) ? "burgers" : null;
     const items = category.items.map((entry) => {
@@ -934,7 +999,7 @@ export function buildCheekyChickenMenuSections(): HubMenuSection[] {
             mealTemplateId,
             CHEEKY_CHICKEN_HUB.mealUpgradePrice,
             "Regular fries",
-            "Can of drink",
+            drinkOptions,
           );
         }
         optionGroups = [...optionGroups, ...buildBurgerSauceGroups(sauceItems), ...buildBurgerPaidExtrasGroup(extraItems)];

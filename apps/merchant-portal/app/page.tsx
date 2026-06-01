@@ -116,6 +116,7 @@ import {
   ensureStaffMenuSections,
   findExtrasLibrarySection,
   findSaladLibrarySection,
+  findSideSeasoningsLibrarySection,
   findSaucesLibrarySection,
   findMealLibrarySection,
   applyMealDealConfigToItem,
@@ -373,6 +374,7 @@ export default function MerchantPortalPage() {
   const extrasSection = useMemo(() => findExtrasLibrarySection(menuSections), [menuSections]);
   const saucesSection = useMemo(() => findSaucesLibrarySection(menuSections), [menuSections]);
   const saladSection = useMemo(() => findSaladLibrarySection(menuSections), [menuSections]);
+  const sideSeasoningsSection = useMemo(() => findSideSeasoningsLibrarySection(menuSections), [menuSections]);
   const mealSection = useMemo(() => findMealLibrarySection(menuSections), [menuSections]);
   const menuBoards = useMemo(() => readMenuBoardsConfig(menuSections).boards, [menuSections]);
   const editingMenuBoard = useMemo(
@@ -2746,6 +2748,29 @@ export default function MerchantPortalPage() {
                 updateMenuSections((current) =>
                   current.map((section) =>
                     section.id === saladSection.id
+                      ? { ...section, items: section.items.filter((item) => item.id !== itemId) }
+                      : section,
+                  ),
+                );
+              }}
+              sideSeasoningsSection={sideSeasoningsSection}
+              onAddSideSeasoning={(item) => {
+                if (!sideSeasoningsSection) {
+                  return;
+                }
+                updateMenuSections((current) =>
+                  current.map((section) =>
+                    section.id === sideSeasoningsSection.id ? { ...section, items: [...section.items, item] } : section,
+                  ),
+                );
+              }}
+              onRemoveSideSeasoning={(itemId) => {
+                if (!sideSeasoningsSection) {
+                  return;
+                }
+                updateMenuSections((current) =>
+                  current.map((section) =>
+                    section.id === sideSeasoningsSection.id
                       ? { ...section, items: section.items.filter((item) => item.id !== itemId) }
                       : section,
                   ),

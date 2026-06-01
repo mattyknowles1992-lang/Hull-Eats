@@ -8,6 +8,7 @@ const MEAL_DISABLED_MARKER = /__HULL_MEAL_DISABLED__/;
 const PART_CHOICE_MARKER = /^__HULL_PART_CHOICE:(burger|kebab):([a-z0-9_-]+)__$/;
 const SALAD_INCLUDED_MARKER = /__HULL_SALAD_INCLUDED__/;
 const SALAD_EXTRA_MARKER = /__HULL_SALAD_EXTRA__/;
+const SIDE_SEASONINGS_MARKER = /__HULL_SIDE_SEASONINGS__/;
 
 export const MEAL_ON_ITS_OWN_LABEL = "On its own";
 
@@ -48,7 +49,8 @@ export function usesBurgerAddSheet(item: MenuItem): boolean {
       MEAL_CHOICE_MARKER.test(description) ||
       PART_CHOICE_MARKER.test(description.trim()) ||
       SALAD_INCLUDED_MARKER.test(description) ||
-      SALAD_EXTRA_MARKER.test(description)
+      SALAD_EXTRA_MARKER.test(description) ||
+      SIDE_SEASONINGS_MARKER.test(description)
     );
   });
 }
@@ -128,6 +130,10 @@ function groupSortRank(group: MenuItem["optionGroups"][number]): number {
     return 4;
   }
 
+  if (SIDE_SEASONINGS_MARKER.test(description)) {
+    return 41;
+  }
+
   if (SAUCES_INCLUDED_MARKER.test(description)) {
     return 5;
   }
@@ -162,6 +168,9 @@ export function getAddSheetGroupTitle(group: MenuItem["optionGroups"][number]): 
   }
   if (EXTRAS_MARKER.test(description)) {
     return "Extras";
+  }
+  if (SIDE_SEASONINGS_MARKER.test(description)) {
+    return "Seasoning";
   }
 
   const partChoice = parsePartChoiceSlot(group);

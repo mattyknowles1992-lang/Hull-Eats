@@ -81,6 +81,26 @@ describe("store-menu-add-sheet-helpers", () => {
     expect(groups.map((group) => group.id)).toEqual(["meal", "sauce", "extras"]);
   });
 
+  it("recognises side seasonings and titles the group for customers", () => {
+    const item = baseItem({
+      optionGroups: [
+        {
+          id: "seasoning",
+          name: "Seasoning",
+          description: "__HULL_SIDE_SEASONINGS__",
+          selectionMode: "multiple",
+          isRequired: false,
+          minSelections: 0,
+          maxSelections: null,
+          showWhenValueIds: [],
+          options: [{ id: "salt", label: "Salt", description: "", priceDelta: 0, isDefault: false, maxQuantity: 1 }],
+        },
+      ],
+    });
+    expect(usesBurgerAddSheet(item)).toBe(true);
+    expect(getAddSheetGroupTitle(item.optionGroups[0]!)).toBe("Seasoning");
+  });
+
   it("uses add sheet for any item with option groups", () => {
     const item = baseItem({
       optionGroups: [

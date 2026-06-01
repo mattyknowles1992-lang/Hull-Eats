@@ -25,6 +25,7 @@ import {
 } from "../../../../src/lib/basket";
 import { createCheckoutSession, placeCheckoutOrder } from "../../../../src/lib/api";
 import { playOrderSuccessDelight, saveActiveOrderSnapshot } from "../../../../src/lib/customer-experience";
+import { useModalScrollLock } from "../../../../src/lib/use-modal-scroll-lock";
 import { StoreMenuAddSheet } from "../store-menu-add-sheet";
 import { usesItemAddSheet } from "../store-menu-add-sheet-helpers";
 import {
@@ -85,6 +86,9 @@ export function KioskMenuClient({ storeId, storeSlug, storeName, categories }: K
 
     return () => document.removeEventListener("fullscreenchange", syncFullscreen);
   }, []);
+
+  const customiseModalOpen = Boolean(activeItem) || Boolean(activeMealDeal);
+  useModalScrollLock(customiseModalOpen);
 
   const visibleCategories = useMemo(
     () => categories.filter((category) => activeCategoryId === "all" || category.id === activeCategoryId),

@@ -7,6 +7,7 @@ import { createPortal } from "react-dom";
 import type { MenuItem, StoreSummary, StorefrontPromotionBanner } from "@hull-eats/types";
 import { customerFacingMenuItemDescription, customerFacingOptionDescription, parseExtraIncludedQuantity } from "@hull-eats/types";
 
+import { useModalScrollLock } from "../../../src/lib/use-modal-scroll-lock";
 import {
   addConfiguredItemToBasket,
   addMealDealToBasket,
@@ -386,39 +387,8 @@ export function StoreMenuClient({
     setIsClient(true);
   }, []);
 
-  useEffect(() => {
-    if (!activeItem || !selection) {
-      return;
-    }
-
-    const scrollY = window.scrollY;
-    const previousOverflow = document.body.style.overflow;
-    const previousPosition = document.body.style.position;
-    const previousTop = document.body.style.top;
-    const previousLeft = document.body.style.left;
-    const previousRight = document.body.style.right;
-    const previousWidth = document.body.style.width;
-    const previousHtmlTouchAction = document.documentElement.style.touchAction;
-
-    document.documentElement.style.touchAction = "none";
-    document.body.style.overflow = "hidden";
-    document.body.style.position = "fixed";
-    document.body.style.top = `-${scrollY}px`;
-    document.body.style.left = "0";
-    document.body.style.right = "0";
-    document.body.style.width = "100%";
-
-    return () => {
-      document.documentElement.style.touchAction = previousHtmlTouchAction;
-      document.body.style.overflow = previousOverflow;
-      document.body.style.position = previousPosition;
-      document.body.style.top = previousTop;
-      document.body.style.left = previousLeft;
-      document.body.style.right = previousRight;
-      document.body.style.width = previousWidth;
-      window.scrollTo(0, scrollY);
-    };
-  }, [activeItem, selection]);
+  const customiseModalOpen = Boolean(activeItem) || Boolean(activeMealDeal);
+  useModalScrollLock(customiseModalOpen);
 
   useEffect(() => {
     if (!addedMessage) {

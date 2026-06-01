@@ -20,6 +20,14 @@ import {
   UserRole,
 } from "@prisma/client";
 
+import {
+  applyPizzaSizeTableToEncodedCategoryDescription,
+  applyStandardTestPizzaSizesToMenuItem,
+  buildStandardTestPizzaSizeTable,
+  encodeHubMenuCategoryDescription,
+} from "@hull-eats/types";
+import type { MenuItem } from "@hull-eats/types";
+
 import { prisma } from "../src/client";
 
 const money = (value: number): Prisma.Decimal => new Prisma.Decimal(value.toFixed(2));
@@ -237,16 +245,42 @@ async function main(): Promise<void> {
     },
   });
 
+  const testPizzaSizeTable = buildStandardTestPizzaSizeTable();
+  const pizzaCategoryDescription = applyPizzaSizeTableToEncodedCategoryDescription(
+    encodeHubMenuCategoryDescription("pizza", "Stone-baked pizzas"),
+    testPizzaSizeTable,
+  );
+
   const pizzaCategory = await prisma.menuCategory.upsert({
     where: { id: "menu-cat-pizza" },
-    update: { storeId: restaurantStore.id },
+    update: { storeId: restaurantStore.id, description: pizzaCategoryDescription },
     create: {
       id: "menu-cat-pizza",
       storeId: restaurantStore.id,
       name: "Signature Pizzas",
+      description: pizzaCategoryDescription,
       sortOrder: 1,
     },
   });
+
+  const sizedPizzaItem = (id: string, name: string, userDescription: string): MenuItem =>
+    applyStandardTestPizzaSizesToMenuItem({
+      id,
+      categoryId: pizzaCategory.id,
+      name,
+      description: `__HULL_PIZZA_KIND:pizza__\n${userDescription}`,
+      price: 10,
+      isActive: true,
+      trackStock: false,
+      stockQuantity: null,
+      stockStatus: "in_stock",
+      allowBackorder: false,
+      maxPerOrder: null,
+      requiresIdVerification: false,
+      sortOrder: 0,
+      components: [],
+      optionGroups: [],
+    });
 
   const martCategory = await prisma.menuCategory.upsert({
     where: { id: "menu-cat-snacks" },
@@ -313,6 +347,12 @@ async function main(): Promise<void> {
     },
   });
 
+  const margheritaSized = sizedPizzaItem(
+    "item-margherita",
+    "Margherita",
+    "Stone-baked with mozzarella and basil",
+  );
+
   const margherita = await prisma.menuItem.upsert({
     where: { id: "item-margherita" },
     update: {
@@ -321,20 +361,30 @@ async function main(): Promise<void> {
       trackStock: false,
       stockStatus: StockStatus.IN_STOCK,
       sortOrder: 1,
+      price: money(margheritaSized.price),
+      description: margheritaSized.description,
+      customisationConfig: { components: [], optionGroups: margheritaSized.optionGroups },
     },
     create: {
       id: "item-margherita",
       categoryId: pizzaCategory.id,
       primaryImageAssetId: pizzaImage.id,
       name: "Margherita",
-      description: "Stone-baked with mozzarella and basil",
-      price: money(11.5),
+      description: margheritaSized.description,
+      price: money(margheritaSized.price),
+      customisationConfig: { components: [], optionGroups: margheritaSized.optionGroups },
       isFeatured: true,
       trackStock: false,
       stockStatus: StockStatus.IN_STOCK,
       sortOrder: 1,
     },
   });
+
+  const hotHoneySized = sizedPizzaItem(
+    "item-hot-honey",
+    "Hot Honey Pepperoni",
+    "Pepperoni, hot honey glaze, mozzarella, oregano",
+  );
 
   const hotHoney = await prisma.menuItem.upsert({
     where: { id: "item-hot-honey" },
@@ -348,14 +398,18 @@ async function main(): Promise<void> {
       allowBackorder: false,
       maxPerOrder: 2,
       sortOrder: 2,
+      price: money(hotHoneySized.price),
+      description: hotHoneySized.description,
+      customisationConfig: { components: [], optionGroups: hotHoneySized.optionGroups },
     },
     create: {
       id: "item-hot-honey",
       categoryId: pizzaCategory.id,
       primaryImageAssetId: hotHoneyImage.id,
       name: "Hot Honey Pepperoni",
-      description: "Pepperoni, hot honey glaze, mozzarella, oregano",
-      price: money(13.9),
+      description: hotHoneySized.description,
+      price: money(hotHoneySized.price),
+      customisationConfig: { components: [], optionGroups: hotHoneySized.optionGroups },
       isFeatured: true,
       trackStock: true,
       stockQuantity: 4,
