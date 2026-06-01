@@ -7,6 +7,7 @@ import { prisma } from "@hull-eats/db";
 import { StoreType } from "@prisma/client";
 
 import { buildCheekyChickenMenuSections, buildCheekyChickenDeliveryConfig, buildCheekyChickenOpeningHours, CHEEKY_CHICKEN_BUSINESS, CHEEKY_CHICKEN_HUB } from "./cheeky-chicken-menu-data.js";
+import { activateCheekyChickenStoreMenu } from "./activate-cheeky-chicken-menu.js";
 import { loadRootEnv } from "./env.js";
 
 function slugify(value: string): string {
@@ -230,6 +231,8 @@ async function main() {
   await persistStoreOpeningHours(store.id);
   await persistMenuSections(store.id, menuSections);
 
+  const activation = await activateCheekyChickenStoreMenu(store.id);
+
   const itemCount = menuSections.reduce((total, section) => total + section.items.length, 0);
   const customerCategories = menuSections.filter((section) => !section.presetKey?.includes("library")).length;
 
@@ -242,7 +245,8 @@ async function main() {
   console.log(`  Login email: ${ownerEmail}`);
   console.log(`  Password: ${CHEEKY_CHICKEN_HUB.password}`);
   console.log(`  Menu sections: ${menuSections.length} (${customerCategories} customer categories)`);
-  console.log(`  Menu items: ${itemCount}`);
+  console.log(`  Menu items: ${itemCount} (${activation.itemsUpdated} saved live)`);
+  console.log(`  Hidden items in DB: ${activation.hiddenAfter}`);
   console.log(`  Meal upgrade: £${CHEEKY_CHICKEN_HUB.mealUpgradePrice.toFixed(2)} (Regular fries & can)`);
   console.log(`  Min order: £${CHEEKY_CHICKEN_BUSINESS.minimumOrderAmount.toFixed(2)}`);
   console.log(`  Delivery from: £${CHEEKY_CHICKEN_BUSINESS.deliveryFee.toFixed(2)} (${CHEEKY_CHICKEN_BUSINESS.deliveryDistanceRanges.length} distance tiers)`);

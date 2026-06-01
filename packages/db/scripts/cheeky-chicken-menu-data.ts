@@ -631,7 +631,7 @@ function buildMenuItem(input: {
     name: input.name,
     description: input.description ?? "",
     price: input.price,
-    isActive: input.isActive ?? false,
+    isActive: input.isActive ?? true,
     trackStock: false,
     stockQuantity: null,
     stockStatus: "in_stock",
