@@ -249,7 +249,7 @@ export function StoreMenuMealDealSheet({
             <textarea
               className="form-input form-textarea add-sheet-textarea"
               value={specialInstructions}
-              placeholder="Example: No pepper / sugar / salt please."
+              placeholder="Please leave any instructions here"
               rows={2}
               onChange={(event) => onSpecialInstructionsChange(event.target.value)}
             />

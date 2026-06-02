@@ -275,7 +275,13 @@ export function StoreMenuClient({
     setActiveItem(null);
     setSelection(null);
     setBasketExpanded(false);
-  }, [storeIsOpenNow]);
+
+    // Store is closed now (past configured opening hours) — drop stale basket for this store.
+    if (basket && basket.items.length > 0) {
+      clearBasket(storeSlug);
+      setAddedMessage("Basket cleared because this business is now closed.");
+    }
+  }, [storeIsOpenNow, basket, storeSlug]);
 
   useEffect(() => {
     const saved = getFulfillmentForStore(storeSlug);
@@ -1313,7 +1319,7 @@ export function StoreMenuClient({
               <textarea
                 className="form-input form-textarea"
                 value={specialInstructions}
-                placeholder="Example: No pepper / sugar / salt please."
+                placeholder="Please leave any instructions here"
                 rows={2}
                 onChange={(event) => setSpecialInstructions(event.target.value)}
               />

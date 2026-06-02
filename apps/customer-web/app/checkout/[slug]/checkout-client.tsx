@@ -153,6 +153,16 @@ export function CheckoutClient({ store, menuItems, initialFulfillment = "deliver
   }, [store.slug]);
 
   useEffect(() => {
+    if (store.isOpen) {
+      return;
+    }
+    if (basket && basket.items.length > 0) {
+      clearBasket(store.slug);
+      setErrorMessage("This business is now closed, so your basket has been cleared.");
+    }
+  }, [store.isOpen, store.slug, basket]);
+
+  useEffect(() => {
     if (!placedOrder?.order.customerCancelUntil || placedOrder.order.status === "cancelled") {
       return;
     }

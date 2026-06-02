@@ -21,6 +21,7 @@
     "db:provision-east-hull-pizza": "tsx scripts/provision-east-hull-pizza-hub.ts",
     "db:apply-test-pizza-sizes": "tsx scripts/apply-test-pizza-sizes-all-hubs.ts",
     "db:apply-pizza-category-extras": "tsx scripts/apply-pizza-category-extras-all-hubs.ts",
+    "db:backfill-menu-item-images": "tsx scripts/backfill-menu-item-images.ts",
     "db:provision-costa-coffee": "tsx scripts/provision-costa-coffee-hub.ts",
     "db:activate-cheeky-chicken-menu": "tsx scripts/activate-cheeky-chicken-menu.ts",
     "db:baseline": "tsx scripts/baseline-and-deploy.ts",
