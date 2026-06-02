@@ -9,7 +9,9 @@ import type {
   PrintJobPayload,
 } from "@hull-eats/types";
 import {
+  isStoreOpenInEuropeLondon,
   merchantDriverCashUpResponseSchema,
+  normalizeOpeningHours,
   orderSummarySchema,
   printJobPayloadSchema,
 } from "@hull-eats/types";
@@ -827,53 +829,23 @@ async function computeLiveMapAllowedForStore(storeId: string): Promise<{ allowed
     };
   }
 
-  const dowRows = await prisma.$queryRaw<Array<{ dow: number }>>`
-    SELECT EXTRACT(DOW FROM (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/London'))::int AS dow
-  `;
-  const dow = dowRows[0]?.dow ?? 0;
-  const row = hours.find((h) => h.dayOfWeek === dow);
+  const openingHours = normalizeOpeningHours(
+    hours.map((row) => ({
+      dayOfWeek: row.dayOfWeek,
+      isOpen: !row.isClosed,
+      openTime: row.openTime,
+      closeTime: row.closeTime,
+    })),
+  );
 
-  if (!row || row.isClosed) {
+  if (!isStoreOpenInEuropeLondon(openingHours)) {
     return {
       allowed: false,
-      message: "Outside today’s configured opening hours — live driver map is hidden. Customers can still track orders from their link.",
+      message: "Outside today’s opening window — live driver map is hidden until the next scheduled service time.",
     };
   }
 
-  const parseHm = (value: string) => {
-    const parts = value.split(":");
-    const hh = Number(parts[0]);
-    const mm = Number(parts[1] ?? "0");
-    return (Number.isFinite(hh) ? hh : 0) * 60 + (Number.isFinite(mm) ? mm : 0);
-  };
-
-  const londonParts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Europe/London",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).formatToParts(new Date());
-
-  const hour = Number(londonParts.find((p) => p.type === "hour")?.value ?? "0");
-  const minute = Number(londonParts.find((p) => p.type === "minute")?.value ?? "0");
-  const nowM = hour * 60 + minute;
-  const openM = parseHm(row.openTime);
-  const closeM = parseHm(row.closeTime);
-
-  if (closeM > openM) {
-    if (nowM >= openM && nowM < closeM) {
-      return { allowed: true };
-    }
-  } else {
-    if (nowM >= openM || nowM < closeM) {
-      return { allowed: true };
-    }
-  }
-
-  return {
-    allowed: false,
-    message: "Outside today’s opening window — live driver map is hidden until the next scheduled service time.",
-  };
+  return { allowed: true };
 }
 
 export const listMerchantDriverCashUp = async (hubId: string, period: MerchantDriverCashUpPeriod) => {

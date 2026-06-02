@@ -94,6 +94,10 @@ export const storeSummarySchema = z.object({
   city: z.string().min(1),
   postcode: z.string().min(1),
   isOpen: z.boolean(),
+  /** Minutes until today's service window ends (includes post-midnight close times). */
+  closesInMinutes: z.number().int().nonnegative().optional(),
+  /** Close time HH:mm in Europe/London for the active session. */
+  closesAtTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
   cuisineLabel: z.string().optional(),
   heroImageUrl: z.string().url().optional(),
   logoImageUrl: z.string().url().optional(),

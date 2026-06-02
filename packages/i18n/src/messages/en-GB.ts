@@ -213,7 +213,7 @@ export const enGBMessages = {
     shopPostcodeHint: "Used for your shop pin on the map and distance-based delivery fees.",
     shopPostcodePlaceholder: "e.g. HU5 1SN",
     openingTimesHint:
-      "Customers see open or closed on Hull Eats using these times in UK local time (Europe/London, GMT/BST).",
+      "UK local time (Europe/London). If you close after midnight, enter the early-morning time (e.g. open 16:00, close 01:00 for 4pm–1am). Use 00:00 only when you mean midnight at the end of the same day.",
     openLabel: "Open",
     weeklyScheduleAria: "Weekly opening schedule",
     noPingYet: "No ping yet",

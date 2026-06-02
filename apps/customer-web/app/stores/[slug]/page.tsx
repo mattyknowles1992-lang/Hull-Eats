@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { deliveryFeeFromForStorefront } from "@hull-eats/types";
+import { deliveryFeeFromForStorefront, formatClosesInLabel } from "@hull-eats/types";
 
 import { JsonLd } from "../../../src/components/json-ld";
 import { AppSwitcher } from "../../app-switcher";
@@ -42,6 +42,7 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
   const hasLiveMenu = menu.categories.length > 0 && menu.items.length > 0;
   const storeAddress = formatStoreAddress(store);
   const storeAcceptsOrders = store.isOpen;
+  const closesInLabel = storeAcceptsOrders ? formatClosesInLabel(store.closesInMinutes) : null;
 
   return (
     <main className="shell">
@@ -86,6 +87,7 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
           <div className="hero-meta">
             <span className="meta-pill">{store.cuisineLabel}</span>
             <span className="meta-pill">{store.etaMinutes} min delivery</span>
+            {closesInLabel ? <span className="meta-pill">{closesInLabel}</span> : null}
             <span className="meta-pill">
               Delivery from £{deliveryFeeFromForStorefront({ legacyDeliveryFee: store.deliveryFee, pricing: store.deliveryPricing }).toFixed(2)}
             </span>
@@ -122,6 +124,7 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
                 storeMinimumOrderAmount={store.minimumOrderAmount}
                 storeDeliveryPricing={store.deliveryPricing}
                 storeAcceptsOrders={storeAcceptsOrders}
+                storeClosesInMinutes={store.closesInMinutes}
                 categories={menu.categories}
                 activePromotions={activePromotions}
               />

@@ -5,7 +5,12 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import type { MenuItem, StoreSummary, StorefrontPromotionBanner } from "@hull-eats/types";
-import { customerFacingMenuItemDescription, customerFacingOptionDescription, parseExtraIncludedQuantity } from "@hull-eats/types";
+import {
+  customerFacingMenuItemDescription,
+  customerFacingOptionDescription,
+  formatClosesInLabel,
+  parseExtraIncludedQuantity,
+} from "@hull-eats/types";
 
 import { useModalScrollLock } from "../../../src/lib/use-modal-scroll-lock";
 import {
@@ -72,6 +77,7 @@ type StoreMenuClientProps = {
   storeMinimumOrderAmount?: number;
   storeDeliveryPricing?: StoreSummary["deliveryPricing"];
   storeAcceptsOrders?: boolean;
+  storeClosesInMinutes?: number;
   categories: MenuCategory[];
   activePromotions?: StorefrontPromotionBanner[];
 };
@@ -212,6 +218,7 @@ export function StoreMenuClient({
   storeMinimumOrderAmount,
   storeDeliveryPricing,
   storeAcceptsOrders = true,
+  storeClosesInMinutes,
   categories,
   activePromotions = [],
 }: StoreMenuClientProps) {
@@ -223,6 +230,7 @@ export function StoreMenuClient({
   const [specialInstructions, setSpecialInstructions] = useState("");
   const [addedMessage, setAddedMessage] = useState("");
   const [storeIsOpenNow, setStoreIsOpenNow] = useState(storeAcceptsOrders);
+  const [closesInMinutes, setClosesInMinutes] = useState(storeClosesInMinutes);
   const [isClient, setIsClient] = useState(false);
   const [activeCategoryId, setActiveCategoryId] = useState("all");
   const [expandedCategoryIds, setExpandedCategoryIds] = useState<string[]>([]);
@@ -244,7 +252,8 @@ export function StoreMenuClient({
 
   useEffect(() => {
     setStoreIsOpenNow(storeAcceptsOrders);
-  }, [storeAcceptsOrders]);
+    setClosesInMinutes(storeClosesInMinutes);
+  }, [storeAcceptsOrders, storeClosesInMinutes]);
 
   useEffect(() => {
     let cancelled = false;
@@ -253,6 +262,7 @@ export function StoreMenuClient({
       const latestStore = await fetchMarketplaceStore(storeSlug);
       if (!cancelled) {
         setStoreIsOpenNow(Boolean(latestStore?.isOpen));
+        setClosesInMinutes(latestStore?.closesInMinutes);
       }
     };
 
@@ -789,6 +799,10 @@ export function StoreMenuClient({
           <h3>Not accepting orders right now</h3>
           <p>The business is either paused or outside its opening hours.</p>
         </article>
+      ) : formatClosesInLabel(closesInMinutes) ? (
+        <p className="store-open-until" role="status">
+          {formatClosesInLabel(closesInMinutes)}
+        </p>
       ) : null}
 
       {canChooseDelivery || canChooseCollection ? (

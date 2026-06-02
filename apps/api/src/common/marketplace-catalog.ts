@@ -9,6 +9,7 @@ import {
   enrichStorefrontMenuItem,
   getCategoryCustomerDescription,
   isMenuItemPriceListable,
+  getStoreOpeningSession,
   isStoreTakingOrdersNow,
   normaliseDeliveryPricingForServe,
   normalizeOpeningHours,
@@ -130,6 +131,7 @@ const mapStoreRow = (
   openingHours?: StoreOpeningHours,
 ): StoreSummary => {
   const takingOrdersNow = isStoreTakingOrdersNow(openingHours, store.storefrontStatus === "LIVE", store.isActive);
+  const openingSession = getStoreOpeningSession(openingHours);
   const homepageFeatured = Boolean(store.homepageFeatured && store.storefrontStatus === "LIVE" && store.isActive);
 
   return {
@@ -143,6 +145,8 @@ const mapStoreRow = (
     city: store.city,
     postcode: store.postcode,
     isOpen: takingOrdersNow,
+    closesInMinutes: takingOrdersNow ? openingSession.minutesUntilClose ?? undefined : undefined,
+    closesAtTime: takingOrdersNow ? openingSession.closesAtTime ?? undefined : undefined,
     cuisineLabel: store.cuisineLabel ?? undefined,
     heroImageUrl: store.heroImageUrl ?? undefined,
     etaMinutes: store.etaMinutes ?? undefined,
