@@ -9,11 +9,15 @@ import type {
   PrintJobPayload,
 } from "@hull-eats/types";
 import {
+  encodeLineCustomisationMarker,
+  formatKitchenTicketPreview,
   isStoreOpenInEuropeLondon,
   merchantDriverCashUpResponseSchema,
+  mergeLineFromOrderNotes,
   normalizeOpeningHours,
   orderSummarySchema,
   printJobPayloadSchema,
+  readKitchenTicketFromDeliveryConfig,
 } from "@hull-eats/types";
 import { Prisma } from "@prisma/client";
 
@@ -624,12 +628,10 @@ export const persistCheckoutOrder = async (
           requiresIdVerification: line.requiresIdVerification,
           notes: [
             line.notes,
-            line.removedComponents.length
-              ? `Removed: ${line.removedComponents.map((component) => component.label).join(", ")}`
-              : "",
-            line.selectedOptions.length
-              ? `Options: ${line.selectedOptions.map((option) => `${option.valueName} x${option.quantity}`).join(", ")}`
-              : "",
+            encodeLineCustomisationMarker({
+              components: line.components,
+              selectedOptions: line.selectedOptions,
+            }),
           ]
             .filter(Boolean)
             .join(" | "),
@@ -1187,6 +1189,7 @@ export const buildMerchantOrderReceipt = async (hubId: string, orderId: string) 
   }
 
   const printerId = order.store.printers[0]?.id ?? "preview-printer";
+  const kitchenTicket = readKitchenTicketFromDeliveryConfig(order.store.deliveryConfig);
   const payload = printJobPayloadSchema.parse({
     orderId: order.id,
     storeId: order.storeId,
@@ -1199,18 +1202,48 @@ export const buildMerchantOrderReceipt = async (hubId: string, orderId: string) 
     placedAtIso: order.placedAt.toISOString(),
     prepTimeMinutes: order.prepTimeMinutes,
     notes: order.notes ?? undefined,
-    lines: order.items.map((item) => ({
-      name: item.nameSnapshot,
-      quantity: item.quantity,
-      unitPrice: Number(item.unitPrice),
-      totalPrice: Number(item.totalPrice),
-      notes: item.notes ?? undefined,
-    })),
+    lines: order.items.map((item) => {
+      const merged = mergeLineFromOrderNotes(
+        {
+          name: item.nameSnapshot,
+          quantity: item.quantity,
+          unitPrice: Number(item.unitPrice),
+          totalPrice: Number(item.totalPrice),
+          notes: item.notes ?? undefined,
+        },
+        kitchenTicket,
+      );
+      return {
+        name: merged.name,
+        quantity: merged.quantity,
+        unitPrice: merged.unitPrice,
+        totalPrice: merged.totalPrice,
+        notes: merged.notes,
+        components: merged.components,
+        selectedOptions: merged.selectedOptions,
+      };
+    }),
   });
+
+  const ticketPayload = {
+    orderNumber: payload.orderNumber,
+    storeName: payload.storeName,
+    customerName: payload.customerName,
+    placedAtIso: payload.placedAtIso,
+    prepTimeMinutes: payload.prepTimeMinutes,
+    notes: payload.notes,
+    qrCodeData: payload.qrCodeData,
+    lines: payload.lines,
+  };
 
   return {
     payload,
-    preview: formatDeliveryReceiptPreview(payload, order),
+    preview: formatKitchenTicketPreview("delivery", kitchenTicket, ticketPayload, order, {
+      hubLogoUrl: order.store.logoAssetId ?? "",
+    }),
+    kitchenPreview: formatKitchenTicketPreview("kitchen", kitchenTicket, ticketPayload, order, {
+      hubLogoUrl: order.store.logoAssetId ?? "",
+    }),
     hasConfiguredPrinter: order.store.printers.length > 0,
   };
 };

@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { defaultKitchenTicketSettings, kitchenTicketSettingsSchema } from "./kitchen-ticket";
+
 import {
   deliveryDistanceRangeSchema,
   deliveryModeSchema,
@@ -119,6 +121,8 @@ export const hubSettingsSchema = z.object({
   orderFulfillment: hubOrderFulfillmentSchema.default("delivery_and_collection"),
   /** Weekly open/close times in Europe/London (Hull, UK). */
   openingHours: storeOpeningHoursSchema,
+  /** Kitchen and delivery print ticket layout (also gates burger/kebab parts libraries when in-depth). */
+  kitchenTicket: kitchenTicketSettingsSchema.default(defaultKitchenTicketSettings()),
 });
 
 const optionalHttpUrl = z.preprocess((value) => {

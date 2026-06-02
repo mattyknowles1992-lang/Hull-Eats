@@ -18,6 +18,7 @@ import {
   normaliseDeliveryPricing,
   normalizeHubPortalLocale,
   normalizeOpeningHours,
+  readKitchenTicketFromDeliveryConfig,
   sanitizeHubMenuSectionMoneyFields,
   sanitizeMenuItemMoneyFields,
   sanitizeMenuMoneyAmount,
@@ -1798,6 +1799,7 @@ export class HubRegistryService {
       originLatitude: settings.deliveryOriginLatitude ?? null,
       originLongitude: settings.deliveryOriginLongitude ?? null,
       orderFulfillment: settings.orderFulfillment,
+      kitchenTicket: settings.kitchenTicket,
     };
   }
 
@@ -1811,6 +1813,7 @@ export class HubRegistryService {
     | "deliveryOriginLatitude"
     | "deliveryOriginLongitude"
     | "orderFulfillment"
+    | "kitchenTicket"
   > {
     const cfg = normaliseDeliveryPricing(store.deliveryConfig ?? {});
     return {
@@ -1828,6 +1831,7 @@ export class HubRegistryService {
       deliveryOriginLatitude: cfg.originLatitude ?? null,
       deliveryOriginLongitude: cfg.originLongitude ?? null,
       orderFulfillment: cfg.orderFulfillment,
+      kitchenTicket: readKitchenTicketFromDeliveryConfig(store.deliveryConfig),
     };
   }
 

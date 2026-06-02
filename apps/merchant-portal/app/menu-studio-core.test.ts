@@ -4,11 +4,21 @@ import type { HubMenuSection } from "@hull-eats/types";
 
 import {
   applyCategoryExtrasAssignment,
+  buildLocalMenuItem,
   computeMenuPublishIssues,
   detachItemFromCategoryExtras,
+  encodeExtrasGroupDescription,
+  encodeMealLibraryItemDescription,
+  emptyMealDealEditorConfig,
+  getMealTemplateFromItem,
   getItemExtrasCategoryId,
+  isItemManagedByActiveCategoryExtras,
   normalizeMenuSectionsForPortal,
+  readMealDealEditorConfig,
+  resolveMealDealItems,
+  syncMealDealEditorConfigFromItems,
   updateExtrasLibraryItemPrice,
+  type PickableMenuProduct,
 } from "./menu-studio-core";
 
 describe("normalizeMenuSectionsForPortal", () => {
@@ -188,5 +198,220 @@ describe("applyCategoryExtrasAssignment", () => {
     const detached = detachItemFromCategoryExtras(updated, "burger-1");
     expect(getItemExtrasCategoryId(detached[1]!.items[0]!)).toBeNull();
     expect(detached[1]!.items[0]!.optionGroups.some((group) => group.description?.includes("__HULL_EXTRAS__"))).toBe(true);
+  });
+
+  it("falls back to per-item extras when category assignment has no toppings selected", () => {
+    const extraId = "extra-jalapeno";
+    const sections = [
+      {
+        id: "extras",
+        name: "Extra toppings",
+        description: "",
+        presetKey: "extras-library",
+        items: [
+          {
+            id: "hull-category-extras-config",
+            categoryId: "extras",
+            name: "Category extras data",
+            description: "__HULL_CATEGORY_EXTRAS:{\"assignments\":[]}__",
+            price: 0,
+            isActive: false,
+            components: [],
+            optionGroups: [],
+          },
+          { id: extraId, categoryId: "extras", name: "Jalapeno", description: "", price: 0.5, isActive: true, components: [], optionGroups: [] },
+        ],
+      },
+      {
+        id: "pizzas",
+        name: "Pizzas",
+        description: "",
+        items: [
+          {
+            id: "pizza-1",
+            categoryId: "pizzas",
+            name: "Margherita",
+            description: "",
+            price: 10,
+            isActive: true,
+            components: [],
+            optionGroups: [
+              {
+                id: "extras-individual",
+                name: "Added extras",
+                description: encodeExtrasGroupDescription(),
+                selectionMode: "multiple",
+                isRequired: false,
+                minSelections: 0,
+                maxSelections: null,
+                showWhenValueIds: [],
+                options: [
+                  {
+                    id: extraId,
+                    label: "Jalapeno",
+                    description: "",
+                    priceDelta: 0.5,
+                    isDefault: false,
+                    maxQuantity: 3,
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ] as unknown as HubMenuSection[];
+
+    const toppings = [{ id: extraId, label: "Jalapeno", price: 0.5 }];
+    const updated = applyCategoryExtrasAssignment(
+      sections,
+      {
+        categoryId: "pizzas",
+        paidExtraIds: [],
+        includedQtyById: {},
+        maxAddMoreById: {},
+        priceById: {},
+        itemIds: ["pizza-1"],
+      },
+      toppings,
+    );
+
+    const pizza = updated[1]!.items[0]!;
+    expect(getItemExtrasCategoryId(pizza)).toBeNull();
+    expect(isItemManagedByActiveCategoryExtras(updated, pizza, "pizzas")).toBe(false);
+    expect(pizza.optionGroups[0]?.options[0]?.label).toBe("Jalapeno");
+  });
+
+  it("does not lock items that still use per-item-only extras while listed on a category assignment", () => {
+    const extraId = "extra-ham";
+    const sections = [
+      {
+        id: "extras",
+        name: "Extra toppings",
+        description: "",
+        presetKey: "extras-library",
+        items: [
+          {
+            id: "hull-category-extras-config",
+            categoryId: "extras",
+            name: "Category extras data",
+            description: `__HULL_CATEGORY_EXTRAS:${JSON.stringify({
+              assignments: [
+                {
+                  categoryId: "burgers",
+                  paidExtraIds: [extraId],
+                  includedQtyById: {},
+                  maxAddMoreById: { [extraId]: 3 },
+                  priceById: { [extraId]: 1 },
+                  itemIds: ["burger-1"],
+                },
+              ],
+            })}__`,
+            price: 0,
+            isActive: false,
+            components: [],
+            optionGroups: [],
+          },
+          { id: extraId, categoryId: "extras", name: "Ham", description: "", price: 1, isActive: true, components: [], optionGroups: [] },
+        ],
+      },
+      {
+        id: "burgers",
+        name: "Burgers",
+        description: "",
+        items: [
+          {
+            id: "burger-1",
+            categoryId: "burgers",
+            name: "Classic",
+            description: "",
+            price: 7,
+            isActive: true,
+            components: [],
+            optionGroups: [
+              {
+                id: "extras-individual",
+                name: "Added extras",
+                description: encodeExtrasGroupDescription(),
+                selectionMode: "multiple",
+                isRequired: false,
+                minSelections: 0,
+                maxSelections: null,
+                showWhenValueIds: [],
+                options: [
+                  {
+                    id: extraId,
+                    label: "Ham",
+                    description: "",
+                    priceDelta: 0.9,
+                    isDefault: false,
+                    maxQuantity: 2,
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ] as unknown as HubMenuSection[];
+
+    const burger = sections[1]!.items[0]!;
+    expect(isItemManagedByActiveCategoryExtras(sections, burger, "burgers")).toBe(false);
+  });
+});
+
+describe("meal deal category pools", () => {
+  const products: PickableMenuProduct[] = [
+    { id: "coke", name: "Coke", price: 1.5, categoryId: "drinks", categoryName: "Drinks" },
+    { id: "red-bull", name: "Red Bull", price: 2.5, categoryId: "drinks", categoryName: "Drinks" },
+    { id: "fries", name: "Fries", price: 2, categoryId: "sides", categoryName: "Sides" },
+  ];
+
+  it("expands all drinks from a linked category with default extra £", () => {
+    const config = {
+      ...emptyMealDealEditorConfig(),
+      drinkCategoryPools: [{ categoryId: "drinks", defaultPriceDelta: 2.5 }],
+    };
+    const items = resolveMealDealItems(config, products);
+    expect(items.filter((item) => item.slot === "drink")).toHaveLength(2);
+    expect(items.find((item) => item.menuItemId === "red-bull")?.priceDelta).toBe(2.5);
+  });
+
+  it("persists category pools in meal library description", () => {
+    const config = {
+      ...emptyMealDealEditorConfig(),
+      drinkCategoryPools: [{ categoryId: "drinks", defaultPriceDelta: 1 }],
+    };
+    const item = buildLocalMenuItem({
+      categoryId: "meals",
+      name: "Make it a Meal",
+      description: encodeMealLibraryItemDescription(config),
+      price: 3,
+      requiresIdVerification: false,
+      components: [],
+      optionGroups: [],
+    });
+    const roundTrip = readMealDealEditorConfig(item);
+    expect(roundTrip.drinkCategoryPools).toEqual([{ categoryId: "drinks", defaultPriceDelta: 1 }]);
+    const template = getMealTemplateFromItem(item, products);
+    expect(template.drinks.map((drink) => drink.menuItemId)).toEqual(["coke", "red-bull"]);
+  });
+
+  it("excludes a drink removed from the resolved list", () => {
+    const config = {
+      ...emptyMealDealEditorConfig(),
+      drinkCategoryPools: [{ categoryId: "drinks" }],
+    };
+    const resolved = resolveMealDealItems(config, products);
+    const redBull = resolved.find((item) => item.menuItemId === "red-bull");
+    expect(redBull).toBeDefined();
+    const next = syncMealDealEditorConfigFromItems(
+      config,
+      resolved.filter((item) => item.menuItemId !== "red-bull"),
+      products,
+    );
+    const after = resolveMealDealItems(next, products);
+    expect(after.some((item) => item.menuItemId === "red-bull")).toBe(false);
+    expect(after.some((item) => item.menuItemId === "coke")).toBe(true);
   });
 });

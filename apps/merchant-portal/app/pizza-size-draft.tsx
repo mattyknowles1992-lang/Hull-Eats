@@ -335,6 +335,25 @@ export function isPizzaSizeOptionGroup(group: MenuItem["optionGroups"][number]):
   return group.isRequired && /size/i.test(group.name);
 }
 
+export function findPizzaSizeRowForColumn(
+  rows: PizzaSizeRow[],
+  column: PizzaSizeColumnDef,
+): PizzaSizeRow | undefined {
+  const byKey = rows.find((row) => row.key === column.key);
+  if (byKey) {
+    return byKey;
+  }
+  const byLabel = rows.find((row) => row.label === column.label);
+  if (byLabel) {
+    return byLabel;
+  }
+  const columnInches = parsePizzaSizeInches(column.label);
+  if (columnInches == null) {
+    return undefined;
+  }
+  return rows.find((row) => parsePizzaSizeInches(row.label) === columnInches);
+}
+
 export function pizzaSizeRowsForItem(item: MenuItem, columns: PizzaSizeColumnDef[]): PizzaSizeRow[] {
   const sizeGroup = item.optionGroups.find((group) => isPizzaSizeOptionGroup(group));
   const rows: PizzaSizeRow[] = columns.map((column) => ({
@@ -347,6 +366,12 @@ export function pizzaSizeRowsForItem(item: MenuItem, columns: PizzaSizeColumnDef
   const rowByLabel = new Map(rows.map((row) => [row.label, row]));
 
   if (!sizeGroup) {
+    const basePrice = sanitizeMenuMoneyAmount(item.price);
+    if (basePrice > 0 && rows.length > 0) {
+      return rows.map((row, index) =>
+        index === 0 ? { ...row, selected: true, price: String(basePrice) } : { ...row, selected: false, price: "" },
+      );
+    }
     return rows;
   }
 
@@ -356,9 +381,15 @@ export function pizzaSizeRowsForItem(item: MenuItem, columns: PizzaSizeColumnDef
     }
     const label = normalizePizzaSizeLabel(option.label);
     const fullPrice = Number((item.price + option.priceDelta).toFixed(2));
-    const existing = rowByLabel.get(label);
+    let existing = rowByLabel.get(label);
+    if (!existing) {
+      const inches = parsePizzaSizeInches(label);
+      if (inches != null) {
+        existing = rows.find((row) => parsePizzaSizeInches(row.label) === inches);
+      }
+    }
     if (existing) {
-      rowByLabel.set(label, {
+      rowByLabel.set(existing.label, {
         ...existing,
         selected: true,
         price: String(fullPrice),

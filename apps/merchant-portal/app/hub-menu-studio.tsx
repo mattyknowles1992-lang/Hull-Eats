@@ -4,6 +4,7 @@ import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { HubMenuSection, HubSettings, MenuItem } from "@hull-eats/types";
+import { composePartsLibrariesEnabled } from "@hull-eats/types";
 import {
   HUB_MENU_CATEGORY_CUSTOM_ID,
   hubMenuCategorySelectOptions,
@@ -22,6 +23,7 @@ import { HubMenuSaladLibrary } from "./hub-menu-salad-library";
 import { HubMenuSideSeasoningsLibrary } from "./hub-menu-side-seasonings-library";
 import { HubMenuSaucesLibrary } from "./hub-menu-sauces-library";
 import { HubMenuOrderTicketBuilder } from "./hub-menu-order-ticket-builder";
+import { HubMenuComposePartsPanel } from "./hub-menu-compose-parts-panel";
 import { HubMenuPizzaOrderBuilder } from "./hub-menu-pizza-order-builder";
 import { HubMenuItemSubGroupField } from "./hub-menu-item-subgroup-field";
 import { HubMenuPublishDialog } from "./hub-menu-publish-dialog";
@@ -35,7 +37,7 @@ import {
   formatMenuMoney,
   getCategoryItemBuilderMode,
   getHubExtraToppingsFromSection,
-  getItemExtrasCategoryId,
+  isItemManagedByActiveCategoryExtras,
   getHubSaucesFromSection,
   getHubSaladsFromSection,
   getHubSideSeasoningsFromSection,
@@ -129,6 +131,12 @@ type HubMenuStudioProps = {
   saladSection: HubMenuSection | null;
   sideSeasoningsSection: HubMenuSection | null;
   mealSection: HubMenuSection | null;
+  burgerPartsSection?: HubMenuSection | null;
+  kebabPartsSection?: HubMenuSection | null;
+  onAddBurgerPart?: (item: MenuItem) => void;
+  onAddKebabPart?: (item: MenuItem) => void;
+  onRemoveBurgerPart?: (itemId: string) => void;
+  onRemoveKebabPart?: (itemId: string) => void;
   onAddExtraTopping: (item: MenuItem) => void;
   onUpdateExtraToppingPrice: (itemId: string, price: number) => void;
   onRemoveExtraTopping: (itemId: string) => void;
@@ -216,6 +224,12 @@ export function HubMenuStudio({
   saladSection,
   sideSeasoningsSection,
   mealSection,
+  burgerPartsSection = null,
+  kebabPartsSection = null,
+  onAddBurgerPart,
+  onAddKebabPart,
+  onRemoveBurgerPart,
+  onRemoveKebabPart,
   onAddExtraTopping,
   onUpdateExtraToppingPrice,
   onRemoveExtraTopping,
@@ -265,11 +279,15 @@ export function HubMenuStudio({
   const editingPizzaItem = Boolean(selectedItem && (categoryIsPizza || isHubMenuSectionPizza(creatingItemSection)));
   const [editPizzaSizeRows, setEditPizzaSizeRows] = useState<PizzaSizeRow[]>(() => createInitialPizzaSizeRows());
   const mealTemplates = getHubMealTemplatesFromSection(mealSection, menuSections);
-  const selectedItemExtrasCategoryId = selectedItem ? getItemExtrasCategoryId(selectedItem) : null;
-  const selectedItemExtrasCategoryName =
-    selectedItemExtrasCategoryId != null
-      ? (menuSections.find((section) => section.id === selectedItemExtrasCategoryId)?.name ?? "category")
-      : null;
+  const composePartsEnabled = composePartsLibrariesEnabled(hubSettings.kitchenTicket);
+  const selectedItemManagedByCategoryExtras = Boolean(
+    selectedItem &&
+      selectedCategory &&
+      isItemManagedByActiveCategoryExtras(menuSections, selectedItem, selectedCategory.id),
+  );
+  const selectedItemExtrasCategoryName = selectedItemManagedByCategoryExtras
+    ? (selectedCategory?.name ?? "category")
+    : null;
   const creatingItemIsPizza = isHubMenuSectionPizza(creatingItemSection);
   const creatingItemBuilderMode = getCategoryItemBuilderMode(creatingItemSection ?? selectedCategory);
 
@@ -512,6 +530,26 @@ export function HubMenuStudio({
                       onAddSeasoning={onAddSideSeasoning}
                       onRemoveSeasoning={onRemoveSideSeasoning}
                       readOnly={studioLocked}
+                    />
+                  ) : null}
+                  {composePartsEnabled && burgerPartsSection && onAddBurgerPart && onRemoveBurgerPart ? (
+                    <HubMenuComposePartsPanel
+                      line="burger"
+                      section={burgerPartsSection}
+                      extras={hubExtraToppings}
+                      readOnly={studioLocked}
+                      onAddPart={onAddBurgerPart}
+                      onRemovePart={onRemoveBurgerPart}
+                    />
+                  ) : null}
+                  {composePartsEnabled && kebabPartsSection && onAddKebabPart && onRemoveKebabPart ? (
+                    <HubMenuComposePartsPanel
+                      line="kebab"
+                      section={kebabPartsSection}
+                      extras={hubExtraToppings}
+                      readOnly={studioLocked}
+                      onAddPart={onAddKebabPart}
+                      onRemovePart={onRemoveKebabPart}
                     />
                   ) : null}
                 </div>
@@ -1017,7 +1055,7 @@ export function HubMenuStudio({
                     readOnly={studioLocked}
                     extrasManagedByCategoryName={selectedItemExtrasCategoryName}
                     onDetachFromCategoryExtras={
-                      selectedItemExtrasCategoryId && onDetachItemFromCategoryExtras
+                      selectedItemManagedByCategoryExtras && onDetachItemFromCategoryExtras
                         ? () => onDetachItemFromCategoryExtras(selectedItem.id)
                         : undefined
                     }

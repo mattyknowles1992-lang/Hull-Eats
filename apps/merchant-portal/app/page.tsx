@@ -44,7 +44,9 @@ import {
   loadBrowserMenuDraft,
   saveBrowserMenuDraft,
 } from "./hub-menu-browser-draft";
+import { HubKitchenTicketSettings } from "./hub-kitchen-ticket-settings";
 import { HubMenuStudio } from "./hub-menu-studio";
+import { composePartsLibrariesEnabled } from "@hull-eats/types";
 import { HubTransientBanner } from "./hub-transient-banner";
 import { HE_BRAND } from "./portal-brand";
 import { friendlyCaughtError } from "./hub-merchant-errors";
@@ -114,7 +116,11 @@ import {
   customerFacingMenuSections,
   type MenuPublishIssue,
   ensureStaffMenuSections,
+  ensureBurgerKebabPartsSections,
+  findBurgerPartsSection,
+  findKebabPartsSection,
   findExtrasLibrarySection,
+  buildPartLibraryItem,
   findSaladLibrarySection,
   findSideSeasoningsLibrarySection,
   findSaucesLibrarySection,
@@ -376,6 +382,9 @@ export default function MerchantPortalPage() {
   const saladSection = useMemo(() => findSaladLibrarySection(menuSections), [menuSections]);
   const sideSeasoningsSection = useMemo(() => findSideSeasoningsLibrarySection(menuSections), [menuSections]);
   const mealSection = useMemo(() => findMealLibrarySection(menuSections), [menuSections]);
+  const burgerPartsSection = useMemo(() => findBurgerPartsSection(menuSections), [menuSections]);
+  const kebabPartsSection = useMemo(() => findKebabPartsSection(menuSections), [menuSections]);
+  const composePartsEnabled = composePartsLibrariesEnabled(hubSettings.kitchenTicket);
   const menuBoards = useMemo(() => readMenuBoardsConfig(menuSections).boards, [menuSections]);
   const editingMenuBoard = useMemo(
     () => menuBoards.find((board) => board.id === editingMenuBoardId) ?? null,
@@ -2777,6 +2786,52 @@ export default function MerchantPortalPage() {
                 );
               }}
               mealSection={mealSection}
+              burgerPartsSection={burgerPartsSection}
+              kebabPartsSection={kebabPartsSection}
+              onAddBurgerPart={(item) => {
+                if (!burgerPartsSection) {
+                  return;
+                }
+                updateMenuSections((current) =>
+                  current.map((section) =>
+                    section.id === burgerPartsSection.id ? { ...section, items: [...section.items, item] } : section,
+                  ),
+                );
+              }}
+              onAddKebabPart={(item) => {
+                if (!kebabPartsSection) {
+                  return;
+                }
+                updateMenuSections((current) =>
+                  current.map((section) =>
+                    section.id === kebabPartsSection.id ? { ...section, items: [...section.items, item] } : section,
+                  ),
+                );
+              }}
+              onRemoveBurgerPart={(itemId) => {
+                if (!burgerPartsSection) {
+                  return;
+                }
+                updateMenuSections((current) =>
+                  current.map((section) =>
+                    section.id === burgerPartsSection.id
+                      ? { ...section, items: section.items.filter((item) => item.id !== itemId) }
+                      : section,
+                  ),
+                );
+              }}
+              onRemoveKebabPart={(itemId) => {
+                if (!kebabPartsSection) {
+                  return;
+                }
+                updateMenuSections((current) =>
+                  current.map((section) =>
+                    section.id === kebabPartsSection.id
+                      ? { ...section, items: section.items.filter((item) => item.id !== itemId) }
+                      : section,
+                  ),
+                );
+              }}
               onAddMealTemplate={(item) => {
                 if (!mealSection) {
                   return;
@@ -3093,6 +3148,21 @@ export default function MerchantPortalPage() {
                   onNotice={setSaveNotice}
                 />
               ) : null}
+
+              <HubKitchenTicketSettings
+                settings={hubSettings.kitchenTicket}
+                hubLogoUrl={hubSettings.logoImageUrl}
+                readOnly={!hubAccess?.canEditWorkspace}
+                onChange={(kitchenTicket) => {
+                  setHubSettings((current) => ({ ...current, kitchenTicket }));
+                  if (kitchenTicket.detailMode === "in_depth") {
+                    updateMenuSections((current) => ensureBurgerKebabPartsSections(current));
+                  }
+                }}
+                onEnableComposePartsLibraries={() => {
+                  updateMenuSections((current) => ensureBurgerKebabPartsSections(current));
+                }}
+              />
             </section>
           ) : null}
 

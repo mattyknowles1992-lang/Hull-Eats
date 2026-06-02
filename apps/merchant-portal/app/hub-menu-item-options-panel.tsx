@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties, DragEvent } from "react";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 
 import type { MenuItem } from "@hull-eats/types";
 
@@ -15,6 +15,7 @@ import {
   addItemOptionToGroup,
   applyExtraToppingsToItem,
   applyMealUpgradeToItem,
+  formatMealTemplatePickerLabel,
   applySaladToItem,
   applySideSeasoningsToItem,
   applySaucesToItem,
@@ -173,6 +174,7 @@ function ItemExtrasBlock({
   onUpdateItem: Props["onUpdateItem"];
 }) {
   const selection = getItemExtraToppingSelection(item);
+  const categoryLocked = Boolean(extrasManagedByCategoryName);
 
   const patch = (
     enabled: boolean,
@@ -182,7 +184,16 @@ function ItemExtrasBlock({
     maxAddMoreById: Map<string, number>,
   ) => {
     onUpdateItem((current) =>
-      applyExtraToppingsToItem(current, enabled, toppings, paidExtraIds, priceById, includedQtyById, maxAddMoreById),
+      applyExtraToppingsToItem(
+        current,
+        enabled,
+        toppings,
+        paidExtraIds,
+        priceById,
+        includedQtyById,
+        maxAddMoreById,
+        categoryLocked ? undefined : null,
+      ),
     );
   };
 
@@ -722,6 +733,7 @@ export function HubMenuItemOptionsPanel({
   const hasSalad = blocks.some((b) => b.kind === "salad");
   const hasSideSeasonings = blocks.some((b) => b.kind === "side_seasonings");
   const hasMeal = blocks.some((b) => b.kind === "meal");
+  const [mealTemplateIdToAdd, setMealTemplateIdToAdd] = useState(() => mealTemplates[0]?.id ?? "");
 
   const handleReorder = (from: number, to: number) => {
     onUpdateItem((current) => reorderItemOptionBlocks(current, from, to));
@@ -756,7 +768,7 @@ export function HubMenuItemOptionsPanel({
   };
 
   const addMealBlock = () => {
-    const template = mealTemplates[0];
+    const template = mealTemplates.find((entry) => entry.id === mealTemplateIdToAdd) ?? mealTemplates[0];
     if (!template) {
       return;
     }
@@ -847,9 +859,31 @@ export function HubMenuItemOptionsPanel({
             </button>
           ) : null}
           {!hasMeal && mealTemplates.length > 0 ? (
-            <button type="button" style={secondaryBtn} onClick={addMealBlock}>
-              + Make it a meal
-            </button>
+            mealTemplates.length === 1 ? (
+              <button type="button" style={secondaryBtn} onClick={addMealBlock}>
+                + Make it a meal
+              </button>
+            ) : (
+              <div style={mealAddRow}>
+                <label style={mealAddField}>
+                  <span style={fieldLabel}>Meal offer</span>
+                  <select
+                    style={input}
+                    value={mealTemplateIdToAdd || mealTemplates[0]?.id}
+                    onChange={(e) => setMealTemplateIdToAdd(e.target.value)}
+                  >
+                    {mealTemplates.map((template) => (
+                      <option key={template.id} value={template.id}>
+                        {formatMealTemplatePickerLabel(template)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button type="button" style={secondaryBtn} onClick={addMealBlock}>
+                  + Add meal offer
+                </button>
+              </div>
+            )
           ) : null}
         </div>
       )}
@@ -879,6 +913,8 @@ const headerMain: CSSProperties = { flex: 1, minWidth: 0, display: "grid", gap: 
 const blockTitle: CSSProperties = { fontSize: "0.95rem" };
 const blockMeta: CSSProperties = { fontSize: "0.78rem", color: "rgba(15, 17, 21, 0.55)", fontWeight: 600 };
 const addRow: CSSProperties = { display: "flex", flexWrap: "wrap", gap: 8 };
+const mealAddRow: CSSProperties = { display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-end", width: "100%" };
+const mealAddField: CSSProperties = { display: "grid", gap: 4, flex: "1 1 220px", minWidth: 200 };
 const secondaryBtn: CSSProperties = {
   minHeight: 40,
   padding: "0 14px",

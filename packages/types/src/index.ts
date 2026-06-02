@@ -20,6 +20,7 @@ export * from "./hub-menu-pizza-columns";
 export * from "./hub-menu-pizza-choices";
 export * from "./hub-menu-pizza-size-table";
 export * from "./hub-menu-subgroups";
+export * from "./kitchen-ticket";
 export * from "./merchant-drivers";
 export * from "./marketplace-resale";
 export * from "./orders";

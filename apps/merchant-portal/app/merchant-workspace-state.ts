@@ -1,5 +1,10 @@
 import type { HubMenuSection, HubSettings } from "@hull-eats/types";
-import { createDefaultHullPostcodeZones, createDefaultOpeningHours } from "@hull-eats/types";
+import {
+  createDefaultHullPostcodeZones,
+  createDefaultOpeningHours,
+  defaultKitchenTicketSettings,
+  normalizeKitchenTicketSettings,
+} from "@hull-eats/types";
 
 export type HubWorkspaceSnapshot = {
   settings: HubSettings;
@@ -30,6 +35,7 @@ export const emptyHubSettings: HubSettings = {
   deliveryOriginLongitude: null,
   orderFulfillment: "delivery_and_collection",
   openingHours: createDefaultOpeningHours(),
+  kitchenTicket: defaultKitchenTicketSettings(),
 };
 
 export const normalizeWorkspaceSettings = (settings: HubSettings): HubSettings => {
@@ -44,6 +50,7 @@ export const normalizeWorkspaceSettings = (settings: HubSettings): HubSettings =
     deliveryMileFees,
     deliveryPostcodeZones: postcodeZones.length > 0 ? postcodeZones : createDefaultHullPostcodeZones(),
     openingHours: openingHours.length === 7 ? openingHours : createDefaultOpeningHours(),
+    kitchenTicket: normalizeKitchenTicketSettings(settings.kitchenTicket),
   };
 };
 

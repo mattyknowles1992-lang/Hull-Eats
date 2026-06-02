@@ -1,5 +1,7 @@
 import type { HubMenuSection, MenuItem } from "@hull-eats/types";
 import {
+  categoryExtrasAssignmentIsActive,
+  itemHasIndividualExtrasGroup,
   decodeHubMenuCategoryDescription,
   encodeExtraIncludedQuantity,
   encodeHubMenuCategoryDescription,
@@ -116,6 +118,39 @@ export function getItemExtrasCategoryId(item: MenuItem): string | null {
 
 export function isItemExtrasManagedByCategory(item: MenuItem): boolean {
   return getItemExtrasCategoryId(item) != null;
+}
+
+/** True when an active category extras program controls this item (not per-item-only config). */
+export function isItemManagedByActiveCategoryExtras(
+  sections: HubMenuSection[],
+  item: MenuItem,
+  categorySectionId: string,
+): boolean {
+  if (itemHasIndividualExtrasGroup(item)) {
+    return false;
+  }
+  const assignment = getCategoryExtrasAssignment(sections, categorySectionId);
+  if (!assignment || !categoryExtrasAssignmentIsActive(assignment)) {
+    return false;
+  }
+  return assignment.itemIds.includes(item.id);
+}
+
+export function stripCategoryExtrasManagementFromItem(item: MenuItem, toppings: HubExtraTopping[]): MenuItem {
+  if (!getItemExtrasCategoryId(item)) {
+    return item;
+  }
+  const selection = getItemExtraToppingSelection(item);
+  return applyExtraToppingsToItem(
+    item,
+    selection.enabled,
+    toppings,
+    selection.paidExtraIds,
+    selection.priceById,
+    selection.includedQtyById,
+    selection.maxAddMoreById,
+    null,
+  );
 }
 
 export const SAUCES_INCLUDED_GROUP_NAME = "Sauces";
@@ -575,10 +610,39 @@ export type PickableMenuProduct = {
 
 export type HubMealTemplate = {
   id: string;
+  /** Portal label (e.g. Meal deal 1 — burgers). */
+  studioLabel: string;
+  /** Customer-facing upgrade title on the menu item. */
   label: string;
   upgradePrice: number;
   sides: HubMealSideOption[];
   drinks: HubMealDrinkOption[];
+};
+
+/** Links a customer menu category — all live items in it become meal choices (sides or drinks). */
+export type HubMealCategoryPool = {
+  categoryId: string;
+  /** Default extra £ on top of the meal upgrade for every item from this category. */
+  defaultPriceDelta?: number;
+};
+
+export type HubMealDealEditorConfig = {
+  /** Portal-only name so you can tell deals apart (Meal deal 1, Dessert upgrade, …). */
+  studioLabel?: string;
+  sides: HubMealSideOption[];
+  drinks: HubMealDrinkOption[];
+  sideCategoryPools: HubMealCategoryPool[];
+  drinkCategoryPools: HubMealCategoryPool[];
+  /** Menu item ids removed from category pools (still allow manual rows). */
+  excludedMenuItemIds: string[];
+  /** Per-menu-item extra £ overrides (pool defaults + manual rows). */
+  priceDeltaByMenuItemId: Record<string, number>;
+};
+
+export type HubMealPickableCategory = {
+  id: string;
+  name: string;
+  productCount: number;
 };
 
 export type MenuTemplateKind = "simple" | "pizza" | "burger" | "meal" | "drink" | "dessert" | "custom";
@@ -1587,6 +1651,9 @@ function applyCategoryExtrasToItem(
   assignment: HubCategoryExtrasAssignment,
   toppings: HubExtraTopping[],
 ): MenuItem {
+  if (!categoryExtrasAssignmentIsActive(assignment)) {
+    return stripCategoryExtrasManagementFromItem(item, toppings);
+  }
   const { paidExtraIds, includedQtyById, maxAddMoreById, priceById } = assignmentToMaps(assignment);
   const withDefaults = new Map(priceById);
   for (const topping of toppings) {
@@ -1618,6 +1685,7 @@ export function applyCategoryExtrasAssignment(
 
   const category = customerFacingMenuSections(next).find((section) => section.id === assignment.categoryId);
   const targetIds = new Set(assignment.itemIds);
+  const assignmentActive = categoryExtrasAssignmentIsActive(assignment);
   if (!category) {
     return next;
   }
@@ -1629,11 +1697,11 @@ export function applyCategoryExtrasAssignment(
     return {
       ...section,
       items: section.items.map((item) => {
-        if (targetIds.has(item.id)) {
+        if (assignmentActive && targetIds.has(item.id)) {
           return applyCategoryExtrasToItem(item, assignment, toppings);
         }
         if (getItemExtrasCategoryId(item) === assignment.categoryId) {
-          return applyExtraToppingsToItem(item, false, toppings, new Set(), new Map());
+          return stripCategoryExtrasManagementFromItem(item, toppings);
         }
         return item;
       }),
@@ -2451,16 +2519,81 @@ export function ensureStaffMenuSections(sections: HubMenuSection[]): HubMenuSect
 
 const MEAL_CFG_PREFIX = /^__HULL_MEAL_CFG:([\s\S]*?)__(?:\r?\n)?([\s\S]*)$/;
 
-function parseMealTemplatePayload(raw: string): { sides: HubMealSideOption[]; drinks: HubMealDrinkOption[] } {
+function parseMealCategoryPools(rows: unknown): HubMealCategoryPool[] {
+  if (!Array.isArray(rows)) {
+    return [];
+  }
+  return rows
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") {
+        return null;
+      }
+      const row = entry as { categoryId?: string; defaultPriceDelta?: number };
+      const categoryId = row.categoryId?.trim();
+      if (!categoryId) {
+        return null;
+      }
+      const defaultPriceDelta = Number(row.defaultPriceDelta);
+      return {
+        categoryId,
+        ...(Number.isFinite(defaultPriceDelta) && defaultPriceDelta >= 0 ? { defaultPriceDelta } : {}),
+      };
+    })
+    .filter(Boolean) as HubMealCategoryPool[];
+}
+
+function parseMealTemplatePayload(raw: string): HubMealDealEditorConfig {
   try {
-    const parsed = JSON.parse(raw) as { sides?: unknown; drinks?: unknown };
+    const parsed = JSON.parse(raw) as {
+      studioLabel?: unknown;
+      sides?: unknown;
+      drinks?: unknown;
+      sideCategoryPools?: unknown;
+      drinkCategoryPools?: unknown;
+      excludedMenuItemIds?: unknown;
+      priceDeltaByMenuItemId?: unknown;
+    };
+    const studioLabel = typeof parsed.studioLabel === "string" ? parsed.studioLabel.trim() : "";
+    const excludedMenuItemIds = Array.isArray(parsed.excludedMenuItemIds)
+      ? parsed.excludedMenuItemIds.filter((id): id is string => typeof id === "string" && id.trim().length > 0)
+      : [];
+    const priceDeltaByMenuItemId: Record<string, number> = {};
+    if (parsed.priceDeltaByMenuItemId && typeof parsed.priceDeltaByMenuItemId === "object") {
+      for (const [key, value] of Object.entries(parsed.priceDeltaByMenuItemId)) {
+        const amount = Number(value);
+        if (key.trim() && Number.isFinite(amount) && amount >= 0) {
+          priceDeltaByMenuItemId[key.trim()] = amount;
+        }
+      }
+    }
     return {
+      studioLabel,
       sides: parseMealOptionRows(parsed.sides, "meal-side"),
       drinks: parseMealOptionRows(parsed.drinks, "meal-drink"),
+      sideCategoryPools: parseMealCategoryPools(parsed.sideCategoryPools),
+      drinkCategoryPools: parseMealCategoryPools(parsed.drinkCategoryPools),
+      excludedMenuItemIds,
+      priceDeltaByMenuItemId,
     };
   } catch {
-    return { sides: [], drinks: [] };
+    return emptyMealDealEditorConfig();
   }
+}
+
+export function emptyMealDealEditorConfig(studioLabel = ""): HubMealDealEditorConfig {
+  return {
+    studioLabel,
+    sides: [],
+    drinks: [],
+    sideCategoryPools: [],
+    drinkCategoryPools: [],
+    excludedMenuItemIds: [],
+    priceDeltaByMenuItemId: {},
+  };
+}
+
+export function suggestNextMealStudioLabel(existingTemplateCount: number): string {
+  return `Meal deal ${Math.max(1, existingTemplateCount + 1)}`;
 }
 
 function parseMealOptionRows(rows: unknown, idPrefix: string): HubMealSideOption[] {
@@ -2485,21 +2618,31 @@ function parseMealOptionRows(rows: unknown, idPrefix: string): HubMealSideOption
     .filter(Boolean) as HubMealSideOption[];
 }
 
-export function encodeMealLibraryItemDescription(
-  sides: HubMealSideOption[],
-  drinks: HubMealDrinkOption[],
-  userDescription = "",
-): string {
-  const payload = JSON.stringify({ sides, drinks });
+export function encodeMealLibraryItemDescription(config: HubMealDealEditorConfig, userDescription = ""): string {
+  const payload = JSON.stringify({
+    studioLabel: config.studioLabel?.trim() ?? "",
+    sides: config.sides,
+    drinks: config.drinks,
+    sideCategoryPools: config.sideCategoryPools,
+    drinkCategoryPools: config.drinkCategoryPools,
+    excludedMenuItemIds: config.excludedMenuItemIds,
+    priceDeltaByMenuItemId: config.priceDeltaByMenuItemId,
+  });
   const note = userDescription.trim();
   return note ? `__HULL_MEAL_CFG:${payload}__\n${note}` : `__HULL_MEAL_CFG:${payload}__`;
 }
 
-function readMealTemplateConfig(item: MenuItem): { sides: HubMealSideOption[]; drinks: HubMealDrinkOption[] } {
+export function readMealDealEditorConfig(item: MenuItem): HubMealDealEditorConfig {
   const fromDescription = item.description?.match(MEAL_CFG_PREFIX);
   if (fromDescription?.[1]) {
     const parsed = parseMealTemplatePayload(fromDescription[1]);
-    if (parsed.sides.length > 0 || parsed.drinks.length > 0) {
+    if (
+      parsed.studioLabel ||
+      parsed.sides.length > 0 ||
+      parsed.drinks.length > 0 ||
+      parsed.sideCategoryPools.length > 0 ||
+      parsed.drinkCategoryPools.length > 0
+    ) {
       return parsed;
     }
   }
@@ -2507,23 +2650,37 @@ function readMealTemplateConfig(item: MenuItem): { sides: HubMealSideOption[]; d
   const raw = item as MenuItem & { customisationConfig?: unknown };
   const config =
     raw.customisationConfig && typeof raw.customisationConfig === "object"
-      ? (raw.customisationConfig as { hubMealTemplate?: { sides?: unknown; drinks?: unknown } })
+      ? (raw.customisationConfig as {
+          hubMealTemplate?: {
+            studioLabel?: unknown;
+            sides?: unknown;
+            drinks?: unknown;
+            sideCategoryPools?: unknown;
+            drinkCategoryPools?: unknown;
+            excludedMenuItemIds?: unknown;
+            priceDeltaByMenuItemId?: unknown;
+          };
+        })
       : {};
   const template = config.hubMealTemplate ?? {};
   return {
+    studioLabel: typeof template.studioLabel === "string" ? template.studioLabel.trim() : "",
     sides: parseMealOptionRows(template.sides, "meal-side"),
     drinks: parseMealOptionRows(template.drinks, "meal-drink"),
-  };
-}
-
-export function getMealTemplateFromItem(item: MenuItem): HubMealTemplate {
-  const { sides, drinks } = readMealTemplateConfig(item);
-  return {
-    id: item.id,
-    label: item.name.trim(),
-    upgradePrice: Number(item.price) || 0,
-    sides,
-    drinks,
+    sideCategoryPools: parseMealCategoryPools(template.sideCategoryPools),
+    drinkCategoryPools: parseMealCategoryPools(template.drinkCategoryPools),
+    excludedMenuItemIds: Array.isArray(template.excludedMenuItemIds)
+      ? template.excludedMenuItemIds.filter((id): id is string => typeof id === "string" && id.trim().length > 0)
+      : [],
+    priceDeltaByMenuItemId:
+      template.priceDeltaByMenuItemId && typeof template.priceDeltaByMenuItemId === "object"
+        ? Object.fromEntries(
+            Object.entries(template.priceDeltaByMenuItemId).flatMap(([key, value]) => {
+              const amount = Number(value);
+              return key.trim() && Number.isFinite(amount) && amount >= 0 ? [[key.trim(), amount] as const] : [];
+            }),
+          )
+        : {},
   };
 }
 
@@ -2599,6 +2756,169 @@ export function resolveMealOptionsWithMenu(
   });
 }
 
+function resolveMealDealEditorConfig(
+  config: HubMealDealEditorConfig,
+  products: PickableMenuProduct[],
+): { sides: HubMealSideOption[]; drinks: HubMealDrinkOption[] } {
+  const excluded = new Set(config.excludedMenuItemIds);
+  const manualSides = resolveMealOptionsWithMenu(config.sides, products);
+  const manualDrinks = resolveMealOptionsWithMenu(config.drinks, products);
+  const sideByMenuItemId = new Map<string, HubMealSideOption>();
+  const drinkByMenuItemId = new Map<string, HubMealDrinkOption>();
+
+  for (const option of manualSides) {
+    if (option.menuItemId) {
+      sideByMenuItemId.set(option.menuItemId, option);
+    }
+  }
+  for (const option of manualDrinks) {
+    if (option.menuItemId) {
+      drinkByMenuItemId.set(option.menuItemId, option);
+    }
+  }
+
+  const priceDeltaFor = (menuItemId: string, poolDefault = 0) =>
+    config.priceDeltaByMenuItemId[menuItemId] ?? poolDefault;
+
+  for (const pool of config.sideCategoryPools) {
+    for (const product of products) {
+      if (product.categoryId !== pool.categoryId || excluded.has(product.id)) {
+        continue;
+      }
+      if (sideByMenuItemId.has(product.id)) {
+        const existing = sideByMenuItemId.get(product.id)!;
+        sideByMenuItemId.set(product.id, {
+          ...existing,
+          priceDelta: priceDeltaFor(product.id, pool.defaultPriceDelta ?? existing.priceDelta),
+        });
+        continue;
+      }
+      sideByMenuItemId.set(product.id, {
+        ...mealOptionFromMenuProduct(product),
+        priceDelta: priceDeltaFor(product.id, pool.defaultPriceDelta ?? 0),
+      });
+    }
+  }
+
+  for (const pool of config.drinkCategoryPools) {
+    for (const product of products) {
+      if (product.categoryId !== pool.categoryId || excluded.has(product.id)) {
+        continue;
+      }
+      if (drinkByMenuItemId.has(product.id)) {
+        const existing = drinkByMenuItemId.get(product.id)!;
+        drinkByMenuItemId.set(product.id, {
+          ...existing,
+          priceDelta: priceDeltaFor(product.id, pool.defaultPriceDelta ?? existing.priceDelta),
+        });
+        continue;
+      }
+      drinkByMenuItemId.set(product.id, {
+        ...mealOptionFromMenuProduct(product),
+        priceDelta: priceDeltaFor(product.id, pool.defaultPriceDelta ?? 0),
+      });
+    }
+  }
+
+  const customSides = manualSides.filter((option) => !option.menuItemId);
+  const customDrinks = manualDrinks.filter((option) => !option.menuItemId);
+
+  return {
+    sides: [...customSides, ...sideByMenuItemId.values()],
+    drinks: [...customDrinks, ...drinkByMenuItemId.values()],
+  };
+}
+
+export function resolveMealDealItems(config: HubMealDealEditorConfig, products: PickableMenuProduct[]): MealDealItem[] {
+  const { sides, drinks } = resolveMealDealEditorConfig(config, products);
+  return [
+    ...sides.map((side) => ({ ...side, slot: "side" as const })),
+    ...drinks.map((drink) => ({ ...drink, slot: "drink" as const })),
+  ];
+}
+
+export function mealDealHasChoices(config: HubMealDealEditorConfig, products: PickableMenuProduct[]): boolean {
+  if (config.sideCategoryPools.length > 0 || config.drinkCategoryPools.length > 0) {
+    return true;
+  }
+  return resolveMealDealItems(config, products).length > 0;
+}
+
+export function getMealTemplateFromItem(item: MenuItem, menuProducts: PickableMenuProduct[] = []): HubMealTemplate {
+  const stored = readMealDealEditorConfig(item);
+  const { sides, drinks } =
+    menuProducts.length > 0 ? resolveMealDealEditorConfig(stored, menuProducts) : { sides: stored.sides, drinks: stored.drinks };
+  const studioLabel = stored.studioLabel?.trim() || item.name.trim();
+  return {
+    id: item.id,
+    studioLabel,
+    label: item.name.trim(),
+    upgradePrice: Number(item.price) || 0,
+    sides,
+    drinks,
+  };
+}
+
+export function formatMealTemplatePickerLabel(template: HubMealTemplate): string {
+  const customer = template.label.trim() || MEAL_CHOICE_GROUP_DEFAULT_NAME;
+  const studio = template.studioLabel.trim();
+  const price = formatMenuMoney(template.upgradePrice);
+  if (studio && studio !== customer) {
+    return `${studio} — ${customer} (+${price})`;
+  }
+  return `${customer} (+${price})`;
+}
+
+export function getMealTemplateIdLinkedOnItem(item: MenuItem): string | null {
+  const mealGroup = findMealChoiceGroup(item);
+  if (!mealGroup) {
+    return null;
+  }
+  const marker = mealGroup.description?.match(MEAL_TEMPLATE_MARKER);
+  return marker?.[1] ?? null;
+}
+
+export function countMenuItemsUsingMealTemplate(sections: HubMenuSection[], templateId: string): number {
+  let count = 0;
+  for (const section of customerFacingMenuSections(sections)) {
+    for (const item of section.items) {
+      if (getMealTemplateIdLinkedOnItem(item) === templateId) {
+        count += 1;
+      }
+    }
+  }
+  return count;
+}
+
+export function applyMealTemplateToCategoryInSections(
+  sections: HubMenuSection[],
+  targetCategoryId: string,
+  template: HubMealTemplate,
+): HubMenuSection[] {
+  const sideIds = new Set(template.sides.map((side) => side.id));
+  const drinkIds = new Set(template.drinks.map((drink) => drink.id));
+  return sections.map((section) => {
+    if (section.id !== targetCategoryId) {
+      return section;
+    }
+    return {
+      ...section,
+      items: section.items.map((item) => applyMealUpgradeToItem(item, true, template, sideIds, drinkIds)),
+    };
+  });
+}
+
+export function listMealPickableCategories(sections: HubMenuSection[]): HubMealPickableCategory[] {
+  const counts = new Map<string, { name: string; productCount: number }>();
+  for (const product of listPickableMenuProducts(sections)) {
+    const existing = counts.get(product.categoryId) ?? { name: product.categoryName, productCount: 0 };
+    counts.set(product.categoryId, { name: product.categoryName, productCount: existing.productCount + 1 });
+  }
+  return [...counts.entries()]
+    .map(([id, entry]) => ({ id, name: entry.name, productCount: entry.productCount }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
 export function getHubMealTemplatesFromSection(
   section: HubMenuSection | null,
   allSections: HubMenuSection[] = [],
@@ -2608,18 +2928,7 @@ export function getHubMealTemplatesFromSection(
   }
   const menuProducts = listPickableMenuProducts(allSections);
 
-  return section.items.map((item) => {
-    const { sides, drinks } = readMealTemplateConfig(item);
-    const resolvedSides = resolveMealOptionsWithMenu(sides, menuProducts);
-    const resolvedDrinks = resolveMealOptionsWithMenu(drinks, menuProducts);
-    return {
-      id: item.id,
-      label: item.name.trim(),
-      upgradePrice: Number(item.price) || 0,
-      sides: resolvedSides,
-      drinks: resolvedDrinks,
-    };
-  });
+  return section.items.map((item) => getMealTemplateFromItem(item, menuProducts));
 }
 
 export function buildPartLibraryItem(input: {
@@ -2656,17 +2965,25 @@ export function buildMealLibraryItem(input: {
   categoryId: string;
   label: string;
   upgradePrice: number;
+  mealConfig?: HubMealDealEditorConfig;
+  /** @deprecated Use mealConfig */
   sides?: HubMealSideOption[];
+  /** @deprecated Use mealConfig */
   drinks?: HubMealDrinkOption[];
   customerNote?: string;
 }): MenuItem {
-  const sides = input.sides ?? [];
-  const drinks = input.drinks ?? [];
+  const mealConfig =
+    input.mealConfig ??
+    ({
+      ...emptyMealDealEditorConfig(),
+      sides: input.sides ?? [],
+      drinks: input.drinks ?? [],
+    } satisfies HubMealDealEditorConfig);
 
   return buildLocalMenuItem({
     categoryId: input.categoryId,
     name: input.label.trim(),
-    description: encodeMealLibraryItemDescription(sides, drinks, input.customerNote?.trim() ?? ""),
+    description: encodeMealLibraryItemDescription(mealConfig, input.customerNote?.trim() ?? ""),
     price: input.upgradePrice,
     requiresIdVerification: false,
     isActive: true,
@@ -2677,11 +2994,17 @@ export function buildMealLibraryItem(input: {
 
 export function updateMealLibraryItemTemplate(
   item: MenuItem,
-  patch: Partial<Pick<HubMealTemplate, "label" | "upgradePrice" | "sides" | "drinks">> & { customerNote?: string },
+  patch: Partial<Pick<HubMealTemplate, "label" | "upgradePrice" | "sides" | "drinks">> & {
+    customerNote?: string;
+    mealConfig?: HubMealDealEditorConfig;
+  },
 ): MenuItem {
-  const current = readMealTemplateConfig(item);
-  const sides = patch.sides ?? current.sides;
-  const drinks = patch.drinks ?? current.drinks;
+  const current = readMealDealEditorConfig(item);
+  const mealConfig = patch.mealConfig ?? {
+    ...current,
+    sides: patch.sides ?? current.sides,
+    drinks: patch.drinks ?? current.drinks,
+  };
   const userNote =
     patch.customerNote !== undefined ? patch.customerNote : getMealTemplateCustomerNote(item);
 
@@ -2689,7 +3012,67 @@ export function updateMealLibraryItemTemplate(
     ...item,
     name: patch.label?.trim() ? patch.label.trim() : item.name,
     price: patch.upgradePrice != null ? patch.upgradePrice : item.price,
-    description: encodeMealLibraryItemDescription(sides, drinks, userNote),
+    description: encodeMealLibraryItemDescription(mealConfig, userNote),
+  };
+}
+
+/** Apply edits from the resolved meal-deal item list back into stored config. */
+export function syncMealDealEditorConfigFromItems(
+  stored: HubMealDealEditorConfig,
+  items: MealDealItem[],
+  products: PickableMenuProduct[],
+): HubMealDealEditorConfig {
+  const productsById = new Map(products.map((product) => [product.id, product]));
+  const poolCategoryIds = new Set([
+    ...stored.sideCategoryPools.map((pool) => pool.categoryId),
+    ...stored.drinkCategoryPools.map((pool) => pool.categoryId),
+  ]);
+  const itemIds = new Set(items.map((entry) => entry.id));
+  const nextExcluded = new Set(stored.excludedMenuItemIds);
+  const nextPriceDelta = { ...stored.priceDeltaByMenuItemId };
+  const manualSides: HubMealSideOption[] = [];
+  const manualDrinks: HubMealDrinkOption[] = [];
+
+  const previouslyResolved = resolveMealDealItems(stored, products);
+  for (const previous of previouslyResolved) {
+    const menuItemId = previous.menuItemId ?? null;
+    if (!menuItemId) {
+      continue;
+    }
+    const product = productsById.get(menuItemId);
+    if (!product || !poolCategoryIds.has(product.categoryId)) {
+      continue;
+    }
+    if (!itemIds.has(previous.id)) {
+      nextExcluded.add(menuItemId);
+    }
+  }
+
+  for (const entry of items) {
+    const { slot, ...option } = entry;
+    const menuItemId = option.menuItemId ?? null;
+    if (menuItemId) {
+      nextPriceDelta[menuItemId] = option.priceDelta;
+      nextExcluded.delete(menuItemId);
+      const product = productsById.get(menuItemId);
+      const fromPool = product ? poolCategoryIds.has(product.categoryId) : false;
+      if (fromPool) {
+        continue;
+      }
+    }
+    if (slot === "drink") {
+      manualDrinks.push(option);
+    } else {
+      manualSides.push(option);
+    }
+  }
+
+  return {
+    ...stored,
+    sides: manualSides,
+    drinks: manualDrinks,
+    excludedMenuItemIds: [...nextExcluded],
+    priceDeltaByMenuItemId: nextPriceDelta,
   };
 }
 
@@ -4009,6 +4392,16 @@ export function applyMealUpgradeToItem(
     ...withoutMeal,
     optionGroups: [...withoutMeal.optionGroups, ...buildMealUpgradeOptionGroups(template, sideIds, drinkIds, existingTitle)],
   };
+}
+
+export function applyMealTemplateToMenuItem(item: MenuItem, template: HubMealTemplate, enabled = true): MenuItem {
+  return applyMealUpgradeToItem(
+    item,
+    enabled,
+    template,
+    new Set(template.sides.map((side) => side.id)),
+    new Set(template.drinks.map((drink) => drink.id)),
+  );
 }
 
 export function buildMenuPublishSummary(

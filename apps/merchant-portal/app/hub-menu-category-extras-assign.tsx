@@ -170,8 +170,9 @@ export function HubMenuCategoryExtrasAssign({
             Assign extras to category
           </h2>
           <p style={{ margin: "8px 0 0", color: "#5b6470", fontSize: "0.86rem", lineHeight: 1.45 }}>
-            Pick extras once for a whole category. This overrides per-item extras on the selected products. Items can be
-            unchecked below, or detached later for individual control.
+            Pick extras once for a whole category. When at least one included or paid extra is selected here, that set
+            applies to the ticked products. If nothing is selected, each product keeps its own per-item extras. Uncheck
+            products below or detach later for individual control.
           </p>
         </div>
 

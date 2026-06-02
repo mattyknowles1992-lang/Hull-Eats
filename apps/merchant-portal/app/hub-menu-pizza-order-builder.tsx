@@ -26,6 +26,7 @@ import {
   clonePizzaSizePriceRows,
   defaultPizzaSizeColumnDefs,
   expandPizzaPricesFromBase,
+  findPizzaSizeRowForColumn,
   normalizePizzaSizeLabel,
   parsePizzaSizeInches,
   PIZZA_PRICE_INPUT_STEP,
@@ -104,7 +105,11 @@ function reapplyItemsForSizeColumns(section: HubMenuSection, tableConfig: PizzaS
 }
 
 function buildGridColumns(sizeCount: number): string {
-  return `minmax(180px, 1.6fr) repeat(${sizeCount}, 96px) minmax(110px, 0.85fr) minmax(88px, 0.75fr) auto`;
+  return `minmax(160px, 1.5fr) repeat(${sizeCount}, minmax(108px, 108px)) minmax(104px, 0.8fr) minmax(92px, 0.7fr) minmax(76px, auto)`;
+}
+
+function buildTableMinWidth(sizeCount: number): number {
+  return 160 + sizeCount * 108 + 104 + 92 + 76;
 }
 
 type PizzaCategoryBlockProps = {
@@ -238,12 +243,15 @@ function PizzaCategoryBlock({
     updateRow(item.id, () => applied);
   };
 
-  const updateSizePrice = (item: MenuItem, columnIndex: number, sizeLabel: string, rawPrice: string) => {
+  const updateSizePrice = (item: MenuItem, columnIndex: number, column: PizzaSizeColumnDef, rawPrice: string) => {
     const rows = pizzaSizeRowsForItem(item, sizeColumns);
     const trimmed = rawPrice.trim();
+    const targetLabel = findPizzaSizeRowForColumn(rows, column)?.label ?? column.label;
 
     if (!trimmed) {
-      const cleared = rows.map((row) => (row.label === sizeLabel ? { ...row, selected: false, price: "" } : row));
+      const cleared = rows.map((row) =>
+        row.label === targetLabel || row.key === column.key ? { ...row, selected: false, price: "" } : row,
+      );
       applyRowsToItem(item, cleared);
       return;
     }
@@ -254,7 +262,7 @@ function PizzaCategoryBlock({
     }
 
     const nextRows = rows.map((row) =>
-      row.label === sizeLabel ? { ...row, selected: true, price: trimmed } : row,
+      row.label === targetLabel || row.key === column.key ? { ...row, selected: true, price: trimmed } : row,
     );
     applyRowsToItem(item, nextRows);
   };
@@ -291,9 +299,9 @@ function PizzaCategoryBlock({
     patchSectionItems(onPatchSection, (sectionItems) => sectionItems.filter((item) => item.id !== itemId));
   };
 
-  const sizePriceForItem = (item: MenuItem, sizeLabel: string): string => {
+  const sizePriceForItem = (item: MenuItem, column: PizzaSizeColumnDef): string => {
     const rows = pizzaSizeRowsForItem(item, sizeColumns);
-    const row = rows.find((entry) => entry.label === sizeLabel);
+    const row = findPizzaSizeRowForColumn(rows, column);
     return row?.selected ? row.price : "";
   };
 
@@ -304,12 +312,16 @@ function PizzaCategoryBlock({
     kind === "garlic_bread" ? "garlic bread" : kind === "calzone" ? "calzone" : "pizza";
 
   return (
-    <section className="hub-menu-pizza-builder__category">
-      <div className="hub-menu-pizza-builder__category-head">
-        <h3>{label}</h3>
-        <span>{items.length} row{items.length === 1 ? "" : "s"}</span>
-      </div>
+    <details className="hub-menu-pizza-builder__category" open>
+      <summary className="hub-menu-pizza-builder__category-summary">
+        <span className="hub-menu-pizza-builder__category-summary-title">{label}</span>
+        <span className="hub-menu-pizza-builder__category-summary-meta">
+          {items.length} row{items.length === 1 ? "" : "s"} · {sizeColumns.length} size
+          {sizeColumns.length === 1 ? "" : "s"}
+        </span>
+      </summary>
 
+      <div className="hub-menu-pizza-builder__category-body">
       <HubMenuSuggestionStrip
         suggestions={PIZZA_MENU_SUGGESTIONS_BY_KIND[kind]}
         existingNames={existingNameKeys}
@@ -327,18 +339,21 @@ function PizzaCategoryBlock({
       ) : null}
 
       <p className="hub-menu-pizza-builder__table-hint">
-        Set <strong>+£</strong> on each size in the table header. Enter the <strong>base</strong> price in the first size
-        column — other sizes fill from your steps. Use <strong>Copy ↓</strong> to copy a row&apos;s prices down.
+        Each cell is the <strong>full price</strong> for that size (what customers pay). Use <strong>+£</strong> in the
+        header for step-ups; enter the <strong>base</strong> size in the first column to fill the rest. Prices save as
+        Size options when you publish. <strong>Copy ↓</strong> copies a row to the next rows.
       </p>
 
       <div className="hub-menu-pizza-builder__table-wrap">
-        <div className="hub-menu-pizza-builder__table" role="table">
-          <div
-            className="hub-menu-pizza-builder__row hub-menu-pizza-builder__row--head"
-            role="row"
-            style={{ gridTemplateColumns: gridColumns }}
-          >
-            <span role="columnheader">Name</span>
+        <div
+          className="hub-menu-pizza-builder__table"
+          role="table"
+          style={{ gridTemplateColumns: gridColumns, minWidth: buildTableMinWidth(sizeColumns.length) }}
+        >
+          <div className="hub-menu-pizza-builder__row hub-menu-pizza-builder__row--head" role="row">
+            <span role="columnheader" className="hub-menu-pizza-builder__grid-head-cell">
+              Name
+            </span>
             {sizeColumns.map((column, columnIndex) => (
               <span key={column.key} role="columnheader" className="hub-menu-pizza-builder__size-head">
                 <span className="hub-menu-pizza-builder__size-label">{column.label}</span>
@@ -351,7 +366,7 @@ function PizzaCategoryBlock({
                       type="number"
                       min={0}
                       step={PIZZA_PRICE_INPUT_STEP}
-                      className="hub-menu-pizza-price-input"
+                      className="hub-menu-pizza-step-input"
                       value={stepByColumnKey[column.key] ?? ""}
                       placeholder="0"
                       onChange={(event) =>
@@ -375,11 +390,13 @@ function PizzaCategoryBlock({
                 )}
               </span>
             ))}
-            <span role="columnheader">Save as</span>
-            <span role="columnheader" className="hub-menu-pizza-builder__copy-head">
+            <span role="columnheader" className="hub-menu-pizza-builder__grid-head-cell">
+              Save as
+            </span>
+            <span role="columnheader" className="hub-menu-pizza-builder__grid-head-cell hub-menu-pizza-builder__copy-head">
               Prices
             </span>
-            <span role="columnheader" className="hub-menu-order-builder__actions-head" />
+            <span role="columnheader" className="hub-menu-pizza-builder__grid-head-cell hub-menu-order-builder__actions-head" />
           </div>
 
           {items.map((item, itemIndex) => {
@@ -389,7 +406,6 @@ function PizzaCategoryBlock({
                 key={item.id}
                 className="hub-menu-pizza-builder__row hub-menu-pizza-builder__product-row"
                 role="row"
-                style={{ gridTemplateColumns: gridColumns }}
               >
                 <label className="hub-menu-order-builder__cell">
                   <span className="hub-menu-order-builder__sr-only">Name</span>
@@ -414,8 +430,8 @@ function PizzaCategoryBlock({
                       disabled={readOnly}
                       placeholder="£"
                       className="hub-menu-pizza-price-input"
-                      value={sizePriceForItem(item, column.label)}
-                      onChange={(event) => updateSizePrice(item, columnIndex, column.label, event.target.value)}
+                      value={sizePriceForItem(item, column)}
+                      onChange={(event) => updateSizePrice(item, columnIndex, column, event.target.value)}
                     />
                   </label>
                 ))}
@@ -462,7 +478,8 @@ function PizzaCategoryBlock({
           + Add {rowKindLabel} row
         </button>
       )}
-    </section>
+      </div>
+    </details>
   );
 }
 
