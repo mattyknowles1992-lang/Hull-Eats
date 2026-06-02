@@ -1,14 +1,21 @@
 import type { MetadataRoute } from "next";
 
+import { siteConfig } from "../src/lib/seo";
+
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Hull Eats",
-    short_name: "Hull Eats",
-    description: "Local ordering platform for restaurants, takeaways, and shops in Hull.",
+    name: siteConfig.name,
+    short_name: siteConfig.name,
+    description: siteConfig.defaultDescription,
     start_url: "/",
+    scope: "/",
     display: "standalone",
+    orientation: "portrait",
+    lang: siteConfig.languageTag,
+    dir: "ltr",
     background_color: "#000000",
     theme_color: "#000000",
+    categories: ["food", "shopping"],
     icons: [
       {
         src: "/icons/icon-192.png",

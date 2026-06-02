@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { deliveryFeeFromForStorefront, type StoreSummary } from "@hull-eats/types";
@@ -68,16 +69,25 @@ function formatDistance(distanceKm: number) {
 
 type HomePageClientProps = {
   initialStores?: StoreSummary[];
+  initialSearchQuery?: string;
 };
 
-export function HomePageClient({ initialStores = [] }: HomePageClientProps) {
+export function HomePageClient({ initialStores = [], initialSearchQuery = "" }: HomePageClientProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [activeFilter, setActiveFilter] = useState<FilterLabel>("All");
-  const [searchInput, setSearchInput] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchInput, setSearchInput] = useState(initialSearchQuery);
+  const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
   const [stores, setStores] = useState<StoreSummary[]>(initialStores);
   const [customerCoordinates, setCustomerCoordinates] = useState<Coordinates | null>(null);
   const [locationStatus, setLocationStatus] = useState<LocationStatus>("idle");
   const resultsRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const queryFromUrl = searchParams.get("q")?.trim() ?? "";
+    setSearchInput(queryFromUrl);
+    setSearchQuery(queryFromUrl);
+  }, [searchParams]);
 
   useEffect(() => {
     let cancelled = false;
@@ -107,7 +117,10 @@ export function HomePageClient({ initialStores = [] }: HomePageClientProps) {
   }
 
   function handleSearch() {
-    setSearchQuery(searchInput.trim());
+    const query = searchInput.trim();
+    setSearchQuery(query);
+    const nextUrl = query ? `/?q=${encodeURIComponent(query)}` : "/";
+    router.replace(nextUrl, { scroll: false });
     focusResults();
   }
 

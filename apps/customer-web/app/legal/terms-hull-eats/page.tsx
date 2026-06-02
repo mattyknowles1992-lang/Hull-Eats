@@ -1,13 +1,15 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 
 import { LegalDocument } from "../../../src/components/legal-document";
+import { buildStaticPageMetadata } from "../../../src/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Terms — Hull Eats ordering & account | Hull Eats",
+export const metadata = buildStaticPageMetadata({
+  title: "Terms — Hull Eats ordering & account",
   description:
     "Terms of use for browsing menus, placing orders, and managing your Hull Eats customer account in the United Kingdom.",
-};
+  path: "/legal/terms-hull-eats",
+  keywords: ["Hull Eats terms", "ordering terms Hull", "customer account terms"],
+});
 
 export default function TermsHullEatsPage() {
   return (

@@ -16,6 +16,12 @@ const manrope = Manrope({
 export const metadata: Metadata = {
   title: "Hull Eats Merchant Portal",
   description: "Merchant order operations shell",
+  robots: {
+    index: false,
+    follow: false,
+    nocache: true,
+    googleBot: { index: false, follow: false },
+  },
 };
 
 export const viewport: Viewport = {

@@ -8,7 +8,7 @@ import { JsonLd } from "../../../src/components/json-ld";
 import { AppSwitcher } from "../../app-switcher";
 import { fetchMarketplaceMenu, fetchMarketplaceStore } from "../../../src/lib/marketplace";
 import { buildStoreMetadata } from "../../../src/lib/seo";
-import { buildBreadcrumbJsonLd, buildStoreRestaurantJsonLd } from "../../../src/lib/seo-json-ld";
+import { buildStorePageJsonLd } from "../../../src/lib/seo-json-ld";
 import { formatStoreAddress } from "../../../src/lib/store-address";
 import { BasketButton } from "./basket-button";
 import { StoreMenuClient } from "./store-menu-client";
@@ -21,7 +21,10 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     return {};
   }
 
-  return buildStoreMetadata(store);
+  const menu = await fetchMarketplaceMenu(slug, { revalidateSeconds: 600 });
+  const menuItemCount = menu?.categories.flatMap((category) => category.items).length ?? 0;
+
+  return buildStoreMetadata(store, menuItemCount);
 }
 
 export default async function StorePage({ params }: { params: Promise<{ slug: string }> }) {
@@ -46,15 +49,7 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
 
   return (
     <main className="shell">
-      <JsonLd
-        data={[
-          buildBreadcrumbJsonLd([
-            { name: "Hull Eats", path: "/" },
-            { name: store.name, path: `/stores/${store.slug}` },
-          ]),
-          buildStoreRestaurantJsonLd(store, menu.items.length),
-        ]}
-      />
+      <JsonLd data={buildStorePageJsonLd(store, menu.categories, menu.items)} />
       <header className="topbar">
         <div className="brand-pill">
           <Link href="/" className="icon-button">

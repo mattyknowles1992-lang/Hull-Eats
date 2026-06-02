@@ -1,13 +1,15 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 
 import { LegalDocument } from "../../../src/components/legal-document";
+import { buildStaticPageMetadata } from "../../../src/lib/seo";
 import { isHullMarketplaceResaleEnabled } from "../../../src/lib/customer-product-flags";
 
-export const metadata: Metadata = {
-  title: "Close your account | Hull Eats",
+export const metadata = buildStaticPageMetadata({
+  title: "Close your account",
   description: "How to close your Hull Eats customer account and what happens to your data and order history.",
-};
+  path: "/legal/close-account",
+  keywords: ["delete Hull Eats account", "close account Hull Eats"],
+});
 
 export default function CloseAccountPage() {
   const showMarketplace = isHullMarketplaceResaleEnabled();

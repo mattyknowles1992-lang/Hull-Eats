@@ -1,6 +1,6 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 
+import { buildStaticPageMetadata } from "../../src/lib/seo";
 import { AppSwitcher } from "../app-switcher";
 import {
   isAnyExtraHullProductEnabled,
@@ -8,11 +8,13 @@ import {
   isHullServicesEnabled,
 } from "../../src/lib/customer-product-flags";
 
-export const metadata: Metadata = {
-  title: "About Hull Eats | For customers",
+export const metadata = buildStaticPageMetadata({
+  title: "About Hull Eats",
   description:
     "Hull Eats helps you discover Hull takeaways, cafés, shops, and more — order online, pay at checkout, and track your food in one place.",
-};
+  path: "/about",
+  keywords: ["about Hull Eats", "Hull food delivery", "Hull takeaway platform"],
+});
 
 const customerBasics = [
   "Browse live menus from local kitchens and shops, with clear prices before you add anything to your basket.",

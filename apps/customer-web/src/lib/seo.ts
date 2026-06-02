@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import type { StoreSummary } from "@hull-eats/types";
+import type { MenuItem, StoreSummary } from "@hull-eats/types";
 
 import { getMarketplaceCategory, type MarketplaceCategory } from "./marketplace-categories";
 import { absoluteUrl, getSiteOrigin } from "./site-url";
@@ -9,8 +9,10 @@ export const siteConfig = {
   name: "Hull Eats",
   legalName: "Hull Eats",
   locale: "en_GB",
+  languageTag: "en-GB",
   region: "Kingston upon Hull",
   regionShort: "Hull",
+  country: "United Kingdom",
   defaultTitle: "Hull Eats — Food delivery & takeaway in Hull",
   defaultDescription:
     "Order food delivery in Hull from 100+ local restaurants, takeaways, shops, and specialists. Cheap bites to luxury treats — pizza, kebabs, groceries, bakery, alcohol, and more with clear delivery pricing.",
@@ -31,12 +33,53 @@ export const siteConfig = {
     "food near me Hull",
   ],
   twitterHandle: "@HullEats",
+  contactEmail: "hello@hulleats.co.uk",
 } as const;
 
-const defaultOgImagePath = "/icons/icon-512.png";
+/** Next.js file-based OG image (1200×630). */
+export const defaultOgImagePath = "/opengraph-image";
 
 export function getDefaultOgImageUrl(): string {
   return absoluteUrl(defaultOgImagePath);
+}
+
+const googleBotIndex = {
+  index: true,
+  follow: true,
+  googleBot: {
+    index: true,
+    follow: true,
+    "max-image-preview": "large" as const,
+    "max-snippet": -1,
+    "max-video-preview": -1,
+  },
+};
+
+type OgImageInput = {
+  url: string;
+  width?: number;
+  height?: number;
+  alt: string;
+};
+
+function resolveOgImages(imageUrl?: string): OgImageInput[] {
+  if (imageUrl && imageUrl !== getDefaultOgImageUrl()) {
+    return [
+      {
+        url: imageUrl,
+        alt: `${siteConfig.name} — ${siteConfig.regionShort} food delivery`,
+      },
+    ];
+  }
+
+  return [
+    {
+      url: getDefaultOgImageUrl(),
+      width: 1200,
+      height: 630,
+      alt: `${siteConfig.name} — ${siteConfig.regionShort} food delivery`,
+    },
+  ];
 }
 
 function buildOpenGraph(input: {
@@ -47,7 +90,7 @@ function buildOpenGraph(input: {
   type?: "website" | "article";
 }): Metadata["openGraph"] {
   const url = absoluteUrl(input.path);
-  const image = input.imageUrl ?? getDefaultOgImageUrl();
+  const images = resolveOgImages(input.imageUrl);
 
   return {
     type: input.type ?? "website",
@@ -56,23 +99,19 @@ function buildOpenGraph(input: {
     siteName: siteConfig.name,
     title: input.title,
     description: input.description,
-    images: [
-      {
-        url: image,
-        width: 512,
-        height: 512,
-        alt: `${siteConfig.name} — ${siteConfig.regionShort} food delivery`,
-      },
-    ],
+    images,
   };
 }
 
 function buildTwitter(input: { title: string; description: string; imageUrl?: string }): Metadata["twitter"] {
+  const images = resolveOgImages(input.imageUrl);
+
   return {
     card: "summary_large_image",
+    site: siteConfig.twitterHandle,
     title: input.title,
     description: input.description,
-    images: input.imageUrl ? [input.imageUrl] : [getDefaultOgImageUrl()],
+    images: images.map((image) => image.url),
   };
 }
 
@@ -91,6 +130,11 @@ function baseMetadata(partial: Metadata): Metadata {
   };
 }
 
+/** Full document title (bypasses root `%s | Hull Eats` template). */
+export function pageTitle(shortTitle: string): Metadata["title"] {
+  return { absolute: `${shortTitle} | ${siteConfig.name}` };
+}
+
 export function buildRootMetadata(): Metadata {
   const title = siteConfig.defaultTitle;
   const description = siteConfig.defaultDescription;
@@ -104,21 +148,20 @@ export function buildRootMetadata(): Metadata {
     keywords: [...siteConfig.keywords],
     alternates: {
       canonical: "/",
+      languages: {
+        "en-GB": "/",
+      },
     },
     openGraph: buildOpenGraph({ title, description, path: "/" }),
     twitter: buildTwitter({ title, description }),
-    robots: {
-      index: true,
-      follow: true,
-      googleBot: {
-        index: true,
-        follow: true,
-        "max-image-preview": "large",
-        "max-snippet": -1,
-        "max-video-preview": -1,
-      },
-    },
+    robots: googleBotIndex,
     category: "food",
+    applicationName: siteConfig.name,
+    appleWebApp: {
+      capable: true,
+      title: siteConfig.name,
+      statusBarStyle: "black-translucent",
+    },
   });
 }
 
@@ -136,24 +179,60 @@ export function buildHomeMetadata(): Metadata {
       "order takeaway online Hull",
       "Hull restaurant delivery",
     ],
-    alternates: { canonical: "/" },
+    alternates: { canonical: "/", languages: { "en-GB": "/" } },
     openGraph: buildOpenGraph({ title, description, path: "/" }),
     twitter: buildTwitter({ title, description }),
+    robots: googleBotIndex,
   });
 }
 
-export function buildStoreMetadata(store: StoreSummary): Metadata {
+export function buildStaticPageMetadata(input: {
+  title: string;
+  description: string;
+  path: string;
+  keywords?: string[];
+  noIndex?: boolean;
+  imageUrl?: string;
+}): Metadata {
+  const fullTitle = `${input.title} | ${siteConfig.name}`;
+
+  return baseMetadata({
+    title: pageTitle(input.title),
+    description: input.description,
+    keywords: input.keywords,
+    alternates: {
+      canonical: input.path,
+      languages: { "en-GB": input.path },
+    },
+    openGraph: buildOpenGraph({
+      title: fullTitle,
+      description: input.description,
+      path: input.path,
+      imageUrl: input.imageUrl,
+    }),
+    twitter: buildTwitter({
+      title: fullTitle,
+      description: input.description,
+      imageUrl: input.imageUrl,
+    }),
+    robots: input.noIndex ? { index: false, follow: false } : googleBotIndex,
+  });
+}
+
+export function buildStoreMetadata(store: StoreSummary, menuItemCount = 0): Metadata {
   const cuisine = store.cuisineLabel?.trim();
-  const title = cuisine
+  const shortTitle = cuisine
     ? `${store.name} — ${cuisine} delivery in Hull`
     : `${store.name} — order delivery in Hull`;
+  const title = `${shortTitle} | ${siteConfig.name}`;
+  const indexable = store.menuSetupComplete && menuItemCount > 0;
   const description = [
     `Order from ${store.name} in ${siteConfig.regionShort}.`,
     cuisine ? `${cuisine} available for delivery and collection.` : null,
     store.onboardingMessage?.trim() || null,
-    store.menuSetupComplete
-      ? "Browse the live menu, customise your order, and checkout on Hull Eats."
-      : "View store details on Hull Eats — menu publishing in progress.",
+    indexable
+      ? `Browse ${menuItemCount} menu items, customise your order, and checkout on Hull Eats.`
+      : "This Hull Eats storefront is being set up — check back soon for the full menu.",
   ]
     .filter(Boolean)
     .join(" ");
@@ -161,18 +240,20 @@ export function buildStoreMetadata(store: StoreSummary): Metadata {
   const path = `/stores/${store.slug}`;
 
   return baseMetadata({
-    title,
+    title: pageTitle(shortTitle),
     description,
     keywords: [
       store.name,
       `${store.name} Hull`,
       `${store.name} delivery`,
+      `${store.name} menu`,
       cuisine ?? "",
       store.type,
       "food delivery Hull",
       store.postcode,
+      store.city,
     ].filter(Boolean),
-    alternates: { canonical: path },
+    alternates: { canonical: path, languages: { "en-GB": path } },
     openGraph: buildOpenGraph({
       title,
       description,
@@ -184,16 +265,24 @@ export function buildStoreMetadata(store: StoreSummary): Metadata {
       description,
       imageUrl: store.heroImageUrl ?? store.logoImageUrl,
     }),
+    robots: indexable
+      ? googleBotIndex
+      : {
+          index: false,
+          follow: true,
+          googleBot: { index: false, follow: true },
+        },
   });
 }
 
 export function buildCategoryMetadata(category: MarketplaceCategory, storeCount: number): Metadata {
-  const title = `${category.label} delivery in Hull — order online`;
+  const shortTitle = `${category.label} delivery in Hull — order online`;
+  const title = `${shortTitle} | ${siteConfig.name}`;
   const description = `${category.description} Discover ${storeCount > 0 ? `${storeCount}+ ` : ""}${category.label.toLowerCase()} businesses delivering across ${siteConfig.regionShort} on Hull Eats.`;
   const path = `/categories/${category.slug}`;
 
   return baseMetadata({
-    title,
+    title: pageTitle(shortTitle),
     description,
     keywords: [
       `${category.label} Hull`,
@@ -202,7 +291,7 @@ export function buildCategoryMetadata(category: MarketplaceCategory, storeCount:
       "Hull Eats",
       "food delivery Hull",
     ],
-    alternates: { canonical: path },
+    alternates: { canonical: path, languages: { "en-GB": path } },
     openGraph: buildOpenGraph({
       title,
       description,
@@ -214,6 +303,7 @@ export function buildCategoryMetadata(category: MarketplaceCategory, storeCount:
       description,
       imageUrl: category.heroImages[0] ?? category.imageUrl,
     }),
+    robots: googleBotIndex,
   });
 }
 
@@ -224,29 +314,32 @@ export function buildSeoLandingMetadata(input: {
   keywords: string[];
   imageUrl?: string;
 }): Metadata {
+  const fullTitle = `${input.title} | ${siteConfig.name}`;
+
   return baseMetadata({
-    title: input.title,
+    title: pageTitle(input.title),
     description: input.description,
     keywords: input.keywords,
-    alternates: { canonical: input.path },
+    alternates: { canonical: input.path, languages: { "en-GB": input.path } },
     openGraph: buildOpenGraph({
-      title: input.title,
+      title: fullTitle,
       description: input.description,
       path: input.path,
       imageUrl: input.imageUrl,
     }),
     twitter: buildTwitter({
-      title: input.title,
+      title: fullTitle,
       description: input.description,
       imageUrl: input.imageUrl,
     }),
+    robots: googleBotIndex,
   });
 }
 
 export function buildNoIndexMetadata(title: string): Metadata {
   return baseMetadata({
-    title,
-    robots: { index: false, follow: false },
+    title: pageTitle(title),
+    robots: { index: false, follow: false, nocache: true },
   });
 }
 

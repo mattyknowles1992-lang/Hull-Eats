@@ -1,7 +1,11 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
+import { buildNoIndexMetadata } from "../../../src/lib/seo";
 import { AppSwitcher } from "../../app-switcher";
 import { AccountOrdersClient } from "./account-orders-client";
+
+export const metadata: Metadata = buildNoIndexMetadata("Your orders");
 
 export default function AccountOrdersPage() {
   return (

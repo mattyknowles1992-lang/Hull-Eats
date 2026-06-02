@@ -1,6 +1,6 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 
+import { buildStaticPageMetadata } from "../../src/lib/seo";
 import { AppSwitcher } from "../app-switcher";
 import {
   isAnyExtraHullProductEnabled,
@@ -8,12 +8,14 @@ import {
   isHullServicesEnabled,
 } from "../../src/lib/customer-product-flags";
 
-export const metadata: Metadata = {
-  title: "Legal & policies | Hull Eats",
+export const metadata = buildStaticPageMetadata({
+  title: "Legal & policies",
   description: isAnyExtraHullProductEnabled()
     ? "Privacy, cookies, terms, and account policies for Hull Eats ordering, Hull Marketplace, and Hull Services."
     : "Privacy, cookies, terms, and account policies for Hull Eats ordering and your customer account.",
-};
+  path: "/legal",
+  keywords: ["Hull Eats legal", "privacy policy", "terms of service Hull"],
+});
 
 const policiesAll = [
   {

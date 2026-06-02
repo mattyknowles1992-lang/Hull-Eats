@@ -16,8 +16,7 @@ import {
   textMatchesMarketplaceSubcategory,
 } from "../../../src/lib/marketplace-categories";
 import { buildCategoryMetadata } from "../../../src/lib/seo";
-import { buildBreadcrumbJsonLd, buildItemListJsonLd } from "../../../src/lib/seo-json-ld";
-import { absoluteUrl } from "../../../src/lib/site-url";
+import { buildCategoryPageJsonLd } from "../../../src/lib/seo-json-ld";
 
 export function generateStaticParams() {
   return marketplaceCategories.map((category) => ({ category: category.slug }));
@@ -96,22 +95,12 @@ export default async function CategoryPage({ params }: { params: Promise<{ categ
   return (
     <main className="shell customer-marketplace">
       <JsonLd
-        data={[
-          buildBreadcrumbJsonLd([
-            { name: "Hull Eats", path: "/" },
-            { name: category.label, path: `/categories/${category.slug}` },
-          ]),
-          buildItemListJsonLd({
-            name: `${category.label} delivery in Hull`,
-            description: category.description,
-            path: `/categories/${category.slug}`,
-            items: matchingStores.map((store) => ({
-              name: store.name,
-              url: absoluteUrl(`/stores/${store.slug}`),
-              description: store.cuisineLabel,
-            })),
-          }),
-        ]}
+        data={buildCategoryPageJsonLd({
+          categoryName: category.label,
+          categoryDescription: category.description,
+          path: `/categories/${category.slug}`,
+          stores: matchingStores,
+        })}
       />
       <header className="topbar">
         <div className="brand-pill">

@@ -1,17 +1,20 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 
+import { buildStaticPageMetadata } from "../../src/lib/seo";
 import { AppSwitcher } from "../app-switcher";
 import { ContactForm } from "./contact-form";
 import { isHullMarketplaceResaleEnabled, isHullServicesEnabled } from "../../src/lib/customer-product-flags";
 
-export const metadata: Metadata = {
-  title: "Contact us | Hull Eats",
-  description: isHullMarketplaceResaleEnabled() || isHullServicesEnabled()
-    ? "Reach Hull Eats for customer support, business onboarding, marketplace queries, and Hull Services."
-    : "Reach Hull Eats for customer support, business onboarding, and ordering help.",
-};
+export const metadata = buildStaticPageMetadata({
+  title: "Contact us",
+  description:
+    isHullMarketplaceResaleEnabled() || isHullServicesEnabled()
+      ? "Reach Hull Eats for customer support, business onboarding, marketplace queries, and Hull Services."
+      : "Reach Hull Eats for customer support, business onboarding, and ordering help.",
+  path: "/contact",
+  keywords: ["contact Hull Eats", "Hull Eats support", "restaurant onboarding Hull"],
+});
 
 export default function ContactPage() {
   const showMarketplace = isHullMarketplaceResaleEnabled();

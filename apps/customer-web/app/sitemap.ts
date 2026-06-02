@@ -11,9 +11,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: absoluteUrl("/"), lastModified: now, changeFrequency: "hourly", priority: 1 },
-    { url: absoluteUrl("/about"), lastModified: now, changeFrequency: "monthly", priority: 0.5 },
-    { url: absoluteUrl("/contact"), lastModified: now, changeFrequency: "monthly", priority: 0.5 },
-    { url: absoluteUrl("/partner"), lastModified: now, changeFrequency: "monthly", priority: 0.6 },
+    { url: absoluteUrl("/about"), lastModified: now, changeFrequency: "monthly", priority: 0.55 },
+    { url: absoluteUrl("/contact"), lastModified: now, changeFrequency: "monthly", priority: 0.55 },
+    { url: absoluteUrl("/partner"), lastModified: now, changeFrequency: "monthly", priority: 0.65 },
+    { url: absoluteUrl("/legal"), lastModified: now, changeFrequency: "monthly", priority: 0.4 },
+    { url: absoluteUrl("/legal/privacy"), lastModified: now, changeFrequency: "monthly", priority: 0.35 },
+    { url: absoluteUrl("/legal/cookies"), lastModified: now, changeFrequency: "monthly", priority: 0.35 },
+    { url: absoluteUrl("/legal/terms-hull-eats"), lastModified: now, changeFrequency: "monthly", priority: 0.35 },
+    { url: absoluteUrl("/legal/acceptable-use"), lastModified: now, changeFrequency: "monthly", priority: 0.3 },
+    { url: absoluteUrl("/legal/close-account"), lastModified: now, changeFrequency: "monthly", priority: 0.3 },
   ];
 
   const categoryRoutes: MetadataRoute.Sitemap = marketplaceCategories.map((category) => ({
@@ -30,12 +36,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.8,
   }));
 
-  const storeRoutes: MetadataRoute.Sitemap = stores.map((store) => ({
-    url: absoluteUrl(`/stores/${store.slug}`),
-    lastModified: now,
-    changeFrequency: "daily",
-    priority: store.menuSetupComplete ? 0.9 : 0.7,
-  }));
+  const storeRoutes: MetadataRoute.Sitemap = stores
+    .filter((store) => store.menuSetupComplete)
+    .map((store) => ({
+      url: absoluteUrl(`/stores/${store.slug}`),
+      lastModified: now,
+      changeFrequency: "daily",
+      priority: 0.9,
+    }));
 
   return [...staticRoutes, ...landingRoutes, ...categoryRoutes, ...storeRoutes];
 }

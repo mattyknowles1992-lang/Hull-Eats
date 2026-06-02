@@ -1,19 +1,21 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 
+import { buildStaticPageMetadata } from "../../src/lib/seo";
 import { AppSwitcher } from "../app-switcher";
 import {
   isHullMarketplaceResaleEnabled,
   isHullServicesEnabled,
 } from "../../src/lib/customer-product-flags";
 
-export const metadata: Metadata = {
-  title: "Partner with us | Hull Eats",
+export const metadata = buildStaticPageMetadata({
+  title: "Partner with us",
   description:
     isHullMarketplaceResaleEnabled() || isHullServicesEnabled()
       ? "Join Hull Eats as a restaurant or shop, list on Hull Marketplace, or promote your services through Hull Services."
       : "Join Hull Eats as a restaurant, takeaway, café, or shop — live menus, delivery, and business software.",
-};
+  path: "/partner",
+  keywords: ["restaurant partner Hull", "takeaway software Hull", "join Hull Eats"],
+});
 
 export default function PartnerPage() {
   const showMarketplace = isHullMarketplaceResaleEnabled();

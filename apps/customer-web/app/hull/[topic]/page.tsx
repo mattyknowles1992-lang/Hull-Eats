@@ -15,7 +15,7 @@ import {
   seoLandingPages,
 } from "../../../src/lib/seo-landing-pages";
 import { buildSeoLandingMetadata } from "../../../src/lib/seo";
-import { buildBreadcrumbJsonLd, buildLandingPageJsonLd } from "../../../src/lib/seo-json-ld";
+import { buildLandingPageJsonLd } from "../../../src/lib/seo-json-ld";
 
 export function generateStaticParams() {
   return seoLandingPages.map((page) => ({ topic: page.slug }));
@@ -53,13 +53,7 @@ export default async function SeoLandingPage({ params }: { params: Promise<{ top
   return (
     <main className="shell customer-marketplace seo-landing-page">
       <JsonLd
-        data={[
-          buildBreadcrumbJsonLd([
-            { name: "Hull Eats", path: "/" },
-            { name: page.headline, path: `/hull/${page.slug}` },
-          ]),
-          ...buildLandingPageJsonLd(page, stores),
-        ]}
+        data={buildLandingPageJsonLd(page, stores)}
       />
 
       <header className="topbar">

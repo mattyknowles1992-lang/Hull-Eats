@@ -1,19 +1,21 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 
 import { LegalDocument } from "../../../src/components/legal-document";
+import { buildStaticPageMetadata } from "../../../src/lib/seo";
 import {
   isAnyExtraHullProductEnabled,
   isHullMarketplaceResaleEnabled,
   isHullServicesEnabled,
 } from "../../../src/lib/customer-product-flags";
 
-export const metadata: Metadata = {
-  title: "Acceptable use policy | Hull Eats",
+export const metadata = buildStaticPageMetadata({
+  title: "Acceptable use policy",
   description: isAnyExtraHullProductEnabled()
     ? "Fair use rules for Hull Eats ordering, Hull Marketplace, Hull Services, and related communications."
     : "Fair use rules for Hull Eats ordering, customer accounts, and related communications.",
-};
+  path: "/legal/acceptable-use",
+  keywords: ["Hull Eats acceptable use", "platform rules Hull Eats"],
+});
 
 export default function AcceptableUsePage() {
   const showMarketplace = isHullMarketplaceResaleEnabled();

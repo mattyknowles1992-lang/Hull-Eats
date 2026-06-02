@@ -1,12 +1,15 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 
 import { LegalDocument } from "../../../src/components/legal-document";
+import { buildStaticPageMetadata } from "../../../src/lib/seo";
+import { isHullServicesEnabled } from "../../../src/lib/customer-product-flags";
 
-export const metadata: Metadata = {
-  title: "Terms — Hull Services | Hull Eats",
+export const metadata = buildStaticPageMetadata({
+  title: "Terms — Hull Services",
   description: "Terms for discovering and booking local services listed under Hull Services.",
-};
+  path: "/legal/terms-services",
+  noIndex: !isHullServicesEnabled(),
+});
 
 export default function TermsServicesPage() {
   return (

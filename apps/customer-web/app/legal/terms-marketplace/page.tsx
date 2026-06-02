@@ -1,12 +1,15 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 
 import { LegalDocument } from "../../../src/components/legal-document";
+import { buildStaticPageMetadata } from "../../../src/lib/seo";
+import { isHullMarketplaceResaleEnabled } from "../../../src/lib/customer-product-flags";
 
-export const metadata: Metadata = {
-  title: "Terms — Hull Marketplace | Hull Eats",
+export const metadata = buildStaticPageMetadata({
+  title: "Terms — Hull Marketplace",
   description: "Terms for listing, buying, and communicating through Hull Marketplace classified-style listings.",
-};
+  path: "/legal/terms-marketplace",
+  noIndex: !isHullMarketplaceResaleEnabled(),
+});
 
 export default function TermsMarketplacePage() {
   return (

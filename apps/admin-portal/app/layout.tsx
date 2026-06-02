@@ -14,6 +14,12 @@ const manrope = Manrope({
 export const metadata: Metadata = {
   title: "Hull Eats Admin Portal",
   description: "Platform control panel",
+  robots: {
+    index: false,
+    follow: false,
+    nocache: true,
+    googleBot: { index: false, follow: false },
+  },
 };
 
 export const viewport: Viewport = {

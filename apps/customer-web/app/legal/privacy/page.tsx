@@ -1,15 +1,17 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 
 import { LegalDocument } from "../../../src/components/legal-document";
+import { buildStaticPageMetadata } from "../../../src/lib/seo";
 import { isAnyExtraHullProductEnabled } from "../../../src/lib/customer-product-flags";
 
-export const metadata: Metadata = {
-  title: "Privacy notice | Hull Eats",
+export const metadata = buildStaticPageMetadata({
+  title: "Privacy notice",
   description: isAnyExtraHullProductEnabled()
     ? "How Hull Eats, Hull Marketplace, and Hull Services process personal data in the United Kingdom."
     : "How Hull Eats processes personal data for ordering and customer accounts in the United Kingdom.",
-};
+  path: "/legal/privacy",
+  keywords: ["Hull Eats privacy", "GDPR Hull Eats", "data protection UK"],
+});
 
 export default function PrivacyPage() {
   const showExtraProducts = isAnyExtraHullProductEnabled();
