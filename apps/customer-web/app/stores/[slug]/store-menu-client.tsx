@@ -9,6 +9,8 @@ import {
   customerFacingMenuItemDescription,
   customerFacingOptionDescription,
   formatClosesInLabel,
+  getMenuItemSizePriceLines,
+  isPizzaStorefrontItem,
   parseExtraIncludedQuantity,
 } from "@hull-eats/types";
 
@@ -84,7 +86,32 @@ type StoreMenuClientProps = {
 
 const formatMoney = (value: number) => `£${value.toFixed(2)}`;
 
-function MenuItemPrice({ item }: { item: MenuItem }) {
+function MenuItemPrice({
+  item,
+  sectionPresetKey,
+}: {
+  item: MenuItem;
+  sectionPresetKey?: string | null;
+}) {
+  const sizeLines = isPizzaStorefrontItem(item, sectionPresetKey) ? getMenuItemSizePriceLines(item) : [];
+  const pizzaSizeLines = sizeLines.length > 1 ? sizeLines : [];
+
+  if (pizzaSizeLines.length > 1) {
+    return (
+      <div
+        className="menu-item-pizza-prices"
+        aria-label={pizzaSizeLines.map((line) => `${line.label} ${formatMoney(line.price)}`).join(", ")}
+      >
+        {pizzaSizeLines.map((line) => (
+          <span key={line.label} className="menu-item-pizza-price-line">
+            <span className="menu-item-pizza-size">{line.label}</span>
+            <strong className="menu-item-pizza-amount">{formatMoney(line.price)}</strong>
+          </span>
+        ))}
+      </div>
+    );
+  }
+
   const hasOffer =
     item.compareAtPrice != null && item.compareAtPrice > item.price;
 
@@ -1035,7 +1062,7 @@ export function StoreMenuClient({
                               </div>
                               <div style={{ display: "grid", gap: 6, justifyItems: "end" }}>
                                 {statusLabel ? <span className="menu-item-status-pill">{statusLabel}</span> : null}
-                                <MenuItemPrice item={item} />
+                                <MenuItemPrice item={item} sectionPresetKey={category.presetKey} />
                               </div>
                             </div>
 
@@ -1280,7 +1307,10 @@ export function StoreMenuClient({
             <section className="customise-summary-card">
               <div className="glance-row">
                 <span className="muted-copy">Base item</span>
-                <MenuItemPrice item={activeItem} />
+                <MenuItemPrice
+                  item={activeItem}
+                  sectionPresetKey={categories.find((entry) => entry.id === activeItem.categoryId)?.presetKey}
+                />
               </div>
               <div className="glance-row">
                 <span className="muted-copy">Customisations</span>

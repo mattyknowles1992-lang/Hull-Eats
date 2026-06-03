@@ -4323,6 +4323,33 @@ button.filter-pill {
   background: linear-gradient(180deg, #9b4a12, #7a3608);
 }
 
+.menu-item-pizza-prices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  justify-content: flex-end;
+  max-width: min(100%, 220px);
+}
+
+.menu-item-pizza-price-line {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.menu-item-pizza-size {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #5a6370;
+}
+
+.menu-item-pizza-amount {
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--ink-strong);
+}
+
 .store-offers-banner-stack {
   display: grid;
   gap: 12px;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { MenuItem } from "./catalog";
-import { getMenuItemCustomerMinPrice, isMenuItemPriceListable, menuItemUsesSizePricing } from "./menu-list-pricing";
+import { getMenuItemCustomerMinPrice, getMenuItemSizePriceLines, isMenuItemPriceListable, menuItemUsesSizePricing } from "./menu-list-pricing";
 
 const baseItem = (patch: Partial<MenuItem> = {}): MenuItem =>
   ({
@@ -46,6 +46,35 @@ describe("menu-list-pricing", () => {
   it("blocks live items listed at £0", () => {
     expect(isMenuItemPriceListable(baseItem({ price: 0 }))).toBe(false);
     expect(isMenuItemPriceListable(baseItem({ price: 0.01 }))).toBe(true);
+  });
+
+  it("lists each size price for menu display", () => {
+    const item = baseItem({
+      price: 5.5,
+      optionGroups: [
+        {
+          id: "size",
+          name: "Size",
+          description: "",
+          selectionMode: "single",
+          isRequired: true,
+          minSelections: 1,
+          maxSelections: 1,
+          showWhenValueIds: [],
+          options: [
+            { id: "s1", label: '7"', description: "", priceDelta: 0, isDefault: true, maxQuantity: 1 },
+            { id: "s2", label: '10"', description: "", priceDelta: 1.5, isDefault: false, maxQuantity: 1 },
+            { id: "s3", label: '12"', description: "", priceDelta: 3.5, isDefault: false, maxQuantity: 1 },
+          ],
+        },
+      ],
+    });
+
+    expect(getMenuItemSizePriceLines(item)).toEqual([
+      { label: '7"', price: 5.5 },
+      { label: '10"', price: 7 },
+      { label: '12"', price: 9 },
+    ]);
   });
 
   it("blocks size-priced items when every size is £0", () => {
