@@ -54,7 +54,6 @@ import {
   getPublishIssueDomTargetId,
   itemHasPublishIssue,
 } from "./menu-studio-core";
-import { HubMenuItemIngredients } from "./hub-menu-item-ingredients";
 import { HubMenuItemOptionsPanel } from "./hub-menu-item-options-panel";
 import { HubMenuBoardsBar } from "./hub-menu-boards-bar";
 import { HubMenuMealDealBundlePicker } from "./hub-menu-meal-deal-bundle-picker";
@@ -796,20 +795,15 @@ export function HubMenuStudio({
                   />
                 </div>
                 {creatingOrderTicketItem ? null : (
-                  <>
-                    <div style={{ gridColumn: "1 / -1" }}>
-                      <HubMenuItemIngredients item={newItemDraft} readOnly={studioLocked} onUpdateItem={patchNewItemDraft} />
-                    </div>
-                    <label style={{ ...field, gridColumn: "1 / -1" }}>
-                      <span style={darkFieldLabel}>Description (customer sees)</span>
-                      <textarea
-                        style={{ ...lightInput, minHeight: 72, paddingTop: 10, paddingBottom: 10, resize: "vertical" }}
-                        value={newItem.description}
-                        onChange={(event) => onNewItemChange({ description: event.target.value })}
-                        placeholder="Marketing copy — ingredients can be added automatically above"
-                      />
-                    </label>
-                  </>
+                  <label style={{ ...field, gridColumn: "1 / -1" }}>
+                    <span style={darkFieldLabel}>Description (customer sees)</span>
+                    <textarea
+                      style={{ ...lightInput, minHeight: 72, paddingTop: 10, paddingBottom: 10, resize: "vertical" }}
+                      value={newItem.description}
+                      onChange={(event) => onNewItemChange({ description: event.target.value })}
+                      placeholder="Optional marketing copy for this product"
+                    />
+                  </label>
                 )}
               </div>
               {creatingIsMealDealsCategory ? (
@@ -937,19 +931,14 @@ export function HubMenuStudio({
                   />
                 </div>
                 {editingOrderTicketItem ? null : (
-                  <>
-                    <div style={{ gridColumn: "1 / -1" }}>
-                      <HubMenuItemIngredients item={selectedItem} readOnly={studioLocked} onUpdateItem={onUpdateItem} />
-                    </div>
-                    <label style={{ ...field, gridColumn: "1 / -1" }}>
-                      <span style={darkFieldLabel}>Description (customer sees)</span>
-                      <textarea
-                        style={{ ...lightInput, minHeight: 88, paddingTop: 12, paddingBottom: 12, resize: "vertical" }}
-                        value={selectedItem.description}
-                        onChange={(event) => onUpdateItem((current) => ({ ...current, description: event.target.value }))}
-                      />
-                    </label>
-                  </>
+                  <label style={{ ...field, gridColumn: "1 / -1" }}>
+                    <span style={darkFieldLabel}>Description (customer sees)</span>
+                    <textarea
+                      style={{ ...lightInput, minHeight: 88, paddingTop: 12, paddingBottom: 12, resize: "vertical" }}
+                      value={selectedItem.description}
+                      onChange={(event) => onUpdateItem((current) => ({ ...current, description: event.target.value }))}
+                    />
+                  </label>
                 )}
               </div>
 

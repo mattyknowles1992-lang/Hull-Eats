@@ -646,10 +646,14 @@ export class HubRegistryService {
     }
 
     const settings = { ...input.settings };
-    const geocoded = await geocodeUkPostcode(settings.postcode);
-    if (geocoded) {
-      settings.deliveryOriginLatitude = geocoded.latitude;
-      settings.deliveryOriginLongitude = geocoded.longitude;
+    const existingPostcode = (store.postcode ?? "").trim().toUpperCase().replace(/\s+/g, "");
+    const incomingPostcode = settings.postcode.trim().toUpperCase().replace(/\s+/g, "");
+    if (incomingPostcode && incomingPostcode !== existingPostcode) {
+      const geocoded = await geocodeUkPostcode(settings.postcode);
+      if (geocoded) {
+        settings.deliveryOriginLatitude = geocoded.latitude;
+        settings.deliveryOriginLongitude = geocoded.longitude;
+      }
     }
 
     const storePatch = this.buildMerchantWorkspaceStorePatch(settings);

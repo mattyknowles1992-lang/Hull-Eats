@@ -125,6 +125,7 @@ export async function saveWorkspace(
   token: string,
   hubId: string,
   input: { settings: HubSettings; menuSections?: HubMenuSection[] },
+  options?: { timeoutMs?: number },
 ): Promise<MerchantWorkspace> {
   let payload: ReturnType<typeof parseMerchantWorkspaceUpdateInput>;
   try {
@@ -149,6 +150,7 @@ export async function saveWorkspace(
     method: "PATCH",
     token,
     body: JSON.stringify(payload),
+    timeoutMs: options?.timeoutMs ?? 120_000,
   });
 }
 

@@ -1,6 +1,8 @@
 import { repairMealUpgradeOptionGroups, type MenuItem } from "@hull-eats/types";
 import { parseExtraIncludedQuantity } from "@hull-eats/types";
 
+const SALAD_INCLUDED_MARKER = /__HULL_SALAD_INCLUDED__/;
+
 export type BasketSelectedOption = {
   groupId: string;
   groupName: string;
@@ -184,6 +186,13 @@ export const synchroniseSelection = (item: MenuItem, selection: BasketCustomisat
 
 export const getDefaultCustomisationSelection = (item: MenuItem): BasketCustomisationSelection => {
   const selectedOptionQuantities = item.optionGroups.reduce<Record<string, number>>((current, group) => {
+    if (SALAD_INCLUDED_MARKER.test(group.description ?? "")) {
+      group.options.forEach((option) => {
+        current[option.id] = 1;
+      });
+      return current;
+    }
+
     const defaultOptions = group.options.filter((option) => option.isDefault);
 
     if (group.selectionMode === "single") {

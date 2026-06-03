@@ -26,6 +26,14 @@ export const normaliseUkPostcodeCompact = (postcode: string): string | null => {
   return compact;
 };
 
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+  const signal =
+    typeof AbortSignal !== "undefined" && "timeout" in AbortSignal
+      ? AbortSignal.timeout(timeoutMs)
+      : undefined;
+  return fetch(url, { ...init, signal });
+}
+
 async function geocodeWithPostcodesIo(postcode: string): Promise<GeocodedPoint | null> {
   const compact = normaliseUkPostcodeCompact(postcode);
   if (!compact) {
@@ -33,9 +41,11 @@ async function geocodeWithPostcodesIo(postcode: string): Promise<GeocodedPoint |
   }
 
   const spaced = formatUkPostcodeForDisplay(compact);
-  const response = await fetch(`https://api.postcodes.io/postcodes/${encodeURIComponent(spaced)}`, {
-    headers: { Accept: "application/json" },
-  });
+  const response = await fetchWithTimeout(
+    `https://api.postcodes.io/postcodes/${encodeURIComponent(spaced)}`,
+    { headers: { Accept: "application/json" } },
+    8_000,
+  );
 
   if (response.ok) {
     const body = (await response.json()) as {
@@ -57,9 +67,11 @@ async function geocodeWithPostcodesIo(postcode: string): Promise<GeocodedPoint |
     return null;
   }
 
-  const outResponse = await fetch(`https://api.postcodes.io/outcodes/${encodeURIComponent(outward)}`, {
-    headers: { Accept: "application/json" },
-  });
+  const outResponse = await fetchWithTimeout(
+    `https://api.postcodes.io/outcodes/${encodeURIComponent(outward)}`,
+    { headers: { Accept: "application/json" } },
+    8_000,
+  );
   if (!outResponse.ok) {
     return null;
   }
@@ -87,7 +99,7 @@ async function geocodeWithGoogle(postcode: string, apiKey: string): Promise<Geoc
   url.searchParams.set("key", apiKey);
   url.searchParams.set("region", "uk");
 
-  const response = await fetch(url);
+  const response = await fetchWithTimeout(url.toString(), {}, 8_000);
   if (!response.ok) {
     return null;
   }

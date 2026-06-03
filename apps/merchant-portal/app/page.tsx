@@ -88,6 +88,14 @@ import {
   resolveActiveHubUser,
   type StoredMerchantSession,
 } from "./merchant-session";
+import {
+  isRetryableWorkspaceSaveError,
+  sleepMs,
+  WORKSPACE_SAVE_MAX_ATTEMPTS,
+  WORKSPACE_SAVE_TIMEOUT_MS,
+  workspaceSaveAttemptNotice,
+  workspaceSaveRetryDelayMs,
+} from "./merchant-workspace-save";
 import { readBrowserStorage, writeBrowserStorage } from "./browser-storage";
 import {
   cloneHubSettings,
@@ -687,6 +695,8 @@ export default function MerchantPortalPage() {
         menuSaveQueuedRef.current = true;
         if (!options?.silent) {
           menuSaveQueuedSilentRef.current = false;
+          setMenuHubPersistState("saving");
+          setSaveNotice("Finishing the current save, then saving your latest changes…");
         }
         return false;
       }
@@ -713,24 +723,43 @@ export default function MerchantPortalPage() {
       }
 
       try {
-        const workspace = await saveWorkspace(merchantToken, activeHubId, {
-          settings: settingsSnapshot,
-          ...(includeMenu ? { menuSections: sectionsSnapshot } : {}),
-        });
-        applyWorkspaceSaveResult(workspace, {
-          sectionsSentWithRequest: includeMenu ? sectionsSnapshot : undefined,
-          settingsSentWithRequest: settingsSnapshot,
-        });
-        if (!silent) {
-          setMenuHubPersistState("saved");
+        let lastError: unknown = null;
+        for (let attempt = 1; attempt <= WORKSPACE_SAVE_MAX_ATTEMPTS; attempt += 1) {
+          if (!silent && attempt > 1) {
+            setSaveNotice(workspaceSaveAttemptNotice(attempt, WORKSPACE_SAVE_MAX_ATTEMPTS));
+          }
+          try {
+            const workspace = await saveWorkspace(
+              merchantToken,
+              activeHubId,
+              {
+                settings: settingsSnapshot,
+                ...(includeMenu ? { menuSections: sectionsSnapshot } : {}),
+              },
+              { timeoutMs: WORKSPACE_SAVE_TIMEOUT_MS },
+            );
+            applyWorkspaceSaveResult(workspace, {
+              sectionsSentWithRequest: includeMenu ? sectionsSnapshot : undefined,
+              settingsSentWithRequest: settingsSnapshot,
+            });
+            if (!silent) {
+              setMenuHubPersistState("saved");
+            }
+            if (options?.manualCheckpoint) {
+              setSaveNotice("Draft saved on your hub — ready to publish when you choose.");
+              setMenuNotice("All items and options are kept. Nothing was removed. Publish when customers should see changes.");
+            }
+            return true;
+          } catch (error) {
+            lastError = error;
+            const canRetry = attempt < WORKSPACE_SAVE_MAX_ATTEMPTS && isRetryableWorkspaceSaveError(error);
+            if (!canRetry) {
+              break;
+            }
+            await sleepMs(workspaceSaveRetryDelayMs(attempt));
+          }
         }
-        if (options?.manualCheckpoint) {
-          setSaveNotice("Draft saved on your hub — ready to publish when you choose.");
-          setMenuNotice("All items and options are kept. Nothing was removed. Publish when customers should see changes.");
-        }
-        return true;
-      } catch (error) {
-        const message = friendlyCaughtError(error, "workspace_save");
+        const message = friendlyCaughtError(lastError, "workspace_save");
         if (!silent) {
           setMenuHubPersistState("error");
         }
@@ -754,13 +783,21 @@ export default function MerchantPortalPage() {
   );
 
   useEffect(() => {
+    if (menuHubPersistState !== "saved") {
+      return;
+    }
+    const timeoutId = window.setTimeout(() => setMenuHubPersistState("idle"), 4000);
+    return () => window.clearTimeout(timeoutId);
+  }, [menuHubPersistState]);
+
+  useEffect(() => {
     if (!hasUnsavedHubChanges || !merchantToken || !activeHubId || !hubAccess?.canEditWorkspace) {
       return;
     }
 
     const timeoutId = window.setTimeout(() => {
       void persistWorkspaceToHub({ silent: true });
-    }, 2000);
+    }, 4000);
 
     return () => window.clearTimeout(timeoutId);
   }, [

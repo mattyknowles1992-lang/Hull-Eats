@@ -120,10 +120,21 @@ describe("store-menu-add-sheet-helpers", () => {
     expect(usesItemAddSheet(item)).toBe(true);
   });
 
-  it("hides salad components when hub extras are configured", () => {
+  it("hides legacy salad components when hub salad included group is configured", () => {
     const item = baseItem({
       components: [{ id: "c1", label: "Lettuce", quantity: 1, removable: true }],
       optionGroups: [
+        {
+          id: "salad",
+          name: "Salad",
+          description: "__HULL_SALAD_INCLUDED__",
+          selectionMode: "multiple",
+          isRequired: false,
+          minSelections: 0,
+          maxSelections: null,
+          showWhenValueIds: [],
+          options: [{ id: "lettuce", label: "Lettuce", description: "", priceDelta: 0, isDefault: false, maxQuantity: 1 }],
+        },
         {
           id: "extras",
           name: "Added extras",
@@ -140,7 +151,7 @@ describe("store-menu-add-sheet-helpers", () => {
     expect(showsAddSheetSaladSection(item)).toBe(false);
   });
 
-  it("filters sauce groups on burger-style items with hub extras", () => {
+  it("keeps salad and sauce groups on burger-style items and dedupes extras", () => {
     const groups = [
       {
         id: "meal",
@@ -154,6 +165,17 @@ describe("store-menu-add-sheet-helpers", () => {
         options: [],
       },
       {
+        id: "salad",
+        name: "Salad",
+        description: "__HULL_SALAD_INCLUDED__",
+        selectionMode: "multiple" as const,
+        isRequired: false,
+        minSelections: 0,
+        maxSelections: null,
+        showWhenValueIds: [],
+        options: [{ id: "onion", label: "Onion", description: "", priceDelta: 0, isDefault: false, maxQuantity: 1 }],
+      },
+      {
         id: "sauce",
         name: "Sauces",
         description: "__HULL_SAUCES_INCLUDED__",
@@ -162,7 +184,7 @@ describe("store-menu-add-sheet-helpers", () => {
         minSelections: 1,
         maxSelections: 1,
         showWhenValueIds: [],
-        options: [],
+        options: [{ id: "mayo", label: "Mayo", description: "", priceDelta: 0, isDefault: false, maxQuantity: 1 }],
       },
       {
         id: "extras",
@@ -173,11 +195,17 @@ describe("store-menu-add-sheet-helpers", () => {
         minSelections: 0,
         maxSelections: null,
         showWhenValueIds: [],
-        options: [],
+        options: [
+          { id: "onion-extra", label: "Onion", description: "", priceDelta: 0.5, isDefault: false, maxQuantity: 1 },
+          { id: "cheese", label: "Cheese", description: "", priceDelta: 0.8, isDefault: false, maxQuantity: 1 },
+        ],
       },
     ];
     const item = baseItem({ optionGroups: groups });
-    expect(filterAddSheetOptionGroups(groups, item).map((group) => group.id)).toEqual(["meal", "extras"]);
+    const filtered = filterAddSheetOptionGroups(groups, item);
+    expect(filtered.map((group) => group.id)).toEqual(["meal", "salad", "sauce", "extras"]);
+    expect(filtered.find((group) => group.id === "extras")?.options.map((option) => option.id)).toEqual(["cheese"]);
+    expect(sortAddSheetOptionGroups(filtered).map((group) => group.id)).toEqual(["meal", "salad", "sauce", "extras"]);
     expect(isMealChoiceGroup(groups[0]!)).toBe(true);
   });
 

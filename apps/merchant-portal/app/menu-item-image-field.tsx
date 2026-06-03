@@ -25,7 +25,7 @@ async function fileToOptimisedDataUrl(file: File): Promise<string> {
 
   const dataUrl = canvas.toDataURL("image/jpeg", JPEG_QUALITY);
   if (dataUrl.length > MAX_FILE_BYTES * 1.4) {
-    throw new Error("Image is still too large after resizing. Use a smaller photo or paste an image link.");
+    throw new Error("Image is still too large after resizing. Use a smaller photo.");
   }
   return dataUrl;
 }
@@ -71,19 +71,6 @@ export function MenuItemImageField({ value, onChange, disabled }: MenuItemImageF
     }
   };
 
-  const handleUrlChange = (raw: string) => {
-    const trimmed = raw.trim();
-    if (!trimmed) {
-      onChange(undefined);
-      return;
-    }
-    if (trimmed.startsWith("data:image/")) {
-      onChange(trimmed);
-      return;
-    }
-    onChange(trimmed);
-  };
-
   return (
     <div style={wrap}>
       <span style={label}>Product photo</span>
@@ -123,17 +110,6 @@ export function MenuItemImageField({ value, onChange, disabled }: MenuItemImageF
           ) : null}
         </div>
       </div>
-
-      <label style={urlField}>
-        <span style={urlLabel}>Or paste image link</span>
-        <input
-          style={urlInput}
-          value={value?.startsWith("data:") ? "" : (value ?? "")}
-          disabled={disabled}
-          placeholder="https://…"
-          onChange={(event) => handleUrlChange(event.target.value)}
-        />
-      </label>
 
       {error ? <p style={errorText}>{error}</p> : null}
     </div>
@@ -182,13 +158,5 @@ const clearButton: CSSProperties = {
   color: "#8a2121",
   fontWeight: 800,
   cursor: "pointer",
-};
-const urlField: CSSProperties = { display: "grid", gap: 6 };
-const urlLabel: CSSProperties = { fontSize: "0.82rem", color: "#5b6470", fontWeight: 700 };
-const urlInput: CSSProperties = {
-  padding: "10px 12px",
-  borderRadius: 12,
-  border: "1px solid rgba(15, 17, 21, 0.15)",
-  font: "inherit",
 };
 const errorText: CSSProperties = { margin: 0, color: "#8a2121", fontSize: "0.82rem", fontWeight: 700 };

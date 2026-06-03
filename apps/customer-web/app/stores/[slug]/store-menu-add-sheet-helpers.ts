@@ -67,12 +67,16 @@ export function usesItemAddSheet(item: MenuItem): boolean {
   return item.optionGroups.length > 0 || item.components.some((component) => component.removable);
 }
 
+export function isSaladIncludedGroup(group: MenuItem["optionGroups"][number]): boolean {
+  return SALAD_INCLUDED_MARKER.test(group.description ?? "");
+}
+
 export function showsAddSheetSaladSection(item: MenuItem): boolean {
-  if (!item.components.some((component) => component.removable)) {
+  if (item.optionGroups.some((group) => isSaladIncludedGroup(group))) {
     return false;
   }
 
-  if (hasHubExtrasGroup(item)) {
+  if (!item.components.some((component) => component.removable)) {
     return false;
   }
 
@@ -83,30 +87,66 @@ export function showsAddSheetSaladSection(item: MenuItem): boolean {
   return true;
 }
 
-/** Burger-style items with hub extras use the extras list instead of separate sauce / part-salad groups. */
-export function filterAddSheetOptionGroups(
-  groups: MenuItem["optionGroups"],
-  item: MenuItem,
-): MenuItem["optionGroups"] {
-  const burgerStyle = hasHubExtrasGroup(item) && !isPizzaMenuItem(item);
-  if (!burgerStyle) {
-    return groups;
+export function normalizeAddSheetOptionLabel(label: string): string {
+  return label.trim().toLowerCase();
+}
+
+function collectIncludedSaladAndSauceKeys(groups: MenuItem["optionGroups"]): {
+  labels: Set<string>;
+  ids: Set<string>;
+} {
+  const labels = new Set<string>();
+  const ids = new Set<string>();
+
+  for (const group of groups) {
+    const description = group.description ?? "";
+    if (!SALAD_INCLUDED_MARKER.test(description) && !SAUCES_INCLUDED_MARKER.test(description)) {
+      continue;
+    }
+
+    for (const option of group.options) {
+      labels.add(normalizeAddSheetOptionLabel(option.label));
+      ids.add(option.id);
+    }
   }
 
-  return groups.filter((group) => {
-    const description = group.description ?? "";
-    if (SAUCES_INCLUDED_MARKER.test(description) || SAUCES_EXTRA_MARKER.test(description)) {
-      return false;
-    }
-    if (SALAD_INCLUDED_MARKER.test(description) || SALAD_EXTRA_MARKER.test(description)) {
-      return false;
-    }
-    const partChoice = parsePartChoiceSlot(group);
-    if (partChoice?.slot === "salad") {
-      return false;
-    }
-    return true;
-  });
+  return { labels, ids };
+}
+
+/** Keep salad/sauce groups visible; strip included salad/sauce from the hub extras list. */
+export function filterAddSheetOptionGroups(
+  groups: MenuItem["optionGroups"],
+  _item: MenuItem,
+): MenuItem["optionGroups"] {
+  const { labels: includedLabels, ids: includedIds } = collectIncludedSaladAndSauceKeys(groups);
+  const hasHubSaladIncluded = groups.some((group) => isSaladIncludedGroup(group));
+
+  return groups
+    .filter((group) => {
+      const partChoice = parsePartChoiceSlot(group);
+      if (partChoice?.slot === "salad" && hasHubSaladIncluded) {
+        return false;
+      }
+
+      return true;
+    })
+    .map((group) => {
+      if (!EXTRAS_MARKER.test(group.description ?? "")) {
+        return group;
+      }
+
+      if (includedLabels.size === 0 && includedIds.size === 0) {
+        return group;
+      }
+
+      return {
+        ...group,
+        options: group.options.filter(
+          (option) =>
+            !includedIds.has(option.id) && !includedLabels.has(normalizeAddSheetOptionLabel(option.label)),
+        ),
+      };
+    });
 }
 
 function groupSortRank(group: MenuItem["optionGroups"][number]): number {
@@ -130,18 +170,25 @@ function groupSortRank(group: MenuItem["optionGroups"][number]): number {
     return 4;
   }
 
-  if (SIDE_SEASONINGS_MARKER.test(description)) {
+  if (SALAD_INCLUDED_MARKER.test(description)) {
+    return 40;
+  }
+  if (SALAD_EXTRA_MARKER.test(description)) {
     return 41;
   }
 
+  if (SIDE_SEASONINGS_MARKER.test(description)) {
+    return 42;
+  }
+
   if (SAUCES_INCLUDED_MARKER.test(description)) {
-    return 5;
+    return 50;
   }
   if (SAUCES_EXTRA_MARKER.test(description)) {
-    return 6;
+    return 51;
   }
   if (EXTRAS_MARKER.test(description)) {
-    return 7;
+    return 60;
   }
   if (partChoice) {
     return 8;
@@ -159,6 +206,12 @@ export function getAddSheetGroupTitle(group: MenuItem["optionGroups"][number]): 
 
   if (isMealChoiceGroup(group)) {
     return "How would you like it?";
+  }
+  if (SALAD_INCLUDED_MARKER.test(description)) {
+    return "Add your salad";
+  }
+  if (SALAD_EXTRA_MARKER.test(description)) {
+    return "Extra salad";
   }
   if (SAUCES_INCLUDED_MARKER.test(description)) {
     return "Add your sauce";

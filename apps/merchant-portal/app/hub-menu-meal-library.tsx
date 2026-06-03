@@ -66,6 +66,28 @@ export function HubMenuMealLibrary({
         </p>
       ) : null}
 
+      {section.items.length > 0 ? (
+        <div className="hub-menu-meal-library__saved">
+          <h3 className="hub-menu-meal-library__saved-title">Saved meal offers</h3>
+          <div className="hub-menu-meal-library__list">
+            {section.items.map((item, index) => (
+              <MealTemplateEditor
+                key={item.id}
+                item={item}
+                offerNumber={index + 1}
+                menuProducts={menuProducts}
+                pickableCategories={pickableCategories}
+                readOnly={readOnly}
+                onUpdate={(updater) => onUpdateTemplate(item.id, updater)}
+                onRemove={() => onRemoveTemplate(item.id)}
+              />
+            ))}
+          </div>
+        </div>
+      ) : (
+        <p className="hub-menu-meal-library__empty">No meal offers saved yet — configure your first deal below, then press Save.</p>
+      )}
+
       {readOnly ? null : (
         <NewMealDealForm
           categoryId={section.id}
@@ -75,24 +97,6 @@ export function HubMenuMealLibrary({
           hasMenuProducts={hasMenuProducts}
           onAdd={onAddTemplate}
         />
-      )}
-
-      {section.items.length === 0 ? (
-        <p className="hub-menu-meal-library__empty">No meal deals yet. Use the form above to add your first deal.</p>
-      ) : (
-        <div className="hub-menu-meal-library__list">
-          {section.items.map((item) => (
-            <MealTemplateEditor
-              key={item.id}
-              item={item}
-              menuProducts={menuProducts}
-              pickableCategories={pickableCategories}
-              readOnly={readOnly}
-              onUpdate={(updater) => onUpdateTemplate(item.id, updater)}
-              onRemove={() => onRemoveTemplate(item.id)}
-            />
-          ))}
-        </div>
       )}
     </div>
   );
@@ -150,10 +154,17 @@ function NewMealDealForm({
   };
 
   const canSave = label.trim().length > 0 && mealDealHasChoices(mealConfig, menuProducts);
+  const offerNumber = existingTemplateCount + 1;
+  const saveLabel = `Save meal offer ${offerNumber}`;
 
   return (
     <article className="hub-menu-meal-library__new-deal">
-      <p style={newDealTitle}>New meal deal</p>
+      <p style={newDealTitle}>
+        {existingTemplateCount === 0 ? "Create meal offer 1" : `Add meal offer ${offerNumber}`}
+      </p>
+      <p style={stepHint}>
+        Configure sides and drinks below, then press <strong>{saveLabel}</strong>. You can add another offer afterwards.
+      </p>
 
       <div className="hub-menu-meal-library__deal-meta">
         <label style={field}>
@@ -210,18 +221,26 @@ function NewMealDealForm({
       {resolvedCount === 0 &&
       mealConfig.sideCategoryPools.length === 0 &&
       mealConfig.drinkCategoryPools.length === 0 ? (
-        <p style={warn}>Link a category or add at least one item before saving.</p>
+        <p style={warn}>Link a category (e.g. all drinks) or add at least one item before saving.</p>
       ) : null}
 
-      <button type="button" className="hub-menu-meal-library__save-btn" disabled={!canSave} onClick={handleSave}>
-        Save meal deal
-      </button>
+      {!canSave && label.trim().length > 0 ? (
+        <p style={warn}>Add a customer title and at least one side, drink, or linked category.</p>
+      ) : null}
+
+      <div className="hub-menu-meal-library__save-footer">
+        <button type="button" className="hub-menu-meal-library__save-btn" disabled={!canSave} onClick={handleSave}>
+          {saveLabel}
+        </button>
+        <p style={saveFooterHint}>Saved offers appear above. Publish the menu when you are ready for customers to see them.</p>
+      </div>
     </article>
   );
 }
 
 function MealTemplateEditor({
   item,
+  offerNumber,
   menuProducts,
   pickableCategories,
   readOnly,
@@ -229,6 +248,7 @@ function MealTemplateEditor({
   onRemove,
 }: {
   item: MenuItem;
+  offerNumber: number;
   menuProducts: ReturnType<typeof listPickableMenuProducts>;
   pickableCategories: ReturnType<typeof listMealPickableCategories>;
   readOnly: boolean;
@@ -242,7 +262,9 @@ function MealTemplateEditor({
 
   return (
     <article style={templateCard}>
-      <p style={dealHeading}>{template.studioLabel.trim() || template.label}</p>
+      <p style={dealHeading}>
+        Meal offer {offerNumber}: {template.studioLabel.trim() || template.label}
+      </p>
       <div style={templateHeader}>
         <div style={{ display: "grid", gap: 8, flex: 1, minWidth: 0 }}>
           <label style={field}>
@@ -351,6 +373,10 @@ const input: CSSProperties = {
 };
 
 const newDealTitle: CSSProperties = { margin: 0, fontWeight: 900, fontSize: "0.95rem", color: "#064f68" };
+
+const stepHint: CSSProperties = { margin: 0, fontSize: "0.84rem", lineHeight: 1.45, color: "#5b6470" };
+
+const saveFooterHint: CSSProperties = { margin: 0, fontSize: "0.78rem", lineHeight: 1.4, color: "#5b6470" };
 
 const dealHeading: CSSProperties = { margin: 0, fontWeight: 900, fontSize: "0.92rem", color: "#064f68" };
 

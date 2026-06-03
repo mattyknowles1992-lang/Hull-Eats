@@ -52,6 +52,8 @@ import {
   type ItemOptionBlock,
 } from "./menu-studio-core";
 
+const UNIFIED_CUSTOMISATION_KINDS = new Set<ItemOptionBlock["kind"]>(["salad", "extras", "sauces"]);
+
 type Props = {
   item: MenuItem;
   toppings: HubExtraTopping[];
@@ -83,7 +85,7 @@ function BlockGrip({
   );
 }
 
-function ItemSaucesBlock({
+export function ItemSaucesBlock({
   item,
   sauces,
   readOnly,
@@ -158,7 +160,7 @@ function ItemSaucesBlock({
   );
 }
 
-function ItemExtrasBlock({
+export function ItemExtrasBlock({
   item,
   toppings,
   readOnly,
@@ -320,7 +322,7 @@ function ItemSideSeasoningsBlock({
   );
 }
 
-function ItemSaladBlock({
+export function ItemSaladBlock({
   item,
   salads,
   readOnly,
@@ -392,6 +394,70 @@ function ItemSaladBlock({
         patch(selection.enabled, selection.includedIds, selection.extraEnabled, selection.extraIds, next);
       }}
     />
+  );
+}
+
+function UnifiedSaladExtrasSaucesSection({
+  item,
+  toppings,
+  salads,
+  sauces,
+  readOnly,
+  extrasManagedByCategoryName,
+  onDetachFromCategoryExtras,
+  onUpdateItem,
+}: {
+  item: MenuItem;
+  toppings: HubExtraTopping[];
+  salads: HubSaladOption[];
+  sauces: HubSauceOption[];
+  readOnly: boolean;
+  extrasManagedByCategoryName?: string | null;
+  onDetachFromCategoryExtras?: () => void;
+  onUpdateItem: Props["onUpdateItem"];
+}) {
+  const showSalad = salads.length > 0;
+  const showExtras = toppings.length > 0;
+  const showSauces = sauces.length > 0;
+
+  return (
+    <article className="hub-menu-ses-stack">
+      <header className="hub-menu-ses-stack__header">
+        <strong className="hub-menu-ses-stack__title">Salad, extras &amp; sauces</strong>
+        <p className="hub-menu-ses-stack__copy">
+          Tick what applies to this product only. Use <strong>Salad</strong> for included garnish (lettuce, onion…). Use{" "}
+          <strong>Added extras</strong> for paid add-ons — leave the main toggle off if this item should not offer extras.
+        </p>
+      </header>
+
+      {showSalad ? (
+        <div className="hub-menu-ses-stack__section">
+          <h4 className="hub-menu-ses-stack__heading">Salad</h4>
+          <ItemSaladBlock item={item} salads={salads} readOnly={readOnly} onUpdateItem={onUpdateItem} />
+        </div>
+      ) : null}
+
+      {showExtras ? (
+        <div className="hub-menu-ses-stack__section">
+          <h4 className="hub-menu-ses-stack__heading">Added extras</h4>
+          <ItemExtrasBlock
+            item={item}
+            toppings={toppings}
+            readOnly={readOnly}
+            extrasManagedByCategoryName={extrasManagedByCategoryName}
+            onDetachFromCategoryExtras={onDetachFromCategoryExtras}
+            onUpdateItem={onUpdateItem}
+          />
+        </div>
+      ) : null}
+
+      {showSauces ? (
+        <div className="hub-menu-ses-stack__section">
+          <h4 className="hub-menu-ses-stack__heading">Sauces</h4>
+          <ItemSaucesBlock item={item} sauces={sauces} readOnly={readOnly} onUpdateItem={onUpdateItem} />
+        </div>
+      ) : null}
+    </article>
   );
 }
 
@@ -680,18 +746,6 @@ function OptionBlockCard({
         )}
       </header>
 
-      {block.kind === "extras" ? (
-        <ItemExtrasBlock
-          item={item}
-          toppings={toppings}
-          readOnly={readOnly}
-          extrasManagedByCategoryName={extrasManagedByCategoryName}
-          onDetachFromCategoryExtras={onDetachFromCategoryExtras}
-          onUpdateItem={onUpdateItem}
-        />
-      ) : null}
-      {block.kind === "sauces" ? <ItemSaucesBlock item={item} sauces={sauces} readOnly={readOnly} onUpdateItem={onUpdateItem} /> : null}
-      {block.kind === "salad" ? <ItemSaladBlock item={item} salads={salads} readOnly={readOnly} onUpdateItem={onUpdateItem} /> : null}
       {block.kind === "side_seasonings" ? (
         <ItemSideSeasoningsBlock
           item={item}
@@ -726,13 +780,14 @@ export function HubMenuItemOptionsPanel({
   onUpdateItem,
 }: Props) {
   const blocks = listItemOptionBlocks(item);
-  const reorderable = blocks.filter((block) => block.canReorder);
-  const fixed = blocks.filter((block) => !block.canReorder);
-  const hasExtras = blocks.some((b) => b.kind === "extras");
-  const hasSauces = blocks.some((b) => b.kind === "sauces");
-  const hasSalad = blocks.some((b) => b.kind === "salad");
-  const hasSideSeasonings = blocks.some((b) => b.kind === "side_seasonings");
-  const hasMeal = blocks.some((b) => b.kind === "meal");
+  const useUnifiedCustomisation = toppings.length > 0 || salads.length > 0 || sauces.length > 0;
+  const panelBlocks = useUnifiedCustomisation
+    ? blocks.filter((block) => !UNIFIED_CUSTOMISATION_KINDS.has(block.kind))
+    : blocks;
+  const reorderable = panelBlocks.filter((block) => block.canReorder);
+  const fixed = panelBlocks.filter((block) => !block.canReorder);
+  const hasSideSeasonings = panelBlocks.some((b) => b.kind === "side_seasonings");
+  const hasMeal = panelBlocks.some((b) => b.kind === "meal");
   const [mealTemplateIdToAdd, setMealTemplateIdToAdd] = useState(() => mealTemplates[0]?.id ?? "");
 
   const handleReorder = (from: number, to: number) => {
@@ -788,8 +843,8 @@ export function HubMenuItemOptionsPanel({
       <div style={panelIntro}>
         <p style={panelTitle}>Customer options &amp; variations</p>
         <p style={hint}>
-          Each block is one choice customers make when ordering. Drag blocks to change the order (e.g. put{" "}
-          <strong>Make it a meal</strong> before <strong>Added extras</strong>).
+          Each block is one choice customers make when ordering. Salad, extras and sauces are grouped together at the
+          bottom. Drag other blocks to change order (e.g. put <strong>Make it a meal</strong> first).
         </p>
       </div>
 
@@ -833,22 +888,35 @@ export function HubMenuItemOptionsPanel({
         />
       ))}
 
+      {useUnifiedCustomisation ? (
+        <UnifiedSaladExtrasSaucesSection
+          item={item}
+          toppings={toppings}
+          salads={salads}
+          sauces={sauces}
+          readOnly={readOnly}
+          extrasManagedByCategoryName={extrasManagedByCategoryName}
+          onDetachFromCategoryExtras={onDetachFromCategoryExtras}
+          onUpdateItem={onUpdateItem}
+        />
+      ) : null}
+
       {readOnly ? null : (
         <div style={addRow}>
           <button type="button" style={secondaryBtn} onClick={() => onUpdateItem((current) => addItemCustomOptionGroup(current))}>
             + Add option group
           </button>
-          {!hasExtras && toppings.length > 0 ? (
+          {!useUnifiedCustomisation && toppings.length > 0 ? (
             <button type="button" style={secondaryBtn} onClick={addExtrasBlock}>
               + Added extras on this item
             </button>
           ) : null}
-          {!hasSauces && sauces.length > 0 ? (
+          {!useUnifiedCustomisation && sauces.length > 0 ? (
             <button type="button" style={secondaryBtn} onClick={addSaucesBlock}>
               + Sauces on this item
             </button>
           ) : null}
-          {!hasSalad && salads.length > 0 ? (
+          {!useUnifiedCustomisation && salads.length > 0 ? (
             <button type="button" style={secondaryBtn} onClick={addSaladBlock}>
               + Salad on this item
             </button>

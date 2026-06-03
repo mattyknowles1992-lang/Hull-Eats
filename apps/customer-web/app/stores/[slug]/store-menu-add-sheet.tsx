@@ -10,6 +10,7 @@ import {
   getAddSheetGroupTitle,
   getAddSheetOptionPriceLabel,
   isMealChoiceGroup,
+  isSaladIncludedGroup,
   showsAddSheetSaladSection,
   sortAddSheetOptionGroups,
 } from "./store-menu-add-sheet-helpers";
@@ -138,10 +139,14 @@ export function StoreMenuAddSheet({
 
           {sortedGroups.map((group) => {
             const mealChoice = isMealChoiceGroup(group);
+            const saladIncluded = isSaladIncludedGroup(group);
 
             return (
               <section key={group.id} className="add-sheet-section">
                 <h4 className="add-sheet-section-title">{getAddSheetGroupTitle(group)}</h4>
+                {saladIncluded ? (
+                  <p className="add-sheet-section-copy">Untick anything you do not want on your order.</p>
+                ) : null}
                 {mealChoice ? (
                   <div className="add-sheet-meal-choices" role="radiogroup" aria-label={getAddSheetGroupTitle(group)}>
                     {group.options.map((option) => {
