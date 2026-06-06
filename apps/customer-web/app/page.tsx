@@ -5,7 +5,6 @@ import { buildHomeMetadata } from "../src/lib/seo";
 import { buildHomepageBusinessIndexJsonLd } from "../src/lib/seo-json-ld";
 import { JsonLd } from "../src/components/json-ld";
 import { HomePageClient } from "./home-page-client";
-import { HomePageCrawlIndex } from "./home-page-crawl-index";
 
 export const metadata = buildHomeMetadata();
 
@@ -24,7 +23,6 @@ export default async function CustomerHomePage({ searchParams }: HomePageProps) 
       <Suspense fallback={null}>
         <HomePageClient initialStores={stores} initialSearchQuery={initialSearchQuery} />
       </Suspense>
-      <HomePageCrawlIndex stores={stores} />
     </>
   );
 }

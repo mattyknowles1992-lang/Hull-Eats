@@ -9,9 +9,7 @@ import { fetchMarketplaceStores } from "../../../src/lib/marketplace";
 import {
   filterStoresForLandingPage,
   getSeoLandingPage,
-  marketplaceCategoryLinks,
   relatedCategoriesForLanding,
-  relatedLandingPagesFor,
   seoLandingPages,
 } from "../../../src/lib/seo-landing-pages";
 import { buildSeoLandingMetadata } from "../../../src/lib/seo";
@@ -48,7 +46,6 @@ export default async function SeoLandingPage({ params }: { params: Promise<{ top
   const allStores = (await fetchMarketplaceStores({ revalidateSeconds: 600 })) ?? [];
   const stores = filterStoresForLandingPage(allStores, page);
   const relatedCategories = relatedCategoriesForLanding(page);
-  const relatedLandings = relatedLandingPagesFor(page);
 
   return (
     <main className="shell customer-marketplace seo-landing-page">
@@ -77,16 +74,17 @@ export default async function SeoLandingPage({ params }: { params: Promise<{ top
       </section>
 
       {relatedCategories.length > 0 ? (
-        <section className="seo-crawl-index-inner">
-          <h2>Browse related categories</h2>
-          <ul className="seo-crawl-link-list seo-crawl-link-list-inline">
-            {relatedCategories.map((category) => (
-              <li key={category.slug}>
-                <Link href={`/categories/${category.slug}`}>{category.label}</Link>
-              </li>
-            ))}
-          </ul>
-        </section>
+        <nav className="marketplace-category-rail" aria-label="Related categories">
+          {relatedCategories.map((category) => (
+            <Link key={category.slug} href={`/categories/${category.slug}`} className="marketplace-category-chip">
+              <span
+                className="marketplace-category-chip-image"
+                style={{ backgroundImage: `url(${category.imageUrl})` }}
+              />
+              <span>{category.shortLabel}</span>
+            </Link>
+          ))}
+        </nav>
       ) : null}
 
       <section className="content-grid">
@@ -140,27 +138,6 @@ export default async function SeoLandingPage({ params }: { params: Promise<{ top
               </Link>
             ))}
           </div>
-        </div>
-      </section>
-
-      <section className="seo-crawl-index shell">
-        <div className="seo-crawl-index-inner">
-          <h2>More ways to order in Hull</h2>
-          <ul className="seo-crawl-link-list seo-crawl-link-list-inline">
-            {relatedLandings.map((related) => (
-              <li key={related.slug}>
-                <Link href={`/hull/${related.slug}`}>{related.title}</Link>
-              </li>
-            ))}
-          </ul>
-          <h3>All food categories</h3>
-          <ul className="seo-crawl-link-list">
-            {marketplaceCategoryLinks.map((link) => (
-              <li key={link.href}>
-                <Link href={link.href}>{link.label}</Link>
-              </li>
-            ))}
-          </ul>
         </div>
       </section>
     </main>
