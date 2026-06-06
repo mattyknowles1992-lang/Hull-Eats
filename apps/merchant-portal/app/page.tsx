@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -22,7 +22,7 @@ import {
   createDefaultHullPostcodeZones,
   describeStoreOpeningStatus,
   getHubAccess,
-  hubMenuCategorySelectOptions,
+  hubMenuCategorySelectOptionsForTemplate,
   hubRolesCreatableBy,
   formatHubPortalLocaleOptionLabel,
   HUB_PORTAL_LOCALE_OPTIONS,
@@ -123,7 +123,7 @@ import {
   computeMenuPublishIssues,
   customerFacingMenuSections,
   type MenuPublishIssue,
-  ensureStaffMenuSections,
+  ensureMenuSectionsForHub,
   ensureBurgerKebabPartsSections,
   findBurgerPartsSection,
   findKebabPartsSection,
@@ -165,8 +165,6 @@ import {
   createPizzaSizeRowsForSection,
 } from "./pizza-size-draft";
 import type { PizzaSizeRow } from "./pizza-size-draft";
-
-const HUB_CATEGORY_PRESET_OPTIONS = hubMenuCategorySelectOptions();
 
 type HubRole = MembershipRole;
 type StockStatus = "in_stock" | "low_stock" | "out_of_stock";
@@ -245,7 +243,7 @@ const initialCreateItemState: CreateItemFormState = {
 };
 
 const moneyInput = (value: number) => value.toFixed(2);
-const formatMoney = (value: number) => `£${value.toFixed(2)}`;
+const formatMoney = (value: number) => `Â£${value.toFixed(2)}`;
 const formatOrderPlacedAt = (value: string) =>
   new Date(value).toLocaleString("en-GB", {
     day: "2-digit",
@@ -307,6 +305,10 @@ export default function MerchantPortalPage() {
   const [hubUsers, setHubUsers] = useState<HubUser[]>([]);
   const [activeUser, setActiveUser] = useState<HubUser | null>(null);
   const [hubSettings, setHubSettings] = useState<HubSettings>(emptyHubSettings);
+  const categoryPresetOptions = useMemo(
+    () => hubMenuCategorySelectOptionsForTemplate(hubSettings.menuTemplate),
+    [hubSettings.menuTemplate],
+  );
   const [menuSections, setMenuSections] = useState<HubMenuSection[]>([]);
   const [pendingImports, setPendingImports] = useState<MerchantWorkspace["pendingImports"]>([]);
   const [merchantOrders, setMerchantOrders] = useState<OrderSummary[]>([]);
@@ -352,8 +354,8 @@ export default function MerchantPortalPage() {
   menuSectionsRef.current = menuSections;
   const hubSettingsRef = useRef(hubSettings);
   hubSettingsRef.current = hubSettings;
-  const menuSaveQueuedRef = useRef(false);
-  const menuSaveQueuedSilentRef = useRef(true);
+  /** Serialises workspace PATCH calls so manual saves wait for in-flight auto-saves. */
+  const workspaceSaveChainRef = useRef<Promise<boolean>>(Promise.resolve(true));
   const menuWorkspaceReadyRef = useRef(false);
   const [driverTracking, setDriverTracking] = useState<MerchantDriverTracking | null>(null);
   const [activeHubSection, setActiveHubSection] = useState<HubSection>("home");
@@ -648,7 +650,7 @@ export default function MerchantPortalPage() {
       options?: { sectionsSentWithRequest?: HubMenuSection[]; settingsSentWithRequest?: HubSettings },
     ) => {
       const serverSettings = normalizeWorkspaceSettings(workspace.settings);
-      const serverSections = ensureStaffMenuSections(workspace.menuSections);
+      const serverSections = ensureMenuSectionsForHub(workspace.menuSections, workspace.settings.menuTemplate ?? "full_food");
       const sectionsSent = options?.sectionsSentWithRequest;
       const settingsSent = options?.settingsSentWithRequest ?? hubSettingsRef.current;
       const menuWasPersisted = Boolean(sectionsSent);
@@ -691,93 +693,89 @@ export default function MerchantPortalPage() {
         return false;
       }
 
-      if (menuSaveInFlightRef.current) {
-        menuSaveQueuedRef.current = true;
-        if (!options?.silent) {
-          menuSaveQueuedSilentRef.current = false;
-          setMenuHubPersistState("saving");
-          setSaveNotice("Finishing the current save, then saving your latest changes…");
+      const executeSave = async (): Promise<boolean> => {
+        const settingsSnapshot = hubSettingsRef.current;
+        const sectionsSnapshot = menuSectionsRef.current;
+        const savedSnapshot = savedHubSnapshot;
+        const includeMenu =
+          !savedSnapshot || JSON.stringify(sectionsSnapshot) !== JSON.stringify(savedSnapshot.menuSections);
+        const includeSettings =
+          !savedSnapshot || JSON.stringify(settingsSnapshot) !== JSON.stringify(savedSnapshot.settings);
+
+        if (!includeMenu && !includeSettings) {
+          return true;
         }
-        return false;
-      }
 
-      const settingsSnapshot = hubSettingsRef.current;
-      const sectionsSnapshot = menuSectionsRef.current;
-      const savedSnapshot = savedHubSnapshot;
-      const includeMenu =
-        !savedSnapshot || JSON.stringify(sectionsSnapshot) !== JSON.stringify(savedSnapshot.menuSections);
-      const includeSettings =
-        !savedSnapshot || JSON.stringify(settingsSnapshot) !== JSON.stringify(savedSnapshot.settings);
-
-      if (!includeMenu && !includeSettings) {
-        return true;
-      }
-
-      menuSaveInFlightRef.current = true;
-      const silent = options?.silent ?? false;
-      if (!silent) {
-        setMenuHubPersistState("saving");
-      }
-      if (options?.manualCheckpoint) {
-        setMenuPublishing(true);
-      }
-
-      try {
-        let lastError: unknown = null;
-        for (let attempt = 1; attempt <= WORKSPACE_SAVE_MAX_ATTEMPTS; attempt += 1) {
-          if (!silent && attempt > 1) {
-            setSaveNotice(workspaceSaveAttemptNotice(attempt, WORKSPACE_SAVE_MAX_ATTEMPTS));
-          }
-          try {
-            const workspace = await saveWorkspace(
-              merchantToken,
-              activeHubId,
-              {
-                settings: settingsSnapshot,
-                ...(includeMenu ? { menuSections: sectionsSnapshot } : {}),
-              },
-              { timeoutMs: WORKSPACE_SAVE_TIMEOUT_MS },
-            );
-            applyWorkspaceSaveResult(workspace, {
-              sectionsSentWithRequest: includeMenu ? sectionsSnapshot : undefined,
-              settingsSentWithRequest: settingsSnapshot,
-            });
-            if (!silent) {
-              setMenuHubPersistState("saved");
-            }
-            if (options?.manualCheckpoint) {
-              setSaveNotice("Draft saved on your hub — ready to publish when you choose.");
-              setMenuNotice("All items and options are kept. Nothing was removed. Publish when customers should see changes.");
-            }
-            return true;
-          } catch (error) {
-            lastError = error;
-            const canRetry = attempt < WORKSPACE_SAVE_MAX_ATTEMPTS && isRetryableWorkspaceSaveError(error);
-            if (!canRetry) {
-              break;
-            }
-            await sleepMs(workspaceSaveRetryDelayMs(attempt));
-          }
-        }
-        const message = friendlyCaughtError(lastError, "workspace_save");
+        menuSaveInFlightRef.current = true;
+        const silent = options?.silent ?? false;
         if (!silent) {
-          setMenuHubPersistState("error");
+          setMenuHubPersistState("saving");
         }
-        setSaveNotice(message);
         if (options?.manualCheckpoint) {
-          setMenuNotice(message);
+          setMenuPublishing(true);
         }
-        return false;
-      } finally {
-        menuSaveInFlightRef.current = false;
-        if (options?.manualCheckpoint) {
-          setMenuPublishing(false);
+
+        try {
+          let lastError: unknown = null;
+          for (let attempt = 1; attempt <= WORKSPACE_SAVE_MAX_ATTEMPTS; attempt += 1) {
+            if (!silent && attempt > 1) {
+              setSaveNotice(workspaceSaveAttemptNotice(attempt, WORKSPACE_SAVE_MAX_ATTEMPTS));
+            }
+            try {
+              const workspace = await saveWorkspace(
+                merchantToken,
+                activeHubId,
+                {
+                  settings: settingsSnapshot,
+                  ...(includeMenu ? { menuSections: sectionsSnapshot } : {}),
+                },
+                { timeoutMs: WORKSPACE_SAVE_TIMEOUT_MS },
+              );
+              applyWorkspaceSaveResult(workspace, {
+                sectionsSentWithRequest: includeMenu ? sectionsSnapshot : undefined,
+                settingsSentWithRequest: settingsSnapshot,
+              });
+              if (!silent) {
+                setMenuHubPersistState("saved");
+              }
+              if (options?.manualCheckpoint) {
+                setSaveNotice("Draft saved on your hub — ready to publish when you choose.");
+                setMenuNotice("All items and options are kept. Nothing was removed. Publish when customers should see changes.");
+              }
+              return true;
+            } catch (error) {
+              lastError = error;
+              const canRetry = attempt < WORKSPACE_SAVE_MAX_ATTEMPTS && isRetryableWorkspaceSaveError(error);
+              if (!canRetry) {
+                break;
+              }
+              await sleepMs(workspaceSaveRetryDelayMs(attempt));
+            }
+          }
+          const message = friendlyCaughtError(lastError, "workspace_save");
+          if (!silent) {
+            setMenuHubPersistState("error");
+          }
+          setSaveNotice(message);
+          if (options?.manualCheckpoint) {
+            setMenuNotice(message);
+          }
+          return false;
+        } finally {
+          menuSaveInFlightRef.current = false;
+          if (options?.manualCheckpoint) {
+            setMenuPublishing(false);
+          }
         }
-        if (menuSaveQueuedRef.current) {
-          menuSaveQueuedRef.current = false;
-          void persistWorkspaceToHub({ silent: menuSaveQueuedSilentRef.current });
-        }
+      };
+
+      const waitFor = workspaceSaveChainRef.current.then(executeSave, executeSave);
+      workspaceSaveChainRef.current = waitFor.catch(() => false);
+
+      if (options?.manualCheckpoint || !options?.silent) {
+        return waitFor;
       }
+      return true;
     },
     [activeHubId, applyWorkspaceSaveResult, hubAccess?.canEditWorkspace, merchantToken, savedHubSnapshot],
   );
@@ -843,7 +841,7 @@ export default function MerchantPortalPage() {
     } catch (error) {
       console.error("Hub workspace apply failed", error);
       const serverSettings = normalizeWorkspaceSettings(workspace.settings);
-      const serverSections = ensureStaffMenuSections(workspace.menuSections ?? []);
+      const serverSections = ensureMenuSectionsForHub(workspace.menuSections ?? [], workspace.settings.menuTemplate ?? "full_food");
       setActiveHubId(workspace.hub.id);
       setActiveHubSlug(workspace.hub.slug);
       setActiveUser(resolveActiveHubUser(workspace, user));
@@ -869,7 +867,7 @@ export default function MerchantPortalPage() {
     setPendingImports(workspace.pendingImports ?? []);
 
     const serverSettings = normalizeWorkspaceSettings(workspace.settings);
-    const serverSections = ensureStaffMenuSections(workspace.menuSections ?? []);
+    const serverSections = ensureMenuSectionsForHub(workspace.menuSections ?? [], workspace.settings.menuTemplate ?? "full_food");
     const serverSnapshot = { settings: serverSettings, menuSections: serverSections };
 
     const browserDraft = loadBrowserMenuDraft(workspace.hub.id);
@@ -878,7 +876,7 @@ export default function MerchantPortalPage() {
       browserDraftShouldAutoRestore(browserDraft, serverSnapshot, hubWorkspaceSnapshotsEqual);
 
     if (useBrowserDraft && browserDraft) {
-      const draftSections = ensureStaffMenuSections(browserDraft.menuSections);
+      const draftSections = ensureMenuSectionsForHub(browserDraft.menuSections, browserDraft.settings.menuTemplate ?? "full_food");
       setHubSettings(
         normalizeWorkspaceSettings({
           ...browserDraft.settings,
@@ -891,7 +889,7 @@ export default function MerchantPortalPage() {
       setMenuSections(draftSections);
       commitSavedHubSnapshot(serverSettings, serverSections);
       setMenuNotice(
-        "Restored unsaved menu work from this browser. It will save to your hub automatically — you do not need to start again after a refresh.",
+        "Restored unsaved menu work from this browser. It will save to your hub automatically â€” you do not need to start again after a refresh.",
       );
     } else {
       setHubSettings(serverSettings);
@@ -899,7 +897,10 @@ export default function MerchantPortalPage() {
       commitSavedHubSnapshot(serverSettings, serverSections);
     }
 
-    const activeSections = useBrowserDraft && browserDraft ? ensureStaffMenuSections(browserDraft.menuSections) : serverSections;
+    const activeSections =
+      useBrowserDraft && browserDraft
+        ? ensureMenuSectionsForHub(browserDraft.menuSections, browserDraft.settings.menuTemplate ?? "full_food")
+        : serverSections;
     const customerSections = activeSections.filter((section) => !isHubMenuStaffLibrarySection(section));
     const firstCustomer = customerSections[0];
     setSelectedCategoryId(firstCustomer?.id ?? "");
@@ -1466,7 +1467,24 @@ export default function MerchantPortalPage() {
     await persistWorkspaceToHub({ manualCheckpoint: true, silent: false });
   };
 
-  const handleSaveHub = async () => {
+  const handleSaveHubSettings = async () => {
+    if (!merchantToken || !activeHubId) {
+      return;
+    }
+
+    if (!hubAccess?.canEditWorkspace) {
+      setSaveNotice("Your account is view-only and cannot save hub changes.");
+      return;
+    }
+
+    const saved = await persistWorkspaceToHub({ manualCheckpoint: false, silent: false });
+    if (!saved) {
+      return;
+    }
+    setSaveNotice(`Hub changes saved for ${hubSettings.name}.`);
+  };
+
+  const handlePublishMenu = async () => {
     if (!merchantToken || !activeHubId) {
       return;
     }
@@ -1482,11 +1500,7 @@ export default function MerchantPortalPage() {
         setMenuSections((current) => applyMenuBoardPublish(current, editingMenuBoardId, editingMenuBoardId));
         setEditingMenuBoardId(null);
       }
-      let saved = await persistWorkspaceToHub({ manualCheckpoint: true, silent: false });
-      if (!saved) {
-        await new Promise((resolve) => window.setTimeout(resolve, 800));
-        saved = await persistWorkspaceToHub({ manualCheckpoint: true, silent: false });
-      }
+      const saved = await persistWorkspaceToHub({ manualCheckpoint: true, silent: false });
       if (!saved) {
         throw new Error("Could not save the menu to your hub before publishing.");
       }
@@ -1563,10 +1577,10 @@ export default function MerchantPortalPage() {
     });
     setMenuNotice(
       kind === "seasonal"
-        ? "Seasonal menu created — edit it, then publish when ready."
+        ? "Seasonal menu created â€” edit it, then publish when ready."
         : kind === "alternative"
-          ? "Alternative menu created — edit it, then publish when ready."
-          : "New menu draft created — edit it, then publish when ready.",
+          ? "Alternative menu created â€” edit it, then publish when ready."
+          : "New menu draft created â€” edit it, then publish when ready.",
     );
   };
 
@@ -1672,12 +1686,12 @@ export default function MerchantPortalPage() {
   };
 
   const handleNewCategoryPresetChange = (presetId: string) => {
-    const opt = HUB_CATEGORY_PRESET_OPTIONS.find((o) => o.id === presetId);
+    const opt = categoryPresetOptions.find((o) => o.id === presetId);
     setNewCategory((cur) => ({
       ...cur,
       presetId,
       name: presetId === HUB_MENU_CATEGORY_CUSTOM_ID ? cur.name : opt?.defaultName ?? "",
-      description: presetId === HUB_MENU_CATEGORY_CUSTOM_ID ? cur.description : opt?.defaultDescription ?? "",
+      description: presetId === HUB_MENU_CATEGORY_CUSTOM_ID ? cur.description : "",
     }));
   };
 
@@ -1691,7 +1705,11 @@ export default function MerchantPortalPage() {
     updateMenuSections((current) => [...current, createdCategory]);
     setSelectedCategoryId(createdCategory.id);
     setNewCategory(initialCreateCategoryState);
-    setMenuNotice(`Added ${createdCategory.name}. Add items in Categories and set a price on each one.`);
+    setMenuNotice(
+      hubSettings.menuTemplate === "simple_retail"
+        ? `Added ${createdCategory.name}. Add products with name and price in the list.`
+        : `Added ${createdCategory.name}. Add items in Categories and set a price on each one.`,
+    );
   };
 
   const handleDeleteCategory = (sectionId: string, sectionName: string) => {
@@ -1716,7 +1734,7 @@ export default function MerchantPortalPage() {
       setSelectedCategoryId(remaining[0]?.id ?? "");
       setSelectedItemId(remaining[0]?.items[0]?.id ?? "");
     }
-    setMenuNotice(`${sectionName} removed. Saving to your hub — publish when customers should see the change.`);
+    setMenuNotice(`${sectionName} removed. Saving to your hub â€” publish when customers should see the change.`);
   };
 
   const handleCreateItem = (availabilityMode: MenuAvailabilityMode = "live") => {
@@ -1816,8 +1834,8 @@ export default function MerchantPortalPage() {
     setNewItemOptionGroups([]);
     setMenuNotice(
       availabilityMode === "hidden"
-        ? `Added ${createdItem.name} as Hidden — saving to your hub. Switch to Live when ready, then publish.`
-        : `Added ${createdItem.name} as Live — saving to your hub. Publish when customers should see it.`,
+        ? `Added ${createdItem.name} as Hidden â€” saving to your hub. Switch to Live when ready, then publish.`
+        : `Added ${createdItem.name} as Live â€” saving to your hub. Publish when customers should see it.`,
     );
   };
 
@@ -1882,7 +1900,7 @@ export default function MerchantPortalPage() {
     setIsCreatingNewItem(false);
     setShowChoiceSetupForItemId(null);
     setMenuNotice(
-      `Duplicated "${item.name}". Change the name and price — saved as Live unless you set Hidden on the row.`,
+      `Duplicated "${item.name}". Change the name and price â€” saved as Live unless you set Hidden on the row.`,
     );
   };
 
@@ -1948,12 +1966,12 @@ export default function MerchantPortalPage() {
 
     try {
       const workspace = await applyMenuImport(merchantToken, activeHubId, importId, selectedImportCandidateIds);
-      setMenuSections(ensureStaffMenuSections(workspace.menuSections));
+      setMenuSections(ensureMenuSectionsForHub(workspace.menuSections, workspace.settings.menuTemplate ?? "full_food"));
       setEditingMenuBoardId(null);
       setPendingImports(workspace.pendingImports ?? []);
       setSelectedImportCandidateIds([]);
       setMenuNotice(
-        "Import applied as Live items — saving to your hub. Set any row to Hidden if needed, then publish when ready.",
+        "Import applied as Live items â€” saving to your hub. Set any row to Hidden if needed, then publish when ready.",
       );
     } catch (error) {
       const message = friendlyCaughtError(error, "menu_import");
@@ -2111,7 +2129,7 @@ export default function MerchantPortalPage() {
   const handleRestoreConfigBackup = (workspace: { settings: HubSettings; menuSections: HubMenuSection[] }) => {
     const settings = normalizeWorkspaceSettings(workspace.settings);
     setHubSettings(settings);
-    setMenuSections(ensureStaffMenuSections(workspace.menuSections));
+    setMenuSections(ensureMenuSectionsForHub(workspace.menuSections, workspace.settings.menuTemplate ?? "full_food"));
     setEditingMenuBoardId(null);
     commitSavedHubSnapshot(settings, workspace.menuSections);
     setSaveNotice(t("settings.backupRestored"));
@@ -2295,7 +2313,7 @@ export default function MerchantPortalPage() {
                   type="button"
                   className={hasUnsavedHubChanges ? "he-portal-primary is-dirty" : "he-portal-primary"}
                   style={saveHubButtonStyle}
-                  onClick={handleSaveHub}
+                  onClick={handleSaveHubSettings}
                   disabled={!hubAccess?.canEditWorkspace}
                 >
                   {hasUnsavedHubChanges ? t("common.saveHubChangesDirty") : t("common.saveHubChanges")}
@@ -2312,7 +2330,7 @@ export default function MerchantPortalPage() {
               <strong>{t("common.unsavedChanges")}</strong>
               <p>{t("common.unsavedBannerCopy")}</p>
             </div>
-            <button type="button" style={saveHubButtonStyle} onClick={handleSaveHub} disabled={!hubAccess?.canEditWorkspace}>
+            <button type="button" style={saveHubButtonStyle} onClick={handleSaveHubSettings} disabled={!hubAccess?.canEditWorkspace}>
               {t("common.saveNow")}
             </button>
           </div>
@@ -2455,7 +2473,7 @@ export default function MerchantPortalPage() {
                       {t("orders.printReceipt")}
                     </button>
                     ) : null}
-                    <span style={orangeBadge}>£{order.totalAmount.toFixed(2)}</span>
+                    <span style={orangeBadge}>Â£{order.totalAmount.toFixed(2)}</span>
                   </div>
                 </article>
               );
@@ -2518,7 +2536,7 @@ export default function MerchantPortalPage() {
                         {t("orders.printReceipt")}
                       </button>
                     ) : null}
-                    <span style={orangeBadge}>£{order.totalAmount.toFixed(2)}</span>
+                    <span style={orangeBadge}>Â£{order.totalAmount.toFixed(2)}</span>
                   </div>
                 </article>
               ))}
@@ -2662,7 +2680,8 @@ export default function MerchantPortalPage() {
               onCloseMenuPreview={() => setMenuPreviewOpen(false)}
               storeSlug={activeHubSlug}
               customerWebBaseUrl={customerWebBaseUrl}
-              categoryPresetOptions={HUB_CATEGORY_PRESET_OPTIONS}
+              categoryPresetOptions={categoryPresetOptions}
+              menuTemplate={hubSettings.menuTemplate ?? "full_food"}
               onReorderCategory={handleReorderCategory}
               onNewCategoryPresetChange={handleNewCategoryPresetChange}
               onNewCategoryChange={(patch) => setNewCategory((current) => ({ ...current, ...patch }))}
@@ -2915,7 +2934,7 @@ export default function MerchantPortalPage() {
               onNavigateToPublishIssue={handleNavigateToPublishIssue}
               menuPublishing={menuPublishing}
               onCancelPublish={() => setMenuPublishDialogOpen(false)}
-              onConfirmPublish={() => void handleSaveHub()}
+              onConfirmPublish={() => void handlePublishMenu()}
               menuBoards={menuBoards}
               editingMenuBoardId={editingMenuBoardId}
               onSelectMainMenu={handleSelectMainMenu}
@@ -2966,7 +2985,7 @@ export default function MerchantPortalPage() {
                     style={{ ...lightInput, minHeight: 190, paddingTop: 14, paddingBottom: 14, resize: "vertical" }}
                     value={pastedMenuText}
                     onChange={(event) => setPastedMenuText(event.target.value)}
-                    placeholder={"Loaded Fries\nSalt & Pepper Loaded Fries\nfrom £8.49\n\nSmash Burgers\nClassic Smash\nfrom £7.99"}
+                    placeholder={"Loaded Fries\nSalt & Pepper Loaded Fries\nfrom Â£8.49\n\nSmash Burgers\nClassic Smash\nfrom Â£7.99"}
                   />
                 </label>
                 <div style={{ display: "grid", gap: 12, alignContent: "start" }}>
@@ -3336,7 +3355,7 @@ export default function MerchantPortalPage() {
                 <strong style={{ color: "#101216" }}>{t("common.saveTheseHubChanges")}</strong>
                 <span style={subtleInfo}>{t("common.saveTheseHubChangesHint")}</span>
               </div>
-              <button type="button" style={saveHubButtonStyle} onClick={handleSaveHub} disabled={!hubAccess?.canEditWorkspace}>
+              <button type="button" style={saveHubButtonStyle} onClick={handleSaveHubSettings} disabled={!hubAccess?.canEditWorkspace}>
                 {hasUnsavedHubChanges ? t("common.saveHubChangesDirty") : t("common.saveHubChanges")}
               </button>
             </div>
@@ -3344,996 +3363,6 @@ export default function MerchantPortalPage() {
         </section>
         ) : null}
 
-        <details style={{ display: "none" }}>
-          <summary style={legacySummary}>Advanced full-page editor</summary>
-        <section style={summaryGrid}>
-          <article style={overviewCard}>
-            <span style={summaryLabel}>Categories</span>
-            <strong style={summaryValue}>{menuStats.categories}</strong>
-          </article>
-          <article style={overviewCard}>
-            <span style={summaryLabel}>Menu items</span>
-            <strong style={summaryValue}>{menuStats.totalItems}</strong>
-          </article>
-          <article style={overviewCard}>
-            <span style={summaryLabel}>Customisable items</span>
-            <strong style={summaryValue}>{menuStats.customisableItems}</strong>
-          </article>
-          <article style={overviewCard}>
-            <span style={summaryLabel}>Live items</span>
-            <strong style={summaryValue}>{menuStats.activeItems}</strong>
-          </article>
-        </section>
-
-        <section style={fastStartGrid}>
-          <article style={fastStartCard}>
-            <div style={panelHeader}>
-              <p style={eyebrowDark}>Start here</p>
-              <h2 style={sectionTitle}>Fast menu setup</h2>
-              <p style={panelCopyDark}>
-                The quickest route is to paste an existing menu, review the detected items, then save. Use quick add for
-                small changes like a new burger, tray, drink, or dessert.
-              </p>
-            </div>
-
-            <div style={fastActionGrid}>
-              <label style={field}>
-                <span style={darkFieldLabel}>Paste menu text</span>
-                <textarea
-                  style={{ ...lightInput, minHeight: 170, paddingTop: 14, paddingBottom: 14, resize: "vertical" }}
-                  value={pastedMenuText}
-                  onChange={(event) => setPastedMenuText(event.target.value)}
-                  placeholder={"Loaded Fries\nSalt & Pepper Loaded Fries\nfrom £8.49\n\nSmash Burgers\nClassic Smash\nfrom £7.99"}
-                />
-              </label>
-
-              <div style={{ display: "grid", gap: 12, alignContent: "start" }}>
-                <button type="button" onClick={handlePreviewPastedMenu} style={primaryButton}>
-                  Preview pasted menu
-                </button>
-                <button type="button" style={saveHubButtonStyle} onClick={handleSaveHub}>
-                  {hasUnsavedHubChanges ? "Save menu changes *" : "Save menu changes"}
-                </button>
-                <div style={emptyStateCard}>
-                  Tip: paste the menu in sections with category names on their own line. You can untick anything before
-                  it goes live.
-                </div>
-              </div>
-            </div>
-
-            {pendingImports.length > 0 ? (
-              <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
-                {pendingImports.slice(0, 1).map((batch) => (
-                  <article key={batch.id} style={importBatchCard}>
-                    <div style={{ display: "grid", gap: 6 }}>
-                      <strong style={{ color: "#0f1115", fontSize: 16 }}>{batch.imageName}</strong>
-                      <span style={subtleInfo}>{batch.candidates.length} items ready to review</span>
-                    </div>
-
-                    <div style={{ display: "grid", gap: 10, maxHeight: 320, overflow: "auto", paddingRight: 4 }}>
-                      {batch.candidates.map((candidate) => {
-                        const checked = selectedImportCandidateIds.includes(candidate.id);
-
-                        return (
-                          <label key={candidate.id} style={candidateRow}>
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={(event) =>
-                                setSelectedImportCandidateIds((current) =>
-                                  event.target.checked ? [...current, candidate.id] : current.filter((id) => id !== candidate.id),
-                                )
-                              }
-                            />
-                            <div style={{ display: "grid", gap: 4 }}>
-                              <strong style={{ color: "#0f1115" }}>
-                                {candidate.suggestedCategoryName} / {candidate.itemName}
-                              </strong>
-                              <span style={subtleInfo}>
-                                {formatMoney(candidate.price)} / {candidate.sourceLine}
-                              </span>
-                            </div>
-                          </label>
-                        );
-                      })}
-                    </div>
-
-                    <button type="button" onClick={() => handleApplyImport(batch.id)} style={primaryButton}>
-                      Add ticked items to menu
-                    </button>
-                  </article>
-                ))}
-              </div>
-            ) : null}
-          </article>
-
-          <article style={fastStartCard}>
-            <div style={panelHeader}>
-              <p style={eyebrowDark}>Quick add</p>
-              <h2 style={sectionTitle}>One item at a time</h2>
-              <p style={panelCopyDark}>For small edits, create a category or item without touching the advanced builder.</p>
-            </div>
-
-              <div style={quickAddGrid}>
-                <div style={quickAddCard}>
-                  <h3 style={quickAddTitle}>Category</h3>
-                  <label style={field}>
-                    <span style={darkFieldLabel}>Category type</span>
-                    <select
-                      style={lightInput}
-                      value={newCategory.presetId}
-                      onChange={(event) => handleNewCategoryPresetChange(event.target.value)}
-                    >
-                      {HUB_CATEGORY_PRESET_OPTIONS.map((opt) => (
-                        <option key={opt.id} value={opt.id}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label style={field}>
-                    <span style={darkFieldLabel}>Name</span>
-                    <input
-                      style={lightInput}
-                      value={newCategory.name}
-                      onChange={(event) => setNewCategory((current) => ({ ...current, name: event.target.value }))}
-                      placeholder="Loaded Fries"
-                    />
-                  </label>
-                  <label style={field}>
-                    <span style={darkFieldLabel}>Note (optional)</span>
-                    <input
-                      style={lightInput}
-                      value={newCategory.description}
-                      onChange={(event) => setNewCategory((current) => ({ ...current, description: event.target.value }))}
-                      placeholder="Shown to staff in the hub"
-                    />
-                  </label>
-                  <button type="button" style={primaryButton} onClick={handleCreateCategory}>
-                    Add category
-                  </button>
-                </div>
-
-                <div style={quickAddCard}>
-                  <h3 style={quickAddTitle}>Menu item</h3>
-                  <label style={field}>
-                    <span style={darkFieldLabel}>Category</span>
-                    <select
-                      style={lightInput}
-                      value={newItem.sectionId}
-                      onChange={(event) => setNewItem((current) => ({ ...current, sectionId: event.target.value }))}
-                    >
-                      <option value="">Choose category</option>
-                      {menuSections.map((section) => (
-                        <option key={section.id} value={section.id}>
-                          {section.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label style={field}>
-                    <span style={darkFieldLabel}>Item name</span>
-                    <input
-                      style={lightInput}
-                      value={newItem.name}
-                      onChange={(event) => setNewItem((current) => ({ ...current, name: event.target.value }))}
-                      placeholder="Classic Smash Burger"
-                    />
-                  </label>
-                  {newItemSectionIsPizza ? (
-                    <PizzaSizeDraftPanel rows={pizzaSizeRows} onChange={setPizzaSizeRows} />
-                  ) : (
-                    <label style={field}>
-                      <span style={darkFieldLabel}>Price</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        style={lightInput}
-                        value={newItem.price}
-                        onChange={(event) => setNewItem((current) => ({ ...current, price: event.target.value }))}
-                        placeholder="7.99"
-                      />
-                    </label>
-                  )}
-                  <label style={field}>
-                    <span style={darkFieldLabel}>Product image URL</span>
-                    <input
-                      style={lightInput}
-                      value={newItem.imageUrl}
-                      onChange={(event) => setNewItem((current) => ({ ...current, imageUrl: event.target.value }))}
-                      placeholder="https://..."
-                    />
-                  </label>
-                  <label style={toggleLabel}>
-                    <input
-                      type="checkbox"
-                      checked={newItem.requiresIdVerification}
-                      onChange={(event) => setNewItem((current) => ({ ...current, requiresIdVerification: event.target.checked }))}
-                    />
-                    <span>Verify with ID at delivery (age-restricted)</span>
-                  </label>
-                  <button type="button" style={primaryButton} onClick={() => handleCreateItem()}>
-                    Add item
-                  </button>
-                </div>
-              </div>
-          </article>
-
-          <article style={fastStartCard}>
-            <div style={panelHeader}>
-              <p style={eyebrowDark}>Account</p>
-              <h2 style={sectionTitle}>Change password</h2>
-              <p style={panelCopyDark}>Owners and staff can update the signed-in hub password here.</p>
-            </div>
-
-            <div style={{ display: "grid", gap: 12 }}>
-              <label style={field}>
-                <span style={darkFieldLabel}>Current password</span>
-                <span style={passwordFieldWrap}>
-                  <input
-                    type={showHubPasswordCurrent ? "text" : "password"}
-                    style={{ ...lightInput, paddingRight: 88 }}
-                    value={passwordForm.currentPassword}
-                    onChange={(event) => setPasswordForm((current) => ({ ...current, currentPassword: event.target.value }))}
-                  />
-                  <button type="button" style={passwordRevealButton} onClick={() => setShowHubPasswordCurrent((current) => !current)}>
-                    {showHubPasswordCurrent ? "Hide" : "Show"}
-                  </button>
-                </span>
-              </label>
-              <label style={field}>
-                <span style={darkFieldLabel}>New password</span>
-                <span style={passwordFieldWrap}>
-                  <input
-                    type={showHubPasswordNew ? "text" : "password"}
-                    style={{ ...lightInput, paddingRight: 88 }}
-                    value={passwordForm.newPassword}
-                    onChange={(event) => setPasswordForm((current) => ({ ...current, newPassword: event.target.value }))}
-                  />
-                  <button type="button" style={passwordRevealButton} onClick={() => setShowHubPasswordNew((current) => !current)}>
-                    {showHubPasswordNew ? "Hide" : "Show"}
-                  </button>
-                </span>
-              </label>
-              <label style={field}>
-                <span style={darkFieldLabel}>Confirm new password</span>
-                <span style={passwordFieldWrap}>
-                  <input
-                    type={showHubPasswordConfirm ? "text" : "password"}
-                    style={{ ...lightInput, paddingRight: 88 }}
-                    value={passwordForm.confirmPassword}
-                    onChange={(event) => setPasswordForm((current) => ({ ...current, confirmPassword: event.target.value }))}
-                  />
-                  <button type="button" style={passwordRevealButton} onClick={() => setShowHubPasswordConfirm((current) => !current)}>
-                    {showHubPasswordConfirm ? "Hide" : "Show"}
-                  </button>
-                </span>
-              </label>
-              <button type="button" onClick={handleChangePassword} style={primaryButton}>
-                Change password
-              </button>
-            </div>
-          </article>
-        </section>
-
-        <section style={portalGrid}>
-          <div style={{ display: "grid", gap: 18 }}>
-            <section style={panelCard}>
-              <div style={panelHeader}>
-                <p style={eyebrowDark}>Hub settings</p>
-                <h2 style={sectionTitle}>Business details</h2>
-                <p style={panelCopyDark}>This is the core storefront information pushed into the marketplace.</p>
-              </div>
-
-              <div className="he-two-col" style={twoColumnGrid}>
-                <label style={field}>
-                  <span style={darkFieldLabel}>Business name</span>
-                  <input style={lightInput} value={hubSettings.name} onChange={(event) => handleHubFieldChange("name", event.target.value)} />
-                </label>
-                <label style={field}>
-                  <span style={darkFieldLabel}>Cuisine label</span>
-                  <input
-                    style={lightInput}
-                    value={hubSettings.cuisineLabel}
-                    onChange={(event) => handleHubFieldChange("cuisineLabel", event.target.value)}
-                  />
-                </label>
-                <label style={field}>
-                  <span style={darkFieldLabel}>City</span>
-                  <input style={lightInput} value={hubSettings.city} onChange={(event) => handleHubFieldChange("city", event.target.value)} />
-                </label>
-                <label style={field}>
-                  <span style={darkFieldLabel}>Postcode</span>
-                  <input style={lightInput} value={hubSettings.postcode} onChange={(event) => handleHubFieldChange("postcode", event.target.value)} />
-                </label>
-                <label style={field}>
-                  <span style={darkFieldLabel}>Delivery ETA (minutes)</span>
-                  <HubFreeTypeNumberInput
-                    integer
-                    min={1}
-                    style={lightInput}
-                    value={hubSettings.etaMinutes}
-                    onCommit={(etaMinutes) => handleHubFieldChange("etaMinutes", etaMinutes)}
-                  />
-                </label>
-                <label style={field}>
-                  <span style={darkFieldLabel}>Flat delivery fallback (£)</span>
-                  <HubFreeTypeNumberInput
-                    min={0}
-                    style={lightInput}
-                    value={hubSettings.deliveryFee}
-                    onCommit={(deliveryFee) => handleHubFieldChange("deliveryFee", deliveryFee)}
-                  />
-                </label>
-                <label style={field}>
-                  <span style={darkFieldLabel}>Minimum order</span>
-                  <HubFreeTypeNumberInput
-                    min={0}
-                    style={lightInput}
-                    value={hubSettings.minimumOrderAmount}
-                    onCommit={(minimumOrderAmount) => handleHubFieldChange("minimumOrderAmount", minimumOrderAmount)}
-                  />
-                </label>
-                <label style={{ display: "flex", gridColumn: "1 / -1", gap: 12, alignItems: "center" }}>
-                  <input
-                    type="checkbox"
-                    checked={hubSettings.autoAcceptOrders}
-                    onChange={(event) => handleHubFieldChange("autoAcceptOrders", event.target.checked)}
-                    style={{ width: 18, height: 18 }}
-                  />
-                  <span style={darkFieldLabel}>Auto-accept new orders (uses delivery ETA, capped below)</span>
-                </label>
-                {hubSettings.autoAcceptOrders ? (
-                  <label style={field}>
-                    <span style={darkFieldLabel}>Max prep when auto-accepting (minutes)</span>
-                    <HubFreeTypeNumberInput
-                      integer
-                      min={5}
-                      max={180}
-                      style={lightInput}
-                      value={hubSettings.autoAcceptMaxPrepMinutes}
-                      onCommit={(autoAcceptMaxPrepMinutes) =>
-                        handleHubFieldChange("autoAcceptMaxPrepMinutes", autoAcceptMaxPrepMinutes)
-                      }
-                    />
-                  </label>
-                ) : null}
-                <label style={field}>
-                  <span style={darkFieldLabel}>Accepting orders</span>
-                  <select
-                    style={lightInput}
-                    value={hubSettings.acceptingOrders ? "accepting" : "paused"}
-                    onChange={(event) => handleHubFieldChange("acceptingOrders", event.target.value === "accepting")}
-                  >
-                    <option value="accepting">Accepting orders now</option>
-                    <option value="paused">Paused — hide store and stop new orders</option>
-                  </select>
-                </label>
-                <div style={field}>
-                  <span style={darkFieldLabel}>Listed on Hull Eats</span>
-                  <p style={{ ...lightInput, margin: 0, padding: "12px 14px" }}>
-                    {hubSettings.isOpen ? "Live — visible on marketplace" : "Hidden — not listed on marketplace yet"}
-                  </p>
-                  <p style={subtleInfo}>Marketplace listing is managed by Hull Eats admin.</p>
-                </div>
-                <label style={{ ...field, gridColumn: "1 / -1" }}>
-                  <span style={darkFieldLabel}>Marketplace description</span>
-                  <textarea
-                    style={{ ...lightInput, minHeight: 110, paddingTop: 14, paddingBottom: 14, resize: "vertical" }}
-                    value={hubSettings.onboardingMessage}
-                    onChange={(event) => handleHubFieldChange("onboardingMessage", event.target.value)}
-                  />
-                </label>
-                <HubStorefrontImageField value={hubSettings.heroImageUrl} onChange={(next) => handleHubFieldChange("heroImageUrl", next)} />
-              </div>
-            </section>
-
-            <section style={panelCard}>
-              <HubDeliveryConfig
-                settings={hubSettings}
-                onChange={patchHubDeliverySettings}
-                apiBaseUrl={apiBaseUrl}
-                hubId={activeHubId}
-                merchantToken={merchantToken}
-                styles={hubDeliveryConfigStyles}
-              />
-              <div style={{ display: "grid", gap: 12, marginTop: 18 }}>
-                <span style={darkFieldLabel}>Mile band fees (£)</span>
-                <p style={subtleInfo}>Distance from your shop to the customer postcode picks the band. Zeros use your flat fallback above or £3 default.</p>
-                {["Under 1 mile", "Under 2 miles", "Under 3 miles", "Under 4 miles", "Under 5 miles"].map((label, index) => (
-                  <label key={label} style={field}>
-                    <span style={darkFieldLabel}>{label}</span>
-                    <HubFreeTypeNumberInput
-                      min={0}
-                      style={lightInput}
-                      value={hubSettings.deliveryMileFees[index] ?? 0}
-                      onCommit={(fee) => handleMileFeeBandChange(index, fee)}
-                    />
-                  </label>
-                ))}
-              </div>
-            </section>
-
-            <section style={panelCard}>
-              <div style={panelHeader}>
-                <p style={eyebrowDark}>Menu structure</p>
-                <h2 style={sectionTitle}>Create categories and items</h2>
-                <p style={panelCopyDark}>Create the category first, then create the item shell and configure ingredients and options underneath.</p>
-              </div>
-
-              <div style={quickAddGrid}>
-                <div style={quickAddCard}>
-                  <h3 style={quickAddTitle}>New category</h3>
-                  <label style={field}>
-                    <span style={darkFieldLabel}>Category type</span>
-                    <select
-                      style={lightInput}
-                      value={newCategory.presetId}
-                      onChange={(event) => handleNewCategoryPresetChange(event.target.value)}
-                    >
-                      {HUB_CATEGORY_PRESET_OPTIONS.map((opt) => (
-                        <option key={opt.id} value={opt.id}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label style={field}>
-                    <span style={darkFieldLabel}>Category name</span>
-                    <input
-                      style={lightInput}
-                      value={newCategory.name}
-                      onChange={(event) => setNewCategory((current) => ({ ...current, name: event.target.value }))}
-                      placeholder="Smash Burgers"
-                    />
-                  </label>
-                  <label style={field}>
-                    <span style={darkFieldLabel}>Category description</span>
-                    <textarea
-                      style={{ ...lightInput, minHeight: 96, paddingTop: 14, paddingBottom: 14, resize: "vertical" }}
-                      value={newCategory.description}
-                      onChange={(event) => setNewCategory((current) => ({ ...current, description: event.target.value }))}
-                      placeholder="Signature smashed burgers"
-                    />
-                  </label>
-                  <button type="button" style={primaryButton} onClick={handleCreateCategory}>
-                    Create category
-                  </button>
-                </div>
-
-                <div style={quickAddCard}>
-                  <h3 style={quickAddTitle}>New item shell</h3>
-                  <label style={field}>
-                    <span style={darkFieldLabel}>Category</span>
-                    <select
-                      style={lightInput}
-                      value={newItem.sectionId}
-                      onChange={(event) => setNewItem((current) => ({ ...current, sectionId: event.target.value }))}
-                    >
-                      <option value="">Choose category</option>
-                      {menuSections.map((section) => (
-                        <option key={section.id} value={section.id}>
-                          {section.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label style={field}>
-                    <span style={darkFieldLabel}>Item name</span>
-                    <input
-                      style={lightInput}
-                      value={newItem.name}
-                      onChange={(event) => setNewItem((current) => ({ ...current, name: event.target.value }))}
-                      placeholder="The Piggy Cow"
-                    />
-                  </label>
-                  {newItemSectionIsPizza ? (
-                    <PizzaSizeDraftPanel rows={pizzaSizeRows} onChange={setPizzaSizeRows} />
-                  ) : (
-                    <label style={field}>
-                      <span style={darkFieldLabel}>Price</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        style={lightInput}
-                        value={newItem.price}
-                        onChange={(event) => setNewItem((current) => ({ ...current, price: event.target.value }))}
-                        placeholder="14.99"
-                      />
-                    </label>
-                  )}
-                  <label style={field}>
-                    <span style={darkFieldLabel}>Description</span>
-                    <textarea
-                      style={{ ...lightInput, minHeight: 96, paddingTop: 14, paddingBottom: 14, resize: "vertical" }}
-                      value={newItem.description}
-                      onChange={(event) => setNewItem((current) => ({ ...current, description: event.target.value }))}
-                      placeholder="Two 3oz smashed beef patties with melted cheese..."
-                    />
-                  </label>
-                  <label style={field}>
-                    <span style={darkFieldLabel}>Product image URL</span>
-                    <input
-                      style={lightInput}
-                      value={newItem.imageUrl}
-                      onChange={(event) => setNewItem((current) => ({ ...current, imageUrl: event.target.value }))}
-                      placeholder="https://..."
-                    />
-                  </label>
-                  <label style={toggleLabel}>
-                    <input
-                      type="checkbox"
-                      checked={newItem.requiresIdVerification}
-                      onChange={(event) => setNewItem((current) => ({ ...current, requiresIdVerification: event.target.checked }))}
-                    />
-                    <span>Verify with ID at delivery (age-restricted)</span>
-                  </label>
-                  <button type="button" style={primaryButton} onClick={() => handleCreateItem()}>
-                    Create item shell
-                  </button>
-                </div>
-              </div>
-            </section>
-
-            <section style={panelCard}>
-              <div style={panelHeader}>
-                <p style={eyebrowDark}>Menu builder</p>
-                <h2 style={sectionTitle}>Build every item by hand</h2>
-                <p style={panelCopyDark}>
-                  Each business can have a different structure. Use ingredients for what comes in the item and option groups for meal upgrades, extras, drinks, sauces, removals, and follow-up choices.
-                </p>
-              </div>
-
-              <div style={{ display: "grid", gap: 18 }}>
-                {menuSections.length === 0 ? <div style={emptyStateCard}>No categories yet. Create one above to start building the menu.</div> : null}
-
-                {menuSections.map((section) => (
-                  <article key={section.id} style={categoryCard}>
-                    <div style={categoryHeader}>
-                      <div style={{ display: "grid", gap: 8, flex: 1 }}>
-                        <label style={field}>
-                          <span style={darkFieldLabel}>Category name</span>
-                          <input style={lightInput} value={section.name} onChange={(event) => updateSection(section.id, "name", event.target.value)} />
-                        </label>
-                        <label style={field}>
-                          <span style={darkFieldLabel}>Category description</span>
-                          <textarea
-                            style={{ ...lightInput, minHeight: 84, paddingTop: 14, paddingBottom: 14, resize: "vertical" }}
-                            value={section.description ?? ""}
-                            onChange={(event) => updateSection(section.id, "description", event.target.value)}
-                          />
-                        </label>
-                      </div>
-                      <div style={categoryStat}>
-                        <span style={summaryLabel}>Items</span>
-                        <strong style={{ ...summaryValue, fontSize: 22 }}>{section.items.length}</strong>
-                        <button
-                          type="button"
-                          style={{ ...secondaryButtonSmall, marginTop: 12, width: "100%" }}
-                          onClick={() => handleDeleteCategory(section.id, section.name)}
-                        >
-                          Remove category
-                        </button>
-                      </div>
-                    </div>
-
-                    <div style={{ display: "grid", gap: 16 }}>
-                      {section.items.map((item) => (
-                        <article key={item.id} style={itemEditorCard}>
-                          <div style={itemTopRow}>
-                            <div>
-                              <h3 style={itemTitle}>{item.name || "Untitled item"}</h3>
-                              <div style={itemBadgeRow}>
-                                <span style={darkBadge}>{formatMoney(item.price)}</span>
-                                <span style={orangeBadge}>
-                                  {item.components.length} ingredients / {item.optionGroups.length} groups
-                                </span>
-                              </div>
-                            </div>
-                            <button type="button" style={secondaryButtonSmall} onClick={() => handleDeleteItem(item.id, item.name)}>
-                              Remove item
-                            </button>
-                          </div>
-
-                          <div style={builderGrid}>
-                            <label style={field}>
-                              <span style={darkFieldLabel}>Item name</span>
-                              <input
-                                style={lightInput}
-                                value={item.name}
-                                onChange={(event) => updateItem(section.id, item.id, (current) => ({ ...current, name: event.target.value }))}
-                              />
-                            </label>
-                            <label style={field}>
-                              <span style={darkFieldLabel}>Price</span>
-                              <input
-                                type="number"
-                                step="0.01"
-                                style={lightInput}
-                                value={moneyInput(item.price)}
-                                onChange={(event) => updateItem(section.id, item.id, (current) => ({ ...current, price: Number(event.target.value) || 0 }))}
-                              />
-                            </label>
-                            <label style={field}>
-                              <span style={darkFieldLabel}>Stock status</span>
-                              <select
-                                style={lightInput}
-                                value={item.stockStatus}
-                                onChange={(event) =>
-                                  updateItem(section.id, item.id, (current) => ({ ...current, stockStatus: event.target.value as StockStatus }))
-                                }
-                              >
-                                <option value="in_stock">In stock</option>
-                                <option value="low_stock">Low stock</option>
-                                <option value="out_of_stock">Out of stock</option>
-                              </select>
-                            </label>
-                            <label style={field}>
-                              <span style={darkFieldLabel}>Stock quantity</span>
-                              <input
-                                type="number"
-                                min={0}
-                                style={lightInput}
-                                value={item.stockQuantity ?? ""}
-                                onChange={(event) =>
-                                  updateItem(section.id, item.id, (current) => ({
-                                    ...current,
-                                    stockQuantity: event.target.value === "" ? null : Math.max(0, Number(event.target.value) || 0),
-                                  }))
-                                }
-                              />
-                            </label>
-                          </div>
-
-                          <label style={field}>
-                            <span style={darkFieldLabel}>Description</span>
-                            <textarea
-                              style={{ ...lightInput, minHeight: 96, paddingTop: 14, paddingBottom: 14, resize: "vertical" }}
-                              value={item.description}
-                              onChange={(event) => updateItem(section.id, item.id, (current) => ({ ...current, description: event.target.value }))}
-                            />
-                          </label>
-
-                          <label style={field}>
-                            <span style={darkFieldLabel}>Product image URL</span>
-                            <input
-                              style={lightInput}
-                              value={item.imageUrl ?? ""}
-                              onChange={(event) =>
-                                updateItem(section.id, item.id, (current) => ({ ...current, imageUrl: event.target.value || undefined }))
-                              }
-                              placeholder="https://..."
-                            />
-                          </label>
-
-                          <div style={toggleRow}>
-                            <label style={toggleLabel}>
-                              <input
-                                type="checkbox"
-                                checked={item.isActive}
-                                onChange={(event) => updateItem(section.id, item.id, (current) => ({ ...current, isActive: event.target.checked }))}
-                              />
-                              <span>Show item live in marketplace</span>
-                            </label>
-                            <label style={toggleLabel}>
-                              <input
-                                type="checkbox"
-                                checked={item.trackStock}
-                                onChange={(event) => updateItem(section.id, item.id, (current) => ({ ...current, trackStock: event.target.checked }))}
-                              />
-                              <span>Track stock quantity</span>
-                            </label>
-                            <label style={toggleLabel}>
-                              <input
-                                type="checkbox"
-                                checked={item.allowBackorder}
-                                onChange={(event) => updateItem(section.id, item.id, (current) => ({ ...current, allowBackorder: event.target.checked }))}
-                              />
-                              <span>Allow backorder</span>
-                            </label>
-                          </div>
-
-                          <HubMenuCustomisationBuilder
-                            item={item}
-                            onChangeComponents={(components) => updateItem(section.id, item.id, (current) => ({ ...current, components }))}
-                            onChangeOptionGroups={(optionGroups) => updateItem(section.id, item.id, (current) => ({ ...current, optionGroups }))}
-                          />
-                        </article>
-                      ))}
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </section>
-          </div>
-          <aside style={{ display: "grid", gap: 18 }}>
-            <section style={panelCard}>
-              <div style={panelHeader}>
-                <div>
-                  <p style={eyebrowDark}>Menu import</p>
-                  <h2 style={sectionTitle}>Upload or paste and review</h2>
-                  <p style={panelCopyDark}>
-                    Upload a menu page image or paste menu text from another storefront, then tick only the correct categories and items before applying them.
-                  </p>
-                </div>
-              </div>
-
-              <div style={{ display: "grid", gap: 12 }}>
-                <label style={field}>
-                  <span style={darkFieldLabel}>Paste menu from another storefront</span>
-                  <textarea
-                    style={{ ...lightInput, minHeight: 150, paddingTop: 14, paddingBottom: 14, resize: "vertical" }}
-                    value={pastedMenuText}
-                    onChange={(event) => setPastedMenuText(event.target.value)}
-                    placeholder={"Smash Burgers\nThe Piggy Cow\nfrom £14.99\nCheesy Smash Stack\nfrom £10.79"}
-                  />
-                </label>
-
-                <button type="button" onClick={handlePreviewPastedMenu} style={secondaryButton}>
-                  Paste and preview items
-                </button>
-
-                <label style={field}>
-                  <span style={darkFieldLabel}>Menu page image</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    style={lightInput}
-                    onChange={(event) => setSelectedImportImageName(event.target.files?.[0]?.name ?? "")}
-                  />
-                </label>
-
-                <button type="button" onClick={handlePreviewImport} style={primaryButton}>
-                  Upload and preview items
-                </button>
-              </div>
-
-              <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
-                {pendingImports.length === 0 ? (
-                  <div style={emptyStateCard}>
-                    No pending menu imports. Upload an image or paste menu text to stage categories and items for review.
-                  </div>
-                ) : null}
-
-                {pendingImports.map((batch) => (
-                  <article key={batch.id} style={importBatchCard}>
-                    <div style={{ display: "grid", gap: 6 }}>
-                      <strong style={{ color: "#0f1115", fontSize: 16 }}>{batch.imageName}</strong>
-                      <span style={subtleInfo}>{batch.candidates.length} candidates pending review</span>
-                    </div>
-
-                    <div style={{ display: "grid", gap: 10 }}>
-                      {batch.candidates.map((candidate) => {
-                        const checked = selectedImportCandidateIds.includes(candidate.id);
-
-                        return (
-                          <label key={candidate.id} style={candidateRow}>
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={(event) =>
-                                setSelectedImportCandidateIds((current) =>
-                                  event.target.checked ? [...current, candidate.id] : current.filter((id) => id !== candidate.id),
-                                )
-                              }
-                            />
-                            <div style={{ display: "grid", gap: 4 }}>
-                              <strong style={{ color: "#0f1115" }}>
-                                {candidate.suggestedCategoryName} / {candidate.itemName}
-                              </strong>
-                              <span style={subtleInfo}>
-                                {formatMoney(candidate.price)} / {candidate.sourceLine}
-                              </span>
-                            </div>
-                          </label>
-                        );
-                      })}
-                    </div>
-
-                    <button type="button" onClick={() => handleApplyImport(batch.id)} style={primaryButton}>
-                      Accept ticked items
-                    </button>
-                  </article>
-                ))}
-              </div>
-            </section>
-
-            {hubAccess?.canManageUsers ? (
-            <section style={panelCard}>
-              <div style={panelHeader}>
-                <div>
-                  <p style={eyebrowDark}>Business users</p>
-                  <h2 style={sectionTitle}>Create hub login</h2>
-                  <p style={panelCopyDark}>Owners can add manager, staff, or view-only logins for this hub.</p>
-                </div>
-              </div>
-
-              <div style={{ display: "grid", gap: 12 }}>
-                <label style={field}>
-                  <span style={darkFieldLabel}>Full name</span>
-                  <input
-                    style={lightInput}
-                    value={newUser.fullName}
-                    onChange={(event) => setNewUser((current) => ({ ...current, fullName: event.target.value }))}
-                    placeholder="Loaded Munch Owner"
-                  />
-                </label>
-                <label style={field}>
-                  <span style={darkFieldLabel}>Email</span>
-                  <input
-                    type="email"
-                    style={lightInput}
-                    value={newUser.email}
-                    onChange={(event) => setNewUser((current) => ({ ...current, email: event.target.value }))}
-                    placeholder="owner@loadedmunch.co.uk"
-                  />
-                </label>
-                <label style={field}>
-                  <span style={darkFieldLabel}>Username</span>
-                  <input
-                    style={lightInput}
-                    value={newUser.username}
-                    onChange={(event) => setNewUser((current) => ({ ...current, username: event.target.value }))}
-                    placeholder="loaded-munch-owner"
-                  />
-                </label>
-                <label style={field}>
-                  <span style={darkFieldLabel}>Password</span>
-                  <span style={passwordFieldWrap}>
-                    <input
-                      type={showCreateUserPassword ? "text" : "password"}
-                      style={{ ...lightInput, paddingRight: 88 }}
-                      value={newUser.password}
-                      onChange={(event) => setNewUser((current) => ({ ...current, password: event.target.value }))}
-                      placeholder="Create password"
-                    />
-                    <button type="button" style={passwordRevealButton} onClick={() => setShowCreateUserPassword((current) => !current)}>
-                      {showCreateUserPassword ? "Hide" : "Show"}
-                    </button>
-                  </span>
-                </label>
-                <label style={field}>
-                  <span style={darkFieldLabel}>Role</span>
-                  <select
-                    style={lightInput}
-                    value={newUser.role}
-                    onChange={(event) => setNewUser((current) => ({ ...current, role: event.target.value as HubRole }))}
-                  >
-                    {creatableHubRoles.map((role) => (
-                      <option key={role} value={role}>
-                        {translateHubRole(role)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <button type="button" onClick={handleCreateUser} style={primaryButton}>
-                  Create business user
-                </button>
-              </div>
-            </section>
-            ) : (
-              <section style={panelCard}>
-                <p style={panelCopyDark}>Only hub owners can create or remove business logins.</p>
-              </section>
-            )}
-
-            <section style={panelCard}>
-              <div style={panelHeader}>
-                <div>
-                  <p style={eyebrowDark}>Account security</p>
-                  <h2 style={sectionTitle}>Change password</h2>
-                  <p style={panelCopyDark}>Update the password for the signed-in hub account.</p>
-                </div>
-              </div>
-
-              <div style={{ display: "grid", gap: 12 }}>
-                <label style={field}>
-                  <span style={darkFieldLabel}>Current password</span>
-                  <span style={passwordFieldWrap}>
-                    <input
-                      type={showHubPasswordCurrent ? "text" : "password"}
-                      style={{ ...lightInput, paddingRight: 88 }}
-                      value={passwordForm.currentPassword}
-                      onChange={(event) => setPasswordForm((current) => ({ ...current, currentPassword: event.target.value }))}
-                    />
-                    <button type="button" style={passwordRevealButton} onClick={() => setShowHubPasswordCurrent((current) => !current)}>
-                      {showHubPasswordCurrent ? "Hide" : "Show"}
-                    </button>
-                  </span>
-                </label>
-                <label style={field}>
-                  <span style={darkFieldLabel}>New password</span>
-                  <span style={passwordFieldWrap}>
-                    <input
-                      type={showHubPasswordNew ? "text" : "password"}
-                      style={{ ...lightInput, paddingRight: 88 }}
-                      value={passwordForm.newPassword}
-                      onChange={(event) => setPasswordForm((current) => ({ ...current, newPassword: event.target.value }))}
-                    />
-                    <button type="button" style={passwordRevealButton} onClick={() => setShowHubPasswordNew((current) => !current)}>
-                      {showHubPasswordNew ? "Hide" : "Show"}
-                    </button>
-                  </span>
-                </label>
-                <label style={field}>
-                  <span style={darkFieldLabel}>Confirm new password</span>
-                  <span style={passwordFieldWrap}>
-                    <input
-                      type={showHubPasswordConfirm ? "text" : "password"}
-                      style={{ ...lightInput, paddingRight: 88 }}
-                      value={passwordForm.confirmPassword}
-                      onChange={(event) => setPasswordForm((current) => ({ ...current, confirmPassword: event.target.value }))}
-                    />
-                    <button type="button" style={passwordRevealButton} onClick={() => setShowHubPasswordConfirm((current) => !current)}>
-                      {showHubPasswordConfirm ? "Hide" : "Show"}
-                    </button>
-                  </span>
-                </label>
-                <button type="button" onClick={handleChangePassword} style={primaryButton}>
-                  Change password
-                </button>
-              </div>
-            </section>
-
-            <section style={panelCard}>
-              <div style={panelHeader}>
-                <div>
-                  <p style={eyebrowDark}>Current access</p>
-                  <h2 style={sectionTitle}>Hub users</h2>
-                </div>
-              </div>
-
-              <div style={{ display: "grid", gap: 12 }}>
-                {hubUsers.map((user) => (
-                  <article key={user.id} style={userCard}>
-                    <div style={{ display: "grid", gap: 6 }}>
-                      <strong style={{ color: "#0f1115", fontSize: 16 }}>{user.fullName}</strong>
-                      <span style={{ color: "#596271" }}>{user.email}</span>
-                    </div>
-                    <div style={{ display: "grid", gap: 8, justifyItems: "start" }}>
-                      <span style={darkBadge}>{translateHubRole(user.role)}</span>
-                      <span style={subtleInfo}>Username: {user.username}</span>
-                      {hubAccess?.canManageUsers && user.id !== activeUser?.id ? (
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteUser(user.id, user.username)}
-                        style={{ ...secondaryButtonSmall, minHeight: 34, padding: "0 12px", fontSize: 13 }}
-                      >
-                        Remove user
-                      </button>
-                      ) : null}
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </section>
-
-            <section style={panelCard}>
-              <div style={panelHeader}>
-                <div>
-                  <p style={eyebrowDark}>How to build items</p>
-                  <h2 style={sectionTitle}>Builder logic</h2>
-                </div>
-              </div>
-
-              <div style={{ display: "grid", gap: 10 }}>
-                {[
-                  "Use ingredients for the parts already in the item, like bun, patties, cheese, onions, or lettuce.",
-                  "Use option groups for customer decisions like meal choice, sauces, drinks, fries, and extra toppings.",
-                  "Use minimum and maximum selections to force exact choices or allow multiple extras.",
-                  "Use show-only-after value ids for dependent groups like fries and can only after Make it a Meal is chosen.",
-                ].map((entry) => (
-                  <div key={entry} style={listRow}>
-                    <span style={orangeDot} />
-                    <span style={{ color: "#49515c", lineHeight: 1.5 }}>{entry}</span>
-                  </div>
-                ))}
-              </div>
-            </section>
-          </aside>
-        </section>
-        </details>
       </section>
     </main>
   );

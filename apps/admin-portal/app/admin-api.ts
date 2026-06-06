@@ -1,4 +1,4 @@
-import type { AdminHubSummary, ContactMessageRecord, OrderSummary } from "@hull-eats/types";
+import type { AdminHubSummary, ContactMessageRecord, HubMenuTemplate, OrderSummary } from "@hull-eats/types";
 
 export type { AdminHubSummary } from "@hull-eats/types";
 
@@ -246,6 +246,8 @@ export async function createAdminHub(
     postcode?: string;
     cuisineLabel?: string;
     storeType?: BusinessType;
+    menuTemplate?: HubMenuTemplate;
+    marketplaceCategorySlug?: string;
   },
 ): Promise<AdminCreateHubResponse> {
   const response = await authedFetch("/v1/admin/hubs", token, {

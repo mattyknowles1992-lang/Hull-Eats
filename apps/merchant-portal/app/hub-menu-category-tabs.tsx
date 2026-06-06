@@ -126,13 +126,16 @@ export function HubMenuCategoryTabs({
       ) : null}
 
       <div className="hub-menu-tab-group hub-menu-tab-group--customer">
-        <p className="hub-menu-tab-group-label">Customer menu</p>
-        <p className="hub-menu-tab-group-hint">
-          {customerSections.length > 1
-            ? "Drag tabs to reorder. Top tab is first on your live menu."
-            : "Add categories below — they appear as tabs here."}
-        </p>
+        <div className="hub-menu-tab-group__intro">
+          <p className="hub-menu-tab-group-label">Customer menu</p>
+          <p className="hub-menu-tab-group-hint">
+            {customerSections.length > 1
+              ? "Drag tabs to reorder. Top tab is first on your live menu."
+              : "Add categories below — they appear as tabs here."}
+          </p>
+        </div>
 
+        <div className="hub-menu-tab-group__scroller" aria-label="Customer menu categories">
         {customerSections.map((section, index) => {
           const isActive = section.id === selectedSectionId;
           const isTop = index === 0;
@@ -179,6 +182,7 @@ export function HubMenuCategoryTabs({
         {customerSections.length === 0 ? (
           <p className="hub-menu-tab-empty">No categories yet — add one under this list.</p>
         ) : null}
+        </div>
       </div>
     </nav>
   );

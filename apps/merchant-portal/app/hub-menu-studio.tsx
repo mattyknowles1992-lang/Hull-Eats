@@ -3,8 +3,8 @@
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import type { HubMenuSection, HubSettings, MenuItem } from "@hull-eats/types";
-import { composePartsLibrariesEnabled } from "@hull-eats/types";
+import type { HubMenuSection, HubSettings, HubMenuTemplate, MenuItem } from "@hull-eats/types";
+import { composePartsLibrariesEnabled, isSimpleRetailHubMenuTemplate } from "@hull-eats/types";
 import {
   HUB_MENU_CATEGORY_CUSTOM_ID,
   hubMenuCategorySelectOptions,
@@ -102,6 +102,7 @@ type HubMenuStudioProps = {
   hasUnsavedHubChanges: boolean;
   menuHubPersistState?: "idle" | "saving" | "saved" | "error";
   hubSettings: HubSettings;
+  menuTemplate?: HubMenuTemplate;
   menuPreviewOpen: boolean;
   onOpenMenuPreview: () => void;
   onCloseMenuPreview: () => void;
@@ -195,6 +196,7 @@ export function HubMenuStudio({
   hasUnsavedHubChanges,
   menuHubPersistState = "idle",
   hubSettings,
+  menuTemplate = "full_food",
   menuPreviewOpen,
   onOpenMenuPreview,
   onCloseMenuPreview,
@@ -271,6 +273,7 @@ export function HubMenuStudio({
 }: HubMenuStudioProps) {
   const newItemDraftRef = useRef<HTMLElement | null>(null);
   const studioLocked = readOnly;
+  const simpleRetail = isSimpleRetailHubMenuTemplate(menuTemplate);
   const visibleSections = customerFacingMenuSections(menuSections);
   const hasCustomerMenu = visibleSections.length > 0;
   const categoryIsPizza = isHubMenuSectionPizza(selectedCategory);
@@ -319,11 +322,29 @@ export function HubMenuStudio({
     onNewItemOptionGroupsChange(next.optionGroups);
     onNewItemChange({ description: next.description });
   };
-  const selectedBuilderHint = describeCategoryItemBuilder(selectedCategory);
   const usesPizzaOrderBuilder = isHubMenuSectionPizza(selectedCategory);
-  const usesOrderTicketBuilder = isHubMenuOrderTicketCategory(selectedCategory);
-  const creatingOrderTicketItem = isHubMenuOrderTicketCategory(creatingItemSection);
-  const editingOrderTicketItem = isHubMenuOrderTicketCategory(selectedCategory);
+  const usesOrderTicketBuilder = simpleRetail
+    ? Boolean(selectedCategory && !isMenuStudioStaffSection(selectedCategory))
+    : isHubMenuOrderTicketCategory(selectedCategory);
+  const selectedBuilderHint = (() => {
+    const hint = describeCategoryItemBuilder(selectedCategory, menuTemplate);
+    if (!hint) {
+      return hint;
+    }
+    if (usesOrderTicketBuilder) {
+      return `${hint} Rows save as Live — use Save as → Hidden if an item should stay off the menu.`;
+    }
+    if (usesPizzaOrderBuilder) {
+      return `${hint} Work top to bottom in the tables below — suggestions sit above each block.`;
+    }
+    return hint;
+  })();
+  const creatingOrderTicketItem = simpleRetail
+    ? Boolean(creatingItemSection && !isMenuStudioStaffSection(creatingItemSection))
+    : isHubMenuOrderTicketCategory(creatingItemSection);
+  const editingOrderTicketItem = simpleRetail
+    ? Boolean(selectedCategory && !isMenuStudioStaffSection(selectedCategory))
+    : isHubMenuOrderTicketCategory(selectedCategory);
 
   useEffect(() => {
     if (!focusedPublishIssueId) {
@@ -376,7 +397,9 @@ export function HubMenuStudio({
           <p style={eyebrow}>Menu studio</p>
           <h2 style={studioTitle}>Menu builder</h2>
           <p style={studioCopy}>
-            Set up extras, salad, and sauces first, then add products. Changes save automatically in the background.
+            {simpleRetail
+              ? "Add categories and products with name and price. Changes save automatically — publish when customers should see your menu."
+              : "Set up extras, salad, and sauces first, then add products. Changes save automatically in the background."}
             {menuHubPersistState === "saving" ? " Saving now…" : null}
           </p>
         </div>
@@ -434,8 +457,8 @@ export function HubMenuStudio({
         </div>
       ) : null}
 
-      {studioLocked ? null : (
-        <div className="he-hub-banner" role="status">
+      {studioLocked || simpleRetail ? null : (
+        <div className="he-hub-banner hub-menu-studio__tip-banner" role="status">
           <strong>Build your menu faster</strong>
           <p>
             Set up <strong>Extras, salad &amp; sauces</strong> on the left first. Add <strong>Make it a meal</strong> on
@@ -449,8 +472,8 @@ export function HubMenuStudio({
           <aside className="hub-menu-tab-column">
             <HubMenuCategoryTabs
               customerSections={visibleSections}
-              extrasSection={extrasSection}
-              mealSection={mealSection}
+              extrasSection={simpleRetail ? null : extrasSection}
+              mealSection={simpleRetail ? null : mealSection}
               selectedSectionId={selectedCategory?.id ?? null}
               readOnly={studioLocked}
               onSelectSection={onSelectCategory}
@@ -458,28 +481,30 @@ export function HubMenuStudio({
             />
             <section id="publish-issue-no-categories" className="hub-menu-tab-add-category" style={sidebarAddCategory}>
               <p style={sectionLabel}>New category</p>
-              <label style={field}>
-                <span style={darkFieldLabel}>Type</span>
-                <select
-                  style={lightInput}
-                  value={newCategory.presetId}
-                  disabled={studioLocked}
-                  onChange={(event) => onNewCategoryPresetChange(event.target.value)}
-                >
-                  {categoryPresetOptions.map((option: HubMenuCategoryPresetChoice) => (
-                    <option key={option.id} value={option.id}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              {simpleRetail ? null : (
+                <label style={field}>
+                  <span style={darkFieldLabel}>Type</span>
+                  <select
+                    style={lightInput}
+                    value={newCategory.presetId}
+                    disabled={studioLocked}
+                    onChange={(event) => onNewCategoryPresetChange(event.target.value)}
+                  >
+                    {categoryPresetOptions.map((option: HubMenuCategoryPresetChoice) => (
+                      <option key={option.id} value={option.id}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               <label style={field}>
                 <span style={darkFieldLabel}>Name on menu</span>
                 <input
                   style={lightInput}
                   value={newCategory.name}
                   onChange={(event) => onNewCategoryChange({ name: event.target.value })}
-                  placeholder="e.g. Pizzas"
+                  placeholder={simpleRetail ? "e.g. Fresh meat" : "e.g. Pizzas"}
                   disabled={studioLocked}
                 />
               </label>
@@ -589,7 +614,7 @@ export function HubMenuStudio({
                         />
                       </label>
                       <label style={field}>
-                        <span style={darkFieldLabel}>Category note (optional)</span>
+                        <span style={darkFieldLabel}>Storefront category note (optional)</span>
                         <input
                           style={lightInput}
                           value={getCategoryCustomerDescription(selectedCategory)}
@@ -598,7 +623,7 @@ export function HubMenuStudio({
                               writeCategoryCustomerDescriptionOnSection(section, event.target.value),
                             )
                           }
-                          placeholder="Optional note shown to customers under this category"
+                          placeholder="Short note for customers under this category on your menu"
                         />
                       </label>
                     </div>
@@ -634,7 +659,7 @@ export function HubMenuStudio({
                         />
                       </label>
                       <label style={field}>
-                        <span style={darkFieldLabel}>Category note (optional)</span>
+                        <span style={darkFieldLabel}>Storefront category note (optional)</span>
                         <input
                           style={lightInput}
                           value={getCategoryCustomerDescription(selectedCategory)}
@@ -643,7 +668,7 @@ export function HubMenuStudio({
                               writeCategoryCustomerDescriptionOnSection(section, event.target.value),
                             )
                           }
-                          placeholder="Optional note shown to customers under this category"
+                          placeholder="Short note for customers under this category on your menu"
                         />
                       </label>
                     </div>
@@ -655,6 +680,7 @@ export function HubMenuStudio({
                   </details>
                   <HubMenuOrderTicketBuilder
                     section={selectedCategory}
+                    menuTemplate={menuTemplate}
                     readOnly={studioLocked}
                     publishIssues={publishIssues}
                     onPatchSection={onPatchSelectedCategory}
@@ -713,7 +739,7 @@ export function HubMenuStudio({
                       />
                     </label>
                     <label style={field}>
-                      <span style={darkFieldLabel}>Category note (optional)</span>
+                      <span style={darkFieldLabel}>Storefront category note (optional)</span>
                       <input
                         style={lightInput}
                         value={getCategoryCustomerDescription(selectedCategory)}
@@ -722,7 +748,7 @@ export function HubMenuStudio({
                             writeCategoryCustomerDescriptionOnSection(section, event.target.value),
                           )
                         }
-                        placeholder="Optional note shown to customers under this category"
+                        placeholder="Short note for customers under this category on your menu"
                       />
                     </label>
                   </div>
@@ -1068,9 +1094,9 @@ export function HubMenuStudio({
                 <div className="hub-menu-customer-empty" style={customerEmptyPanel}>
                   <h3 style={customerEmptyTitle}>Your customer menu</h3>
                   <p style={customerEmptyCopy}>
-                    No categories yet. Use <strong>New category</strong> on the left to add your first (e.g. Burgers,
-                    Sides, Pizzas). Until then, set up <strong>Added extras</strong> and <strong>Burger parts</strong> /
-                    <strong> Kebab parts</strong> under Hub setup.
+                    {simpleRetail
+                      ? "No categories yet. Use New category on the left to add your first (e.g. Fresh meat, Meal packs, Specials)."
+                      : "No categories yet. Use New category on the left to add your first (e.g. Burgers, Sides, Pizzas). Until then, set up Added extras and Burger parts / Kebab parts under Hub setup."}
                   </p>
                 </div>
               ) : !showExtrasPanel && !showMealsPanel ? (

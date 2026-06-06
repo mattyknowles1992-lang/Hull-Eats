@@ -13,6 +13,7 @@ import {
 } from "./delivery-pricing";
 
 import { menuItemSchema, storeTypeSchema, storefrontStatusSchema, type MenuItem } from "./catalog";
+import { hubMenuTemplateSchema } from "./hub-menu-template";
 import { sanitizeMenuItemMoneyFields, sanitizeMenuMoneyAmount } from "./menu-money";
 import { membershipRoleSchema } from "./rbac";
 import { normalizeOpeningHours, storeOpeningHoursSchema, type StoreOpeningHours } from "./store-opening-hours";
@@ -123,6 +124,10 @@ export const hubSettingsSchema = z.object({
   openingHours: storeOpeningHoursSchema,
   /** Kitchen and delivery print ticket layout (also gates burger/kebab parts libraries when in-depth). */
   kitchenTicket: kitchenTicketSettingsSchema.default(defaultKitchenTicketSettings()),
+  /** Menu Studio layout: full takeaway tooling vs simplified retail list builder. */
+  menuTemplate: hubMenuTemplateSchema.default("full_food"),
+  /** Hull Marketplace discovery category slug (optional). */
+  marketplaceCategorySlug: z.string().default(""),
 });
 
 const optionalHttpUrl = z.preprocess((value) => {
@@ -215,6 +220,8 @@ export const createHubInputSchema = z.object({
   postcode: z.string().default(""),
   cuisineLabel: z.string().default(""),
   storeType: storeTypeSchema.default("takeaway"),
+  menuTemplate: hubMenuTemplateSchema.default("full_food"),
+  marketplaceCategorySlug: z.string().default(""),
 });
 
 export const createHubUserInputSchema = z.object({

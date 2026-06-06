@@ -36,6 +36,8 @@ export const emptyHubSettings: HubSettings = {
   orderFulfillment: "delivery_and_collection",
   openingHours: createDefaultOpeningHours(),
   kitchenTicket: defaultKitchenTicketSettings(),
+  menuTemplate: "full_food",
+  marketplaceCategorySlug: "",
 };
 
 export const normalizeWorkspaceSettings = (settings: HubSettings): HubSettings => {
@@ -51,6 +53,8 @@ export const normalizeWorkspaceSettings = (settings: HubSettings): HubSettings =
     deliveryPostcodeZones: postcodeZones.length > 0 ? postcodeZones : createDefaultHullPostcodeZones(),
     openingHours: openingHours.length === 7 ? openingHours : createDefaultOpeningHours(),
     kitchenTicket: normalizeKitchenTicketSettings(settings.kitchenTicket),
+    menuTemplate: settings.menuTemplate ?? "full_food",
+    marketplaceCategorySlug: settings.marketplaceCategorySlug ?? "",
   };
 };
 

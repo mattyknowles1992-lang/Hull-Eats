@@ -5189,6 +5189,46 @@ button.filter-pill {
   color: var(--ink);
 }
 
+.add-sheet-meal-block {
+  display: grid;
+  gap: 0;
+}
+
+.add-sheet-meal-summary {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: center;
+  width: calc(100% - 32px);
+  margin: 0 16px 4px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(15, 17, 21, 0.1);
+  background: rgba(246, 251, 255, 0.95);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+
+.add-sheet-meal-summary-label {
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.add-sheet-meal-summary-value {
+  font-weight: 800;
+  color: var(--ink-strong);
+}
+
+.add-sheet-meal-summary-action {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #079bc8;
+}
+
 .add-sheet-section--field {
   padding: 0 16px 16px;
 }

@@ -11,6 +11,7 @@ export * from "./hub-config-snapshots";
 export * from "./hub-access";
 export * from "./hub-portal-locale";
 export * from "./hub-menu-presets";
+export * from "./hub-menu-template";
 export * from "./menu-list-pricing";
 export * from "./menu-money";
 export * from "./meal-deals";

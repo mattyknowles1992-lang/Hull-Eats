@@ -13,12 +13,17 @@ import {
   createHubPromotionInputSchema,
   decodeHubMenuCategoryDescription,
   encodeHubMenuCategoryDescription,
+  defaultKitchenTicketSettings,
   hubRolesCreatableBy,
   hullZoneHasCoverage,
+  isSimpleRetailHubMenuTemplate,
   normaliseDeliveryPricing,
   normalizeHubPortalLocale,
+  normalizeKitchenTicketSettings,
   normalizeOpeningHours,
+  readHubMenuTemplateFromDeliveryConfig,
   readKitchenTicketFromDeliveryConfig,
+  readMarketplaceCategorySlugFromDeliveryConfig,
   sanitizeHubMenuSectionMoneyFields,
   sanitizeMenuItemMoneyFields,
   sanitizeMenuMoneyAmount,
@@ -358,11 +363,30 @@ export class HubRegistryService {
           postcode,
           timezone: "Europe/London",
           cuisineLabel: cuisineLabel || null,
-          onboardingMessage: "New hub created from the admin panel. Finish setup before making this business live.",
+          onboardingMessage:
+            isSimpleRetailHubMenuTemplate(input.menuTemplate)
+              ? "New retail hub — add categories and products in Menu Studio, then publish when ready."
+              : "New hub created from the admin panel. Finish setup before making this business live.",
           deliveryFee: 0,
           minimumOrderAmount: 0,
           etaMinutes: 25,
           isActive: false,
+          deliveryConfig: {
+            mode: "business_radius",
+            radiusMiles: 5,
+            distanceRanges: [],
+            postcodeZones: [],
+            postcodeDistricts: [],
+            mileFees: [0, 0, 0, 0, 0],
+            originLatitude: null,
+            originLongitude: null,
+            orderFulfillment: "delivery_and_collection",
+            menuTemplate: input.menuTemplate ?? "full_food",
+            marketplaceCategorySlug: input.marketplaceCategorySlug?.trim() || null,
+            kitchenTicket: isSimpleRetailHubMenuTemplate(input.menuTemplate)
+              ? normalizeKitchenTicketSettings({ detailMode: "normal" })
+              : defaultKitchenTicketSettings(),
+          },
         },
       });
 
@@ -1784,6 +1808,8 @@ export class HubRegistryService {
       autoAcceptOrders: Boolean(store.autoAcceptOrders),
       autoAcceptMaxPrepMinutes: store.autoAcceptMaxPrepMinutes ?? 60,
       openingHours: this.mapStoreOpeningHours(store.storeHours ?? []),
+      menuTemplate: readHubMenuTemplateFromDeliveryConfig(store.deliveryConfig),
+      marketplaceCategorySlug: readMarketplaceCategorySlugFromDeliveryConfig(store.deliveryConfig),
       ...this.mapDeliveryFromStore(store),
     };
   }
@@ -1804,6 +1830,8 @@ export class HubRegistryService {
       originLongitude: settings.deliveryOriginLongitude ?? null,
       orderFulfillment: settings.orderFulfillment,
       kitchenTicket: settings.kitchenTicket,
+      menuTemplate: settings.menuTemplate ?? "full_food",
+      marketplaceCategorySlug: settings.marketplaceCategorySlug?.trim() || null,
     };
   }
 

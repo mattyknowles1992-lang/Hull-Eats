@@ -559,14 +559,6 @@ export function HubMenuPizzaOrderBuilder({ section, readOnly = false, onPatchSec
 
   return (
     <div className="hub-menu-order-builder hub-menu-pizza-builder">
-      <div className="hub-menu-order-builder__intro">
-        <strong>Pizza menu builder</strong>
-        <p>
-          Work top to bottom: pizzas, garlic breads, bases &amp; crusts, then calzones. Suggestions sit above each table.
-          Add or remove rows and size columns in the table — not above it.
-        </p>
-      </div>
-
       <PizzaCategoryBlock
         {...blockProps}
         kind="pizza"

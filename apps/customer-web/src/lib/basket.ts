@@ -1,4 +1,9 @@
-import { repairMealUpgradeOptionGroups, type MenuItem } from "@hull-eats/types";
+import {
+  getMealFollowOnGroups,
+  isMealUpgradeSelected,
+  repairMealUpgradeOptionGroups,
+  type MenuItem,
+} from "@hull-eats/types";
 import { parseExtraIncludedQuantity } from "@hull-eats/types";
 
 const SALAD_INCLUDED_MARKER = /__HULL_SALAD_INCLUDED__/;
@@ -149,7 +154,7 @@ export const synchroniseSelection = (item: MenuItem, selection: BasketCustomisat
         }
       }
 
-      if (selectedEntries.length === 0 && group.isRequired) {
+      if (selectedEntries.length === 0 && group.isRequired && group.showWhenValueIds.length === 0) {
         const fallback = group.options.find((option) => option.isDefault) ?? group.options[0];
 
         if (fallback) {
@@ -162,7 +167,7 @@ export const synchroniseSelection = (item: MenuItem, selection: BasketCustomisat
       const defaultOptions = group.options.filter((option) => option.isDefault);
       const requiredMinimum = getGroupMinimum(group);
 
-      if (requiredMinimum > 0 && defaultOptions.length > 0) {
+      if (requiredMinimum > 0 && group.showWhenValueIds.length === 0 && defaultOptions.length > 0) {
         let remaining = requiredMinimum;
 
         defaultOptions.forEach((option) => {
@@ -218,13 +223,19 @@ export const getDefaultCustomisationSelection = (item: MenuItem): BasketCustomis
   });
 };
 
-export const getVisibleOptionGroups = (item: MenuItem, selectedOptionQuantities: Record<string, number>) =>
-  repairMealUpgradeOptionGroups(item).optionGroups.filter(
+export const getVisibleOptionGroups = (item: MenuItem, selectedOptionQuantities: Record<string, number>) => {
+  const repairedItem = repairMealUpgradeOptionGroups(item);
+  const mealUpgradeSelected = isMealUpgradeSelected(repairedItem, selectedOptionQuantities);
+  const mealFollowOnIds = new Set(getMealFollowOnGroups(repairedItem).map((group) => group.id));
+
+  return repairedItem.optionGroups.filter(
     (group) =>
       group.options.length > 0 &&
       (group.showWhenValueIds.length === 0 ||
-        group.showWhenValueIds.some((valueId) => (selectedOptionQuantities[valueId] ?? 0) > 0)),
+        group.showWhenValueIds.some((valueId) => (selectedOptionQuantities[valueId] ?? 0) > 0) ||
+        (mealUpgradeSelected && mealFollowOnIds.has(group.id))),
   );
+};
 
 export const getSelectedQuantityForOption = (selection: BasketCustomisationSelection, optionId: string) =>
   selection.selectedOptionQuantities[optionId] ?? 0;

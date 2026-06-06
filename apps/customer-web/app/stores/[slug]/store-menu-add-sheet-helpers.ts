@@ -1,4 +1,12 @@
 import type { MenuItem } from "@hull-eats/types";
+import {
+  getMealFollowOnGroups,
+  isMealBlockComplete,
+  isMealUpgradeSelected,
+  repairMealUpgradeOptionGroups,
+} from "@hull-eats/types";
+
+import { getSelectedQuantityForOption, type BasketCustomisationSelection } from "../../../src/lib/basket";
 
 const SAUCES_INCLUDED_MARKER = /__HULL_SAUCES_INCLUDED__/;
 const SAUCES_EXTRA_MARKER = /__HULL_SAUCES_EXTRA__/;
@@ -23,6 +31,40 @@ function parsePartChoiceSlot(group: MenuItem["optionGroups"][number]): { line: s
 export function isMealChoiceGroup(group: MenuItem["optionGroups"][number]): boolean {
   return MEAL_CHOICE_MARKER.test(group.description ?? "") && !MEAL_DISABLED_MARKER.test(group.description ?? "");
 }
+
+export function isMealFollowOnOptionGroup(item: MenuItem, group: MenuItem["optionGroups"][number]): boolean {
+  return getMealFollowOnGroups(repairMealUpgradeOptionGroups(item)).some((entry) => entry.id === group.id);
+}
+
+export function summarizeMealBlockSelection(item: MenuItem, selection: BasketCustomisationSelection): string {
+  const repairedItem = repairMealUpgradeOptionGroups(item);
+  const mealGroup = repairedItem.optionGroups.find(isMealChoiceGroup);
+  if (!mealGroup) {
+    return "";
+  }
+
+  if (!isMealUpgradeSelected(repairedItem, selection.selectedOptionQuantities)) {
+    const onItsOwn = mealGroup.options.find((option) => /on its own/i.test(option.label));
+    return onItsOwn?.label ?? MEAL_ON_ITS_OWN_LABEL;
+  }
+
+  const parts: string[] = [];
+  const upgradeOption = mealGroup.options.find((option) => getSelectedQuantityForOption(selection, option.id) > 0);
+  if (upgradeOption) {
+    parts.push(upgradeOption.label);
+  }
+
+  for (const group of getMealFollowOnGroups(repairedItem)) {
+    const selected = group.options.find((option) => getSelectedQuantityForOption(selection, option.id) > 0);
+    if (selected) {
+      parts.push(selected.label);
+    }
+  }
+
+  return parts.join(" · ");
+}
+
+export { isMealBlockComplete, isMealUpgradeSelected };
 
 export function isPizzaMenuItem(item: MenuItem): boolean {
   if (/__HULL_PIZZA_KIND:/i.test(item.description)) {
@@ -149,8 +191,14 @@ export function filterAddSheetOptionGroups(
     });
 }
 
-function groupSortRank(group: MenuItem["optionGroups"][number]): number {
+function groupSortRank(group: MenuItem["optionGroups"][number], item?: MenuItem): number {
   const description = group.description ?? "";
+
+  if (item && isMealFollowOnOptionGroup(item, group)) {
+    const followOns = getMealFollowOnGroups(repairMealUpgradeOptionGroups(item));
+    const followOnIndex = followOns.findIndex((entry) => entry.id === group.id);
+    return followOnIndex >= 0 ? 2 + followOnIndex : 2;
+  }
 
   if (group.isRequired && /size/i.test(group.name)) {
     return 0;
@@ -197,15 +245,21 @@ function groupSortRank(group: MenuItem["optionGroups"][number]): number {
   return 9;
 }
 
-export function sortAddSheetOptionGroups(groups: MenuItem["optionGroups"]): MenuItem["optionGroups"] {
-  return [...groups].sort((left, right) => groupSortRank(left) - groupSortRank(right));
+export function sortAddSheetOptionGroups(
+  groups: MenuItem["optionGroups"],
+  item?: MenuItem,
+): MenuItem["optionGroups"] {
+  return [...groups].sort((left, right) => groupSortRank(left, item) - groupSortRank(right, item));
 }
 
-export function getAddSheetGroupTitle(group: MenuItem["optionGroups"][number]): string {
+export function getAddSheetGroupTitle(group: MenuItem["optionGroups"][number], item?: MenuItem): string {
   const description = group.description ?? "";
 
   if (isMealChoiceGroup(group)) {
     return "How would you like it?";
+  }
+  if (item && isMealFollowOnOptionGroup(item, group)) {
+    return group.name.trim() || "Meal option";
   }
   if (SALAD_INCLUDED_MARKER.test(description)) {
     return "Add your salad";

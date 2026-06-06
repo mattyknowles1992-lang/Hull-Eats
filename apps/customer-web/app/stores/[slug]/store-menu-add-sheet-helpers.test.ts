@@ -6,11 +6,15 @@ import {
   filterAddSheetOptionGroups,
   getAddSheetGroupTitle,
   isMealChoiceGroup,
+  isMealUpgradeSelected,
   showsAddSheetSaladSection,
   sortAddSheetOptionGroups,
+  summarizeMealBlockSelection,
   usesBurgerAddSheet,
   usesItemAddSheet,
 } from "./store-menu-add-sheet-helpers";
+
+import type { BasketCustomisationSelection } from "../../../src/lib/basket";
 
 const baseItem = (overrides: Partial<MenuItem>): MenuItem => ({
   id: "item-1",
@@ -207,6 +211,122 @@ describe("store-menu-add-sheet-helpers", () => {
     expect(filtered.find((group) => group.id === "extras")?.options.map((option) => option.id)).toEqual(["cheese"]);
     expect(sortAddSheetOptionGroups(filtered).map((group) => group.id)).toEqual(["meal", "salad", "sauce", "extras"]);
     expect(isMealChoiceGroup(groups[0]!)).toBe(true);
+  });
+
+  it("sorts meal side and drink immediately after meal choice", () => {
+    const templateId = "meal-1";
+    const mealYesId = `hull-meal-yes-${templateId}`;
+    const item = baseItem({
+      optionGroups: [
+        {
+          id: "meal",
+          name: "Make it a meal",
+          description: `__HULL_MEAL_CHOICE__\n__HULL_MEAL_TEMPLATE:${templateId}__`,
+          selectionMode: "single",
+          isRequired: true,
+          minSelections: 1,
+          maxSelections: 1,
+          showWhenValueIds: [],
+          options: [
+            { id: `hull-meal-no-${templateId}`, label: "On its own", description: "", priceDelta: 0, isDefault: true, maxQuantity: 1 },
+            { id: mealYesId, label: "Make it a meal", description: "", priceDelta: 2, isDefault: false, maxQuantity: 1 },
+          ],
+        },
+        {
+          id: "extras",
+          name: "Added extras",
+          description: "__HULL_EXTRAS__",
+          selectionMode: "multiple",
+          isRequired: false,
+          minSelections: 0,
+          maxSelections: null,
+          showWhenValueIds: [],
+          options: [],
+        },
+        {
+          id: "side",
+          name: "Choose your side",
+          description: "",
+          selectionMode: "single",
+          isRequired: true,
+          minSelections: 1,
+          maxSelections: 1,
+          showWhenValueIds: [mealYesId],
+          options: [{ id: "chips", label: "Chips", description: "", priceDelta: 0, isDefault: false, maxQuantity: 1 }],
+        },
+        {
+          id: "drink",
+          name: "Choose your drink",
+          description: "",
+          selectionMode: "single",
+          isRequired: true,
+          minSelections: 1,
+          maxSelections: 1,
+          showWhenValueIds: [mealYesId],
+          options: [{ id: "coke", label: "Coke", description: "", priceDelta: 0, isDefault: false, maxQuantity: 1 }],
+        },
+      ],
+    });
+
+    const groups = item.optionGroups;
+    expect(sortAddSheetOptionGroups(groups, item).map((group) => group.id)).toEqual(["meal", "side", "drink", "extras"]);
+  });
+
+  it("summarises a completed meal block", () => {
+    const templateId = "meal-1";
+    const mealYesId = `hull-meal-yes-${templateId}`;
+    const item = baseItem({
+      optionGroups: [
+        {
+          id: "meal",
+          name: "Make it a meal",
+          description: `__HULL_MEAL_CHOICE__\n__HULL_MEAL_TEMPLATE:${templateId}__`,
+          selectionMode: "single",
+          isRequired: true,
+          minSelections: 1,
+          maxSelections: 1,
+          showWhenValueIds: [],
+          options: [
+            { id: `hull-meal-no-${templateId}`, label: "On its own", description: "", priceDelta: 0, isDefault: true, maxQuantity: 1 },
+            { id: mealYesId, label: "Make it a meal", description: "", priceDelta: 2, isDefault: false, maxQuantity: 1 },
+          ],
+        },
+        {
+          id: "side",
+          name: "Choose your side",
+          description: "",
+          selectionMode: "single",
+          isRequired: true,
+          minSelections: 1,
+          maxSelections: 1,
+          showWhenValueIds: [mealYesId],
+          options: [{ id: "chips", label: "Chips", description: "", priceDelta: 0, isDefault: false, maxQuantity: 1 }],
+        },
+        {
+          id: "drink",
+          name: "Choose your drink",
+          description: "",
+          selectionMode: "single",
+          isRequired: true,
+          minSelections: 1,
+          maxSelections: 1,
+          showWhenValueIds: [mealYesId],
+          options: [{ id: "coke", label: "Coke", description: "", priceDelta: 0, isDefault: false, maxQuantity: 1 }],
+        },
+      ],
+    });
+
+    const selection: BasketCustomisationSelection = {
+      selectedOptionQuantities: {
+        [mealYesId]: 1,
+        chips: 1,
+        coke: 1,
+      },
+      removedComponentIds: [],
+    };
+
+    expect(isMealUpgradeSelected(item, selection.selectedOptionQuantities)).toBe(true);
+    expect(summarizeMealBlockSelection(item, selection)).toBe("Make it a meal · Chips · Coke");
   });
 
   it("labels customer-facing section titles", () => {

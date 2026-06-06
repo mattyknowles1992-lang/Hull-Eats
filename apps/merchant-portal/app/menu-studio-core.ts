@@ -30,11 +30,15 @@ import {
   isHubMenuExtrasLibrarySection,
   isHubMenuOrderTicketCategory,
   getHubMenuOrderTicketConfig,
+  getHubMenuOrderTicketConfigForTemplate,
+  isHubMenuOrderTicketCategoryForTemplate,
   isHubMenuMealDealsCategory,
   isHubMenuMealLibrarySection,
   isHubMenuMenuBoardsConfigSection,
   isHubMenuStaffLibrarySection,
   isHubMenuSectionPizza,
+  isSimpleRetailHubMenuTemplate,
+  type HubMenuTemplate,
   getMenuItemCustomerMinPrice,
   isMenuItemPriceListable,
   menuItemUsesSizePricing,
@@ -1362,8 +1366,14 @@ export function isMealDealBundleItem(item: MenuItem): boolean {
   return isMealDealCustomerItem(item);
 }
 
-export function describeCategoryItemBuilder(section: HubMenuSection | null | undefined): string {
+export function describeCategoryItemBuilder(
+  section: HubMenuSection | null | undefined,
+  menuTemplate: HubMenuTemplate = "full_food",
+): string {
   const mode = getCategoryItemBuilderMode(section);
+  if (isSimpleRetailHubMenuTemplate(menuTemplate)) {
+    return "Add each product on its own row with name and price.";
+  }
   if (mode === "pizza-sizes") {
     return "Add each pizza on the table — use popular suggestions or bulk paste for names, then fill size prices.";
   }
@@ -1373,7 +1383,7 @@ export function describeCategoryItemBuilder(section: HubMenuSection | null | und
   if (mode === "kebab-compose") {
     return "Set name and price. Tick salad, sauces, and paid extras on this item under Customer options — use Extras & sauces on the left for your master lists.";
   }
-  const ticketConfig = getHubMenuOrderTicketConfig(section);
+  const ticketConfig = getHubMenuOrderTicketConfigForTemplate(section, menuTemplate);
   if (ticketConfig) {
     return ticketConfig.introBody;
   }
@@ -2515,6 +2525,19 @@ export function ensureStaffMenuSections(sections: HubMenuSection[]): HubMenuSect
       ),
     ),
   );
+}
+
+export function ensureMenuSectionsForHub(
+  sections: HubMenuSection[],
+  menuTemplate: HubMenuTemplate = "full_food",
+): HubMenuSection[] {
+  if (isSimpleRetailHubMenuTemplate(menuTemplate)) {
+    const retailSections = normalizeMenuSectionsForPortal(sections).filter(
+      (section) => !isHubMenuStaffLibrarySection(section) || isHubMenuMenuBoardsConfigSection(section),
+    );
+    return sortMenuSectionsForStudio(ensureMenuBoardsConfigSection(retailSections));
+  }
+  return ensureStaffMenuSections(sections);
 }
 
 const MEAL_CFG_PREFIX = /^__HULL_MEAL_CFG:([\s\S]*?)__(?:\r?\n)?([\s\S]*)$/;

@@ -76,7 +76,7 @@ export function HubMenuBoardsBar({
       </div>
 
       {editingBoard && !readOnly ? (
-        <div style={publishModeRow}>
+        <div className="hub-menu-boards-bar__publish-row">
           <label style={modeField}>
             <span style={modeLabel}>When published, this menu should</span>
             <select
@@ -134,12 +134,6 @@ const switchBtnActive: CSSProperties = {
   background: "var(--he-blue-wash)",
 };
 const switchMeta: CSSProperties = { fontSize: "0.72rem", fontWeight: 700, color: "rgba(15, 17, 21, 0.5)" };
-const publishModeRow: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr)",
-  gap: 12,
-  alignItems: "end",
-};
 const modeField: CSSProperties = { display: "grid", gap: 6, minWidth: 0 };
 const modeLabel: CSSProperties = { fontSize: "0.78rem", fontWeight: 700, color: "rgba(15, 17, 21, 0.6)" };
 const modeSelect: CSSProperties = {

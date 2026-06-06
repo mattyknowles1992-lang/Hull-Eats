@@ -71,9 +71,112 @@ export function hullMealNoOptionId(templateId: string): string {
   return `hull-meal-no-${templateId}`;
 }
 
+export function getMealChoiceGroup(item: MenuItem): MenuOptionGroup | null {
+  return item.optionGroups.find(isMealChoiceGroup) ?? null;
+}
+
+function collectMealYesOptionIds(mealGroup: MenuOptionGroup, templateId: string): Set<string> {
+  const mealYesIds = new Set<string>([hullMealYesOptionId(templateId)]);
+  for (const option of mealGroup.options) {
+    if (option.id.includes("-meal-yes") || (option.priceDelta > 0 && !/on its own/i.test(option.label))) {
+      mealYesIds.add(option.id);
+    }
+  }
+  return mealYesIds;
+}
+
+export function isMealFollowOnGroup(group: MenuOptionGroup, mealYesIds: Set<string>): boolean {
+  if (isMealChoiceGroup(group)) {
+    return false;
+  }
+
+  if (group.showWhenValueIds.some((valueId) => mealYesIds.has(valueId) || valueId.includes("-meal-yes"))) {
+    return true;
+  }
+
+  return group.showWhenValueIds.length > 0 && /side|fries|drink|can/i.test(group.name);
+}
+
+/** Side and drink groups that appear after choosing a meal upgrade. */
+export function getMealFollowOnGroups(item: MenuItem): MenuOptionGroup[] {
+  const mealIndex = item.optionGroups.findIndex(isMealChoiceGroup);
+  if (mealIndex < 0) {
+    return [];
+  }
+
+  const mealGroup = item.optionGroups[mealIndex];
+  if (!mealGroup) {
+    return [];
+  }
+
+  const templateId = mealTemplateIdFromItem(item) ?? "default";
+  const mealYesIds = collectMealYesOptionIds(mealGroup, templateId);
+  const followOns: MenuOptionGroup[] = [];
+
+  for (let index = mealIndex + 1; index < item.optionGroups.length; index += 1) {
+    const group = item.optionGroups[index];
+    if (!group) {
+      break;
+    }
+    if (isMealFollowOnGroup(group, mealYesIds)) {
+      followOns.push(group);
+      continue;
+    }
+    if (followOns.length > 0) {
+      break;
+    }
+  }
+
+  for (const group of item.optionGroups) {
+    if (followOns.some((entry) => entry.id === group.id)) {
+      continue;
+    }
+    if (isMealFollowOnGroup(group, mealYesIds)) {
+      followOns.push(group);
+    }
+  }
+
+  return followOns;
+}
+
+export function isMealUpgradeSelected(
+  item: MenuItem,
+  selectedOptionQuantities: Record<string, number>,
+): boolean {
+  const mealGroup = getMealChoiceGroup(item);
+  if (!mealGroup) {
+    return false;
+  }
+
+  const templateId = mealTemplateIdFromItem(item) ?? "default";
+  const mealYesIds = collectMealYesOptionIds(mealGroup, templateId);
+
+  return mealGroup.options.some(
+    (option) => mealYesIds.has(option.id) && (selectedOptionQuantities[option.id] ?? 0) > 0,
+  );
+}
+
+export function isMealBlockComplete(
+  item: MenuItem,
+  selectedOptionQuantities: Record<string, number>,
+): boolean {
+  if (!isMealUpgradeSelected(item, selectedOptionQuantities)) {
+    return true;
+  }
+
+  return getMealFollowOnGroups(item).every((group) => {
+    const selectedCount = group.options.reduce(
+      (sum, option) => sum + (selectedOptionQuantities[option.id] ?? 0),
+      0,
+    );
+    const minimum = group.isRequired ? Math.max(group.minSelections, 1) : group.minSelections;
+    return selectedCount >= minimum;
+  });
+}
+
 /** Fix side/drink groups that still point at an old meal-yes option id from a prior publish. */
 export function repairMealUpgradeOptionGroups(item: MenuItem): MenuItem {
-  const mealGroup = item.optionGroups.find(isMealChoiceGroup);
+  const mealGroup = getMealChoiceGroup(item);
   if (!mealGroup) {
     return item;
   }
@@ -82,28 +185,23 @@ export function repairMealUpgradeOptionGroups(item: MenuItem): MenuItem {
   const mealYesOption =
     mealGroup.options.find((option) => option.id === hullMealYesOptionId(templateId)) ??
     mealGroup.options.find((option) => option.priceDelta > 0 && !/on its own/i.test(option.label)) ??
-  null;
+    null;
 
   if (!mealYesOption) {
     return item;
   }
 
   const mealYesId = mealYesOption.id;
+  const followOnIds = new Set(getMealFollowOnGroups(item).map((group) => group.id));
 
   return {
     ...item,
     optionGroups: item.optionGroups.map((group) => {
-      if (group.id === mealGroup.id) {
-        return group;
-      }
-      const needsMeal =
-        (/side|fries/i.test(group.name) || /drink|can/i.test(group.name)) && group.showWhenValueIds.length > 0;
-      if (!needsMeal) {
+      if (group.id === mealGroup.id || !followOnIds.has(group.id)) {
         return group;
       }
 
-      const alreadyValid = group.showWhenValueIds.includes(mealYesId);
-      if (alreadyValid) {
+      if (group.showWhenValueIds.length === 1 && group.showWhenValueIds[0] === mealYesId) {
         return group;
       }
 

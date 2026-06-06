@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import type { ContactMessageRecord } from "@hull-eats/types";
+import type { ContactMessageRecord, HubMenuTemplate } from "@hull-eats/types";
+import { HUB_MARKETPLACE_CATEGORY_OPTIONS } from "@hull-eats/types";
 
 import {
   adminSessionEmailStorageKey,
@@ -250,6 +251,8 @@ export function AdminConsoleLive() {
   const [businessPostcode, setBusinessPostcode] = useState("");
   const [businessCuisineLabel, setBusinessCuisineLabel] = useState("");
   const [businessType, setBusinessType] = useState<"restaurant" | "takeaway" | "shop">("takeaway");
+  const [hubMenuTemplate, setHubMenuTemplate] = useState<HubMenuTemplate>("full_food");
+  const [marketplaceCategorySlug, setMarketplaceCategorySlug] = useState("");
   const [hubNotice, setHubNotice] = useState("");
   const [featuredOrderDrafts, setFeaturedOrderDrafts] = useState<Record<string, string>>({});
   const [hubSearchQuery, setHubSearchQuery] = useState("");
@@ -487,6 +490,8 @@ export function AdminConsoleLive() {
         postcode: businessPostcode.trim().toUpperCase(),
         cuisineLabel: businessCuisineLabel.trim(),
         storeType: businessType,
+        menuTemplate: hubMenuTemplate,
+        marketplaceCategorySlug: marketplaceCategorySlug.trim(),
       });
       await refreshAdminData(authToken, { silent: true });
       setSelectedHubId(created.hub.id);
@@ -499,6 +504,8 @@ export function AdminConsoleLive() {
       setBusinessPostcode("");
       setBusinessCuisineLabel("");
       setBusinessType("takeaway");
+      setHubMenuTemplate("full_food");
+      setMarketplaceCategorySlug("");
       setHubNotice(
         `${created.hub.businessName} created in setup. Owner login: ${created.ownerUser.email}. Temporary password: ${created.temporaryPassword}`,
       );
@@ -1066,6 +1073,31 @@ export function AdminConsoleLive() {
                   value={businessCuisineLabel}
                   onChange={(event) => setBusinessCuisineLabel(event.target.value)}
                 />
+              </label>
+              <label style={{ display: "grid", gap: 8 }}>
+                <span style={{ fontWeight: 800, color: "#dce9ff" }}>Menu template</span>
+                <select
+                  style={{ ...styles.input, appearance: "none" }}
+                  value={hubMenuTemplate}
+                  onChange={(event) => setHubMenuTemplate(event.target.value as HubMenuTemplate)}
+                >
+                  <option value="full_food">Full food menu (takeaways, restaurants)</option>
+                  <option value="simple_retail">Simple retail (butcher, bakery, vape, shop lists)</option>
+                </select>
+              </label>
+              <label style={{ display: "grid", gap: 8 }}>
+                <span style={{ fontWeight: 800, color: "#dce9ff" }}>Marketplace category (optional)</span>
+                <select
+                  style={{ ...styles.input, appearance: "none" }}
+                  value={marketplaceCategorySlug}
+                  onChange={(event) => setMarketplaceCategorySlug(event.target.value)}
+                >
+                  {HUB_MARKETPLACE_CATEGORY_OPTIONS.map((option) => (
+                    <option key={option.slug || "unset"} value={option.slug}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label style={{ display: "grid", gap: 8 }}>
                 <span style={{ fontWeight: 800, color: "#dce9ff" }}>Business type</span>

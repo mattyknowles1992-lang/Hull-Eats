@@ -2,11 +2,11 @@
 
 import { useMemo, useState } from "react";
 
-import type { HubMenuOrderTicketConfig, HubMenuSection, MenuItem } from "@hull-eats/types";
+import type { HubMenuOrderTicketConfig, HubMenuSection, HubMenuTemplate, MenuItem } from "@hull-eats/types";
 import {
   addMenuSubGroupOnSection,
   formatMenuSubGroupLabel,
-  getHubMenuOrderTicketConfig,
+  getHubMenuOrderTicketConfigForTemplate,
   groupMenuItemsBySubGroup,
   groupMenuItemsBySubGroupTree,
   parseMenuSubGroupLabel,
@@ -35,6 +35,7 @@ import {
 
 type Props = {
   section: HubMenuSection;
+  menuTemplate?: HubMenuTemplate;
   readOnly?: boolean;
   publishIssues?: MenuPublishIssue[];
   onPatchSection: (updater: (section: HubMenuSection) => HubMenuSection) => void;
@@ -106,8 +107,14 @@ function ticketRowFromBulkPaste(
   return item;
 }
 
-export function HubMenuOrderTicketBuilder({ section, readOnly = false, publishIssues = [], onPatchSection }: Props) {
-  const config = getHubMenuOrderTicketConfig(section);
+export function HubMenuOrderTicketBuilder({
+  section,
+  menuTemplate = "full_food",
+  readOnly = false,
+  publishIssues = [],
+  onPatchSection,
+}: Props) {
+  const config = getHubMenuOrderTicketConfigForTemplate(section, menuTemplate);
   if (!config) {
     return null;
   }
@@ -293,11 +300,6 @@ export function HubMenuOrderTicketBuilder({ section, readOnly = false, publishIs
 
   return (
     <div className="hub-menu-order-builder">
-      <div className="hub-menu-order-builder__intro">
-        <strong>{config.introTitle}</strong>
-        <p>{config.introBody} Rows save as Live — use Save as → Hidden if an item should stay off the menu.</p>
-      </div>
-
       {config.showBulkPaste ? (
         <HubMenuBulkPastePanel readOnly={readOnly} onApply={applyBulkRows} />
       ) : null}
@@ -432,6 +434,7 @@ function OrderTicketBlock({
         ) : null}
       </div>
 
+      <div className="hub-menu-order-builder__table-wrap">
       <div className="hub-menu-order-builder__table" role="table">
         <div
           className="hub-menu-order-builder__row hub-menu-order-builder__row--head"
@@ -643,6 +646,7 @@ function OrderTicketBlock({
             </div>
           );
         })}
+      </div>
       </div>
 
       {readOnly ? null : (

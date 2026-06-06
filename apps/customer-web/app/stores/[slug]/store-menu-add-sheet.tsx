@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
+
 import type { MenuItem } from "@hull-eats/types";
 import { customerFacingMenuItemDescription } from "@hull-eats/types";
 
@@ -9,10 +11,14 @@ import {
   filterAddSheetOptionGroups,
   getAddSheetGroupTitle,
   getAddSheetOptionPriceLabel,
+  isMealBlockComplete,
   isMealChoiceGroup,
+  isMealFollowOnOptionGroup,
+  isMealUpgradeSelected,
   isSaladIncludedGroup,
   showsAddSheetSaladSection,
   sortAddSheetOptionGroups,
+  summarizeMealBlockSelection,
 } from "./store-menu-add-sheet-helpers";
 
 type Props = {
@@ -39,6 +45,75 @@ type Props = {
 
 const formatMoney = (value: number) => `£${value.toFixed(2)}`;
 
+function renderSingleChoiceGroup(
+  group: MenuItem["optionGroups"][number],
+  item: MenuItem,
+  selection: BasketCustomisationSelection,
+  onPick: (group: MenuItem["optionGroups"][number], optionId: string) => void,
+) {
+  return (
+    <div className="add-sheet-meal-choices" role="radiogroup" aria-label={getAddSheetGroupTitle(group, item)}>
+      {group.options.map((option) => {
+        const selected = getSelectedQuantityForOption(selection, option.id) > 0;
+        const priceLabel = getAddSheetOptionPriceLabel(option);
+        return (
+          <button
+            key={option.id}
+            type="button"
+            className={`add-sheet-meal-choice${selected ? " is-selected" : ""}`}
+            aria-pressed={selected}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => onPick(group, option.id)}
+          >
+            <span className="add-sheet-meal-choice-label">{option.label}</span>
+            {priceLabel ? <span className="add-sheet-option-price">{priceLabel}</span> : null}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function renderMultipleChoiceGroup(
+  group: MenuItem["optionGroups"][number],
+  item: MenuItem,
+  selection: BasketCustomisationSelection,
+  onSetOptionQuantity: Props["onSetOptionQuantity"],
+) {
+  return (
+    <ul className="add-sheet-options">
+      {group.options.map((option) => {
+        const selectedQuantity = getSelectedQuantityForOption(selection, option.id);
+        const selected = selectedQuantity > 0;
+        const priceLabel = getAddSheetOptionPriceLabel(option);
+        const inputId = `${group.id}-${option.id}`;
+
+        return (
+          <li key={option.id} className={`add-sheet-option${selected ? " is-selected" : ""}`}>
+            <label className="add-sheet-option-label" htmlFor={inputId} onMouseDown={(event) => event.preventDefault()}>
+              <input
+                id={inputId}
+                type="checkbox"
+                className="add-sheet-checkbox"
+                checked={selected}
+                onChange={() => {
+                  if (group.selectionMode === "single") {
+                    onSetOptionQuantity(group.id, option.id, "single", 1, 1);
+                    return;
+                  }
+                  onSetOptionQuantity(group.id, option.id, "multiple", selected ? 0 : 1, option.maxQuantity);
+                }}
+              />
+              <span className="add-sheet-option-name">{option.label}</span>
+              {priceLabel ? <span className="add-sheet-option-price">{priceLabel}</span> : null}
+            </label>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 export function StoreMenuAddSheet({
   item,
   selection,
@@ -54,24 +129,60 @@ export function StoreMenuAddSheet({
   onToggleRemovedComponent,
   onSetOptionQuantity,
 }: Props) {
-  const sortedGroups = sortAddSheetOptionGroups(filterAddSheetOptionGroups(visibleGroups, item)).filter(
-    (group) => group.options.length > 0,
+  const [mealBlockExpanded, setMealBlockExpanded] = useState(true);
+
+  const sortedGroups = useMemo(
+    () =>
+      sortAddSheetOptionGroups(filterAddSheetOptionGroups(visibleGroups, item), item).filter(
+        (group) => group.options.length > 0,
+      ),
+    [item, visibleGroups],
   );
+
+  const mealChoiceGroup = sortedGroups.find(isMealChoiceGroup) ?? null;
+  const mealFollowOnGroups = mealChoiceGroup
+    ? sortedGroups.filter((group) => isMealFollowOnOptionGroup(item, group))
+    : [];
+  const followOnIds = new Set(mealFollowOnGroups.map((group) => group.id));
+  const otherGroups = sortedGroups.filter((group) => !isMealChoiceGroup(group) && !followOnIds.has(group.id));
+
+  const mealUpgradeSelected = isMealUpgradeSelected(item, selection.selectedOptionQuantities);
+  const mealBlockComplete = isMealBlockComplete(item, selection.selectedOptionQuantities);
+  const mealSummary = summarizeMealBlockSelection(item, selection);
+
+  useEffect(() => {
+    if (mealBlockComplete && mealUpgradeSelected) {
+      setMealBlockExpanded(false);
+    }
+  }, [mealBlockComplete, mealUpgradeSelected]);
+
   const intro = customerFacingMenuItemDescription(item.description);
   const saladComponents = item.components.filter((component) => component.removable);
   const showSaladSection = showsAddSheetSaladSection(item);
 
-  const toggleSingleOption = (group: MenuItem["optionGroups"][number], optionId: string) => {
+  const pickSingleOption = (group: MenuItem["optionGroups"][number], optionId: string) => {
     onSetOptionQuantity(group.id, optionId, "single", 1, 1);
+    if (isMealChoiceGroup(group)) {
+      setMealBlockExpanded(true);
+    }
   };
 
-  const toggleMultipleOption = (
-    group: MenuItem["optionGroups"][number],
-    optionId: string,
-    optionMaxQuantity: number,
-    selected: boolean,
-  ) => {
-    onSetOptionQuantity(group.id, optionId, "multiple", selected ? 0 : 1, optionMaxQuantity);
+  const renderGroupSection = (group: MenuItem["optionGroups"][number]) => {
+    const mealChoice = isMealChoiceGroup(group);
+    const saladIncluded = isSaladIncludedGroup(group);
+    const useMealChoiceUi = mealChoice || (group.selectionMode === "single" && isMealFollowOnOptionGroup(item, group));
+
+    return (
+      <section key={group.id} className="add-sheet-section">
+        <h4 className="add-sheet-section-title">{getAddSheetGroupTitle(group, item)}</h4>
+        {saladIncluded ? (
+          <p className="add-sheet-section-copy">Untick anything you do not want on your order.</p>
+        ) : null}
+        {useMealChoiceUi
+          ? renderSingleChoiceGroup(group, item, selection, pickSingleOption)
+          : renderMultipleChoiceGroup(group, item, selection, onSetOptionQuantity)}
+      </section>
+    );
   };
 
   return (
@@ -130,6 +241,30 @@ export function StoreMenuAddSheet({
             </section>
           ) : null}
 
+          {mealChoiceGroup ? (
+            <section className="add-sheet-section add-sheet-meal-block">
+              {mealBlockExpanded || !mealBlockComplete ? (
+                <>
+                  {renderGroupSection(mealChoiceGroup)}
+                  {mealUpgradeSelected
+                    ? mealFollowOnGroups.map((group) => renderGroupSection(group))
+                    : null}
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="add-sheet-meal-summary"
+                  onClick={() => setMealBlockExpanded(true)}
+                  aria-expanded={false}
+                >
+                  <span className="add-sheet-meal-summary-label">Meal</span>
+                  <span className="add-sheet-meal-summary-value">{mealSummary}</span>
+                  <span className="add-sheet-meal-summary-action">Change</span>
+                </button>
+              )}
+            </section>
+          ) : null}
+
           {sortedGroups.length === 0 && item.optionGroups.length > 0 ? (
             <p className="add-sheet-intro" role="status">
               Choose &quot;Make it a meal&quot; above to pick your side and drink, or complete any required options for
@@ -137,75 +272,7 @@ export function StoreMenuAddSheet({
             </p>
           ) : null}
 
-          {sortedGroups.map((group) => {
-            const mealChoice = isMealChoiceGroup(group);
-            const saladIncluded = isSaladIncludedGroup(group);
-
-            return (
-              <section key={group.id} className="add-sheet-section">
-                <h4 className="add-sheet-section-title">{getAddSheetGroupTitle(group)}</h4>
-                {saladIncluded ? (
-                  <p className="add-sheet-section-copy">Untick anything you do not want on your order.</p>
-                ) : null}
-                {mealChoice ? (
-                  <div className="add-sheet-meal-choices" role="radiogroup" aria-label={getAddSheetGroupTitle(group)}>
-                    {group.options.map((option) => {
-                      const selected = getSelectedQuantityForOption(selection, option.id) > 0;
-                      const priceLabel = getAddSheetOptionPriceLabel(option);
-                      return (
-                        <button
-                          key={option.id}
-                          type="button"
-                          className={`add-sheet-meal-choice${selected ? " is-selected" : ""}`}
-                          aria-pressed={selected}
-                          onMouseDown={(event) => event.preventDefault()}
-                          onClick={() => toggleSingleOption(group, option.id)}
-                        >
-                          <span className="add-sheet-meal-choice-label">{option.label}</span>
-                          {priceLabel ? <span className="add-sheet-option-price">{priceLabel}</span> : null}
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <ul className="add-sheet-options">
-                    {group.options.map((option) => {
-                      const selectedQuantity = getSelectedQuantityForOption(selection, option.id);
-                      const selected = selectedQuantity > 0;
-                      const priceLabel = getAddSheetOptionPriceLabel(option);
-                      const inputId = `${group.id}-${option.id}`;
-
-                      return (
-                        <li key={option.id} className={`add-sheet-option${selected ? " is-selected" : ""}`}>
-                      <label
-                        className="add-sheet-option-label"
-                        htmlFor={inputId}
-                        onMouseDown={(event) => event.preventDefault()}
-                      >
-                        <input
-                          id={inputId}
-                          type="checkbox"
-                          className="add-sheet-checkbox"
-                          checked={selected}
-                          onChange={() => {
-                                if (group.selectionMode === "single") {
-                                  toggleSingleOption(group, option.id);
-                                  return;
-                                }
-                                toggleMultipleOption(group, option.id, option.maxQuantity, selected);
-                              }}
-                            />
-                            <span className="add-sheet-option-name">{option.label}</span>
-                            {priceLabel ? <span className="add-sheet-option-price">{priceLabel}</span> : null}
-                          </label>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </section>
-            );
-          })}
+          {otherGroups.map((group) => renderGroupSection(group))}
 
           <section className="add-sheet-section add-sheet-section--field">
             <h4 className="add-sheet-section-title">Special Instructions</h4>
