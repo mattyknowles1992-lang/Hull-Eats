@@ -40,6 +40,12 @@ export class AdminController {
     return this.hubRegistry.listHubs();
   }
 
+  @Get("hubs/deleted")
+  listDeletedHubs(@Headers("authorization") authorization?: string) {
+    this.internalAuth.requireAdminToken(authorization);
+    return this.hubRegistry.listDeletedHubs();
+  }
+
   @Get("users")
   listHubUsers(@Headers("authorization") authorization?: string) {
     this.internalAuth.requireAdminToken(authorization);
@@ -78,9 +84,34 @@ export class AdminController {
   }
 
   @Delete("hubs/:hubId")
-  deleteHub(@Headers("authorization") authorization: string | undefined, @Param("hubId") hubId: string) {
-    this.internalAuth.requireAdminToken(authorization);
-    return this.hubRegistry.deleteHub(hubId);
+  async deleteHub(@Headers("authorization") authorization: string | undefined, @Param("hubId") hubId: string) {
+    const admin = this.internalAuth.requireAdminToken(authorization);
+    const result = await this.hubRegistry.deleteHub(hubId);
+    await this.auditLog.record({
+      scope: "admin",
+      action: "admin.hub.deleted",
+      hubId,
+      actorEmail: admin.email ?? admin.sub,
+      metadata: {
+        businessName: result.deletedBusinessName,
+        recoverableUntil: result.recoverableUntil,
+      },
+    });
+    return result;
+  }
+
+  @Post("hubs/:hubId/restore")
+  async restoreHub(@Headers("authorization") authorization: string | undefined, @Param("hubId") hubId: string) {
+    const admin = this.internalAuth.requireAdminToken(authorization);
+    const result = await this.hubRegistry.restoreHub(hubId);
+    await this.auditLog.record({
+      scope: "admin",
+      action: "admin.hub.restored",
+      hubId,
+      actorEmail: admin.email ?? admin.sub,
+      metadata: { businessName: result.restoredBusinessName },
+    });
+    return result;
   }
 
   @Post("hubs/:hubId/publish")

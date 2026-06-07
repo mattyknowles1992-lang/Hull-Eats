@@ -1,106 +1,85 @@
 import Link from "next/link";
+import { Suspense } from "react";
 
 import { buildStaticPageMetadata } from "../../src/lib/seo";
 import { AppSwitcher } from "../app-switcher";
-import {
-  isHullMarketplaceResaleEnabled,
-  isHullServicesEnabled,
-} from "../../src/lib/customer-product-flags";
+import { PartnerForm } from "./partner-form";
 
 export const metadata = buildStaticPageMetadata({
   title: "Partner with us",
   description:
-    isHullMarketplaceResaleEnabled() || isHullServicesEnabled()
-      ? "Join Hull Eats as a restaurant or shop, list on Hull Marketplace, or promote your services through Hull Services."
-      : "Join Hull Eats as a restaurant, takeaway, café, or shop — live menus, delivery, and business software.",
+    "Join Hull Eats as a Hull restaurant, takeaway, café, or shop — menus, delivery, and business software built for local operators.",
   path: "/partner",
   keywords: ["restaurant partner Hull", "takeaway software Hull", "join Hull Eats"],
 });
 
 export default function PartnerPage() {
-  const showMarketplace = isHullMarketplaceResaleEnabled();
-  const showServices = isHullServicesEnabled();
-
   return (
-    <main className="shell legal-document-page">
-      <header className="topbar legal-document-topbar">
-        <AppSwitcher />
-        <div className="topbar-actions">
+    <main className="marketing-page">
+      <header className="marketing-nav">
+        <div className="brand-pill">
+          <AppSwitcher />
+          <div>
+            <p className="eyebrow">Hull Eats for businesses</p>
+            <p className="brand-title">Partner with Hull Eats</p>
+          </div>
+        </div>
+
+        <nav className="marketing-nav-actions" aria-label="Partner page actions">
           <Link href="/contact" className="glass-button">
-            Contact us
+            Customer support
           </Link>
           <Link href="/" className="secondary-button">
             Home
           </Link>
-        </div>
+        </nav>
       </header>
 
-      <section className="legal-document-shell">
-        <header className="legal-document-header">
-          <h1 className="legal-document-title">Partner with us</h1>
-          <p className="legal-document-summary">
-            {showMarketplace || showServices
-              ? "Hull Eats is built so businesses can adopt one pillar at a time — marketplace ordering, software-only hub tools, courier-supported delivery, Hull Marketplace listings, or Hull Services visibility — and expand when it suits them."
-              : "Hull Eats helps Hull restaurants, takeaways, cafés, and shops run live menus, delivery rules, and checkout — with optional courier support and hub software as you grow."}
-          </p>
-        </header>
-
-        <section className="partner-page-section">
-          <h2>Restaurants, takeaways, cafés, and shops</h2>
+      <section className="marketing-hero">
+        <div className="marketing-hero-copy">
+          <p className="eyebrow">Hull businesses only</p>
+          <h1>Bring your takeaway, café, or shop onto Hull Eats.</h1>
           <p>
-            We onboard venues onto live menus, delivery rules, and checkout. You keep control of pricing, descriptions,
-            allergen information, item availability, and preparation times through your hub portal. Marketplace exposure is
-            optional where we operate commission-based ordering.
+            We can only onboard businesses in Hull at the moment. Share a few details below and we will review your enquiry,
+            then get back to you using your preferred contact method.
           </p>
-          <a className="primary-button" href="mailto:hello@hulleats.co.uk?subject=Hull%20Eats%20partner%20-%20ordering%20%26%20hub">
-            Email partnerships — ordering
-          </a>
-        </section>
-
-        {showMarketplace ? (
-          <section className="partner-page-section">
-            <h2>Hull Marketplace — sellers</h2>
-            <p>
-              Local classified-style listings for goods you want buyers to discover in Hull. Commercial terms, seller fees,
-              and dispute handling evolve as the marketplace matures; our{" "}
-              <Link href="/legal/terms-marketplace">Marketplace terms</Link> and{" "}
-              <Link href="/legal/acceptable-use">acceptable use policy</Link> set the baseline expectations today.
-            </p>
-            <a className="primary-button" href="mailto:hello@hulleats.co.uk?subject=Hull%20Marketplace%20seller%20interest">
-              Email partnerships — marketplace
-            </a>
-          </section>
-        ) : null}
-
-        {showServices ? (
-          <section className="partner-page-section">
-            <h2>Hull Services — trades & professionals</h2>
-            <p>
-              Home maintenance, vehicles, cleaning, grooming, and other local services can appear in dedicated browse
-              experiences separate from takeaway menus. Tell us your trade, coverage area, and whether you already take card
-              payments online.
-            </p>
-            <a className="primary-button" href="mailto:hello@hulleats.co.uk?subject=Hull%20Services%20provider%20interest">
-              Email partnerships — services
-            </a>
-          </section>
-        ) : null}
-
-        <section className="partner-page-section">
-          <h2>Delivery & logistics</h2>
           <p>
-            Hull Eats courier coverage rolls out where operational capacity exists. Courier organisations interested in
-            structured assignment workflows should email with fleet size, insurance summary, and Hull coverage areas.
+            You stay in control of menus, pricing, allergens, availability, and delivery settings through your business hub
+            once onboarding begins.
           </p>
-          <a className="primary-button" href="mailto:hello@hulleats.co.uk?subject=Hull%20Eats%20courier%20operations">
-            Email courier operations
-          </a>
-        </section>
+        </div>
+      </section>
 
-        <p className="form-helper" style={{ marginTop: 24, maxWidth: "72ch" }}>
-          Commission percentages, launch incentives, and package pricing are agreed during onboarding and confirmed in
-          writing before your storefront goes live.
-        </p>
+      <section className="marketing-partner-section">
+        <div className="marketing-partner-intro">
+          <p className="eyebrow">Get started</p>
+          <h2>Send a partner enquiry</h2>
+          <p>
+            Tell us where your business is based and how you would like us to reply. Name, email, and phone are optional,
+            but please add the contact detail that matches your preferred method so we can reach you quickly.
+          </p>
+        </div>
+
+        <Suspense fallback={<p className="form-helper">Loading partner form...</p>}>
+          <PartnerForm />
+        </Suspense>
+      </section>
+
+      <section className="contact-band">
+        <div>
+          <p className="eyebrow">Already trading with us?</p>
+          <h2>Need help with your hub or an existing store?</h2>
+          <p>Use customer support for order issues, or contact us if your business is already live and needs operational help.</p>
+        </div>
+
+        <div className="contact-actions">
+          <Link className="primary-button" href="/contact">
+            Contact Hull Eats
+          </Link>
+          <Link className="glass-button" href="/about">
+            About Hull Eats
+          </Link>
+        </div>
       </section>
     </main>
   );

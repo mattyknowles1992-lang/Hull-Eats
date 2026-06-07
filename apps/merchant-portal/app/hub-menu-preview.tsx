@@ -4,6 +4,7 @@ import type { CSSProperties } from "react";
 import { useEffect, useMemo, useState } from "react";
 
 import type { HubMenuSection, HubSettings, MenuItem } from "@hull-eats/types";
+import { storefrontHeroMediaStyle } from "@hull-eats/types";
 
 import { HubMenuPreviewCustomise } from "./hub-menu-preview-customise";
 import { groupMenuItemsBySubGroup } from "@hull-eats/types";
@@ -70,6 +71,7 @@ export function HubMenuPreview({
   const headline = settings.onboardingMessage?.trim() || "Browse your menu, customise items, and checkout on Hull Eats.";
   const address = [settings.city, settings.postcode].filter(Boolean).join(", ");
   const heroImage = settings.heroImageUrl?.trim() || settings.logoImageUrl?.trim() || defaultHero;
+  const heroStyle = storefrontHeroMediaStyle(heroImage, settings.heroImageCrop, "linear-gradient(180deg, rgba(255,255,255,0.2), rgba(8,14,24,0.35))");
 
   return (
     <div style={overlay} role="dialog" aria-modal="true" aria-label="Menu preview">
@@ -104,7 +106,9 @@ export function HubMenuPreview({
           <section
             style={{
               ...hero,
-              backgroundImage: `linear-gradient(180deg, rgba(255,255,255,0.2), rgba(8,14,24,0.35)), url(${heroImage})`,
+              ...(heroStyle ?? {
+                backgroundImage: `linear-gradient(180deg, rgba(255,255,255,0.2), rgba(8,14,24,0.35)), url(${heroImage})`,
+              }),
             }}
           >
             <p style={heroEyebrow}>Storefront preview</p>

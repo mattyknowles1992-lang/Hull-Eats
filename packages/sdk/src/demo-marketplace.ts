@@ -347,6 +347,7 @@ export const loadedMunchStore: StoreSummary = {
   logoImageUrl: "/stores/loaded-munch/hero.jpg",
   homepageFeatured: false,
   homepageFeatureOrder: null,
+  courierTrackingAvailable: false,
 };
 
 export const loadedMunchMenuSections: DemoMenuSection[] = [

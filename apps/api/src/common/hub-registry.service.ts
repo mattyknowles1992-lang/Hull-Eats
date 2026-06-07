@@ -24,9 +24,12 @@ import {
   readHubMenuTemplateFromDeliveryConfig,
   readKitchenTicketFromDeliveryConfig,
   readMarketplaceCategorySlugFromDeliveryConfig,
+  readStorefrontHeroCropFromDeliveryConfig,
   sanitizeHubMenuSectionMoneyFields,
   sanitizeMenuItemMoneyFields,
   sanitizeMenuMoneyAmount,
+  HUB_DELETION_RETENTION_DAYS,
+  hubDeletionRestoreSnapshotSchema,
   type MembershipRole,
   type StoreOpeningHours,
   updateHubPromotionInputSchema,
@@ -40,6 +43,7 @@ import {
 } from "@hull-eats/types";
 import { CourierRegistryService } from "./courier-registry.service";
 import type {
+  AdminDeletedHubSummary,
   AdminHubSummary,
   ApplyMenuImportInput,
   CreateHubInput,
@@ -88,6 +92,20 @@ const ignoredImportLines = [
   /^delivery$/i,
   /^fees apply/i,
 ];
+
+const HUB_DELETION_RETENTION_MS = HUB_DELETION_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+
+function hubRecoverableUntil(deletedAt: Date): Date {
+  return new Date(deletedAt.getTime() + HUB_DELETION_RETENTION_MS);
+}
+
+function hubDaysRemaining(deletedAt: Date): number {
+  return Math.max(0, Math.ceil((hubRecoverableUntil(deletedAt).getTime() - Date.now()) / (24 * 60 * 60 * 1000)));
+}
+
+function parseHubDeletionRestoreSnapshot(raw: unknown) {
+  return hubDeletionRestoreSnapshotSchema.parse(raw ?? {});
+}
 
 function slugify(value: string) {
   return value
@@ -264,6 +282,9 @@ export class HubRegistryService {
     await this.ensurePilotHub();
 
     const merchants = await prisma.merchant.findMany({
+      where: {
+        deletedAt: null,
+      },
       include: {
         stores: {
           orderBy: { createdAt: "asc" },
@@ -286,11 +307,61 @@ export class HubRegistryService {
     return hubs;
   }
 
+  async listDeletedHubs(): Promise<AdminDeletedHubSummary[]> {
+    await this.ensurePilotHub();
+    await this.purgeExpiredDeletedHubs();
+
+    const retentionCutoff = new Date(Date.now() - HUB_DELETION_RETENTION_MS);
+    const merchants = await prisma.merchant.findMany({
+      where: {
+        deletedAt: {
+          not: null,
+          gte: retentionCutoff,
+        },
+      },
+      include: {
+        stores: {
+          orderBy: { createdAt: "asc" },
+        },
+        hubUsers: {
+          where: { isActive: true },
+          orderBy: { createdAt: "asc" },
+          select: hubUserSelectWithoutLocale,
+        },
+      },
+      orderBy: { deletedAt: "desc" },
+    });
+
+    return merchants.map((merchant) => {
+      const ownerUser = merchant.hubUsers.find((user) => user.role === "OWNER") ?? merchant.hubUsers[0] ?? null;
+      const snapshot = parseHubDeletionRestoreSnapshot(merchant.deletedRestoreSnapshot);
+      const deletedAt = merchant.deletedAt!;
+
+      return {
+        id: merchant.id,
+        businessName: merchant.name,
+        slug: merchant.slug,
+        ownerName: ownerUser?.fullName ?? `${merchant.name} Owner`,
+        hubUsername: ownerUser?.username ?? "",
+        deletedAt: deletedAt.toISOString(),
+        recoverableUntil: hubRecoverableUntil(deletedAt).toISOString(),
+        daysRemaining: hubDaysRemaining(deletedAt),
+        wasListedOnMarketplace: snapshot.listedOnMarketplace,
+        wasAcceptingOrders: snapshot.acceptingOrders,
+      };
+    });
+  }
+
   async listHubUsers() {
     await this.ensurePilotHub();
 
     const users = await prisma.hubUser.findMany({
-      where: { isActive: true },
+      where: {
+        isActive: true,
+        merchant: {
+          deletedAt: null,
+        },
+      },
       select: {
         ...hubUserSelectWithoutLocale,
         merchant: {
@@ -418,19 +489,119 @@ export class HubRegistryService {
 
     const merchant = await prisma.merchant.findUnique({
       where: { id: hubId },
+      include: {
+        stores: {
+          orderBy: { createdAt: "asc" },
+        },
+      },
     });
 
     if (!merchant) {
       throw new NotFoundException(`Hub ${hubId} was not found.`);
     }
 
-    await prisma.merchant.delete({
-      where: { id: hubId },
+    if (merchant.deletedAt) {
+      throw new BadRequestException("This hub is already in deleted recovery.");
+    }
+
+    const store = this.selectPrimaryStore(merchant.slug, merchant.stores);
+    const listedOnMarketplace = store ? store.storefrontStatus === "LIVE" : false;
+    const acceptingOrders = store ? Boolean(store.isActive) : false;
+    const homepageFeatured = store ? Boolean(store.homepageFeatured) : false;
+    const homepageFeatureOrder = store?.homepageFeatureOrder ?? null;
+    const deletedAt = new Date();
+    const restoreSnapshot = {
+      merchantIsActive: merchant.isActive,
+      listedOnMarketplace,
+      acceptingOrders,
+      homepageFeatured,
+      homepageFeatureOrder,
+    };
+
+    await prisma.$transaction(async (tx) => {
+      await tx.merchant.update({
+        where: { id: hubId },
+        data: {
+          deletedAt,
+          deletedRestoreSnapshot: restoreSnapshot,
+          isActive: false,
+        },
+      });
+
+      if (store) {
+        await tx.store.update({
+          where: { id: store.id },
+          data: {
+            storefrontStatus: "ONBOARDING",
+            isActive: false,
+            homepageFeatured: false,
+            homepageFeatureOrder: null,
+          },
+        });
+      }
     });
 
     return {
       deletedHubId: hubId,
       deletedBusinessName: merchant.name,
+      recoverableUntil: hubRecoverableUntil(deletedAt).toISOString(),
+    };
+  }
+
+  async restoreHub(hubId: string) {
+    await this.ensurePilotHub();
+
+    const merchant = await prisma.merchant.findUnique({
+      where: { id: hubId },
+      include: {
+        stores: {
+          orderBy: { createdAt: "asc" },
+        },
+      },
+    });
+
+    if (!merchant?.deletedAt) {
+      throw new BadRequestException("This hub is not in deleted recovery.");
+    }
+
+    const retentionCutoff = new Date(Date.now() - HUB_DELETION_RETENTION_MS);
+    if (merchant.deletedAt < retentionCutoff) {
+      throw new BadRequestException("This hub can no longer be recovered. The 30-day recovery window has expired.");
+    }
+
+    const snapshot = parseHubDeletionRestoreSnapshot(merchant.deletedRestoreSnapshot);
+    const store = this.selectPrimaryStore(merchant.slug, merchant.stores);
+    const featureEligible = snapshot.listedOnMarketplace && snapshot.acceptingOrders;
+    const nextHomepageFeatured = featureEligible ? snapshot.homepageFeatured : false;
+    const nextHomepageFeatureOrder =
+      nextHomepageFeatured && snapshot.homepageFeatureOrder != null ? snapshot.homepageFeatureOrder : null;
+
+    await prisma.$transaction(async (tx) => {
+      await tx.merchant.update({
+        where: { id: hubId },
+        data: {
+          deletedAt: null,
+          deletedRestoreSnapshot: Prisma.DbNull,
+          isActive: snapshot.merchantIsActive,
+        },
+      });
+
+      if (store) {
+        await tx.store.update({
+          where: { id: store.id },
+          data: {
+            storefrontStatus: snapshot.listedOnMarketplace ? "LIVE" : "ONBOARDING",
+            isActive: snapshot.acceptingOrders,
+            homepageFeatured: nextHomepageFeatured,
+            homepageFeatureOrder: nextHomepageFeatureOrder,
+          },
+        });
+      }
+    });
+
+    return {
+      hub: await this.getAdminHubSummary(hubId),
+      restoredBusinessName: merchant.name,
     };
   }
 
@@ -555,6 +726,15 @@ export class HubRegistryService {
       throw new UnauthorizedException("Hub email or password did not match a provisioned business account.");
     }
 
+    const merchant = await prisma.merchant.findUnique({
+      where: { id: hubUser.merchantId },
+      select: { deletedAt: true },
+    });
+
+    if (merchant?.deletedAt) {
+      throw new UnauthorizedException("This business hub is currently unavailable.");
+    }
+
     const workspace = await this.getWorkspaceById(hubUser.merchantId);
     const activeUser = workspace.users.find((entry) => entry.id === hubUser.id) ?? this.mapHubUser(hubUser);
 
@@ -573,6 +753,15 @@ export class HubRegistryService {
 
   async createAdminHubImpersonation(hubId: string, loginHint?: string) {
     await this.ensurePilotHub();
+
+    const merchant = await prisma.merchant.findUnique({
+      where: { id: hubId },
+      select: { deletedAt: true },
+    });
+
+    if (merchant?.deletedAt) {
+      throw new BadRequestException("This hub is in deleted recovery and cannot be opened in the merchant portal.");
+    }
 
     const normalizedHint = loginHint?.trim().toLowerCase();
     const hintedUser =
@@ -659,6 +848,72 @@ export class HubRegistryService {
     };
   }
 
+  private buildPartialMerchantWorkspaceStorePatch(
+    patch: Partial<HubSettings>,
+    merged: HubSettings,
+  ): Prisma.StoreUpdateInput {
+    const full = this.buildMerchantWorkspaceStorePatch(merged);
+    const result: Prisma.StoreUpdateInput = {};
+
+    if (patch.name !== undefined) {
+      result.name = full.name;
+      result.slug = full.slug || undefined;
+    }
+    if (patch.city !== undefined) {
+      result.city = full.city;
+    }
+    if (patch.postcode !== undefined) {
+      result.postcode = full.postcode;
+    }
+    if (patch.cuisineLabel !== undefined) {
+      result.cuisineLabel = full.cuisineLabel;
+    }
+    if (patch.onboardingMessage !== undefined) {
+      result.onboardingMessage = full.onboardingMessage;
+    }
+    if (patch.heroImageUrl !== undefined) {
+      result.heroImageUrl = full.heroImageUrl;
+    }
+    if (patch.etaMinutes !== undefined) {
+      result.etaMinutes = full.etaMinutes;
+    }
+    if (patch.deliveryFee !== undefined) {
+      result.deliveryFee = full.deliveryFee;
+    }
+    if (patch.minimumOrderAmount !== undefined) {
+      result.minimumOrderAmount = full.minimumOrderAmount;
+    }
+    if (patch.acceptingOrders !== undefined) {
+      result.isActive = full.isActive;
+    }
+    if (patch.autoAcceptOrders !== undefined) {
+      result.autoAcceptOrders = full.autoAcceptOrders;
+    }
+    if (patch.autoAcceptMaxPrepMinutes !== undefined) {
+      result.autoAcceptMaxPrepMinutes = full.autoAcceptMaxPrepMinutes;
+    }
+
+    const deliveryConfigKeys: (keyof HubSettings)[] = [
+      "deliveryMode",
+      "deliveryRadiusMiles",
+      "deliveryDistanceRanges",
+      "deliveryPostcodeZones",
+      "deliveryMileFees",
+      "deliveryOriginLatitude",
+      "deliveryOriginLongitude",
+      "orderFulfillment",
+      "kitchenTicket",
+      "menuTemplate",
+      "marketplaceCategorySlug",
+      "heroImageCrop",
+    ];
+    if (deliveryConfigKeys.some((key) => patch[key] !== undefined)) {
+      result.deliveryConfig = full.deliveryConfig;
+    }
+
+    return result;
+  }
+
   async updateWorkspace(hubId: string, input: MerchantWorkspaceUpdateInput): Promise<MerchantWorkspace> {
     await this.ensurePilotHub();
 
@@ -669,42 +924,60 @@ export class HubRegistryService {
       throw new NotFoundException(`Hub ${hubId} does not have a store configured yet.`);
     }
 
-    const settings = { ...input.settings };
-    const existingPostcode = (store.postcode ?? "").trim().toUpperCase().replace(/\s+/g, "");
-    const incomingPostcode = settings.postcode.trim().toUpperCase().replace(/\s+/g, "");
-    if (incomingPostcode && incomingPostcode !== existingPostcode) {
-      const geocoded = await geocodeUkPostcode(settings.postcode);
-      if (geocoded) {
-        settings.deliveryOriginLatitude = geocoded.latitude;
-        settings.deliveryOriginLongitude = geocoded.longitude;
+    const settingsPatch = input.settings ?? {};
+    const existingSettings = this.mapHubSettings(record.name, store);
+    const mergedSettings: HubSettings = { ...existingSettings, ...settingsPatch };
+
+    if (settingsPatch.postcode !== undefined) {
+      const existingPostcode = (store.postcode ?? "").trim().toUpperCase().replace(/\s+/g, "");
+      const incomingPostcode = mergedSettings.postcode.trim().toUpperCase().replace(/\s+/g, "");
+      if (incomingPostcode && incomingPostcode !== existingPostcode) {
+        const geocoded = await geocodeUkPostcode(mergedSettings.postcode);
+        if (geocoded) {
+          mergedSettings.deliveryOriginLatitude = geocoded.latitude;
+          mergedSettings.deliveryOriginLongitude = geocoded.longitude;
+        }
       }
     }
 
-    const storePatch = this.buildMerchantWorkspaceStorePatch(settings);
-    storePatch.slug = storePatch.slug || store.slug;
+    const storePatch = this.buildPartialMerchantWorkspaceStorePatch(settingsPatch, mergedSettings);
+    if (storePatch.slug) {
+      storePatch.slug = storePatch.slug || store.slug;
+    }
 
-    // Keep the interactive transaction short — Supabase pooler closes long txs (~5s) and Prisma raises P2028.
-    await prisma.$transaction(
-      async (tx) => {
-        await tx.merchant.update({
-          where: { id: hubId },
-          data: {
-            name: settings.name,
-          },
-        });
+    const hasStorePatch = Object.keys(storePatch).length > 0;
+    const hasMerchantNamePatch = settingsPatch.name !== undefined;
 
-        await tx.store.update({
-          where: { id: store.id },
-          data: storePatch,
-        });
-      },
-      { maxWait: 10_000, timeout: 20_000 },
-    );
+    if (hasMerchantNamePatch || hasStorePatch) {
+      // Keep the interactive transaction short — Supabase pooler closes long txs (~5s) and Prisma raises P2028.
+      await prisma.$transaction(
+        async (tx) => {
+          if (hasMerchantNamePatch) {
+            await tx.merchant.update({
+              where: { id: hubId },
+              data: {
+                name: mergedSettings.name,
+              },
+            });
+          }
+
+          if (hasStorePatch) {
+            await tx.store.update({
+              where: { id: store.id },
+              data: storePatch,
+            });
+          }
+        },
+        { maxWait: 10_000, timeout: 20_000 },
+      );
+    }
 
     if (input.menuSections !== undefined) {
       await this.persistHubMenuSections(store.id, input.menuSections);
     }
-    await this.persistStoreOpeningHours(store.id, settings.openingHours);
+    if (settingsPatch.openingHours !== undefined) {
+      await this.persistStoreOpeningHours(store.id, mergedSettings.openingHours);
+    }
 
     return this.getWorkspaceById(hubId);
   }
@@ -1563,7 +1836,23 @@ export class HubRegistryService {
       throw new NotFoundException(`Hub ${hubId} was not found.`);
     }
 
+    if (merchant.deletedAt) {
+      throw new NotFoundException(`Hub ${hubId} was not found.`);
+    }
+
     return merchant;
+  }
+
+  private async purgeExpiredDeletedHubs() {
+    const retentionCutoff = new Date(Date.now() - HUB_DELETION_RETENTION_MS);
+    await prisma.merchant.deleteMany({
+      where: {
+        deletedAt: {
+          not: null,
+          lt: retentionCutoff,
+        },
+      },
+    });
   }
 
   private async fetchAdminHubRecord(hubId: string) {
@@ -1810,6 +2099,7 @@ export class HubRegistryService {
       openingHours: this.mapStoreOpeningHours(store.storeHours ?? []),
       menuTemplate: readHubMenuTemplateFromDeliveryConfig(store.deliveryConfig),
       marketplaceCategorySlug: readMarketplaceCategorySlugFromDeliveryConfig(store.deliveryConfig),
+      heroImageCrop: readStorefrontHeroCropFromDeliveryConfig(store.deliveryConfig),
       ...this.mapDeliveryFromStore(store),
     };
   }
@@ -1832,6 +2122,7 @@ export class HubRegistryService {
       kitchenTicket: settings.kitchenTicket,
       menuTemplate: settings.menuTemplate ?? "full_food",
       marketplaceCategorySlug: settings.marketplaceCategorySlug?.trim() || null,
+      heroImageCrop: settings.heroImageCrop ?? { focusX: 50, focusY: 50, zoom: 1 },
     };
   }
 

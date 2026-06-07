@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { deliveryFeeFromForStorefront } from "@hull-eats/types";
+import { deliveryFeeFromForStorefront, storefrontHeroMediaStyle } from "@hull-eats/types";
 
 import { JsonLd } from "../../../src/components/json-ld";
 import { AppSwitcher } from "../../app-switcher";
@@ -105,11 +105,7 @@ export default async function SeoLandingPage({ params }: { params: Promise<{ top
               <Link key={store.id} href={`/stores/${store.slug}`} className="store-card">
                 <div
                   className="store-card-media"
-                  style={{
-                    backgroundImage: store.heroImageUrl
-                      ? `linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0) 42%, rgba(8, 14, 24, 0.28)), url(${store.heroImageUrl})`
-                      : undefined,
-                  }}
+                  style={storefrontHeroMediaStyle(store.heroImageUrl, store.heroImageCrop)}
                 >
                   <div className="store-card-overlay">
                     <span className={`status-chip ${store.isOpen ? "accepted" : "rejected"}`}>

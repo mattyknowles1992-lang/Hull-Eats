@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import type { StoreSummary } from "@hull-eats/types";
-import { deliveryFeeFromForStorefront } from "@hull-eats/types";
+import { deliveryFeeFromForStorefront, STOREFRONT_HERO_CARD_GRADIENT, storefrontHeroMediaStyle } from "@hull-eats/types";
 
 import { JsonLd } from "../../../src/components/json-ld";
 import { AppSwitcher } from "../../app-switcher";
@@ -224,9 +224,17 @@ export default async function CategoryPage({ params }: { params: Promise<{ categ
               <Link href={`/stores/${store.slug}`} className="store-card" key={store.id}>
                 <div
                   className="store-card-media"
-                  style={{
-                    backgroundImage: `linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0) 42%, rgba(8, 14, 24, 0.28)), url(${store.heroImageUrl ?? category.imageUrl})`,
-                  }}
+                  style={
+                    storefrontHeroMediaStyle(store.heroImageUrl, store.heroImageCrop) ??
+                    (store.heroImageUrl || category.imageUrl
+                      ? {
+                          backgroundImage: `${STOREFRONT_HERO_CARD_GRADIENT}, url(${store.heroImageUrl ?? category.imageUrl})`,
+                          backgroundSize: "cover",
+                          backgroundPosition: "center",
+                          backgroundRepeat: "no-repeat",
+                        }
+                      : undefined)
+                  }
                 >
                   <div className="store-card-overlay">
                     <span className={`status-chip ${getStoreStatusTone(store.storefrontStatus, store.isOpen)}`}>

@@ -3,7 +3,9 @@ import {
   createDefaultHullPostcodeZones,
   createDefaultOpeningHours,
   defaultKitchenTicketSettings,
+  HUB_SETTINGS_PATCH_KEYS,
   normalizeKitchenTicketSettings,
+  type HubSettingsPatchSection,
 } from "@hull-eats/types";
 
 export type HubWorkspaceSnapshot = {
@@ -38,6 +40,7 @@ export const emptyHubSettings: HubSettings = {
   kitchenTicket: defaultKitchenTicketSettings(),
   menuTemplate: "full_food",
   marketplaceCategorySlug: "",
+  heroImageCrop: { focusX: 50, focusY: 50, zoom: 1 },
 };
 
 export const normalizeWorkspaceSettings = (settings: HubSettings): HubSettings => {
@@ -55,6 +58,7 @@ export const normalizeWorkspaceSettings = (settings: HubSettings): HubSettings =
     kitchenTicket: normalizeKitchenTicketSettings(settings.kitchenTicket),
     menuTemplate: settings.menuTemplate ?? "full_food",
     marketplaceCategorySlug: settings.marketplaceCategorySlug ?? "",
+    heroImageCrop: settings.heroImageCrop ?? { focusX: 50, focusY: 50, zoom: 1 },
   };
 };
 
@@ -78,10 +82,17 @@ export const hubWorkspaceSnapshotsEqual = (left: HubWorkspaceSnapshot, right: Hu
 
 export const mergeGeocodedSettingsFromServer = (
   local: HubSettings,
-  sent: HubSettings,
+  sent: Partial<HubSettings>,
   server: HubSettings,
 ): HubSettings => {
-  if (JSON.stringify(local) !== JSON.stringify(sent)) {
+  const sentKeys = Object.keys(sent) as (keyof HubSettings)[];
+  const localStillMatchesSent = sentKeys.every(
+    (key) => JSON.stringify(local[key]) === JSON.stringify(sent[key]),
+  );
+  if (!localStillMatchesSent) {
+    return local;
+  }
+  if (sent.postcode === undefined) {
     return local;
   }
   return {
@@ -89,4 +100,34 @@ export const mergeGeocodedSettingsFromServer = (
     deliveryOriginLatitude: server.deliveryOriginLatitude,
     deliveryOriginLongitude: server.deliveryOriginLongitude,
   };
+};
+
+export const mergePartialSettingsAfterSave = (
+  previouslySaved: HubSettings,
+  local: HubSettings,
+  sent: Partial<HubSettings>,
+  server: HubSettings,
+): HubSettings => {
+  const sentKeys = Object.keys(sent) as (keyof HubSettings)[];
+  const patchFromServer = Object.fromEntries(sentKeys.map((key) => [key, server[key]])) as Partial<HubSettings>;
+  const mergedSaved = { ...previouslySaved, ...patchFromServer };
+  const localStillMatchesSent = sentKeys.every(
+    (key) => JSON.stringify(local[key]) === JSON.stringify(sent[key]),
+  );
+  if (!localStillMatchesSent) {
+    return mergedSaved;
+  }
+  return mergeGeocodedSettingsFromServer(mergedSaved, sent, server);
+};
+
+export function revertHubSettingsSection(
+  current: HubSettings,
+  saved: HubSettings,
+  section: HubSettingsPatchSection,
+): HubSettings {
+  const next = cloneHubSettings(current);
+  for (const key of HUB_SETTINGS_PATCH_KEYS[section]) {
+    (next as Record<string, unknown>)[key] = JSON.parse(JSON.stringify(saved[key]));
+  }
+  return next;
 };

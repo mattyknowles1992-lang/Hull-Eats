@@ -27,9 +27,12 @@ import {
   formatHubPortalLocaleOptionLabel,
   HUB_PORTAL_LOCALE_OPTIONS,
   type HubPortalLocale,
+  type HubSettingsPatchSection,
+  hubSettingsSectionHasChanges,
   isHubMenuMealDealsCategory,
   isHubMenuSectionPizza,
   isHubMenuStaffLibrarySection,
+  parseHubSettingsPatchForSection,
 } from "@hull-eats/types";
 
 import { HubConfigBackups } from "./hub-config-backups";
@@ -48,6 +51,7 @@ import { HubKitchenTicketSettings } from "./hub-kitchen-ticket-settings";
 import { HubMenuStudio } from "./hub-menu-studio";
 import { composePartsLibrariesEnabled } from "@hull-eats/types";
 import { HubTransientBanner } from "./hub-transient-banner";
+import { HubUnsavedChangesDialog } from "./hub-unsaved-changes-dialog";
 import { HE_BRAND } from "./portal-brand";
 import { friendlyCaughtError } from "./hub-merchant-errors";
 import {
@@ -103,7 +107,9 @@ import {
   emptyHubSettings,
   hubWorkspaceSnapshotsEqual,
   mergeGeocodedSettingsFromServer,
+  mergePartialSettingsAfterSave,
   normalizeWorkspaceSettings,
+  revertHubSettingsSection,
   type HubWorkspaceSnapshot,
 } from "./merchant-workspace-state";
 
@@ -183,6 +189,25 @@ type HubSection =
   | "users"
   | "settings"
   | "help";
+
+const HUB_SETTINGS_PATCH_SECTIONS: HubSettingsPatchSection[] = [
+  "businessProfile",
+  "availability",
+  "deliveryRanges",
+  "settings",
+];
+
+function hubSettingsPatchSectionForHubSection(section: HubSection): HubSettingsPatchSection | null {
+  if (
+    section === "businessProfile" ||
+    section === "availability" ||
+    section === "deliveryRanges" ||
+    section === "settings"
+  ) {
+    return section;
+  }
+  return null;
+}
 
 type MerchantBootStatus = "checking" | "login" | "hub";
 type MerchantLoginView = "sign_in" | "forgot_password";
@@ -380,6 +405,11 @@ export default function MerchantPortalPage() {
   const [showHubPasswordConfirm, setShowHubPasswordConfirm] = useState(false);
   const [showCreateUserPassword, setShowCreateUserPassword] = useState(false);
   const [localeSaving, setLocaleSaving] = useState(false);
+  const [pendingSectionNavigation, setPendingSectionNavigation] = useState<{
+    target: HubSection;
+    kind: "settings" | "menu";
+  } | null>(null);
+  const [unsavedLeaveBusy, setUnsavedLeaveBusy] = useState(false);
 
   useEffect(() => {
     if (activeUser?.preferredLocale) {
@@ -462,13 +492,7 @@ export default function MerchantPortalPage() {
     setPizzaSizeRows(createInitialPizzaSizeRows());
   }, [newItem.sectionId]);
 
-  const openPartsOptionSettings = useCallback(() => {
-    setMobileNavOpen(false);
-    setActiveHubSection("settings");
-    setActiveHubPanel("settings");
-  }, []);
-
-  const openHubSection = (section: HubSection) => {
+  const commitHubSectionChange = useCallback((section: HubSection) => {
     setMobileNavOpen(false);
     setActiveHubSection(section);
 
@@ -515,7 +539,7 @@ export default function MerchantPortalPage() {
     if (section === "users") {
       setActiveHubPanel("account");
     }
-  };
+  }, [merchantToken]);
 
   useEffect(() => {
     const customerSections = menuSections.filter((section) => !isHubMenuStaffLibrarySection(section));
@@ -637,34 +661,125 @@ export default function MerchantPortalPage() {
     );
   }, [hubSettings, menuSections, merchantToken, savedHubSnapshot]);
 
+  const hasUnsavedMenuChanges = useMemo(() => {
+    if (!savedHubSnapshot || !merchantToken) {
+      return false;
+    }
+
+    return JSON.stringify(menuSections) !== JSON.stringify(savedHubSnapshot.menuSections);
+  }, [menuSections, merchantToken, savedHubSnapshot]);
+
+  const hasUnsavedActiveSectionChanges = useMemo(() => {
+    if (!savedHubSnapshot || !merchantToken) {
+      return false;
+    }
+
+    const patchSection = hubSettingsPatchSectionForHubSection(activeHubSection);
+    if (patchSection) {
+      return hubSettingsSectionHasChanges(patchSection, hubSettings, savedHubSnapshot.settings);
+    }
+
+    if (activeHubSection === "home") {
+      return hasUnsavedHubChanges;
+    }
+
+    return false;
+  }, [activeHubSection, hasUnsavedHubChanges, hubSettings, merchantToken, savedHubSnapshot]);
+
+  const hasUnsavedHubSettingsChanges = useMemo(() => {
+    if (!savedHubSnapshot || !merchantToken) {
+      return false;
+    }
+
+    return HUB_SETTINGS_PATCH_SECTIONS.some((section) =>
+      hubSettingsSectionHasChanges(section, hubSettings, savedHubSnapshot.settings),
+    );
+  }, [hubSettings, merchantToken, savedHubSnapshot]);
+
+  const hubAccess = useMemo(() => (activeUser ? getHubAccess(activeUser.role) : null), [activeUser]);
+
+  const getLeavingUnsavedKind = useCallback((): "settings" | "menu" | null => {
+    if (!savedHubSnapshot || !hubAccess?.canEditWorkspace) {
+      return null;
+    }
+
+    if (activeHubSection === "menu" && hasUnsavedMenuChanges) {
+      return "menu";
+    }
+
+    const patchSection = hubSettingsPatchSectionForHubSection(activeHubSection);
+    if (
+      patchSection &&
+      hubSettingsSectionHasChanges(patchSection, hubSettings, savedHubSnapshot.settings)
+    ) {
+      return "settings";
+    }
+
+    return null;
+  }, [
+    activeHubSection,
+    hasUnsavedMenuChanges,
+    hubAccess?.canEditWorkspace,
+    hubSettings,
+    savedHubSnapshot,
+  ]);
+
+  const requestOpenHubSection = useCallback(
+    (target: HubSection) => {
+      if (target === activeHubSection) {
+        commitHubSectionChange(target);
+        return;
+      }
+
+      const unsavedKind = getLeavingUnsavedKind();
+      if (!unsavedKind) {
+        commitHubSectionChange(target);
+        return;
+      }
+
+      setPendingSectionNavigation({ target, kind: unsavedKind });
+    },
+    [activeHubSection, commitHubSectionChange, getLeavingUnsavedKind],
+  );
+
+  const openPartsOptionSettings = useCallback(() => {
+    requestOpenHubSection("settings");
+  }, [requestOpenHubSection]);
+
   const menuPublishSummary = useMemo(
     () => buildMenuPublishSummary(menuSections, savedHubSnapshot?.menuSections ?? null, hasUnsavedHubChanges),
     [menuSections, savedHubSnapshot, hasUnsavedHubChanges],
   );
 
-  const hubAccess = useMemo(() => (activeUser ? getHubAccess(activeUser.role) : null), [activeUser]);
-
   const applyWorkspaceSaveResult = useCallback(
     (
       workspace: MerchantWorkspace,
-      options?: { sectionsSentWithRequest?: HubMenuSection[]; settingsSentWithRequest?: HubSettings },
+      options?: {
+        sectionsSentWithRequest?: HubMenuSection[];
+        settingsSentWithRequest?: Partial<HubSettings>;
+      },
     ) => {
       const serverSettings = normalizeWorkspaceSettings(workspace.settings);
       const serverSections = ensureMenuSectionsForHub(workspace.menuSections, workspace.settings.menuTemplate ?? "full_food");
       const sectionsSent = options?.sectionsSentWithRequest;
-      const settingsSent = options?.settingsSentWithRequest ?? hubSettingsRef.current;
+      const settingsSent = options?.settingsSentWithRequest ?? {};
       const menuWasPersisted = Boolean(sectionsSent);
       const localSettings = hubSettingsRef.current;
       const localSections = menuSectionsRef.current;
+      const sentSettingsKeys = Object.keys(settingsSent) as (keyof HubSettings)[];
       const localStillMatchesRequest =
-        JSON.stringify(localSettings) === JSON.stringify(settingsSent) &&
+        sentSettingsKeys.every((key) => JSON.stringify(localSettings[key]) === JSON.stringify(settingsSent[key])) &&
         (!menuWasPersisted || JSON.stringify(localSections) === JSON.stringify(sectionsSent));
 
       const menuSnapshot = menuWasPersisted
         ? reconcileMenuSectionsAfterWorkspaceSave(sectionsSent!, serverSections, sectionsSent!)
         : localSections;
 
-      const settingsSnapshot = mergeGeocodedSettingsFromServer(settingsSent, settingsSent, serverSettings);
+      const priorSavedSettings = savedHubSnapshot?.settings ?? serverSettings;
+      const settingsSnapshot =
+        sentSettingsKeys.length > 0
+          ? mergePartialSettingsAfterSave(priorSavedSettings, localSettings, settingsSent, serverSettings)
+          : priorSavedSettings;
 
       commitSavedHubSnapshot(settingsSnapshot, menuSnapshot);
       setHubUsers(workspace.users);
@@ -684,34 +799,62 @@ export default function MerchantPortalPage() {
         clearBrowserMenuDraft(activeHubId);
       }
     },
-    [activeHubId, commitSavedHubSnapshot],
+    [activeHubId, commitSavedHubSnapshot, savedHubSnapshot],
   );
 
   const persistWorkspaceToHub = useCallback(
-    async (options?: { manualCheckpoint?: boolean; silent?: boolean }) => {
+    async (options?: {
+      manualCheckpoint?: boolean;
+      silent?: boolean;
+      settingsSection?: HubSettingsPatchSection;
+      menuOnly?: boolean;
+      saveAllChangedSettings?: boolean;
+      settingsOnly?: boolean;
+    }) => {
       if (!merchantToken || !activeHubId || !hubAccess?.canEditWorkspace) {
         return false;
       }
 
-      const executeSave = async (): Promise<boolean> => {
+      const executeSingleSave = async (singleOptions: {
+        manualCheckpoint?: boolean;
+        silent?: boolean;
+        settingsSection?: HubSettingsPatchSection;
+        menuOnly?: boolean;
+      }): Promise<boolean> => {
         const settingsSnapshot = hubSettingsRef.current;
         const sectionsSnapshot = menuSectionsRef.current;
         const savedSnapshot = savedHubSnapshot;
         const includeMenu =
-          !savedSnapshot || JSON.stringify(sectionsSnapshot) !== JSON.stringify(savedSnapshot.menuSections);
-        const includeSettings =
-          !savedSnapshot || JSON.stringify(settingsSnapshot) !== JSON.stringify(savedSnapshot.settings);
+          Boolean(singleOptions.menuOnly) &&
+          (!savedSnapshot || JSON.stringify(sectionsSnapshot) !== JSON.stringify(savedSnapshot.menuSections));
+        let settingsPayload: Partial<HubSettings> | undefined;
 
-        if (!includeMenu && !includeSettings) {
+        if (singleOptions.settingsSection) {
+          if (
+            !savedSnapshot ||
+            !hubSettingsSectionHasChanges(singleOptions.settingsSection, settingsSnapshot, savedSnapshot.settings)
+          ) {
+            return true;
+          }
+          settingsPayload = parseHubSettingsPatchForSection(singleOptions.settingsSection, settingsSnapshot);
+        } else if (singleOptions.menuOnly) {
+          settingsPayload = undefined;
+        } else if (singleOptions.manualCheckpoint) {
+          settingsPayload = undefined;
+        } else {
+          return true;
+        }
+
+        if (!includeMenu && !settingsPayload) {
           return true;
         }
 
         menuSaveInFlightRef.current = true;
-        const silent = options?.silent ?? false;
+        const silent = singleOptions.silent ?? false;
         if (!silent) {
           setMenuHubPersistState("saving");
         }
-        if (options?.manualCheckpoint) {
+        if (singleOptions.manualCheckpoint) {
           setMenuPublishing(true);
         }
 
@@ -726,19 +869,19 @@ export default function MerchantPortalPage() {
                 merchantToken,
                 activeHubId,
                 {
-                  settings: settingsSnapshot,
+                  ...(settingsPayload ? { settings: settingsPayload } : {}),
                   ...(includeMenu ? { menuSections: sectionsSnapshot } : {}),
                 },
                 { timeoutMs: WORKSPACE_SAVE_TIMEOUT_MS },
               );
               applyWorkspaceSaveResult(workspace, {
                 sectionsSentWithRequest: includeMenu ? sectionsSnapshot : undefined,
-                settingsSentWithRequest: settingsSnapshot,
+                settingsSentWithRequest: settingsPayload,
               });
               if (!silent) {
                 setMenuHubPersistState("saved");
               }
-              if (options?.manualCheckpoint) {
+              if (singleOptions.manualCheckpoint) {
                 setSaveNotice("Draft saved on your hub — ready to publish when you choose.");
                 setMenuNotice("All items and options are kept. Nothing was removed. Publish when customers should see changes.");
               }
@@ -757,16 +900,53 @@ export default function MerchantPortalPage() {
             setMenuHubPersistState("error");
           }
           setSaveNotice(message);
-          if (options?.manualCheckpoint) {
+          if (singleOptions.manualCheckpoint) {
             setMenuNotice(message);
           }
           return false;
         } finally {
           menuSaveInFlightRef.current = false;
-          if (options?.manualCheckpoint) {
+          if (singleOptions.manualCheckpoint) {
             setMenuPublishing(false);
           }
         }
+      };
+
+      const executeSave = async (): Promise<boolean> => {
+        if (options?.saveAllChangedSettings) {
+          for (const section of HUB_SETTINGS_PATCH_SECTIONS) {
+            if (
+              savedHubSnapshot &&
+              hubSettingsSectionHasChanges(section, hubSettingsRef.current, savedHubSnapshot.settings)
+            ) {
+              const saved = await executeSingleSave({
+                settingsSection: section,
+                silent: true,
+              });
+              if (!saved) {
+                return false;
+              }
+            }
+          }
+          if (
+            !options?.settingsOnly &&
+            savedHubSnapshot &&
+            JSON.stringify(menuSectionsRef.current) !== JSON.stringify(savedHubSnapshot.menuSections)
+          ) {
+            return executeSingleSave({ menuOnly: true, silent: options?.silent ?? false });
+          }
+          if (!(options?.silent ?? false)) {
+            setMenuHubPersistState("saved");
+          }
+          return true;
+        }
+
+        return executeSingleSave({
+          manualCheckpoint: options?.manualCheckpoint,
+          silent: options?.silent,
+          settingsSection: options?.settingsSection,
+          menuOnly: options?.menuOnly,
+        });
       };
 
       const waitFor = workspaceSaveChainRef.current.then(executeSave, executeSave);
@@ -789,20 +969,19 @@ export default function MerchantPortalPage() {
   }, [menuHubPersistState]);
 
   useEffect(() => {
-    if (!hasUnsavedHubChanges || !merchantToken || !activeHubId || !hubAccess?.canEditWorkspace) {
+    if (!hasUnsavedMenuChanges || !merchantToken || !activeHubId || !hubAccess?.canEditWorkspace) {
       return;
     }
 
     const timeoutId = window.setTimeout(() => {
-      void persistWorkspaceToHub({ silent: true });
+      void persistWorkspaceToHub({ silent: true, menuOnly: true });
     }, 4000);
 
     return () => window.clearTimeout(timeoutId);
   }, [
     activeHubId,
-    hasUnsavedHubChanges,
+    hasUnsavedMenuChanges,
     hubAccess?.canEditWorkspace,
-    hubSettings,
     menuSections,
     merchantToken,
     persistWorkspaceToHub,
@@ -1464,7 +1643,33 @@ export default function MerchantPortalPage() {
       setSaveNotice("Your account is view-only and cannot save menu changes.");
       return;
     }
-    await persistWorkspaceToHub({ manualCheckpoint: true, silent: false });
+    await persistWorkspaceToHub({ manualCheckpoint: true, silent: false, menuOnly: true });
+  };
+
+  const handleSaveAllSettings = async () => {
+    if (!merchantToken || !activeHubId) {
+      return;
+    }
+
+    if (!hubAccess?.canEditWorkspace) {
+      setSaveNotice("Your account is view-only and cannot save hub changes.");
+      return;
+    }
+
+    if (!hasUnsavedHubSettingsChanges) {
+      setSaveNotice("No settings changes to save.");
+      return;
+    }
+
+    const saved = await persistWorkspaceToHub({
+      saveAllChangedSettings: true,
+      settingsOnly: true,
+      silent: false,
+    });
+    if (!saved) {
+      return;
+    }
+    setSaveNotice(`All hub settings saved for ${hubSettings.name}.`);
   };
 
   const handleSaveHubSettings = async () => {
@@ -1477,11 +1682,86 @@ export default function MerchantPortalPage() {
       return;
     }
 
-    const saved = await persistWorkspaceToHub({ manualCheckpoint: false, silent: false });
-    if (!saved) {
+    const patchSection = hubSettingsPatchSectionForHubSection(activeHubSection);
+    if (patchSection) {
+      if (
+        !savedHubSnapshot ||
+        !hubSettingsSectionHasChanges(patchSection, hubSettings, savedHubSnapshot.settings)
+      ) {
+        setSaveNotice("No changes to save on this page.");
+        return;
+      }
+      const saved = await persistWorkspaceToHub({ settingsSection: patchSection, silent: false });
+      if (!saved) {
+        return;
+      }
+      setSaveNotice(`Changes saved for ${hubSettings.name}.`);
       return;
     }
-    setSaveNotice(`Hub changes saved for ${hubSettings.name}.`);
+
+    setSaveNotice("Open a hub settings page to save those changes.");
+  };
+
+  const completePendingSectionNavigation = useCallback(() => {
+    if (!pendingSectionNavigation) {
+      return;
+    }
+    commitHubSectionChange(pendingSectionNavigation.target);
+    setPendingSectionNavigation(null);
+  }, [commitHubSectionChange, pendingSectionNavigation]);
+
+  const handleUnsavedLeaveStay = () => {
+    if (unsavedLeaveBusy) {
+      return;
+    }
+    setPendingSectionNavigation(null);
+  };
+
+  const handleUnsavedLeaveDiscard = () => {
+    if (unsavedLeaveBusy || !pendingSectionNavigation) {
+      return;
+    }
+
+    if (pendingSectionNavigation.kind === "menu") {
+      if (savedHubSnapshot) {
+        setMenuSections(cloneMenuSections(savedHubSnapshot.menuSections));
+      }
+    } else {
+      const patchSection = hubSettingsPatchSectionForHubSection(activeHubSection);
+      if (patchSection && savedHubSnapshot) {
+        setHubSettings(revertHubSettingsSection(hubSettings, savedHubSnapshot.settings, patchSection));
+      }
+    }
+
+    completePendingSectionNavigation();
+  };
+
+  const handleUnsavedLeaveSave = async () => {
+    if (unsavedLeaveBusy || !pendingSectionNavigation) {
+      return;
+    }
+
+    setUnsavedLeaveBusy(true);
+    try {
+      if (pendingSectionNavigation.kind === "menu") {
+        const saved = await persistWorkspaceToHub({ menuOnly: true, silent: false });
+        if (!saved) {
+          return;
+        }
+      } else {
+        const patchSection = hubSettingsPatchSectionForHubSection(activeHubSection);
+        if (!patchSection) {
+          return;
+        }
+        const saved = await persistWorkspaceToHub({ settingsSection: patchSection, silent: false });
+        if (!saved) {
+          return;
+        }
+      }
+      completePendingSectionNavigation();
+    } finally {
+      setUnsavedLeaveBusy(false);
+    }
   };
 
   const handlePublishMenu = async () => {
@@ -1500,7 +1780,7 @@ export default function MerchantPortalPage() {
         setMenuSections((current) => applyMenuBoardPublish(current, editingMenuBoardId, editingMenuBoardId));
         setEditingMenuBoardId(null);
       }
-      const saved = await persistWorkspaceToHub({ manualCheckpoint: true, silent: false });
+      const saved = await persistWorkspaceToHub({ manualCheckpoint: true, silent: false, menuOnly: true });
       if (!saved) {
         throw new Error("Could not save the menu to your hub before publishing.");
       }
@@ -1524,7 +1804,7 @@ export default function MerchantPortalPage() {
   const handleNavigateToPublishIssue = (issue: MenuPublishIssue) => {
     setMenuPublishDialogOpen(false);
     setFocusedPublishIssueId(issue.id);
-    openHubSection("menu");
+    requestOpenHubSection("menu");
     if (issue.sectionId) {
       setSelectedCategoryId(issue.sectionId);
       setIsCreatingNewItem(false);
@@ -2113,12 +2393,16 @@ export default function MerchantPortalPage() {
     );
   }
 
-  const saveHubButtonStyle = hasUnsavedHubChanges
+  const saveHubButtonStyle = hasUnsavedActiveSectionChanges
+    ? { ...primaryButton, ...saveHubButtonDirtyStyle }
+    : primaryButton;
+  const saveAllSettingsButtonStyle = hasUnsavedHubSettingsChanges
     ? { ...primaryButton, ...saveHubButtonDirtyStyle }
     : primaryButton;
   const showWorkspaceHero = activeHubSection === "home";
   const showHeaderSaveButton = activeHubSection === "home";
-  const showUnsavedBanner = activeHubSection === "home" && hasUnsavedHubChanges;
+  const showUnsavedBanner =
+    activeHubSection === "home" && (hasUnsavedHubSettingsChanges || hasUnsavedMenuChanges);
   const showSectionFooterSave =
     hubAccess?.canEditWorkspace &&
     (activeHubSection === "businessProfile" ||
@@ -2136,6 +2420,7 @@ export default function MerchantPortalPage() {
   };
 
   return (
+    <>
     <main className="hub-app-shell" style={hubAppShell}>
       {mobileNavOpen ? (
         <button
@@ -2151,7 +2436,7 @@ export default function MerchantPortalPage() {
           className="hub-mobile-home-btn"
           onClick={() => {
             setMobileNavOpen(false);
-            openHubSection("home");
+            requestOpenHubSection("home");
           }}
         >
           {hubSettings.name || t("common.merchantHubFallback")}
@@ -2177,37 +2462,37 @@ export default function MerchantPortalPage() {
         <nav style={sidebarNav} aria-label={t("nav.hubNavigation")}>
           <div style={sidebarGroup}>
             <span style={sidebarGroupTitle}>{t("nav.groupHome")}</span>
-            <button type="button" style={activeHubSection === "home" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("home")}>
+            <button type="button" style={activeHubSection === "home" ? sidebarButtonActive : sidebarButton} onClick={() => requestOpenHubSection("home")}>
               {t("nav.dashboard")}
             </button>
           </div>
 
           <div style={sidebarGroup}>
             <span style={sidebarGroupTitle}>{t("nav.groupOrders")}</span>
-            <button type="button" style={activeHubSection === "orders" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("orders")}>
+            <button type="button" style={activeHubSection === "orders" ? sidebarButtonActive : sidebarButton} onClick={() => requestOpenHubSection("orders")}>
               {t("nav.liveOrders")}
             </button>
-            <button type="button" style={activeHubSection === "drivers" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("drivers")}>
+            <button type="button" style={activeHubSection === "drivers" ? sidebarButtonActive : sidebarButton} onClick={() => requestOpenHubSection("drivers")}>
               {t("nav.driversCashUp")}
             </button>
-            <button type="button" style={activeHubSection === "orderHistory" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("orderHistory")}>
+            <button type="button" style={activeHubSection === "orderHistory" ? sidebarButtonActive : sidebarButton} onClick={() => requestOpenHubSection("orderHistory")}>
               {t("nav.orderHistory")}
             </button>
           </div>
 
           <div style={sidebarGroup}>
             <span style={sidebarGroupTitle}>{t("nav.groupPerformance")}</span>
-            <button type="button" style={activeHubSection === "earnings" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("earnings")}>
+            <button type="button" style={activeHubSection === "earnings" ? sidebarButtonActive : sidebarButton} onClick={() => requestOpenHubSection("earnings")}>
               {t("nav.earnings")}
             </button>
-            <button type="button" style={activeHubSection === "reports" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("reports")}>
+            <button type="button" style={activeHubSection === "reports" ? sidebarButtonActive : sidebarButton} onClick={() => requestOpenHubSection("reports")}>
               {t("nav.reports")}
             </button>
           </div>
 
           <div style={sidebarGroup}>
             <span style={sidebarGroupTitle}>{t("nav.groupMenuManagement")}</span>
-            <button type="button" style={activeHubSection === "menu" && activeHubPanel === "menu" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("menu")}>
+            <button type="button" style={activeHubSection === "menu" && activeHubPanel === "menu" ? sidebarButtonActive : sidebarButton} onClick={() => requestOpenHubSection("menu")}>
               {t("nav.menuBuilder")}
             </button>
             <button
@@ -2221,26 +2506,26 @@ export default function MerchantPortalPage() {
             >
               {t("nav.pasteMenu")}
             </button>
-            <button type="button" style={activeHubSection === "offers" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("offers")}>
+            <button type="button" style={activeHubSection === "offers" ? sidebarButtonActive : sidebarButton} onClick={() => requestOpenHubSection("offers")}>
               {t("nav.offersDeals")}
             </button>
           </div>
 
           <div style={sidebarGroup}>
             <span style={sidebarGroupTitle}>{t("nav.groupBusiness")}</span>
-            <button type="button" style={activeHubSection === "businessProfile" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("businessProfile")}>
+            <button type="button" style={activeHubSection === "businessProfile" ? sidebarButtonActive : sidebarButton} onClick={() => requestOpenHubSection("businessProfile")}>
               {t("nav.businessProfile")}
             </button>
-            <button type="button" style={activeHubSection === "availability" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("availability")}>
+            <button type="button" style={activeHubSection === "availability" ? sidebarButtonActive : sidebarButton} onClick={() => requestOpenHubSection("availability")}>
               {t("nav.openingTimes")}
             </button>
-            <button type="button" style={activeHubSection === "deliveryRanges" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("deliveryRanges")}>
+            <button type="button" style={activeHubSection === "deliveryRanges" ? sidebarButtonActive : sidebarButton} onClick={() => requestOpenHubSection("deliveryRanges")}>
               {t("nav.deliveryRanges")}
             </button>
-            <button type="button" style={activeHubSection === "settings" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("settings")}>
+            <button type="button" style={activeHubSection === "settings" ? sidebarButtonActive : sidebarButton} onClick={() => requestOpenHubSection("settings")}>
               {t("nav.settings")}
             </button>
-            <button type="button" style={activeHubSection === "users" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("users")}>
+            <button type="button" style={activeHubSection === "users" ? sidebarButtonActive : sidebarButton} onClick={() => requestOpenHubSection("users")}>
               {t("nav.users")}
             </button>
           </div>
@@ -2269,7 +2554,7 @@ export default function MerchantPortalPage() {
             </div>
           ) : null}
 
-          <button type="button" style={activeHubSection === "help" ? sidebarButtonActive : sidebarButton} onClick={() => openHubSection("help")}>
+          <button type="button" style={activeHubSection === "help" ? sidebarButtonActive : sidebarButton} onClick={() => requestOpenHubSection("help")}>
             {t("nav.helpSupport")}
           </button>
         </nav>
@@ -2311,12 +2596,12 @@ export default function MerchantPortalPage() {
               <div style={{ display: "grid", gap: 12, justifyItems: "start" }}>
                 <button
                   type="button"
-                  className={hasUnsavedHubChanges ? "he-portal-primary is-dirty" : "he-portal-primary"}
-                  style={saveHubButtonStyle}
-                  onClick={handleSaveHubSettings}
-                  disabled={!hubAccess?.canEditWorkspace}
+                  className={hasUnsavedHubSettingsChanges ? "he-portal-primary is-dirty" : "he-portal-primary"}
+                  style={saveAllSettingsButtonStyle}
+                  onClick={() => void handleSaveAllSettings()}
+                  disabled={!hubAccess?.canEditWorkspace || !hasUnsavedHubSettingsChanges}
                 >
-                  {hasUnsavedHubChanges ? t("common.saveHubChangesDirty") : t("common.saveHubChanges")}
+                  {hasUnsavedHubSettingsChanges ? t("common.saveAllSettingsDirty") : t("common.saveAllSettings")}
                 </button>
                 <span style={subtleInfo}>{t("dashboard.dashboardSaveHint")}</span>
               </div>
@@ -2330,9 +2615,16 @@ export default function MerchantPortalPage() {
               <strong>{t("common.unsavedChanges")}</strong>
               <p>{t("common.unsavedBannerCopy")}</p>
             </div>
-            <button type="button" style={saveHubButtonStyle} onClick={handleSaveHubSettings} disabled={!hubAccess?.canEditWorkspace}>
-              {t("common.saveNow")}
-            </button>
+            {hasUnsavedHubSettingsChanges ? (
+              <button
+                type="button"
+                style={saveAllSettingsButtonStyle}
+                onClick={() => void handleSaveAllSettings()}
+                disabled={!hubAccess?.canEditWorkspace}
+              >
+                {t("common.saveAllSettings")}
+              </button>
+            ) : null}
           </div>
         ) : null}
 
@@ -2382,10 +2674,10 @@ export default function MerchantPortalPage() {
                 {t("dashboard.readyCopy", { activeItems: menuStats.activeItems, categories: menuStats.categories })}
               </p>
               <div className="he-section-actions" style={sectionActionRow}>
-                <button type="button" style={primaryButton} onClick={() => openHubSection("menu")}>
+                <button type="button" style={primaryButton} onClick={() => requestOpenHubSection("menu")}>
                   {t("dashboard.editMenu")}
                 </button>
-                <button type="button" style={secondaryButton} onClick={() => openHubSection("orders")}>
+                <button type="button" style={secondaryButton} onClick={() => requestOpenHubSection("orders")}>
                   {t("dashboard.viewOrders")}
                 </button>
               </div>
@@ -3063,7 +3355,14 @@ export default function MerchantPortalPage() {
                     onChange={(event) => handleHubFieldChange("onboardingMessage", event.target.value)}
                   />
                 </label>
-                <HubStorefrontImageField value={hubSettings.heroImageUrl} onChange={(next) => handleHubFieldChange("heroImageUrl", next)} />
+                <HubStorefrontImageField
+                  value={hubSettings.heroImageUrl}
+                  crop={hubSettings.heroImageCrop}
+                  onChange={({ url, crop }) => {
+                    handleHubFieldChange("heroImageUrl", url);
+                    handleHubFieldChange("heroImageCrop", crop);
+                  }}
+                />
               </div>
             </section>
           ) : null}
@@ -3352,11 +3651,11 @@ export default function MerchantPortalPage() {
           {showSectionFooterSave ? (
             <div style={sectionFooterSave}>
               <div style={{ display: "grid", gap: 4 }}>
-                <strong style={{ color: "#101216" }}>{t("common.saveTheseHubChanges")}</strong>
+                <strong style={{ color: "#101216" }}>{t("common.saveThisPage")}</strong>
                 <span style={subtleInfo}>{t("common.saveTheseHubChangesHint")}</span>
               </div>
-              <button type="button" style={saveHubButtonStyle} onClick={handleSaveHubSettings} disabled={!hubAccess?.canEditWorkspace}>
-                {hasUnsavedHubChanges ? t("common.saveHubChangesDirty") : t("common.saveHubChanges")}
+              <button type="button" style={saveHubButtonStyle} onClick={handleSaveHubSettings} disabled={!hubAccess?.canEditWorkspace || !hasUnsavedActiveSectionChanges}>
+                {hasUnsavedActiveSectionChanges ? t("common.saveHubChangesDirty") : t("common.saveThisPage")}
               </button>
             </div>
           ) : null}
@@ -3365,6 +3664,23 @@ export default function MerchantPortalPage() {
 
       </section>
     </main>
+    <HubUnsavedChangesDialog
+      open={Boolean(pendingSectionNavigation)}
+      busy={unsavedLeaveBusy}
+      title={t("common.unsavedLeaveTitle")}
+      copy={
+        pendingSectionNavigation?.kind === "menu"
+          ? t("common.unsavedLeaveCopyMenu")
+          : t("common.unsavedLeaveCopySettings")
+      }
+      saveLabel={t("common.unsavedLeaveSave")}
+      discardLabel={t("common.unsavedLeaveDiscard")}
+      stayLabel={t("common.unsavedLeaveStay")}
+      onSave={() => void handleUnsavedLeaveSave()}
+      onDiscard={handleUnsavedLeaveDiscard}
+      onStay={handleUnsavedLeaveStay}
+    />
+    </>
   );
 }
 

@@ -13,6 +13,7 @@ import {
   isStoreTakingOrdersNow,
   normaliseDeliveryPricingForServe,
   normalizeOpeningHours,
+  readStorefrontHeroCropFromDeliveryConfig,
   readCategoryExtrasConfigItemDescription,
   readMenuSubGroupsFromSection,
   type StoreOpeningHours,
@@ -127,6 +128,7 @@ const mapStoreRow = (
     homepageFeatured: boolean;
     homepageFeatureOrder: number | null;
     isActive: boolean;
+    _count?: { courierAssignments: number };
   },
   openingHours?: StoreOpeningHours,
 ): StoreSummary => {
@@ -149,6 +151,7 @@ const mapStoreRow = (
     closesAtTime: takingOrdersNow ? openingSession.closesAtTime ?? undefined : undefined,
     cuisineLabel: store.cuisineLabel ?? undefined,
     heroImageUrl: store.heroImageUrl ?? undefined,
+    heroImageCrop: readStorefrontHeroCropFromDeliveryConfig(store.deliveryConfig),
     etaMinutes: store.etaMinutes ?? undefined,
     deliveryFee: Number(store.deliveryFee ?? 0),
     minimumOrderAmount: Number(store.minimumOrderAmount ?? 0),
@@ -157,6 +160,7 @@ const mapStoreRow = (
     homepageFeatureOrder: homepageFeatured ? store.homepageFeatureOrder ?? null : null,
     menuSetupComplete: store.menuSetupComplete,
     onboardingMessage: store.onboardingMessage ?? undefined,
+    courierTrackingAvailable: (store._count?.courierAssignments ?? 0) > 0,
   };
 };
 
@@ -193,6 +197,9 @@ export const findLiveMarketplaceStore = async (slugOrId: string): Promise<StoreS
       storeHours: {
         orderBy: { dayOfWeek: "asc" },
       },
+      _count: {
+        select: { courierAssignments: true },
+      },
     },
   });
 
@@ -213,6 +220,9 @@ export const findLiveMarketplaceStore = async (slugOrId: string): Promise<StoreS
         },
         storeHours: {
           orderBy: { dayOfWeek: "asc" },
+        },
+        _count: {
+          select: { courierAssignments: true },
         },
       },
     });
@@ -245,6 +255,9 @@ export const listLiveMarketplaceStores = async (): Promise<StoreSummary[]> => {
       },
       storeHours: {
         orderBy: { dayOfWeek: "asc" },
+      },
+      _count: {
+        select: { courierAssignments: true },
       },
     },
     orderBy: [{ name: "asc" }, { createdAt: "asc" }],

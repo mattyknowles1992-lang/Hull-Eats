@@ -18,12 +18,14 @@ import {
   fetchAdminContactMessages,
   fetchAdminCouriers,
   fetchAdminCustomers,
+  fetchAdminDeletedHubs,
   fetchAdminHubs,
   fetchAdminOrders,
   fetchAdminUsers,
   loginToAdmin,
   publishAdminHub,
   removeAdminHubCourierAssignment,
+  restoreAdminHub,
   updateAdminHubLifecycle,
   updateAdminContactMessageStatus,
   updateAdminCourier,
@@ -31,6 +33,7 @@ import {
   merchantPortalBaseUrl,
   type AdminCourierSummary,
   type AdminCustomerSummary,
+  type AdminDeletedHubSummary,
   type AdminHubOrderSummary,
   type AdminHubSummary,
   type AdminHubUserSummary,
@@ -119,6 +122,7 @@ const statusColors: Record<string, { bg: string; fg: string }> = {
   preparing: { bg: "rgba(255, 209, 124, 0.12)", fg: "#ffd17c" },
   in_progress: { bg: "rgba(255, 209, 124, 0.12)", fg: "#ffd17c" },
   paused: { bg: "rgba(255, 159, 159, 0.12)", fg: "#ff9f9f" },
+  deleted: { bg: "rgba(255, 159, 159, 0.12)", fg: "#ff9f9f" },
   offline: { bg: "rgba(255, 159, 159, 0.12)", fg: "#ff9f9f" },
   rejected: { bg: "rgba(255, 159, 159, 0.12)", fg: "#ff9f9f" },
   cancelled: { bg: "rgba(255, 159, 159, 0.12)", fg: "#ff9f9f" },
@@ -234,6 +238,7 @@ export function AdminConsoleLive() {
   const [sessionNotice, setSessionNotice] = useState("");
 
   const [hubs, setHubs] = useState<AdminHubSummary[]>([]);
+  const [deletedHubs, setDeletedHubs] = useState<AdminDeletedHubSummary[]>([]);
   const [users, setUsers] = useState<AdminHubUserSummary[]>([]);
   const [customers, setCustomers] = useState<AdminCustomerSummary[]>([]);
   const [couriers, setCouriers] = useState<AdminCourierSummary[]>([]);
@@ -256,6 +261,7 @@ export function AdminConsoleLive() {
   const [hubNotice, setHubNotice] = useState("");
   const [featuredOrderDrafts, setFeaturedOrderDrafts] = useState<Record<string, string>>({});
   const [hubSearchQuery, setHubSearchQuery] = useState("");
+  const [hubDirectoryTab, setHubDirectoryTab] = useState<"active" | "deleted">("active");
   const [expandedHubIds, setExpandedHubIds] = useState<string[]>([]);
 
   const [selectedHubId, setSelectedHubId] = useState("");
@@ -291,6 +297,7 @@ export function AdminConsoleLive() {
     setDataError("");
     setLoadState("idle");
     setHubs([]);
+    setDeletedHubs([]);
     setUsers([]);
     setCouriers([]);
     setCustomers([]);
@@ -325,8 +332,9 @@ export function AdminConsoleLive() {
       }
 
       try {
-        const [nextHubs, nextUsers, nextCouriers, nextCustomers, nextOrders, nextMessages] = await Promise.all([
+        const [nextHubs, nextDeletedHubs, nextUsers, nextCouriers, nextCustomers, nextOrders, nextMessages] = await Promise.all([
           fetchAdminHubs(token),
+          fetchAdminDeletedHubs(token),
           fetchAdminUsers(token),
           fetchAdminCouriers(token),
           fetchAdminCustomers(token),
@@ -335,6 +343,7 @@ export function AdminConsoleLive() {
         ]);
 
         setHubs(nextHubs);
+        setDeletedHubs(nextDeletedHubs);
         setUsers(nextUsers);
         setCouriers(nextCouriers);
         setCustomers(nextCustomers);
@@ -351,6 +360,7 @@ export function AdminConsoleLive() {
         setDataError(message);
         setLoadState("error");
         setHubs([]);
+    setDeletedHubs([]);
         setUsers([]);
         setCouriers([]);
         setCustomers([]);
@@ -403,6 +413,29 @@ export function AdminConsoleLive() {
     setFeaturedOrderDrafts(nextDrafts);
   }, [hubs]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    if (new URLSearchParams(window.location.search).get("hubTab") === "deleted") {
+      setHubDirectoryTab("deleted");
+    }
+  }, []);
+
+  const switchHubDirectoryTab = (tab: "active" | "deleted") => {
+    setHubDirectoryTab(tab);
+    if (typeof window === "undefined") {
+      return;
+    }
+    const url = new URL(window.location.href);
+    if (tab === "deleted") {
+      url.searchParams.set("hubTab", "deleted");
+    } else {
+      url.searchParams.delete("hubTab");
+    }
+    window.history.replaceState({}, "", url);
+  };
+
   const visibleHubs = useMemo(() => {
     const query = hubSearchQuery.trim().toLowerCase();
     if (!query) {
@@ -417,6 +450,21 @@ export function AdminConsoleLive() {
         .includes(query),
     );
   }, [hubSearchQuery, hubs]);
+
+  const visibleDeletedHubs = useMemo(() => {
+    const query = hubSearchQuery.trim().toLowerCase();
+    if (!query) {
+      return deletedHubs;
+    }
+
+    return deletedHubs.filter((hub) =>
+      [hub.businessName, hub.slug, hub.hubUsername, hub.ownerName]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(query),
+    );
+  }, [deletedHubs, hubSearchQuery]);
 
   const metrics = useMemo(
     () => [
@@ -518,18 +566,48 @@ export function AdminConsoleLive() {
   };
 
   const handleDeleteHub = async (hubId: string, businessNameToDelete: string) => {
-    if (!authToken || !window.confirm(`Delete ${businessNameToDelete}?`)) {
+    if (
+      !authToken ||
+      !window.confirm(
+        `Move ${businessNameToDelete} to deleted recovery?\n\nThe hub will be hidden from Hull Eats and merchant login for 30 days. You can restore it from the Deleted tab during that window.`,
+      )
+    ) {
       return;
     }
     try {
-      await deleteAdminHub(authToken, hubId);
+      const result = await deleteAdminHub(authToken, hubId);
       await refreshAdminData(authToken, { silent: true });
-      setHubNotice(`Hub deleted: ${businessNameToDelete}`);
+      switchHubDirectoryTab("deleted");
+      setHubNotice(
+        `${businessNameToDelete} moved to deleted recovery. Recover until ${new Date(result.recoverableUntil).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}.`,
+      );
     } catch (error) {
       if (endAdminSessionIfUnauthorized(error)) {
         return;
       }
       setHubNotice(error instanceof Error ? error.message : "Hub deletion failed.");
+    }
+  };
+
+  const handleRestoreHub = async (hub: AdminDeletedHubSummary) => {
+    if (
+      !authToken ||
+      !window.confirm(
+        `Restore ${hub.businessName}?\n\nThis will bring the hub back with the same marketplace and order settings it had before deletion.`,
+      )
+    ) {
+      return;
+    }
+    try {
+      await restoreAdminHub(authToken, hub.id);
+      await refreshAdminData(authToken, { silent: true });
+      switchHubDirectoryTab("active");
+      setHubNotice(`${hub.businessName} has been restored.`);
+    } catch (error) {
+      if (endAdminSessionIfUnauthorized(error)) {
+        return;
+      }
+      setHubNotice(error instanceof Error ? error.message : "Hub restore failed.");
     }
   };
 
@@ -1172,26 +1250,56 @@ export function AdminConsoleLive() {
         <section style={{ ...styles.sectionCard, marginTop: 18 }}>
           <SectionHeading
             eyebrow="Hub containers"
-            title="Live hubs grouped by operations"
-            copy="Each hub card brings together its real status, assigned couriers, recent orders, and support volume."
+            title={hubDirectoryTab === "active" ? "Live hubs grouped by operations" : "Deleted hubs in recovery"}
+            copy={
+              hubDirectoryTab === "active"
+                ? "Each hub card brings together its real status, assigned couriers, recent orders, and support volume."
+                : "Deleted hubs stay recoverable for 30 days with their previous marketplace and order settings. After that they are permanently removed."
+            }
           />
+
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 16 }}>
+            <button
+              type="button"
+              style={hubDirectoryTab === "active" ? styles.buttonPrimary : styles.buttonGlass}
+              onClick={() => switchHubDirectoryTab("active")}
+            >
+              Active hubs ({hubs.length})
+            </button>
+            <button
+              type="button"
+              style={hubDirectoryTab === "deleted" ? styles.buttonPrimary : styles.buttonGlass}
+              onClick={() => switchHubDirectoryTab("deleted")}
+            >
+              Deleted ({deletedHubs.length})
+            </button>
+          </div>
 
           <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
             <label style={{ display: "grid", gap: 8 }}>
-              <span style={{ fontWeight: 800, color: "#dce9ff" }}>Find a hub fast</span>
+              <span style={{ fontWeight: 800, color: "#dce9ff" }}>
+                {hubDirectoryTab === "active" ? "Find a hub fast" : "Find a deleted hub"}
+              </span>
               <input
                 style={styles.input}
                 value={hubSearchQuery}
                 onChange={(event) => setHubSearchQuery(event.target.value)}
-                placeholder="Search by business, slug, owner login, owner name, or type"
+                placeholder={
+                  hubDirectoryTab === "active"
+                    ? "Search by business, slug, owner login, owner name, or type"
+                    : "Search by business, slug, owner login, or owner name"
+                }
               />
             </label>
             <p style={{ margin: 0, color: "#9fb2c9", lineHeight: 1.6 }}>
-              Showing {visibleHubs.length} of {hubs.length} hubs.
+              {hubDirectoryTab === "active"
+                ? `Showing ${visibleHubs.length} of ${hubs.length} active hubs.`
+                : `Showing ${visibleDeletedHubs.length} of ${deletedHubs.length} deleted hubs in recovery.`}
             </p>
           </div>
 
-          {visibleHubs.length === 0 ? (
+          {hubDirectoryTab === "active" ? (
+            visibleHubs.length === 0 ? (
             <div style={{ marginTop: 16 }}>
               <EmptyState
                 title={hubs.length === 0 ? "No hubs available yet" : "No hubs match that search"}
@@ -1276,7 +1384,7 @@ export function AdminConsoleLive() {
                           {hub.homepageFeatured ? "Remove featured" : "Feature on homepage"}
                         </button>
                         <button type="button" style={{ ...styles.buttonGlass, color: "#ffb7b7" }} onClick={() => void handleDeleteHub(hub.id, hub.businessName)}>
-                          Delete hub
+                          Move to deleted
                         </button>
                       </div>
                     </div>
@@ -1545,6 +1653,71 @@ export function AdminConsoleLive() {
                   </article>
                 );
               })}
+            </div>
+          )
+          ) : visibleDeletedHubs.length === 0 ? (
+            <div style={{ marginTop: 16 }}>
+              <EmptyState
+                title={deletedHubs.length === 0 ? "No deleted hubs in recovery" : "No deleted hubs match that search"}
+                copy={
+                  deletedHubs.length === 0
+                    ? "When you move a hub to deleted recovery, it will appear in the Deleted tab until it is restored or the 30-day window expires."
+                    : "Try another business name, slug, owner login, or owner name."
+                }
+              />
+            </div>
+          ) : (
+            <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
+              {visibleDeletedHubs.map((hub) => (
+                <article
+                  key={hub.id}
+                  style={{
+                    borderRadius: 20,
+                    border: "1px solid rgba(255, 183, 183, 0.18)",
+                    background: "rgba(255, 95, 95, 0.06)",
+                    padding: 16,
+                    display: "grid",
+                    gap: 12,
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "flex-start" }}>
+                    <div>
+                      <Link href={`/hubs/${hub.slug}`} style={{ color: "#f7fbff", textDecoration: "none" }}>
+                        <strong style={{ display: "block", fontSize: 20 }}>{hub.businessName}</strong>
+                      </Link>
+                      <p style={{ margin: "8px 0 0", color: "#9fb2c9", lineHeight: 1.6 }}>
+                        {hub.slug} · Owner {hub.ownerName}
+                        {hub.hubUsername ? ` · ${hub.hubUsername}` : ""}
+                      </p>
+                      <p style={{ margin: "8px 0 0", color: "#dce9ff", lineHeight: 1.6, fontSize: 14 }}>
+                        Deleted {new Date(hub.deletedAt).toLocaleString("en-GB")} ·{" "}
+                        {hub.daysRemaining === 0 ? "Expires today" : `${hub.daysRemaining} day${hub.daysRemaining === 1 ? "" : "s"} left to recover`}
+                      </p>
+                      <p style={{ margin: "8px 0 0", color: "#9fb2c9", lineHeight: 1.6, fontSize: 14 }}>
+                        Before deletion: {hub.wasListedOnMarketplace ? "listed on Hull Eats" : "not listed"}
+                        {hub.wasAcceptingOrders ? ", accepting orders" : ", orders paused"}.
+                      </p>
+                    </div>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                      <StatusPill value="deleted" />
+                      <Link
+                        href={`/hubs/${hub.slug}`}
+                        style={{
+                          ...styles.buttonGlass,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          textDecoration: "none",
+                        }}
+                      >
+                        View deleted hub
+                      </Link>
+                      <button type="button" style={styles.buttonPrimary} onClick={() => void handleRestoreHub(hub)}>
+                        Restore hub
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              ))}
             </div>
           )}
         </section>

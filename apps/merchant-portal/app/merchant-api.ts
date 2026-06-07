@@ -124,7 +124,7 @@ export async function fetchWorkspace(token: string, hubId: string): Promise<Merc
 export async function saveWorkspace(
   token: string,
   hubId: string,
-  input: { settings: HubSettings; menuSections?: HubMenuSection[] },
+  input: { settings?: Partial<HubSettings>; menuSections?: HubMenuSection[] },
   options?: { timeoutMs?: number },
 ): Promise<MerchantWorkspace> {
   let payload: ReturnType<typeof parseMerchantWorkspaceUpdateInput>;

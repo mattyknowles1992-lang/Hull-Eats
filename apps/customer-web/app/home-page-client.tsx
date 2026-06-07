@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { deliveryFeeFromForStorefront, type StoreSummary } from "@hull-eats/types";
+import { deliveryFeeFromForStorefront, storefrontHeroMediaStyle, type StoreSummary } from "@hull-eats/types";
 
 import { FeaturedStoreCarousel } from "../src/components/featured-store-carousel";
 import { HullMicrocopy } from "../src/components/hull-microcopy";
@@ -277,9 +277,7 @@ export function HomePageClient({ initialStores = [], initialSearchQuery = "" }: 
     <Link href={`/stores/${store.slug}`} className={className} key={store.id}>
       <div
         className="store-card-media"
-        style={{
-          backgroundImage: `linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0) 42%, rgba(8, 14, 24, 0.28)), url(${store.heroImageUrl})`,
-        }}
+        style={storefrontHeroMediaStyle(store.heroImageUrl, store.heroImageCrop)}
       >
         <div className="store-card-overlay">
           <span className={`status-chip ${getStoreStatusTone(store.storefrontStatus, store.isOpen)}`}>
@@ -309,7 +307,9 @@ export function HomePageClient({ initialStores = [], initialSearchQuery = "" }: 
 
         <div className="store-card-footer">
           <span className="card-cta">{store.menuSetupComplete ? "Start order" : "Preview menu"}</span>
-          <span className="ghost-link">Track after checkout</span>
+          {store.courierTrackingAvailable ? (
+            <span className="store-tracking-pill">Track after checkout</span>
+          ) : null}
         </div>
       </div>
     </Link>

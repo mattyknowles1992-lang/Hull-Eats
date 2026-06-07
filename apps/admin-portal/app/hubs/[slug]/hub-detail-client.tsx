@@ -8,10 +8,13 @@ import type { ContactMessageRecord } from "@hull-eats/types";
 import {
   fetchAdminContactMessages,
   fetchAdminCouriers,
+  fetchAdminDeletedHubs,
   fetchAdminHubs,
   fetchAdminOrders,
   fetchAdminUsers,
+  restoreAdminHub,
   type AdminCourierSummary,
+  type AdminDeletedHubSummary,
   type AdminHubOrderSummary,
   type AdminHubSummary,
   type AdminHubUserSummary,
@@ -54,12 +57,15 @@ function StatusPill({ value }: { value: string }) {
 
 export function HubDetailClient({ slug }: { slug: string }) {
   const [hub, setHub] = useState<AdminHubSummary | null>(null);
+  const [deletedHub, setDeletedHub] = useState<AdminDeletedHubSummary | null>(null);
   const [users, setUsers] = useState<AdminHubUserSummary[]>([]);
   const [couriers, setCouriers] = useState<AdminCourierSummary[]>([]);
   const [orders, setOrders] = useState<AdminHubOrderSummary[]>([]);
   const [messages, setMessages] = useState<ContactMessageRecord[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = useState("");
+  const [restoreNotice, setRestoreNotice] = useState("");
+  const [restoring, setRestoring] = useState(false);
 
   useEffect(() => {
     const token = readStoredAdminSessionToken();
@@ -71,26 +77,43 @@ export function HubDetailClient({ slug }: { slug: string }) {
 
     void (async () => {
       try {
-        const [allHubs, allUsers, allCouriers, allOrders, allMessages] = await Promise.all([
+        const [allHubs, allDeletedHubs, allUsers, allCouriers, allOrders, allMessages] = await Promise.all([
           fetchAdminHubs(token),
+          fetchAdminDeletedHubs(token),
           fetchAdminUsers(token),
           fetchAdminCouriers(token),
           fetchAdminOrders(token),
           fetchAdminContactMessages(token),
         ]);
         const matchedHub = allHubs.find((entry) => entry.slug === slug) ?? null;
-        if (!matchedHub) {
-          setState("error");
-          setError("That hub could not be found in the live admin data.");
+        const matchedDeletedHub = allDeletedHubs.find((entry) => entry.slug === slug) ?? null;
+
+        if (matchedHub) {
+          setHub(matchedHub);
+          setDeletedHub(null);
+          setUsers(allUsers.filter((user) => user.hubId === matchedHub.id));
+          setCouriers(allCouriers.filter((courier) => courier.assignedStores.some((store) => store.hubId === matchedHub.id)));
+          setOrders(allOrders.filter((order) => order.hubId === matchedHub.id));
+          setMessages(allMessages.filter((message) => message.hubId === matchedHub.id));
+          setState("ready");
+          setError("");
           return;
         }
-        setHub(matchedHub);
-        setUsers(allUsers.filter((user) => user.hubId === matchedHub.id));
-        setCouriers(allCouriers.filter((courier) => courier.assignedStores.some((store) => store.hubId === matchedHub.id)));
-        setOrders(allOrders.filter((order) => order.hubId === matchedHub.id));
-        setMessages(allMessages.filter((message) => message.hubId === matchedHub.id));
-        setState("ready");
-        setError("");
+
+        if (matchedDeletedHub) {
+          setHub(null);
+          setDeletedHub(matchedDeletedHub);
+          setUsers([]);
+          setCouriers([]);
+          setOrders(allOrders.filter((order) => order.hubId === matchedDeletedHub.id));
+          setMessages(allMessages.filter((message) => message.hubId === matchedDeletedHub.id));
+          setState("ready");
+          setError("");
+          return;
+        }
+
+        setState("error");
+        setError("That hub could not be found in the live admin data.");
       } catch (nextError) {
         if (isAdminSessionAuthFailure(nextError)) {
           clearAdminSessionStorage();
@@ -120,23 +143,63 @@ export function HubDetailClient({ slug }: { slug: string }) {
     ];
   }, [couriers.length, hub, messages.length, users.length]);
 
+  const handleRestoreDeletedHub = async () => {
+    if (!deletedHub) {
+      return;
+    }
+
+    const token = readStoredAdminSessionToken();
+    if (!token) {
+      setRestoreNotice(adminSessionExpiredMessage);
+      return;
+    }
+
+    if (
+      !window.confirm(
+        `Restore ${deletedHub.businessName}?\n\nThis will bring the hub back with the same marketplace and order settings it had before deletion.`,
+      )
+    ) {
+      return;
+    }
+
+    setRestoring(true);
+    setRestoreNotice("");
+    try {
+      await restoreAdminHub(token, deletedHub.id);
+      window.location.href = "/";
+    } catch (nextError) {
+      if (isAdminSessionAuthFailure(nextError)) {
+        clearAdminSessionStorage();
+        setRestoreNotice(nextError instanceof Error ? nextError.message : adminSessionExpiredMessage);
+      } else {
+        setRestoreNotice(nextError instanceof Error ? nextError.message : "Hub restore failed.");
+      }
+    } finally {
+      setRestoring(false);
+    }
+  };
+
+  const pageTitle = hub?.businessName ?? deletedHub?.businessName ?? "Hub detail";
+
   return (
     <main style={pageStyle} className="he-admin-page he-admin-console-page">
       <div className="he-admin-shell">
         <header className="he-admin-header">
           <div>
-            <p className="he-admin-eyebrow">Hub breakdown</p>
+            <p className="he-admin-eyebrow">{deletedHub ? "Deleted hub recovery" : "Hub breakdown"}</p>
             <h1 style={{ margin: "8px 0 0", fontSize: 46, lineHeight: 0.95, fontFamily: "Georgia, serif" }}>
-              {hub?.businessName ?? "Hub detail"}
+              {pageTitle}
             </h1>
             <p style={{ margin: "14px 0 0", color: "#9fb2c9", lineHeight: 1.7, maxWidth: 760 }}>
-              Real admin detail for this hub’s live status, orders, assigned couriers, users, and support traffic.
+              {deletedHub
+                ? "This hub is in deleted recovery. Review the saved settings below and restore it before the 30-day window expires."
+                : "Real admin detail for this hub’s live status, orders, assigned couriers, users, and support traffic."}
             </p>
           </div>
 
           <div className="he-admin-header-actions">
             <Link
-              href="/"
+              href={deletedHub ? "/?hubTab=deleted" : "/"}
               className="he-admin-back-link"
               style={{
                 minHeight: 48,
@@ -154,6 +217,7 @@ export function HubDetailClient({ slug }: { slug: string }) {
               Back to admin
             </Link>
             {hub ? <StatusPill value={hub.status} /> : null}
+            {deletedHub ? <StatusPill value="deleted" /> : null}
           </div>
         </header>
 
@@ -183,6 +247,89 @@ export function HubDetailClient({ slug }: { slug: string }) {
           >
             <strong style={{ display: "block", fontSize: 20 }}>Hub detail unavailable</strong>
             <p style={{ margin: "10px 0 0", color: "#ffd7d7", lineHeight: 1.7 }}>{error}</p>
+          </section>
+        ) : null}
+
+        {state === "ready" && deletedHub ? (
+          <section
+            style={{
+              borderRadius: 24,
+              border: "1px solid rgba(255, 183, 183, 0.18)",
+              background: "rgba(255, 95, 95, 0.06)",
+              boxShadow: "0 18px 42px rgba(0, 0, 0, 0.22)",
+              padding: 20,
+              display: "grid",
+              gap: 16,
+            }}
+          >
+            <div style={{ display: "grid", gap: 8 }}>
+              <strong style={{ fontSize: 24 }}>Recovery details</strong>
+              <p style={{ margin: 0, color: "#dce9ff", lineHeight: 1.7 }}>
+                Deleted {new Date(deletedHub.deletedAt).toLocaleString("en-GB")} ·{" "}
+                {deletedHub.daysRemaining === 0
+                  ? "Expires today"
+                  : `${deletedHub.daysRemaining} day${deletedHub.daysRemaining === 1 ? "" : "s"} left to recover`}
+              </p>
+              <p style={{ margin: 0, color: "#9fb2c9", lineHeight: 1.7 }}>
+                Owner {deletedHub.ownerName}
+                {deletedHub.hubUsername ? ` · Login ${deletedHub.hubUsername}` : ""}
+              </p>
+              <p style={{ margin: 0, color: "#9fb2c9", lineHeight: 1.7 }}>
+                Before deletion: {deletedHub.wasListedOnMarketplace ? "listed on Hull Eats" : "not listed"}
+                {deletedHub.wasAcceptingOrders ? ", accepting orders" : ", orders paused"}.
+              </p>
+              <p style={{ margin: 0, color: "#9fb2c9", lineHeight: 1.7 }}>
+                Recoverable until {new Date(deletedHub.recoverableUntil).toLocaleString("en-GB")}.
+              </p>
+            </div>
+
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                disabled={restoring}
+                onClick={() => void handleRestoreDeletedHub()}
+                style={{
+                  minHeight: 46,
+                  padding: "0 16px",
+                  borderRadius: 16,
+                  border: "1px solid rgba(126, 224, 255, 0.2)",
+                  color: "#fff",
+                  fontWeight: 900,
+                  background: "linear-gradient(180deg, #23cdff, #079bc8)",
+                  cursor: restoring ? "wait" : "pointer",
+                  opacity: restoring ? 0.7 : 1,
+                }}
+              >
+                {restoring ? "Restoring..." : "Restore hub"}
+              </button>
+            </div>
+
+            {restoreNotice ? <p style={{ margin: 0, color: "#ffd7d7", lineHeight: 1.7 }}>{restoreNotice}</p> : null}
+
+            {orders.length > 0 ? (
+              <div style={{ display: "grid", gap: 12 }}>
+                <strong style={{ fontSize: 18 }}>Historical orders still on record ({orders.length})</strong>
+                {orders.slice(0, 5).map((order) => (
+                  <article
+                    key={order.id}
+                    style={{
+                      borderRadius: 18,
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      background: "rgba(255,255,255,0.04)",
+                      padding: 14,
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                      <strong>{order.orderNumber}</strong>
+                      <StatusPill value={order.status} />
+                    </div>
+                    <p style={{ margin: "8px 0 0", color: "#9fb2c9", lineHeight: 1.6, fontSize: 14 }}>
+                      {order.customerName} · £{order.totalAmount.toFixed(2)} · {new Date(order.placedAt).toLocaleString("en-GB")}
+                    </p>
+                  </article>
+                ))}
+              </div>
+            ) : null}
           </section>
         ) : null}
 

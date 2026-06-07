@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { deliveryFeeFromForStorefront, type StoreSummary } from "@hull-eats/types";
+import { deliveryFeeFromForStorefront, storefrontHeroMediaStyle, type StoreSummary } from "@hull-eats/types";
 
 type FeaturedStoreCarouselProps = {
   stores: StoreSummary[];
@@ -135,9 +135,11 @@ export function FeaturedStoreCarousel({ stores, storeDistances, formatDistance }
                 <Link href={`/stores/${store.slug}`} className="featured-carousel-card">
                   <div
                     className="featured-carousel-media"
-                    style={{
-                      backgroundImage: `linear-gradient(125deg, rgba(8, 14, 24, 0.08), rgba(8, 14, 24, 0.42) 48%, rgba(8, 14, 24, 0.82)), url(${store.heroImageUrl})`,
-                    }}
+                    style={storefrontHeroMediaStyle(
+                      store.heroImageUrl,
+                      store.heroImageCrop,
+                      "linear-gradient(125deg, rgba(8, 14, 24, 0.08), rgba(8, 14, 24, 0.42) 48%, rgba(8, 14, 24, 0.82))",
+                    )}
                   >
                     <div className="featured-carousel-media-top">
                       <span className="featured-carousel-badge">Featured</span>

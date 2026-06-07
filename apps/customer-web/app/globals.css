@@ -3245,6 +3245,23 @@ button.filter-pill {
   box-shadow: 0 14px 24px rgba(15, 17, 21, 0.16);
 }
 
+.store-tracking-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(18, 183, 232, 0.28);
+  background: linear-gradient(180deg, rgba(232, 248, 255, 0.96), rgba(214, 241, 252, 0.92));
+  color: #0a617a;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
 .store-card-footer .card-cta {
   min-width: 7.5rem;
 }
@@ -3442,6 +3459,21 @@ button.filter-pill {
 .account-details-cancel {
   padding: 8px 4px;
   font-weight: 800;
+}
+
+.register-form .account-settings-link,
+.register-form .account-close-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  max-width: 100%;
+  text-decoration: none;
+}
+
+.register-form .account-close-link {
+  border-color: rgba(180, 48, 48, 0.22);
+  color: #8b1f1f;
 }
 
 .register-subheading {
@@ -6101,11 +6133,12 @@ button.filter-pill {
     padding-inline: 18px;
   }
 
-  .store-card-footer .ghost-link {
+  .store-card-footer .store-tracking-pill {
     flex: 1 1 8rem;
     min-width: 0;
-    text-align: right;
-    line-height: 1.25;
+    max-width: 100%;
+    white-space: normal;
+    text-align: center;
   }
 
   .marketplace-hero {
@@ -6955,6 +6988,142 @@ body.he-has-active-order {
   font-size: 0.94rem;
   line-height: 1.6;
   color: rgba(232, 240, 252, 0.9);
+}
+
+.marketing-partner-section {
+  display: grid;
+  gap: 28px;
+  margin-top: 28px;
+  padding: clamp(22px, 4vw, 32px) 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.marketing-partner-intro h2 {
+  margin: 8px 0 12px;
+  font-family: var(--font-heading), ui-serif, Georgia, serif;
+  font-size: clamp(1.45rem, 3vw, 2rem);
+  letter-spacing: -0.02em;
+}
+
+.marketing-partner-intro p {
+  margin: 0;
+  max-width: 68ch;
+  line-height: 1.65;
+  color: rgba(220, 233, 255, 0.88);
+}
+
+.marketing-partner-form {
+  display: grid;
+  gap: 18px;
+}
+
+.marketing-partner-form__header h2 {
+  margin: 0;
+  font-family: var(--font-heading), ui-serif, Georgia, serif;
+  font-size: 1.35rem;
+}
+
+.marketing-partner-form__header p {
+  margin: 10px 0 0;
+  max-width: 68ch;
+  line-height: 1.65;
+  color: rgba(220, 233, 255, 0.88);
+}
+
+.marketing-partner-form__fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.marketing-partner-form__fieldset legend {
+  margin-bottom: 12px;
+  font-weight: 800;
+  color: #f7fbff;
+}
+
+.marketing-partner-form__choices {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.marketing-partner-form__choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(188, 213, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  color: #f7fbff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.marketing-partner-form__choice input {
+  accent-color: #23cdff;
+}
+
+.marketing-partner-form__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.marketing-partner-form__field {
+  display: grid;
+  gap: 8px;
+}
+
+.marketing-partner-form__field span {
+  font-weight: 800;
+  color: #f7fbff;
+}
+
+.marketing-partner-form__field input,
+.marketing-partner-form__field textarea {
+  width: 100%;
+  min-height: 52px;
+  border-radius: 16px;
+  border: 1px solid rgba(188, 213, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
+  color: #f7fbff;
+  padding: 0 14px;
+  font: inherit;
+}
+
+.marketing-partner-form__field textarea {
+  min-height: 150px;
+  padding: 14px;
+  resize: vertical;
+}
+
+.marketing-partner-form__field input::placeholder,
+.marketing-partner-form__field textarea::placeholder {
+  color: rgba(220, 233, 255, 0.55);
+}
+
+.marketing-partner-form__footer {
+  display: grid;
+  gap: 12px;
+}
+
+.marketing-partner-form__footer .form-helper {
+  margin: 0;
+  max-width: 68ch;
+  color: rgba(180, 198, 220, 0.88);
+}
+
+.marketing-partner-form__notice {
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(188, 213, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  color: #f7fbff;
+  line-height: 1.6;
 }
 
 .seo-landing-page .seo-landing-hero {

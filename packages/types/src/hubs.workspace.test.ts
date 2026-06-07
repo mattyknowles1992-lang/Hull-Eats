@@ -31,12 +31,25 @@ const baseSettings = {
     openTime: "12:00",
     closeTime: "22:00",
   })),
+  heroImageCrop: { focusX: 50, focusY: 50, zoom: 1 },
 };
 
 describe("parseMerchantWorkspaceUpdateInput", () => {
   it("accepts settings-only workspace saves without menuSections", () => {
     const parsed = parseMerchantWorkspaceUpdateInput({ settings: baseSettings });
-    expect(parsed.settings.name).toBe("Test Takeaway");
+    expect(parsed.settings?.name).toBe("Test Takeaway");
+    expect(parsed.menuSections).toBeUndefined();
+  });
+
+  it("accepts partial opening-hours saves without validating untouched hub fields", () => {
+    const parsed = parseMerchantWorkspaceUpdateInput({
+      settings: {
+        openingHours: baseSettings.openingHours,
+        acceptingOrders: true,
+      },
+    });
+    expect(parsed.settings?.openingHours).toHaveLength(7);
+    expect(parsed.settings?.name).toBeUndefined();
     expect(parsed.menuSections).toBeUndefined();
   });
 

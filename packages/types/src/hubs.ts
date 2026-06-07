@@ -14,6 +14,7 @@ import {
 
 import { menuItemSchema, storeTypeSchema, storefrontStatusSchema, type MenuItem } from "./catalog";
 import { hubMenuTemplateSchema } from "./hub-menu-template";
+import { storefrontHeroCropSchema } from "./storefront-hero-image";
 import { sanitizeMenuItemMoneyFields, sanitizeMenuMoneyAmount } from "./menu-money";
 import { membershipRoleSchema } from "./rbac";
 import { normalizeOpeningHours, storeOpeningHoursSchema, type StoreOpeningHours } from "./store-opening-hours";
@@ -73,6 +74,29 @@ export const adminHubSummarySchema = z.object({
   notes: z.array(z.string().min(1)).default([]),
 });
 
+export const HUB_DELETION_RETENTION_DAYS = 30;
+
+export const hubDeletionRestoreSnapshotSchema = z.object({
+  merchantIsActive: z.boolean().default(true),
+  listedOnMarketplace: z.boolean().default(false),
+  acceptingOrders: z.boolean().default(false),
+  homepageFeatured: z.boolean().default(false),
+  homepageFeatureOrder: z.number().int().positive().nullable().default(null),
+});
+
+export const adminDeletedHubSummarySchema = z.object({
+  id: z.string().min(1),
+  businessName: z.string().min(1),
+  slug: z.string().min(1),
+  ownerName: z.string().min(1),
+  hubUsername: z.string().default(""),
+  deletedAt: z.string().datetime(),
+  recoverableUntil: z.string().datetime(),
+  daysRemaining: z.number().int().nonnegative(),
+  wasListedOnMarketplace: z.boolean().default(false),
+  wasAcceptingOrders: z.boolean().default(false),
+});
+
 export const hubUserSchema = z.object({
   id: z.string().min(1),
   hubId: z.string().min(1),
@@ -102,6 +126,8 @@ export const hubSettingsSchema = z.object({
   isOpen: z.boolean(),
   logoImageUrl: z.string().default(""),
   heroImageUrl: z.string().default(""),
+  /** Pan/zoom focal point for hero image on customer store cards. */
+  heroImageCrop: storefrontHeroCropSchema.default({ focusX: 50, focusY: 50, zoom: 1 }),
   /** When true, new web orders are accepted immediately using quoted prep (capped below). Kitchen print queues on accept. */
   autoAcceptOrders: z.boolean().default(false),
   /** When auto-accepting, quoted prep minutes is min(store ETA, this value). */
@@ -308,6 +334,58 @@ const normalizeMileFees = (value: unknown): [number, number, number, number, num
   return padded.slice(0, 5) as [number, number, number, number, number];
 };
 
+function normalizeSettingsPatchFields(settings: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...settings };
+
+  if ("etaMinutes" in settings) {
+    out.etaMinutes = Math.max(1, coerceInt(settings.etaMinutes, 25));
+  }
+  if ("deliveryFee" in settings) {
+    out.deliveryFee = coerceNonNegative(settings.deliveryFee, 0);
+  }
+  if ("minimumOrderAmount" in settings) {
+    out.minimumOrderAmount = coerceNonNegative(settings.minimumOrderAmount, 0);
+  }
+  if ("deliveryRadiusMiles" in settings) {
+    out.deliveryRadiusMiles = Math.min(40, Math.max(0.1, coerceNonNegative(settings.deliveryRadiusMiles, 5) || 5));
+  }
+  if ("deliveryDistanceRanges" in settings || "deliveryMileFees" in settings) {
+    out.deliveryDistanceRanges = normalizeDeliveryDistanceRanges(
+      settings.deliveryDistanceRanges,
+      settings.deliveryMileFees as number[] | undefined,
+    );
+  }
+  if ("autoAcceptMaxPrepMinutes" in settings) {
+    out.autoAcceptMaxPrepMinutes = Math.min(180, Math.max(5, coerceInt(settings.autoAcceptMaxPrepMinutes, 60)));
+  }
+  if ("deliveryMileFees" in settings) {
+    out.deliveryMileFees = normalizeMileFees(settings.deliveryMileFees);
+  }
+  if ("deliveryPostcodeZones" in settings) {
+    out.deliveryPostcodeZones = mergeHullPostcodeZones(settings.deliveryPostcodeZones as HullPostcodeZone[] | undefined);
+  }
+  if ("deliveryOriginLatitude" in settings) {
+    out.deliveryOriginLatitude =
+      settings.deliveryOriginLatitude == null || settings.deliveryOriginLatitude === ""
+        ? null
+        : Number(settings.deliveryOriginLatitude);
+  }
+  if ("deliveryOriginLongitude" in settings) {
+    out.deliveryOriginLongitude =
+      settings.deliveryOriginLongitude == null || settings.deliveryOriginLongitude === ""
+        ? null
+        : Number(settings.deliveryOriginLongitude);
+  }
+  if ("openingHours" in settings) {
+    out.openingHours = normalizeOpeningHours(settings.openingHours) as StoreOpeningHours;
+  }
+
+  return out;
+}
+
+/** Partial hub settings for scoped portal saves. */
+export const hubSettingsPatchSchema = hubSettingsSchema.partial();
+
 /** Normalise hub PATCH bodies before API Zod validation (sector 0, menu URLs, category ids). */
 export const prepareMerchantWorkspaceUpdateBody = (raw: unknown): unknown => {
   if (!raw || typeof raw !== "object") {
@@ -323,28 +401,7 @@ export const prepareMerchantWorkspaceUpdateBody = (raw: unknown): unknown => {
   const hasMenuSections = Array.isArray(body.menuSections);
   const menuSections = hasMenuSections ? body.menuSections : undefined;
 
-  const normalizedSettings = settings
-      ? {
-          ...settings,
-          etaMinutes: Math.max(1, coerceInt(settings.etaMinutes, 25)),
-          deliveryFee: coerceNonNegative(settings.deliveryFee, 0),
-          minimumOrderAmount: coerceNonNegative(settings.minimumOrderAmount, 0),
-          deliveryRadiusMiles: Math.min(40, Math.max(0.1, coerceNonNegative(settings.deliveryRadiusMiles, 5) || 5)),
-          deliveryDistanceRanges: normalizeDeliveryDistanceRanges(settings.deliveryDistanceRanges, settings.deliveryMileFees as number[] | undefined),
-          autoAcceptMaxPrepMinutes: Math.min(180, Math.max(5, coerceInt(settings.autoAcceptMaxPrepMinutes, 60))),
-          deliveryMileFees: normalizeMileFees(settings.deliveryMileFees),
-          deliveryPostcodeZones: mergeHullPostcodeZones(settings.deliveryPostcodeZones as HullPostcodeZone[] | undefined),
-          deliveryOriginLatitude:
-            settings.deliveryOriginLatitude == null || settings.deliveryOriginLatitude === ""
-              ? null
-              : Number(settings.deliveryOriginLatitude),
-          deliveryOriginLongitude:
-            settings.deliveryOriginLongitude == null || settings.deliveryOriginLongitude === ""
-              ? null
-              : Number(settings.deliveryOriginLongitude),
-          openingHours: normalizeOpeningHours(settings.openingHours) as StoreOpeningHours,
-        }
-      : settings;
+  const normalizedSettings = settings ? normalizeSettingsPatchFields(settings) : settings;
 
   return {
     ...body,
@@ -389,10 +446,14 @@ export const prepareMerchantWorkspaceUpdateBody = (raw: unknown): unknown => {
   };
 };
 
-const merchantWorkspaceUpdateBodySchema = z.object({
-  settings: hubSettingsSchema,
-  menuSections: z.array(hubMenuSectionUpdateSchema).optional(),
-});
+const merchantWorkspaceUpdateBodySchema = z
+  .object({
+    settings: hubSettingsPatchSchema.optional(),
+    menuSections: z.array(hubMenuSectionUpdateSchema).optional(),
+  })
+  .refine((body) => body.settings !== undefined || body.menuSections !== undefined, {
+    message: "Workspace save must include settings and/or menuSections.",
+  });
 
 export const merchantWorkspaceUpdateInputSchema = z.preprocess(
   prepareMerchantWorkspaceUpdateBody,
@@ -438,6 +499,8 @@ export type HubActiveOrder = z.infer<typeof hubActiveOrderSchema>;
 export type HubSummary = z.infer<typeof hubSummarySchema>;
 export type AdminHubStatus = z.infer<typeof adminHubStatusSchema>;
 export type AdminHubSummary = z.infer<typeof adminHubSummarySchema>;
+export type HubDeletionRestoreSnapshot = z.infer<typeof hubDeletionRestoreSnapshotSchema>;
+export type AdminDeletedHubSummary = z.infer<typeof adminDeletedHubSummarySchema>;
 export type HubUser = z.infer<typeof hubUserSchema>;
 export type UpdateHubUserLocaleInput = z.infer<typeof updateHubUserLocaleInputSchema>;
 export type HubSettings = z.infer<typeof hubSettingsSchema>;

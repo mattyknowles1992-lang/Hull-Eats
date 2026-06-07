@@ -590,15 +590,19 @@ export function AccountClient() {
       </div>
 
       <div className="register-form-block">
+        <div className="register-form-heading">
+          <h3>Account settings</h3>
+          <p>Privacy and account closure options for your Hull Eats customer account.</p>
+        </div>
+        <Link href="/legal/privacy" className="secondary-button account-settings-link">
+          Privacy notice
+        </Link>
         <p className="form-helper">
-          <Link href="/legal/privacy" className="ghost-link">
-            Privacy
-          </Link>
-          {" · "}
-          <Link href="/legal/close-account" className="ghost-link">
-            Close account
-          </Link>
+          If you want to leave Hull Eats, read how account closure works and what we keep on record before you continue.
         </p>
+        <Link href="/legal/close-account" className="secondary-button account-close-link">
+          Close your account
+        </Link>
       </div>
 
       {notice ? <p className={noticeIsError ? "form-message form-message-error" : "form-message form-message-success"}>{notice}</p> : null}

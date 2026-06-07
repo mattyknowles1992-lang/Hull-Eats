@@ -107,9 +107,6 @@ export function SiteFooter() {
               <li>
                 <Link href="/legal/cookies">Cookie notice</Link>
               </li>
-              <li>
-                <Link href="/legal/close-account">Close your account</Link>
-              </li>
             </ul>
           </div>
         </div>

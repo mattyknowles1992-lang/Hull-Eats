@@ -210,6 +210,25 @@ export async function fetchAdminHubs(token: string): Promise<AdminHubSummary[]> 
   return parseJson<AdminHubSummary[]>(response);
 }
 
+export type AdminDeletedHubSummary = {
+  id: string;
+  businessName: string;
+  slug: string;
+  ownerName: string;
+  hubUsername: string;
+  deletedAt: string;
+  recoverableUntil: string;
+  daysRemaining: number;
+  wasListedOnMarketplace: boolean;
+  wasAcceptingOrders: boolean;
+};
+
+export async function fetchAdminDeletedHubs(token: string): Promise<AdminDeletedHubSummary[]> {
+  const response = await authedFetch("/v1/admin/hubs/deleted", token);
+  await assertAdminResponseOk(response, "Admin deleted hub fetch failed");
+  return parseJson<AdminDeletedHubSummary[]>(response);
+}
+
 export async function fetchAdminUsers(token: string): Promise<AdminHubUserSummary[]> {
   const response = await authedFetch("/v1/admin/users", token);
   await assertAdminResponseOk(response, "Admin user fetch failed");
@@ -266,7 +285,15 @@ export async function deleteAdminHub(token: string, hubId: string) {
     method: "DELETE",
   });
   await assertAdminResponseOk(response, "Admin hub delete failed");
-  return parseJson<{ deletedHubId: string; deletedBusinessName: string }>(response);
+  return parseJson<{ deletedHubId: string; deletedBusinessName: string; recoverableUntil: string }>(response);
+}
+
+export async function restoreAdminHub(token: string, hubId: string) {
+  const response = await authedFetch(`/v1/admin/hubs/${encodeURIComponent(hubId)}/restore`, token, {
+    method: "POST",
+  });
+  await assertAdminResponseOk(response, "Admin hub restore failed");
+  return parseJson<{ hub: AdminHubSummary; restoredBusinessName: string }>(response);
 }
 
 export async function publishAdminHub(token: string, hubId: string) {

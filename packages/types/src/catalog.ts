@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { storefrontHeroCropSchema } from "./storefront-hero-image";
+
 import { storeDeliveryPricingSchema } from "./delivery-pricing";
 
 export const storeTypes = ["restaurant", "takeaway", "shop"] as const;
@@ -100,6 +102,7 @@ export const storeSummarySchema = z.object({
   closesAtTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
   cuisineLabel: z.string().optional(),
   heroImageUrl: z.string().url().optional(),
+  heroImageCrop: storefrontHeroCropSchema.optional(),
   logoImageUrl: z.string().url().optional(),
   etaMinutes: z.number().int().positive().optional(),
   minimumOrderAmount: z.number().nonnegative().optional(),
@@ -110,6 +113,8 @@ export const storeSummarySchema = z.object({
   homepageFeatureOrder: z.number().int().positive().nullable().default(null),
   menuSetupComplete: z.boolean().default(false),
   onboardingMessage: z.string().optional(),
+  /** True when the hub has at least one courier/driver linked for live delivery tracking. */
+  courierTrackingAvailable: z.boolean().default(false),
 });
 
 export type DeliveryZone = z.infer<typeof deliveryZoneSchema>;

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { deliveryFeeFromForStorefront, formatClosesInLabel } from "@hull-eats/types";
+import { deliveryFeeFromForStorefront, formatClosesInLabel, storefrontHeroMediaStyle } from "@hull-eats/types";
 
 import { JsonLd } from "../../../src/components/json-ld";
 import { AppSwitcher } from "../../app-switcher";
@@ -72,9 +72,7 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
 
       <section
         className="store-hero"
-        style={{
-          backgroundImage: `linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0) 42%, rgba(8, 14, 24, 0.28)), url(${store.heroImageUrl})`,
-        }}
+        style={storefrontHeroMediaStyle(store.heroImageUrl, store.heroImageCrop)}
       >
         <div className="store-hero-content">
           <h1>{store.name}</h1>
