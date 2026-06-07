@@ -32,7 +32,7 @@ import {
   isHubMenuMealDealsCategory,
   isHubMenuSectionPizza,
   isHubMenuStaffLibrarySection,
-  parseHubSettingsPatchForSection,
+  buildHubSettingsSectionSavePayload,
 } from "@hull-eats/types";
 
 import { HubConfigBackups } from "./hub-config-backups";
@@ -110,6 +110,7 @@ import {
   mergePartialSettingsAfterSave,
   normalizeWorkspaceSettings,
   revertHubSettingsSection,
+  syncHubSettingsSectionFromSnapshot,
   type HubWorkspaceSnapshot,
 } from "./merchant-workspace-state";
 
@@ -757,6 +758,7 @@ export default function MerchantPortalPage() {
       options?: {
         sectionsSentWithRequest?: HubMenuSection[];
         settingsSentWithRequest?: Partial<HubSettings>;
+        settingsSection?: HubSettingsPatchSection;
       },
     ) => {
       const serverSettings = normalizeWorkspaceSettings(workspace.settings);
@@ -785,7 +787,9 @@ export default function MerchantPortalPage() {
       setHubUsers(workspace.users);
       setPendingImports(workspace.pendingImports ?? []);
 
-      if (localStillMatchesRequest) {
+      if (options?.settingsSection) {
+        setHubSettings((current) => syncHubSettingsSectionFromSnapshot(current, settingsSnapshot, options.settingsSection!));
+      } else if (localStillMatchesRequest) {
         const mergedLiveSettings = mergeGeocodedSettingsFromServer(localSettings, settingsSent, serverSettings);
         if (JSON.stringify(mergedLiveSettings) !== JSON.stringify(localSettings)) {
           setHubSettings(mergedLiveSettings);
@@ -828,6 +832,7 @@ export default function MerchantPortalPage() {
           Boolean(singleOptions.menuOnly) &&
           (!savedSnapshot || JSON.stringify(sectionsSnapshot) !== JSON.stringify(savedSnapshot.menuSections));
         let settingsPayload: Partial<HubSettings> | undefined;
+        const silent = singleOptions.silent ?? false;
 
         if (singleOptions.settingsSection) {
           if (
@@ -836,7 +841,23 @@ export default function MerchantPortalPage() {
           ) {
             return true;
           }
-          settingsPayload = parseHubSettingsPatchForSection(singleOptions.settingsSection, settingsSnapshot);
+          try {
+            settingsPayload = buildHubSettingsSectionSavePayload(
+              singleOptions.settingsSection,
+              settingsSnapshot,
+              savedSnapshot.settings,
+            );
+          } catch (error) {
+            const message = friendlyCaughtError(error, "workspace_save");
+            if (!silent) {
+              setMenuHubPersistState("error");
+              setSaveNotice(message);
+            }
+            return false;
+          }
+          if (!settingsPayload || Object.keys(settingsPayload).length === 0) {
+            return true;
+          }
         } else if (singleOptions.menuOnly) {
           settingsPayload = undefined;
         } else if (singleOptions.manualCheckpoint) {
@@ -850,9 +871,9 @@ export default function MerchantPortalPage() {
         }
 
         menuSaveInFlightRef.current = true;
-        const silent = singleOptions.silent ?? false;
         if (!silent) {
           setMenuHubPersistState("saving");
+          setSaveNotice("");
         }
         if (singleOptions.manualCheckpoint) {
           setMenuPublishing(true);
@@ -877,9 +898,13 @@ export default function MerchantPortalPage() {
               applyWorkspaceSaveResult(workspace, {
                 sectionsSentWithRequest: includeMenu ? sectionsSnapshot : undefined,
                 settingsSentWithRequest: settingsPayload,
+                settingsSection: singleOptions.settingsSection,
               });
               if (!silent) {
                 setMenuHubPersistState("saved");
+              }
+              if (!silent && singleOptions.settingsSection) {
+                setSaveNotice(t("common.settingsSaved"));
               }
               if (singleOptions.manualCheckpoint) {
                 setSaveNotice("Draft saved on your hub — ready to publish when you choose.");
@@ -937,6 +962,7 @@ export default function MerchantPortalPage() {
           }
           if (!(options?.silent ?? false)) {
             setMenuHubPersistState("saved");
+            setSaveNotice(t("common.settingsSaved"));
           }
           return true;
         }
@@ -957,7 +983,7 @@ export default function MerchantPortalPage() {
       }
       return true;
     },
-    [activeHubId, applyWorkspaceSaveResult, hubAccess?.canEditWorkspace, merchantToken, savedHubSnapshot],
+    [activeHubId, applyWorkspaceSaveResult, hubAccess?.canEditWorkspace, merchantToken, savedHubSnapshot, t],
   );
 
   useEffect(() => {
@@ -1669,7 +1695,6 @@ export default function MerchantPortalPage() {
     if (!saved) {
       return;
     }
-    setSaveNotice(`All hub settings saved for ${hubSettings.name}.`);
   };
 
   const handleSaveHubSettings = async () => {
@@ -1695,7 +1720,6 @@ export default function MerchantPortalPage() {
       if (!saved) {
         return;
       }
-      setSaveNotice(`Changes saved for ${hubSettings.name}.`);
       return;
     }
 
@@ -2393,6 +2417,7 @@ export default function MerchantPortalPage() {
     );
   }
 
+  const hubSaveInProgress = menuHubPersistState === "saving" || unsavedLeaveBusy;
   const saveHubButtonStyle = hasUnsavedActiveSectionChanges
     ? { ...primaryButton, ...saveHubButtonDirtyStyle }
     : primaryButton;
@@ -2599,9 +2624,13 @@ export default function MerchantPortalPage() {
                   className={hasUnsavedHubSettingsChanges ? "he-portal-primary is-dirty" : "he-portal-primary"}
                   style={saveAllSettingsButtonStyle}
                   onClick={() => void handleSaveAllSettings()}
-                  disabled={!hubAccess?.canEditWorkspace || !hasUnsavedHubSettingsChanges}
+                  disabled={!hubAccess?.canEditWorkspace || !hasUnsavedHubSettingsChanges || hubSaveInProgress}
                 >
-                  {hasUnsavedHubSettingsChanges ? t("common.saveAllSettingsDirty") : t("common.saveAllSettings")}
+                  {hubSaveInProgress
+                    ? t("common.saving")
+                    : hasUnsavedHubSettingsChanges
+                      ? t("common.saveAllSettingsDirty")
+                      : t("common.saveAllSettings")}
                 </button>
                 <span style={subtleInfo}>{t("dashboard.dashboardSaveHint")}</span>
               </div>
@@ -2620,9 +2649,9 @@ export default function MerchantPortalPage() {
                 type="button"
                 style={saveAllSettingsButtonStyle}
                 onClick={() => void handleSaveAllSettings()}
-                disabled={!hubAccess?.canEditWorkspace}
+                disabled={!hubAccess?.canEditWorkspace || hubSaveInProgress}
               >
-                {t("common.saveAllSettings")}
+                {hubSaveInProgress ? t("common.saving") : t("common.saveAllSettings")}
               </button>
             ) : null}
           </div>
@@ -2638,7 +2667,8 @@ export default function MerchantPortalPage() {
           <HubTransientBanner
             message={saveNotice}
             onDismiss={() => setSaveNotice("")}
-            variant={/fail|error|could not/i.test(saveNotice) ? "error" : "success"}
+            durationMs={/saved|complete|no changes/i.test(saveNotice) ? 6000 : 4500}
+            variant={/fail|error|could not|invalid|incomplete/i.test(saveNotice) ? "error" : "success"}
           />
         ) : null}
         {(activeHubSection === "menu" ||
@@ -3654,8 +3684,12 @@ export default function MerchantPortalPage() {
                 <strong style={{ color: "#101216" }}>{t("common.saveThisPage")}</strong>
                 <span style={subtleInfo}>{t("common.saveTheseHubChangesHint")}</span>
               </div>
-              <button type="button" style={saveHubButtonStyle} onClick={handleSaveHubSettings} disabled={!hubAccess?.canEditWorkspace || !hasUnsavedActiveSectionChanges}>
-                {hasUnsavedActiveSectionChanges ? t("common.saveHubChangesDirty") : t("common.saveThisPage")}
+              <button type="button" style={saveHubButtonStyle} onClick={handleSaveHubSettings} disabled={!hubAccess?.canEditWorkspace || !hasUnsavedActiveSectionChanges || hubSaveInProgress}>
+                {hubSaveInProgress
+                  ? t("common.saving")
+                  : hasUnsavedActiveSectionChanges
+                    ? t("common.saveHubChangesDirty")
+                    : t("common.saveThisPage")}
               </button>
             </div>
           ) : null}
@@ -3676,6 +3710,7 @@ export default function MerchantPortalPage() {
       saveLabel={t("common.unsavedLeaveSave")}
       discardLabel={t("common.unsavedLeaveDiscard")}
       stayLabel={t("common.unsavedLeaveStay")}
+      savingLabel={t("common.saving")}
       onSave={() => void handleUnsavedLeaveSave()}
       onDiscard={handleUnsavedLeaveDiscard}
       onStay={handleUnsavedLeaveStay}

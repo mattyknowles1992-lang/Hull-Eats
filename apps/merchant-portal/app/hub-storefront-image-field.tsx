@@ -33,7 +33,7 @@ async function fileToOptimisedDataUrl(file: File): Promise<string> {
 
   const dataUrl = canvas.toDataURL("image/jpeg", JPEG_QUALITY);
   if (dataUrl.length > MAX_FILE_BYTES * 1.4) {
-    throw new Error("Image is still too large after resizing. Use a smaller photo or paste an image link.");
+    throw new Error("Image is still too large after resizing. Use a smaller photo.");
   }
 
   return dataUrl;
@@ -351,24 +351,6 @@ export function HubStorefrontImageField({ value, crop, onChange, disabled }: Hub
         </div>
       </div>
 
-      <label style={urlField}>
-        <span style={urlLabel}>Or paste image link</span>
-        <input
-          style={urlInput}
-          value={value?.startsWith("data:") ? "" : (value ?? "")}
-          disabled={disabled}
-          placeholder="https://..."
-          onChange={(event) => {
-            const url = event.target.value.trim();
-            if (!url) {
-              onChange({ url: "", crop: defaultStorefrontHeroCrop() });
-              return;
-            }
-            onChange({ url, crop: defaultStorefrontHeroCrop() });
-          }}
-        />
-      </label>
-
       {error ? <p style={errorText}>{error}</p> : null}
     </div>
   );
@@ -429,14 +411,6 @@ const clearButton: CSSProperties = {
   color: "#8a2121",
   fontWeight: 800,
   cursor: "pointer",
-};
-const urlField: CSSProperties = { display: "grid", gap: 6 };
-const urlLabel: CSSProperties = { fontSize: "0.82rem", color: "#5b6470", fontWeight: 700 };
-const urlInput: CSSProperties = {
-  padding: "10px 12px",
-  borderRadius: 12,
-  border: "1px solid rgba(15, 17, 21, 0.15)",
-  font: "inherit",
 };
 const errorText: CSSProperties = { margin: 0, color: "#8a2121", fontSize: "0.82rem", fontWeight: 700 };
 const editorShell: CSSProperties = { display: "grid", gap: 12, gridColumn: "1 / -1" };

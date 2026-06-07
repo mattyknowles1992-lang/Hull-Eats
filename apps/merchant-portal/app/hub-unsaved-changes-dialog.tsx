@@ -2,6 +2,8 @@
 
 import type { CSSProperties } from "react";
 
+import { HE_BRAND } from "./portal-brand";
+
 type HubUnsavedChangesDialogProps = {
   open: boolean;
   busy?: boolean;
@@ -10,6 +12,7 @@ type HubUnsavedChangesDialogProps = {
   saveLabel: string;
   discardLabel: string;
   stayLabel: string;
+  savingLabel?: string;
   onSave: () => void;
   onDiscard: () => void;
   onStay: () => void;
@@ -23,6 +26,7 @@ export function HubUnsavedChangesDialog({
   saveLabel,
   discardLabel,
   stayLabel,
+  savingLabel = "Saving…",
   onSave,
   onDiscard,
   onStay,
@@ -46,7 +50,7 @@ export function HubUnsavedChangesDialog({
         <p style={copyStyle}>{copy}</p>
         <div style={actions}>
           <button type="button" style={primaryButton} onClick={onSave} disabled={busy}>
-            {busy ? "Saving…" : saveLabel}
+            {busy ? savingLabel : saveLabel}
           </button>
           <button type="button" style={secondaryButton} onClick={onDiscard} disabled={busy}>
             {discardLabel}
@@ -104,18 +108,18 @@ const primaryButton: CSSProperties = {
   border: "none",
   borderRadius: 999,
   padding: "12px 18px",
-  background: "#101216",
+  background: HE_BRAND.gradient,
   color: "#fff",
   fontWeight: 700,
   cursor: "pointer",
 };
 
 const secondaryButton: CSSProperties = {
-  border: "1px solid rgba(15, 17, 21, 0.14)",
+  border: `1px solid ${HE_BRAND.blue}`,
   borderRadius: 999,
   padding: "12px 18px",
   background: "#fff",
-  color: "#101216",
+  color: HE_BRAND.blue,
   fontWeight: 600,
   cursor: "pointer",
 };
@@ -125,7 +129,7 @@ const ghostButton: CSSProperties = {
   borderRadius: 999,
   padding: "10px 18px",
   background: "transparent",
-  color: "rgba(15, 17, 21, 0.72)",
+  color: HE_BRAND.blue,
   fontWeight: 600,
   cursor: "pointer",
 };

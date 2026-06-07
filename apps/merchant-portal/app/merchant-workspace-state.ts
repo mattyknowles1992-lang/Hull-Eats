@@ -70,6 +70,7 @@ export const cloneHubSettings = (settings: HubSettings): HubSettings => {
     deliveryPostcodeZones: normalized.deliveryPostcodeZones.map((zone) => ({ ...zone })),
     deliveryMileFees: [...normalized.deliveryMileFees] as HubSettings["deliveryMileFees"],
     openingHours: normalized.openingHours.map((day) => ({ ...day })),
+    kitchenTicket: normalizeKitchenTicketSettings(normalized.kitchenTicket),
   };
 };
 
@@ -128,6 +129,18 @@ export function revertHubSettingsSection(
   const next = cloneHubSettings(current);
   for (const key of HUB_SETTINGS_PATCH_KEYS[section]) {
     (next as Record<string, unknown>)[key] = JSON.parse(JSON.stringify(saved[key]));
+  }
+  return next;
+};
+
+export function syncHubSettingsSectionFromSnapshot(
+  current: HubSettings,
+  snapshot: HubSettings,
+  section: HubSettingsPatchSection,
+): HubSettings {
+  const next = cloneHubSettings(current);
+  for (const key of HUB_SETTINGS_PATCH_KEYS[section]) {
+    (next as Record<string, unknown>)[key] = JSON.parse(JSON.stringify(snapshot[key]));
   }
   return next;
 };

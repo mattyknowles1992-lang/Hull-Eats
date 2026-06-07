@@ -14,7 +14,7 @@ import {
 
 import { menuItemSchema, storeTypeSchema, storefrontStatusSchema, type MenuItem } from "./catalog";
 import { hubMenuTemplateSchema } from "./hub-menu-template";
-import { storefrontHeroCropSchema } from "./storefront-hero-image";
+import { storefrontHeroCropSchema, hubStorefrontImageUrlSchema } from "./storefront-hero-image";
 import { sanitizeMenuItemMoneyFields, sanitizeMenuMoneyAmount } from "./menu-money";
 import { membershipRoleSchema } from "./rbac";
 import { normalizeOpeningHours, storeOpeningHoursSchema, type StoreOpeningHours } from "./store-opening-hours";
@@ -125,7 +125,7 @@ export const hubSettingsSchema = z.object({
   acceptingOrders: z.boolean().default(true),
   isOpen: z.boolean(),
   logoImageUrl: z.string().default(""),
-  heroImageUrl: z.string().default(""),
+  heroImageUrl: hubStorefrontImageUrlSchema,
   /** Pan/zoom focal point for hero image on customer store cards. */
   heroImageCrop: storefrontHeroCropSchema.default({ focusX: 50, focusY: 50, zoom: 1 }),
   /** When true, new web orders are accepted immediately using quoted prep (capped below). Kitchen print queues on accept. */

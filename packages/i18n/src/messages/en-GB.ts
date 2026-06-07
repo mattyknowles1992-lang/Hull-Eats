@@ -55,6 +55,8 @@ export const enGBMessages = {
     heroCopy: "Run orders, menu changes, earnings, users, and store setup from one clear workspace.",
     saveHubChanges: "Save hub changes",
     saveHubChangesDirty: "Save hub changes *",
+    settingsSaved: "Settings saved.",
+    settingsSavedHint: "Your changes are saved. You can continue to another page.",
     saveAllSettings: "Save all settings",
     saveAllSettingsDirty: "Save all settings *",
     saveThisPage: "Save this page",

@@ -47,7 +47,7 @@ export function workspaceSaveRetryDelayMs(attemptIndex: number): number {
 
 export function workspaceSaveAttemptNotice(attempt: number, maxAttempts: number): string {
   if (attempt <= 1) {
-    return "Saving your draft to the hub…";
+    return "Saving…";
   }
   return `Connection interrupted — retrying save (${attempt}/${maxAttempts})…`;
 }

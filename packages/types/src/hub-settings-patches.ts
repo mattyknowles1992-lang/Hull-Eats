@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { normalizeKitchenTicketSettings } from "./kitchen-ticket";
 import { hubSettingsPatchSchema, hubSettingsSchema, type HubSettings } from "./hubs";
 
 export const hubBusinessProfileSettingsPatchSchema = hubSettingsSchema.pick({
@@ -69,6 +70,21 @@ export const HUB_SETTINGS_PATCH_KEYS = {
 
 export type HubSettingsPatchSection = keyof typeof HUB_SETTINGS_PATCH_KEYS;
 
+export function hubSettingsFieldEqual(
+  key: keyof HubSettings,
+  left: HubSettings,
+  right: HubSettings,
+): boolean {
+  if (key === "kitchenTicket") {
+    return (
+      JSON.stringify(normalizeKitchenTicketSettings(left.kitchenTicket)) ===
+      JSON.stringify(normalizeKitchenTicketSettings(right.kitchenTicket))
+    );
+  }
+
+  return JSON.stringify(left[key]) === JSON.stringify(right[key]);
+}
+
 export function pickHubSettingsPatch(section: HubSettingsPatchSection, settings: HubSettings): Partial<HubSettings> {
   const keys = HUB_SETTINGS_PATCH_KEYS[section];
   const patch: Record<string, unknown> = {};
@@ -99,7 +115,38 @@ export function hubSettingsSectionHasChanges(
   saved: HubSettings,
 ): boolean {
   const keys = HUB_SETTINGS_PATCH_KEYS[section];
-  return keys.some((key) => JSON.stringify(current[key]) !== JSON.stringify(saved[key]));
+  return keys.some((key) => !hubSettingsFieldEqual(key, current, saved));
+}
+
+export function pickChangedHubSettingsPatch(
+  section: HubSettingsPatchSection,
+  current: HubSettings,
+  saved: HubSettings,
+): Partial<HubSettings> {
+  const keys = HUB_SETTINGS_PATCH_KEYS[section];
+  const patch: Record<string, unknown> = {};
+  for (const key of keys) {
+    if (!hubSettingsFieldEqual(key, current, saved)) {
+      patch[key] = current[key];
+    }
+  }
+  return patch as Partial<HubSettings>;
+}
+
+/** Validate only changed keys, then return the minimal PATCH body. */
+export function buildHubSettingsSectionSavePayload(
+  section: HubSettingsPatchSection,
+  current: HubSettings,
+  saved: HubSettings,
+): Partial<HubSettings> {
+  const changedPatch = pickChangedHubSettingsPatch(section, current, saved);
+  if (Object.keys(changedPatch).length === 0) {
+    return {};
+  }
+
+  hubSettingsPatchSchema.parse(changedPatch);
+
+  return changedPatch;
 }
 
 export function parseHubSettingsPatchForSection(section: HubSettingsPatchSection, settings: HubSettings) {

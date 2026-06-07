@@ -97,17 +97,44 @@ function mapKnownApiMessage(message: string): string | null {
   if (lowered.includes("too many")) {
     return STATUS_HINTS[429] ?? CONTEXT_FALLBACK.generic;
   }
+  if (lowered.includes("request validation failed") || lowered === "validation") {
+    return null;
+  }
 
   return null;
 }
 
+const WORKSPACE_SETTINGS_VALIDATION_MESSAGE =
+  "Some menu or hub settings look incomplete or invalid. Check prices, names, and delivery details, then save again.";
+
+function isOpaqueValidationMessage(message: string): boolean {
+  const trimmed = message.trim().toLowerCase();
+  if (!trimmed || trimmed === "validation" || trimmed === "invalid") {
+    return true;
+  }
+  if (trimmed.includes("request validation failed")) {
+    return true;
+  }
+  if (/^validation\b/.test(trimmed)) {
+    return true;
+  }
+  return false;
+}
+
 function humanizeValidationMessage(message: string): string {
+  if (isOpaqueValidationMessage(message)) {
+    return WORKSPACE_SETTINGS_VALIDATION_MESSAGE;
+  }
+
   if (!looksTechnical(message)) {
+    if (/expected|required|received|invalid type|too small|too big|too long|too short/i.test(message)) {
+      return WORKSPACE_SETTINGS_VALIDATION_MESSAGE;
+    }
     return message;
   }
 
   if (/menu|price|category|item|opening|delivery|settings/i.test(message)) {
-    return "Some menu or hub settings look incomplete or invalid. Check prices, names, and delivery details, then save again.";
+    return WORKSPACE_SETTINGS_VALIDATION_MESSAGE;
   }
 
   return CONTEXT_FALLBACK.workspace_save;
@@ -126,6 +153,10 @@ export function friendlyMerchantMessage(raw: string, context: MerchantErrorConte
   const known = mapKnownApiMessage(message);
   if (known) {
     return known;
+  }
+
+  if (isOpaqueValidationMessage(message)) {
+    return context === "workspace_save" ? WORKSPACE_SETTINGS_VALIDATION_MESSAGE : STATUS_HINTS[400] ?? CONTEXT_FALLBACK[context];
   }
 
   if (looksTechnical(message)) {
@@ -158,21 +189,39 @@ export async function readMerchantApiError(response: Response, context: Merchant
     };
 
     if (Array.isArray(body.issues) && body.issues.length > 0) {
+      const combined = body.issues
+        .map((issue) => {
+          const path = Array.isArray(issue.path) ? issue.path.join(".") : issue.path ?? "";
+          const detail = issue.message?.trim() ?? "";
+          if (path && detail) {
+            return `${path}: ${detail}`;
+          }
+          return path || detail;
+        })
+        .filter(Boolean)
+        .join("; ");
       const hasMenuOrSettings = body.issues.some((issue) => {
         const path = Array.isArray(issue.path) ? issue.path.join(".") : issue.path ?? "";
         return /menu|settings|price|delivery|opening|category|item/i.test(path);
       });
       if (hasMenuOrSettings || context === "workspace_save") {
-        return humanizeValidationMessage("validation");
+        return humanizeValidationMessage(combined);
       }
       return STATUS_HINTS[400] ?? CONTEXT_FALLBACK[context];
     }
 
+    if (typeof body.message === "string" && body.message.trim()) {
+      const normalized = friendlyMerchantMessage(body.message, context);
+      if (context === "workspace_save" && isOpaqueValidationMessage(body.message)) {
+        return WORKSPACE_SETTINGS_VALIDATION_MESSAGE;
+      }
+      return normalized;
+    }
+    if (typeof (body as { summary?: string }).summary === "string" && (body as { summary?: string }).summary?.trim()) {
+      return friendlyMerchantMessage((body as { summary: string }).summary, context);
+    }
     if (Array.isArray(body.message)) {
       return friendlyMerchantMessage(body.message.join(" "), context);
-    }
-    if (typeof body.message === "string" && body.message.trim()) {
-      return friendlyMerchantMessage(body.message, context);
     }
     if (typeof body.error === "string" && body.error.trim()) {
       return friendlyMerchantMessage(body.error, context);

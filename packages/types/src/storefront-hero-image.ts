@@ -14,6 +14,32 @@ export const storefrontHeroCropSchema = z.object({
 
 export type StorefrontHeroCrop = z.infer<typeof storefrontHeroCropSchema>;
 
+/** Max uploaded storefront hero payload (~440KB base64) — keeps PATCH bodies under API limits. */
+export const MAX_STOREFRONT_HERO_DATA_URL_CHARS = 600_000;
+
+export const hubStorefrontImageUrlSchema = z.preprocess((value) => {
+  if (value == null) {
+    return "";
+  }
+  if (typeof value !== "string") {
+    return "";
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+  if (trimmed.startsWith("data:image/")) {
+    return trimmed;
+  }
+  try {
+    // eslint-disable-next-line no-new
+    new URL(trimmed);
+    return trimmed;
+  } catch {
+    return "";
+  }
+}, z.string().max(MAX_STOREFRONT_HERO_DATA_URL_CHARS, "Storefront image is too large. Use a smaller photo.")).default("");
+
 export const defaultStorefrontHeroCrop = (): StorefrontHeroCrop =>
   storefrontHeroCropSchema.parse({});
 

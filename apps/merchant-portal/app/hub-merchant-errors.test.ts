@@ -14,6 +14,9 @@ describe("friendlyMerchantMessage", () => {
 
   it("humanizes validation paths on save", () => {
     expect(friendlyMerchantMessage("settings.deliveryFee: Expected number", "workspace_save")).toMatch(/menu or hub settings/i);
+    expect(friendlyMerchantMessage("validation", "workspace_save")).toMatch(/menu or hub settings/i);
+    expect(friendlyMerchantMessage("validation", "workspace_save")).not.toMatch(/^validation$/i);
+    expect(friendlyMerchantMessage("Request validation failed", "workspace_save")).toMatch(/menu or hub settings/i);
   });
 });
 
