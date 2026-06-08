@@ -101,7 +101,7 @@ export const createOrderInputSchema = z.object({
 });
 
 export const merchantAcceptOrderSchema = z.object({
-  prepTimeMinutes: z.number().int().min(1).max(180),
+  prepTimeMinutes: z.number().int().min(10).max(180),
 });
 
 export const merchantRejectOrderSchema = z.object({
@@ -143,6 +143,8 @@ export const orderSummarySchema = z.object({
   customerCancelUntil: z.string().datetime().optional(),
   /** When status is pending and manual acceptance is on, hub must accept by this ISO time or the order auto-cancels (120s). */
   merchantResponseDeadlineAt: z.string().datetime().optional(),
+  /** Suggested prep when confirming a pending order (smart/manual modes). */
+  suggestedPrepMinutes: z.number().int().min(10).max(180).optional(),
 });
 
 /** Line items included on the public track-order payload for customer receipts. */

@@ -5,7 +5,9 @@ import type { PrintJobPayload } from "./printer";
 export const kitchenTicketDetailModes = ["normal", "in_depth"] as const;
 export type KitchenTicketDetailMode = (typeof kitchenTicketDetailModes)[number];
 
-export const kitchenTicketKinds = ["kitchen", "delivery"] as const;
+/** @deprecated Single order ticket only — kind is ignored. */
+export const kitchenTicketKinds = ["order"] as const;
+/** @deprecated Use unified order ticket settings instead. */
 export type KitchenTicketKind = (typeof kitchenTicketKinds)[number];
 
 export const kitchenTicketBlockIds = [
@@ -85,15 +87,47 @@ const kitchenTicketLayoutSchema = z.object({
   blocks: z.record(z.boolean()).optional().default({}),
 });
 
+/** Max uploaded ticket logo payload — keeps PATCH bodies reasonable. */
+export const MAX_TICKET_LOGO_DATA_URL_CHARS = 200_000;
+
+export const hubTicketLogoUrlSchema = z.preprocess((value) => {
+  if (value == null) {
+    return "";
+  }
+  if (typeof value !== "string") {
+    return "";
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+  if (trimmed.startsWith("data:image/")) {
+    return trimmed;
+  }
+  try {
+    // eslint-disable-next-line no-new
+    new URL(trimmed);
+    return trimmed;
+  } catch {
+    return "";
+  }
+}, z.string().max(MAX_TICKET_LOGO_DATA_URL_CHARS, "Ticket logo is too large. Use a smaller image.")).default("");
+
+const legacyKitchenTicketLayoutSchema = kitchenTicketLayoutSchema.optional();
+
 export const kitchenTicketSettingsSchema = z.object({
   /** Normal = extras, salad, sauce on ticket only. In-depth = include burger/kebab build parts. */
   detailMode: z.enum(kitchenTicketDetailModes).default("normal"),
   /** Print 2 x patty as two lines of 1 x patty (easier to tick off). */
   splitQuantityLines: z.boolean().default(false),
-  /** Optional logo on kitchen/delivery tickets (falls back to hub logo when empty). */
-  ticketLogoUrl: z.string().default(""),
-  kitchen: kitchenTicketLayoutSchema.default({}),
-  delivery: kitchenTicketLayoutSchema.default({}),
+  /** Optional logo printed on the order ticket (upload in merchant portal). */
+  ticketLogoUrl: hubTicketLogoUrlSchema,
+  /** One ticket for the whole order — kitchen checklist, bag label, and courier scan. */
+  order: kitchenTicketLayoutSchema.default({}),
+  /** @deprecated Migrated into `order` on read. */
+  kitchen: legacyKitchenTicketLayoutSchema,
+  /** @deprecated Migrated into `order` on read. */
+  delivery: legacyKitchenTicketLayoutSchema,
 });
 
 export type KitchenTicketSettings = z.infer<typeof kitchenTicketSettingsSchema>;
@@ -129,8 +163,33 @@ export function defaultKitchenTicketBlockVisibility(): Record<KitchenTicketBlock
   };
 }
 
+function mergeLegacyTicketBlocks(
+  value: Partial<KitchenTicketSettings> | null | undefined,
+): Record<string, boolean> {
+  const defaults = defaultKitchenTicketBlockVisibility();
+  const merged: Record<string, boolean> = { ...defaults };
+
+  for (const blockId of kitchenTicketBlockIds) {
+    const orderOverride = value?.order?.blocks?.[blockId];
+    const deliveryOverride = value?.delivery?.blocks?.[blockId];
+    const kitchenOverride = value?.kitchen?.blocks?.[blockId];
+
+    if (orderOverride !== undefined) {
+      merged[blockId] = orderOverride;
+    } else if (deliveryOverride !== undefined) {
+      merged[blockId] = deliveryOverride;
+    } else if (kitchenOverride !== undefined) {
+      merged[blockId] = kitchenOverride;
+    }
+  }
+
+  return merged;
+}
+
 export function defaultKitchenTicketSettings(): KitchenTicketSettings {
-  return kitchenTicketSettingsSchema.parse({});
+  return kitchenTicketSettingsSchema.parse({
+    order: { blocks: defaultKitchenTicketBlockVisibility() },
+  });
 }
 
 export function normalizeKitchenTicketSettings(
@@ -140,11 +199,12 @@ export function normalizeKitchenTicketSettings(
   if (!value || typeof value !== "object") {
     return defaults;
   }
+
   return kitchenTicketSettingsSchema.parse({
-    ...defaults,
-    ...value,
-    kitchen: { blocks: { ...defaults.kitchen.blocks, ...value.kitchen?.blocks } },
-    delivery: { blocks: { ...defaults.delivery.blocks, ...value.delivery?.blocks } },
+    detailMode: value.detailMode ?? defaults.detailMode,
+    splitQuantityLines: value.splitQuantityLines ?? defaults.splitQuantityLines,
+    ticketLogoUrl: value.ticketLogoUrl ?? defaults.ticketLogoUrl,
+    order: { blocks: mergeLegacyTicketBlocks(value) },
   });
 }
 
@@ -154,12 +214,12 @@ export function composePartsLibrariesEnabled(settings: KitchenTicketSettings): b
 
 export function isKitchenTicketBlockVisible(
   settings: KitchenTicketSettings,
-  kind: KitchenTicketKind,
-  blockId: KitchenTicketBlockId,
+  blockIdOrKind: KitchenTicketBlockId | KitchenTicketKind,
+  maybeBlockId?: KitchenTicketBlockId,
 ): boolean {
+  const blockId = maybeBlockId ?? (blockIdOrKind as KitchenTicketBlockId);
   const defaults = defaultKitchenTicketBlockVisibility();
-  const layout = kind === "kitchen" ? settings.kitchen : settings.delivery;
-  const override = layout.blocks?.[blockId];
+  const override = settings.order.blocks?.[blockId];
   if (override === undefined) {
     return defaults[blockId];
   }
@@ -320,140 +380,49 @@ function formatLineChecklist(
   return rows.filter((entry) => entry.trim().length > 0);
 }
 
-export function formatKitchenTicketPreview(
-  kind: KitchenTicketKind,
+/** One ticket for cook → bag → courier scan → delivery. */
+export function formatOrderTicketPreview(
   settings: KitchenTicketSettings,
   payload: KitchenTicketPayload,
   order?: KitchenTicketOrderSnapshot,
   options?: { hubLogoUrl?: string },
 ): string {
-  const show = (blockId: KitchenTicketBlockId) => isKitchenTicketBlockVisible(settings, kind, blockId);
+  const show = (blockId: KitchenTicketBlockId) => isKitchenTicketBlockVisible(settings, blockId);
   const showComponents = settings.detailMode === "in_depth" && show("buildComponents");
   const lines = payload.lines.map((line) => mergeLineFromOrderNotes(line, settings));
 
   const receiptDivider = "--------------------------------";
   const logoUrl = settings.ticketLogoUrl.trim() || options?.hubLogoUrl?.trim() || "";
-
-  if (kind === "delivery") {
-    const body: string[] = [];
-
-    if (show("headerBranding")) {
-      body.push("          HULL EATS", " Anything you want. Delivered.");
-      if (payload.storeName) {
-        body.push(`          ${payload.storeName}`);
-      }
-    }
-
-    body.push(receiptDivider);
-
-    if (show("ticketTitle")) {
-      body.push("             DELIVERY");
-    }
-
-    if (show("placedAt")) {
-      body.push(`Placed: ${formatReceiptTime(payload.placedAtIso)}`);
-    }
-
-    if (show("orderNumber")) {
-      body.push(`# ${payload.orderNumber}`);
-    }
-
-    if (show("prepTime") && payload.prepTimeMinutes) {
-      body.push(`PREP TIME: ${payload.prepTimeMinutes} minutes`);
-    }
-
-    if (show("ticketLogo") && logoUrl) {
-      body.push(`[LOGO] ${logoUrl}`);
-    }
-
-    body.push(receiptDivider);
-
-    lines.forEach((line, index) => {
-      const formatted = formatLineChecklist(line, settings, { showComponents });
-      const firstLine = formatted[0] ?? "";
-      const head = show("lineIndex") ? `${index + 1}. ${firstLine}` : firstLine;
-      if (head) {
-        body.push(head, ...formatted.slice(1), "");
-      }
-    });
-
-    if (show("orderNotes") && payload.notes?.trim()) {
-      body.push(`ORDER NOTES: ${payload.notes.trim()}`);
-    }
-
-    body.push(receiptDivider);
-
-    if (show("totals") && order?.subtotalAmount !== undefined) {
-      body.push(`Subtotal: ${formatReceiptMoney(order.subtotalAmount)}`);
-    }
-    if (show("totals") && order?.deliveryFee !== undefined) {
-      body.push(`Delivery charge: ${formatReceiptMoney(order.deliveryFee)}`);
-    }
-    if (show("totals") && order?.totalAmount !== undefined) {
-      body.push(`Total due: ${formatReceiptMoney(order.totalAmount)} ${order.currency ?? "GBP"}`);
-    }
-
-    body.push(receiptDivider);
-
-    if (show("payment")) {
-      body.push(
-        String(order?.paymentStatus ?? "pending").toLowerCase() === "paid"
-          ? "       ORDER HAS BEEN PAID"
-          : "          PAYMENT PENDING",
-      );
-      body.push(`Payment method: ${String(order?.paymentMethod ?? "dojo_card").replaceAll("_", " ").toUpperCase()}`);
-    }
-
-    body.push(receiptDivider);
-
-    if (show("customerBlock")) {
-      body.push("Customer details:", payload.customerName);
-      if (order?.customerPhone) {
-        body.push(`Phone: ${order.customerPhone}`);
-      }
-      if (order?.customerEmail) {
-        body.push(`Email: ${order.customerEmail}`);
-      }
-      body.push("");
-    }
-
-    if (show("deliveryAddress")) {
-      body.push("Delivery address:", ...formatAddressLines(order));
-      body.push(receiptDivider);
-    }
-
-    if (show("courierQr")) {
-      body.push("Scan the QR code below to start", "courier tracking for this order.", `Backup order number: ${payload.orderNumber}`);
-    }
-
-    return body.filter((line) => line !== "").join("\n");
-  }
-
   const body: string[] = [];
-
-  if (show("headerBranding")) {
-    body.push("       KITCHEN TICKET");
-    if (payload.storeName) {
-      body.push(`       ${payload.storeName}`);
-    }
-  }
 
   if (show("ticketLogo") && logoUrl) {
     body.push(`[LOGO] ${logoUrl}`);
   }
 
+  if (show("headerBranding")) {
+    body.push("          HULL EATS", " Anything you want. Delivered.");
+    if (payload.storeName) {
+      body.push(`          ${payload.storeName}`);
+    }
+  }
+
   body.push(receiptDivider);
 
-  if (show("orderNumber")) {
-    body.push(`# ${payload.orderNumber}`);
+  if (show("ticketTitle")) {
+    body.push("          ORDER TICKET");
+    body.push("   Cook · stick on bag · scan to deliver");
   }
 
   if (show("placedAt")) {
     body.push(`Placed: ${formatReceiptTime(payload.placedAtIso)}`);
   }
 
+  if (show("orderNumber")) {
+    body.push(`# ${payload.orderNumber}`);
+  }
+
   if (show("prepTime") && payload.prepTimeMinutes) {
-    body.push(`Prep: ${payload.prepTimeMinutes} min`);
+    body.push(`PREP TIME: ${payload.prepTimeMinutes} minutes`);
   }
 
   body.push(receiptDivider, "CHECKLIST", "");
@@ -471,7 +440,68 @@ export function formatKitchenTicketPreview(
     body.push(`ORDER NOTES: ${payload.notes.trim()}`);
   }
 
+  body.push(receiptDivider);
+
+  if (show("totals") && order?.subtotalAmount !== undefined) {
+    body.push(`Subtotal: ${formatReceiptMoney(order.subtotalAmount)}`);
+  }
+  if (show("totals") && order?.deliveryFee !== undefined) {
+    body.push(`Delivery charge: ${formatReceiptMoney(order.deliveryFee)}`);
+  }
+  if (show("totals") && order?.totalAmount !== undefined) {
+    body.push(`Total due: ${formatReceiptMoney(order.totalAmount)} ${order.currency ?? "GBP"}`);
+  }
+
+  if (show("totals")) {
+    body.push(receiptDivider);
+  }
+
+  if (show("payment")) {
+    body.push(
+      String(order?.paymentStatus ?? "pending").toLowerCase() === "paid"
+        ? "       ORDER HAS BEEN PAID"
+        : "          PAYMENT PENDING",
+    );
+    body.push(`Payment method: ${String(order?.paymentMethod ?? "dojo_card").replaceAll("_", " ").toUpperCase()}`);
+    body.push(receiptDivider);
+  }
+
+  if (show("customerBlock")) {
+    body.push("Customer details:", payload.customerName);
+    if (order?.customerPhone) {
+      body.push(`Phone: ${order.customerPhone}`);
+    }
+    if (order?.customerEmail) {
+      body.push(`Email: ${order.customerEmail}`);
+    }
+    body.push("");
+  }
+
+  if (show("deliveryAddress")) {
+    body.push("Delivery address:", ...formatAddressLines(order));
+    body.push(receiptDivider);
+  }
+
+  if (show("courierQr")) {
+    body.push(
+      "Scan the QR code below to start",
+      "courier tracking for this order.",
+      `Backup order number: ${payload.orderNumber}`,
+    );
+  }
+
   return body.filter((line) => line !== "").join("\n");
+}
+
+/** @deprecated Kind is ignored — use `formatOrderTicketPreview`. */
+export function formatKitchenTicketPreview(
+  _kind: KitchenTicketKind | "kitchen" | "delivery",
+  settings: KitchenTicketSettings,
+  payload: KitchenTicketPayload,
+  order?: KitchenTicketOrderSnapshot,
+  options?: { hubLogoUrl?: string },
+): string {
+  return formatOrderTicketPreview(settings, payload, order, options);
 }
 
 export function sampleKitchenTicketPayload(): KitchenTicketPayload {
@@ -489,13 +519,13 @@ export function sampleKitchenTicketPayload(): KitchenTicketPayload {
         quantity: 1,
         totalPrice: 8.5,
         components: [
-          { label: 'Brioche bun', quantity: 1 },
-          { label: '3oz smash patty', quantity: 2 },
-          { label: 'Cheese', quantity: 2 },
-          { label: 'Onion', quantity: 1 },
-          { label: 'Lettuce', quantity: 1 },
-          { label: 'Gherkin', quantity: 1 },
-          { label: 'Burger sauce', quantity: 1 },
+          { label: "Brioche bun", quantity: 1 },
+          { label: "3oz smash patty", quantity: 2 },
+          { label: "Cheese", quantity: 2 },
+          { label: "Onion", quantity: 1 },
+          { label: "Lettuce", quantity: 1 },
+          { label: "Gherkin", quantity: 1 },
+          { label: "Burger sauce", quantity: 1 },
         ],
         selectedOptions: [{ groupName: "Extra sauce", valueName: "Garlic mayo", quantity: 1, priceDelta: 0.5 }],
       },

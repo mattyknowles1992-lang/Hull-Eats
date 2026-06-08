@@ -1,6 +1,10 @@
 import { z } from "zod";
 
 import { defaultKitchenTicketSettings, kitchenTicketSettingsSchema } from "./kitchen-ticket";
+import { deriveOrderAcceptanceModeFromLegacy, orderAcceptanceModes, orderAcceptanceUsesAutoAccept } from "./order-acceptance";
+
+export { deriveOrderAcceptanceModeFromLegacy, orderAcceptanceModes, orderAcceptanceUsesAutoAccept };
+export type { OrderAcceptanceMode } from "./order-acceptance";
 
 import {
   deliveryDistanceRangeSchema,
@@ -128,10 +132,18 @@ export const hubSettingsSchema = z.object({
   heroImageUrl: hubStorefrontImageUrlSchema,
   /** Pan/zoom focal point for hero image on customer store cards. */
   heroImageCrop: storefrontHeroCropSchema.default({ focusX: 50, focusY: 50, zoom: 1 }),
-  /** When true, new web orders are accepted immediately using quoted prep (capped below). Kitchen print queues on accept. */
+  /** @deprecated Derived from `orderAcceptanceMode` — kept for API/DB compatibility. */
   autoAcceptOrders: z.boolean().default(false),
-  /** When auto-accepting, quoted prep minutes is min(store ETA, this value). */
+  /** @deprecated Use `orderAcceptance.standardMaxPrepMinutes`. */
   autoAcceptMaxPrepMinutes: z.number().int().min(5).max(180).default(60),
+  /** Manual confirm, standard auto-accept, or smart auto-accept with kitchen-load prep. */
+  orderAcceptanceMode: z.enum(orderAcceptanceModes).default("manual"),
+  /** Cap for auto-accept quoted prep (standard and smart modes). */
+  orderAcceptanceMaxPrepMinutes: z.number().int().min(10).max(180).default(60),
+  /** Baseline suggested prep for manual accept and smart mode when the kitchen is quiet. */
+  smartPrepBaselineMinutes: z.number().int().min(10).max(180).default(40),
+  /** Rolling window (minutes) for counting active orders in smart prep. */
+  smartPrepWindowMinutes: z.number().int().min(15).max(180).default(45),
   /** How delivery area is defined: circle from shop, or per Hull outward district. */
   deliveryMode: deliveryModeSchema.default("business_radius"),
   /** Max road distance (miles) from the store origin (business-radius mode). */
@@ -148,7 +160,7 @@ export const hubSettingsSchema = z.object({
   orderFulfillment: hubOrderFulfillmentSchema.default("delivery_and_collection"),
   /** Weekly open/close times in Europe/London (Hull, UK). */
   openingHours: storeOpeningHoursSchema,
-  /** Kitchen and delivery print ticket layout (also gates burger/kebab parts libraries when in-depth). */
+  /** Order print ticket layout — one ticket for cook, bag, and courier scan (also gates burger/kebab parts when in-depth). */
   kitchenTicket: kitchenTicketSettingsSchema.default(defaultKitchenTicketSettings()),
   /** Menu Studio layout: full takeaway tooling vs simplified retail list builder. */
   menuTemplate: hubMenuTemplateSchema.default("full_food"),

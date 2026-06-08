@@ -1,16 +1,19 @@
 "use client";
 
-import { useMemo } from "react";
-
-import type { HubSettings, KitchenTicketBlockId, KitchenTicketKind, KitchenTicketSettings } from "@hull-eats/types";
+import type { HubSettings, KitchenTicketBlockId, KitchenTicketSettings } from "@hull-eats/types";
 import {
   composePartsLibrariesEnabled,
   defaultKitchenTicketBlockVisibility,
-  formatKitchenTicketPreview,
   isKitchenTicketBlockVisible,
   kitchenTicketBlockIds,
-  sampleKitchenTicketPayload,
 } from "@hull-eats/types";
+
+import {
+  HULL_EATS_TICKET_LOGO_PLACEHOLDER,
+  OrderTicketVisualMockup,
+  resolveTicketMockupLogo,
+} from "./hub-kitchen-ticket-mockup";
+import { HubTicketLogoField } from "./hub-ticket-logo-field";
 
 type Props = {
   settings: KitchenTicketSettings;
@@ -23,7 +26,7 @@ type Props = {
 const blockLabels: Record<KitchenTicketBlockId, string> = {
   headerBranding: "Header / branding",
   ticketLogo: "Ticket logo",
-  ticketTitle: "Ticket title",
+  ticketTitle: "Order title & flow line",
   orderNumber: "Order number",
   placedAt: "Placed time",
   prepTime: "Prep time",
@@ -42,77 +45,45 @@ const blockLabels: Record<KitchenTicketBlockId, string> = {
   courierQr: "Courier QR / backup code",
 };
 
-const ticketKindLabels: Record<KitchenTicketKind, string> = {
-  kitchen: "Kitchen checklist ticket",
-  delivery: "Delivery / bag ticket",
-};
+const exampleModes = [
+  {
+    detailMode: "normal" as const,
+    label: "Example 1 — Normal",
+    description: "Extras, salad, and sauce on the ticket only.",
+  },
+  {
+    detailMode: "in_depth" as const,
+    label: "Example 2 — In depth",
+    description: "Full build checklist with buns, patties, cheese, and more.",
+  },
+];
 
 function patchBlock(
   settings: KitchenTicketSettings,
-  kind: KitchenTicketKind,
   blockId: KitchenTicketBlockId,
   visible: boolean,
 ): KitchenTicketSettings {
-  const layoutKey = kind === "kitchen" ? "kitchen" : "delivery";
   return {
     ...settings,
-    [layoutKey]: {
+    order: {
       blocks: {
-        ...settings[layoutKey].blocks,
+        ...settings.order.blocks,
         [blockId]: visible,
       },
     },
   };
 }
 
-function TicketPreview({
-  kind,
-  settings,
-  hubLogoUrl,
-}: {
-  kind: KitchenTicketKind;
-  settings: KitchenTicketSettings;
-  hubLogoUrl?: string;
-}) {
-  const preview = useMemo(
-    () =>
-      formatKitchenTicketPreview(kind, settings, sampleKitchenTicketPayload(), {
-        paymentStatus: "paid",
-        paymentMethod: "dojo_card",
-        customerPhone: "01482 000000",
-        addressLine1: "12 Example Street",
-        city: "Hull",
-        postcode: "HU1 1AA",
-        subtotalAmount: 8.5,
-        deliveryFee: 2.5,
-        totalAmount: 11,
-        currency: "GBP",
-      }, { hubLogoUrl }),
-    [kind, settings, hubLogoUrl],
-  );
-
-  const visibleBlocks = kitchenTicketBlockIds.filter((blockId) => isKitchenTicketBlockVisible(settings, kind, blockId));
-
-  return (
-    <div className="hub-kitchen-ticket-preview">
-      <p className="hub-kitchen-ticket-preview__label">{ticketKindLabels[kind]}</p>
-      <pre className="hub-kitchen-ticket-preview__paper" aria-label={`${ticketKindLabels[kind]} preview`}>
-        {preview}
-      </pre>
-      <p className="hub-kitchen-ticket-preview__meta">{visibleBlocks.length} sections shown</p>
-    </div>
-  );
-}
-
 export function HubKitchenTicketSettings({
   settings,
-  hubLogoUrl,
   readOnly = false,
   onChange,
   onEnableComposePartsLibraries,
 }: Props) {
   const composeEnabled = composePartsLibrariesEnabled(settings);
   const defaults = defaultKitchenTicketBlockVisibility();
+  const { src: mockupLogoSrc, isPlaceholder: mockupLogoIsPlaceholder } = resolveTicketMockupLogo(settings.ticketLogoUrl);
+  const visibleBlocks = kitchenTicketBlockIds.filter((blockId) => isKitchenTicketBlockVisible(settings, blockId));
 
   const setDetailMode = (detailMode: KitchenTicketSettings["detailMode"]) => {
     const next = { ...settings, detailMode };
@@ -127,36 +98,50 @@ export function HubKitchenTicketSettings({
       <header className="hub-kitchen-ticket-settings__head">
         <h3 className="hub-kitchen-ticket-settings__title">Print tickets</h3>
         <p className="hub-kitchen-ticket-settings__copy">
-          Set up <strong>Extras, salad &amp; sauces</strong> and assign them per item as today. Choose how kitchen and
-          delivery tickets print. <strong>In-depth</strong> adds burger and kebab parts libraries so you can build
-          items like brioche bun, patties, and cheese — those appear on the kitchen checklist.
+          One ticket for the whole order — the kitchen cooks from the checklist, sticks it on the bag, and the courier
+          scans the QR to deliver. Set up <strong>Extras, salad &amp; sauces</strong> per item as today, then pick your
+          ticket style below.
         </p>
       </header>
 
-      <fieldset className="hub-kitchen-ticket-settings__mode" disabled={readOnly}>
-        <legend className="hub-kitchen-ticket-settings__legend">Ticket detail</legend>
-        <label className="hub-kitchen-ticket-settings__radio">
-          <input
-            type="radio"
-            name="kitchen-ticket-detail"
-            checked={settings.detailMode === "normal"}
-            onChange={() => setDetailMode("normal")}
-          />
-          <span>
-            <strong>Normal</strong> — extras, salad, and sauce on the ticket only (no build parts).
-          </span>
-        </label>
-        <label className="hub-kitchen-ticket-settings__radio">
-          <input
-            type="radio"
-            name="kitchen-ticket-detail"
-            checked={settings.detailMode === "in_depth"}
-            onChange={() => setDetailMode("in_depth")}
-          />
-          <span>
-            <strong>In-depth checklist</strong> — lists each burger/kebab part (bun, patty, cheese, onion…) plus extras.
-          </span>
-        </label>
+      <HubTicketLogoField
+        value={settings.ticketLogoUrl}
+        placeholderLogoSrc={HULL_EATS_TICKET_LOGO_PLACEHOLDER}
+        disabled={readOnly}
+        onChange={(ticketLogoUrl) => onChange({ ...settings, ticketLogoUrl })}
+      />
+
+      <fieldset className="hub-kitchen-ticket-settings__examples" disabled={readOnly}>
+        <legend className="hub-kitchen-ticket-settings__legend">Choose your ticket style</legend>
+        <div className="hub-kitchen-ticket-settings__example-grid">
+          {exampleModes.map((example) => {
+            const selected = settings.detailMode === example.detailMode;
+            return (
+              <button
+                key={example.detailMode}
+                type="button"
+                className={
+                  selected
+                    ? "hub-kitchen-ticket-settings__example hub-kitchen-ticket-settings__example--selected"
+                    : "hub-kitchen-ticket-settings__example"
+                }
+                aria-pressed={selected}
+                onClick={() => setDetailMode(example.detailMode)}
+              >
+                <span className="hub-kitchen-ticket-settings__example-label">{example.label}</span>
+                <OrderTicketVisualMockup
+                  detailMode={example.detailMode}
+                  settings={settings}
+                  logoSrc={mockupLogoSrc}
+                  logoIsPlaceholder={mockupLogoIsPlaceholder}
+                  compact
+                />
+                <span className="hub-kitchen-ticket-settings__example-copy">{example.description}</span>
+                {selected ? <span className="hub-kitchen-ticket-settings__example-badge">Selected</span> : null}
+              </button>
+            );
+          })}
+        </div>
       </fieldset>
 
       {composeEnabled ? (
@@ -165,7 +150,7 @@ export function HubKitchenTicketSettings({
         </p>
       ) : (
         <p className="hub-kitchen-ticket-settings__notice">
-          Burger and kebab part libraries stay hidden until you choose <strong>In-depth checklist</strong>.
+          Burger and kebab part libraries stay hidden until you choose <strong>Example 2 — In depth</strong>.
         </p>
       )}
 
@@ -182,57 +167,50 @@ export function HubKitchenTicketSettings({
         </span>
       </label>
 
-      <label className="hub-kitchen-ticket-settings__field">
-        <span>Ticket logo URL (optional)</span>
-        <input
-          type="url"
-          disabled={readOnly}
-          value={settings.ticketLogoUrl}
-          placeholder={hubLogoUrl?.trim() ? "Uses hub logo when empty" : "https://…"}
-          onChange={(event) => onChange({ ...settings, ticketLogoUrl: event.target.value })}
-        />
-        <span className="hub-kitchen-ticket-settings__hint">
-          Shown when <strong>Ticket logo</strong> is ticked below. Leave blank to use your hub logo from Business profile.
-        </span>
-      </label>
-
-      {( ["kitchen", "delivery"] as const).map((kind) => (
-        <details key={kind} className="hub-kitchen-ticket-settings__ticket-panel" open={kind === "kitchen"}>
-          <summary>{ticketKindLabels[kind]}</summary>
-          <div className="hub-kitchen-ticket-settings__ticket-body">
-            <div className="hub-kitchen-ticket-settings__blocks">
-              <p className="hub-kitchen-ticket-settings__blocks-title">Show on ticket</p>
-              <ul className="hub-kitchen-ticket-settings__block-list">
-                {kitchenTicketBlockIds.map((blockId) => {
-                  const disabled =
-                    readOnly ||
-                    (settings.detailMode === "normal" &&
-                      (blockId === "buildComponents" || blockId === "removedComponents"));
-                  const checked = isKitchenTicketBlockVisible(settings, kind, blockId);
-                  const isDefault = defaults[blockId];
-                  return (
-                    <li key={`${kind}-${blockId}`}>
-                      <label className="hub-kitchen-ticket-settings__block-toggle">
-                        <input
-                          type="checkbox"
-                          disabled={disabled}
-                          checked={checked}
-                          onChange={(event) => onChange(patchBlock(settings, kind, blockId, event.target.checked))}
-                        />
-                        <span>
-                          {blockLabels[blockId]}
-                          {!isDefault && checked ? " (custom)" : null}
-                        </span>
-                      </label>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-            <TicketPreview kind={kind} settings={settings} hubLogoUrl={hubLogoUrl || settings.ticketLogoUrl} />
+      <div className="hub-kitchen-ticket-settings__ticket-panel">
+        <h4 className="hub-kitchen-ticket-settings__ticket-panel-title">Order ticket</h4>
+        <div className="hub-kitchen-ticket-settings__ticket-body">
+          <div className="hub-kitchen-ticket-settings__blocks">
+            <p className="hub-kitchen-ticket-settings__blocks-title">Show on ticket</p>
+            <ul className="hub-kitchen-ticket-settings__block-list">
+              {kitchenTicketBlockIds.map((blockId) => {
+                const disabled =
+                  readOnly ||
+                  (settings.detailMode === "normal" &&
+                    (blockId === "buildComponents" || blockId === "removedComponents"));
+                const checked = isKitchenTicketBlockVisible(settings, blockId);
+                const isDefault = defaults[blockId];
+                return (
+                  <li key={blockId}>
+                    <label className="hub-kitchen-ticket-settings__block-toggle">
+                      <input
+                        type="checkbox"
+                        disabled={disabled}
+                        checked={checked}
+                        onChange={(event) => onChange(patchBlock(settings, blockId, event.target.checked))}
+                      />
+                      <span>
+                        {blockLabels[blockId]}
+                        {!isDefault && checked ? " (custom)" : null}
+                      </span>
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
-        </details>
-      ))}
+          <div className="hub-kitchen-ticket-preview">
+            <p className="hub-kitchen-ticket-preview__label">Full order ticket preview</p>
+            <OrderTicketVisualMockup
+              detailMode={settings.detailMode}
+              settings={settings}
+              logoSrc={mockupLogoSrc}
+              logoIsPlaceholder={mockupLogoIsPlaceholder}
+            />
+            <p className="hub-kitchen-ticket-preview__meta">{visibleBlocks.length} sections shown</p>
+          </div>
+        </div>
+      </div>
     </section>
   );
 }

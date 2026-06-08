@@ -48,6 +48,8 @@ import {
   saveBrowserMenuDraft,
 } from "./hub-menu-browser-draft";
 import { HubKitchenTicketSettings } from "./hub-kitchen-ticket-settings";
+import { HubOrderAcceptanceSettings } from "./hub-order-acceptance-settings";
+import { HubOrderPrepPicker } from "./hub-order-prep-picker";
 import { HubMenuStudio } from "./hub-menu-studio";
 import { composePartsLibrariesEnabled } from "@hull-eats/types";
 import { HubTransientBanner } from "./hub-transient-banner";
@@ -338,6 +340,7 @@ export default function MerchantPortalPage() {
   const [menuSections, setMenuSections] = useState<HubMenuSection[]>([]);
   const [pendingImports, setPendingImports] = useState<MerchantWorkspace["pendingImports"]>([]);
   const [merchantOrders, setMerchantOrders] = useState<OrderSummary[]>([]);
+  const [orderPrepMinutes, setOrderPrepMinutes] = useState<Record<string, number>>({});
   const [merchantOrderHistory, setMerchantOrderHistory] = useState<OrderSummary[]>([]);
   const [ordersClockTick, setOrdersClockTick] = useState(0);
   const [newUser, setNewUser] = useState<CreateUserFormState>(initialCreateUserState);
@@ -1136,6 +1139,15 @@ export default function MerchantPortalPage() {
     try {
       const orders = await fetchMerchantOrders(token);
       setMerchantOrders(orders);
+      setOrderPrepMinutes((current) => {
+        const next = { ...current };
+        for (const order of orders) {
+          if (order.status === "pending" && next[order.id] == null) {
+            next[order.id] = order.suggestedPrepMinutes ?? hubSettings.smartPrepBaselineMinutes;
+          }
+        }
+        return next;
+      });
     } catch {
       if (!options.silent) {
         setOrderNotice(t("errors.ordersRefreshFailed"));
@@ -1158,7 +1170,7 @@ export default function MerchantPortalPage() {
     }
   };
 
-  const handleAcceptMerchantOrder = async (order: OrderSummary) => {
+  const handleAcceptMerchantOrder = async (order: OrderSummary, prepTimeMinutes: number) => {
     if (!merchantToken) {
       return;
     }
@@ -1169,7 +1181,7 @@ export default function MerchantPortalPage() {
     }
 
     try {
-      await acceptMerchantOrder(merchantToken, order.id, hubSettings.etaMinutes);
+      await acceptMerchantOrder(merchantToken, order.id, prepTimeMinutes);
       await loadMerchantOrders(merchantToken, { silent: true });
       await loadMerchantOrderHistory(merchantToken, { silent: true });
       setOrderNotice(t("orders.orderAccepted"));
@@ -1274,7 +1286,7 @@ export default function MerchantPortalPage() {
                   <small>Anything you want. Delivered.</small>
                   <span>${escapeHtml(order.orderNumber)}</span>
                 </div>
-                <div class="bag-note">Customer bag receipt</div>
+                <div class="bag-note">Stick on bag — courier scans QR to deliver</div>
                 <pre>${escapeHtml(receipt.preview)}</pre>
                 ${
                   qrCodeImage
@@ -2777,18 +2789,36 @@ export default function MerchantPortalPage() {
                   <div style={itemBadgeRow}>
                     <span style={darkBadge}>{order.status}</span>
                     {isPending && hubAccess?.canOperateOrders ? (
-                      <>
-                        <button
-                          type="button"
-                          style={{ ...primaryButton, minHeight: 40, padding: "0 14px", borderRadius: 14, fontSize: 14 }}
-                          onClick={() => void handleAcceptMerchantOrder(order)}
-                        >
-                          {t("orders.acceptOrder", { eta: hubSettings.etaMinutes })}
-                        </button>
-                        <button type="button" style={secondaryButtonSmall} onClick={() => void handleRejectMerchantOrder(order)}>
-                          {t("orders.reject")}
-                        </button>
-                      </>
+                      <div className="he-order-accept-actions">
+                        <HubOrderPrepPicker
+                          value={orderPrepMinutes[order.id] ?? order.suggestedPrepMinutes ?? hubSettings.smartPrepBaselineMinutes}
+                          onChange={(prepTimeMinutes) =>
+                            setOrderPrepMinutes((current) => ({ ...current, [order.id]: prepTimeMinutes }))
+                          }
+                        />
+                        {order.suggestedPrepMinutes ? (
+                          <p className="he-order-accept-actions__hint">
+                            Suggested {order.suggestedPrepMinutes} min based on current kitchen load.
+                          </p>
+                        ) : null}
+                        <div className="he-order-accept-actions__buttons">
+                          <button
+                            type="button"
+                            style={{ ...primaryButton, minHeight: 40, padding: "0 14px", borderRadius: 14, fontSize: 14 }}
+                            onClick={() =>
+                              void handleAcceptMerchantOrder(
+                                order,
+                                orderPrepMinutes[order.id] ?? order.suggestedPrepMinutes ?? hubSettings.smartPrepBaselineMinutes,
+                              )
+                            }
+                          >
+                            Confirm order
+                          </button>
+                          <button type="button" style={secondaryButtonSmall} onClick={() => void handleRejectMerchantOrder(order)}>
+                            {t("orders.reject")}
+                          </button>
+                        </div>
+                      </div>
                     ) : null}
                     {hubAccess?.canOperateOrders ? (
                     <button type="button" style={secondaryButtonSmall} onClick={() => void handlePrintOrderReceipt(order)}>
@@ -3475,9 +3505,12 @@ export default function MerchantPortalPage() {
               <div style={panelHeader}>
                 <p style={eyebrowDark}>{t("settings.storeSettings")}</p>
                 <h2 style={sectionTitle}>{t("settings.operationsBackups")}</h2>
-                <p style={panelCopyDark}>{t("settings.operationsBackupsCopy")}</p>
+                <p style={panelCopyDark}>
+                  Set your standard delivery ETA and how new orders are accepted. Minimum order values are set per postcode
+                  area under Delivery ranges.
+                </p>
               </div>
-              <div className="he-two-col" style={twoColumnGrid}>
+              <div className="he-store-operations-grid">
                 <label style={field}>
                   <span style={darkFieldLabel}>{t("settings.deliveryEta")}</span>
                   <HubFreeTypeNumberInput
@@ -3485,42 +3518,16 @@ export default function MerchantPortalPage() {
                     min={1}
                     style={lightInput}
                     value={hubSettings.etaMinutes}
+                    disabled={!hubAccess?.canEditWorkspace}
                     onCommit={(etaMinutes) => handleHubFieldChange("etaMinutes", etaMinutes)}
                   />
+                  <p style={subtleInfo}>Standard quoted delivery time for auto-accept and customer estimates.</p>
                 </label>
-                <label style={field}>
-                  <span style={darkFieldLabel}>{t("settings.minimumOrder")}</span>
-                  <HubFreeTypeNumberInput
-                    min={0}
-                    style={lightInput}
-                    value={hubSettings.minimumOrderAmount}
-                    onCommit={(minimumOrderAmount) => handleHubFieldChange("minimumOrderAmount", minimumOrderAmount)}
-                  />
-                </label>
-                <label style={{ display: "flex", gridColumn: "1 / -1", gap: 12, alignItems: "center" }}>
-                  <input
-                    type="checkbox"
-                    checked={hubSettings.autoAcceptOrders}
-                    onChange={(event) => handleHubFieldChange("autoAcceptOrders", event.target.checked)}
-                    style={{ width: 18, height: 18 }}
-                  />
-                  <span style={darkFieldLabel}>{t("settings.autoAcceptOrders")}</span>
-                </label>
-                {hubSettings.autoAcceptOrders ? (
-                  <label style={field}>
-                    <span style={darkFieldLabel}>{t("settings.autoAcceptMaxPrep")}</span>
-                    <HubFreeTypeNumberInput
-                      integer
-                      min={5}
-                      max={180}
-                      style={lightInput}
-                      value={hubSettings.autoAcceptMaxPrepMinutes}
-                      onCommit={(autoAcceptMaxPrepMinutes) =>
-                        handleHubFieldChange("autoAcceptMaxPrepMinutes", autoAcceptMaxPrepMinutes)
-                      }
-                    />
-                  </label>
-                ) : null}
+                <HubOrderAcceptanceSettings
+                  settings={hubSettings}
+                  readOnly={!hubAccess?.canEditWorkspace}
+                  onChange={(patch) => setHubSettings((current) => ({ ...current, ...patch }))}
+                />
               </div>
               {merchantToken && activeHubId ? (
                 <HubConfigBackups
@@ -3536,7 +3543,6 @@ export default function MerchantPortalPage() {
 
               <HubKitchenTicketSettings
                 settings={hubSettings.kitchenTicket}
-                hubLogoUrl={hubSettings.logoImageUrl}
                 readOnly={!hubAccess?.canEditWorkspace}
                 onChange={(kitchenTicket) => {
                   setHubSettings((current) => ({ ...current, kitchenTicket }));

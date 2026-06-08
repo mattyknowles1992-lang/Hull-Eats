@@ -37,6 +37,10 @@ export const hubStoreSettingsPatchSchema = hubSettingsSchema.pick({
   etaMinutes: true,
   autoAcceptOrders: true,
   autoAcceptMaxPrepMinutes: true,
+  orderAcceptanceMode: true,
+  orderAcceptanceMaxPrepMinutes: true,
+  smartPrepBaselineMinutes: true,
+  smartPrepWindowMinutes: true,
   kitchenTicket: true,
 });
 
@@ -65,7 +69,16 @@ export const HUB_SETTINGS_PATCH_KEYS = {
     "deliveryFee",
     "minimumOrderAmount",
   ],
-  settings: ["etaMinutes", "autoAcceptOrders", "autoAcceptMaxPrepMinutes", "kitchenTicket"],
+  settings: [
+    "etaMinutes",
+    "autoAcceptOrders",
+    "autoAcceptMaxPrepMinutes",
+    "orderAcceptanceMode",
+    "orderAcceptanceMaxPrepMinutes",
+    "smartPrepBaselineMinutes",
+    "smartPrepWindowMinutes",
+    "kitchenTicket",
+  ],
 } as const satisfies Record<string, readonly (keyof HubSettings)[]>;
 
 export type HubSettingsPatchSection = keyof typeof HUB_SETTINGS_PATCH_KEYS;

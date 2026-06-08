@@ -9,15 +9,21 @@ import type {
   PrintJobPayload,
 } from "@hull-eats/types";
 import {
+  computeQuotedPrepMinutes,
+  deriveOrderAcceptanceModeFromLegacy,
   encodeLineCustomisationMarker,
-  formatKitchenTicketPreview,
+  formatOrderTicketPreview,
   isStoreOpenInEuropeLondon,
   merchantDriverCashUpResponseSchema,
   mergeLineFromOrderNotes,
   normalizeOpeningHours,
+  normalizeOrderAcceptanceSettings,
+  orderAcceptanceUsesAutoAccept,
   orderSummarySchema,
   printJobPayloadSchema,
   readKitchenTicketFromDeliveryConfig,
+  readOrderAcceptanceFromDeliveryConfig,
+  roundPrepToStep,
 } from "@hull-eats/types";
 import { Prisma } from "@prisma/client";
 
@@ -33,6 +39,63 @@ const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}
 const MERCHANT_PENDING_TIMEOUT_MS = 120_000;
 const CUSTOMER_CANCEL_GRACE_MS = 60_000;
 const TERMINAL_MERCHANT_ORDER_STATUSES = ["DELIVERED", "CANCELLED", "REJECTED"] as const;
+const KITCHEN_LOAD_STATUSES = [
+  "PENDING",
+  "ACCEPTED",
+  "PREPARING",
+  "READY_FOR_DISPATCH",
+  "ASSIGNED",
+  "COURIER_ACCEPTED",
+  "PICKED_UP",
+] as const;
+
+type StoreAcceptanceContext = {
+  autoAcceptOrders?: boolean | null;
+  autoAcceptMaxPrepMinutes?: number | null;
+  etaMinutes?: number | null;
+  deliveryConfig?: unknown;
+};
+
+function resolveStoreOrderAcceptance(store: StoreAcceptanceContext) {
+  const raw = store.deliveryConfig as { orderAcceptance?: { mode?: string } } | null | undefined;
+  const stored = readOrderAcceptanceFromDeliveryConfig(store.deliveryConfig);
+  const mode =
+    raw?.orderAcceptance?.mode != null
+      ? stored.mode
+      : deriveOrderAcceptanceModeFromLegacy(Boolean(store.autoAcceptOrders));
+  const settings = normalizeOrderAcceptanceSettings({
+    mode,
+    standardMaxPrepMinutes: store.autoAcceptMaxPrepMinutes ?? stored.standardMaxPrepMinutes,
+    smartPrepBaselineMinutes: stored.smartPrepBaselineMinutes,
+    smartPrepWindowMinutes: stored.smartPrepWindowMinutes,
+  });
+  return { mode, settings };
+}
+
+async function countActiveOrdersInWindow(storeId: string, windowMinutes: number): Promise<number> {
+  const since = new Date(Date.now() - windowMinutes * 60_000);
+  return prisma.order.count({
+    where: {
+      storeId,
+      status: { in: [...KITCHEN_LOAD_STATUSES] as any },
+      placedAt: { gte: since },
+    },
+  });
+}
+
+async function suggestPrepMinutesForPendingOrder(
+  order: { storeId: string; placedAt: Date },
+  store: StoreAcceptanceContext,
+): Promise<number> {
+  const { settings } = resolveStoreOrderAcceptance(store);
+  const activeOrdersInWindow = await countActiveOrdersInWindow(order.storeId, settings.smartPrepWindowMinutes);
+  return computeQuotedPrepMinutes({
+    mode: "smart_auto",
+    etaMinutes: store.etaMinutes ?? 25,
+    settings,
+    activeOrdersInWindow: Math.max(1, activeOrdersInWindow),
+  });
+}
 
 const normalisePhone = (value: string) => value.replace(/\s+/g, "").trim();
 
@@ -85,10 +148,12 @@ export const buildOrderSummaryForClient = (order: {
   currency: string;
   placedAt: Date;
   prepTimeMinutes: number | null;
-  store?: { autoAcceptOrders?: boolean | null } | null;
+  store?: StoreAcceptanceContext | null;
+  suggestedPrepMinutes?: number;
 }): OrderSummary => {
   const base = toOrderSummary(order);
-  const autoAccept = Boolean(order.store?.autoAcceptOrders);
+  const acceptance = order.store ? resolveStoreOrderAcceptance(order.store) : null;
+  const autoAccept = acceptance ? orderAcceptanceUsesAutoAccept(acceptance.mode) : Boolean(order.store?.autoAcceptOrders);
   const placedMs = Date.parse(base.placedAt);
   const customerCancelUntil = new Date(placedMs + CUSTOMER_CANCEL_GRACE_MS).toISOString();
   const merchantResponseDeadlineAt =
@@ -98,8 +163,32 @@ export const buildOrderSummaryForClient = (order: {
     ...base,
     customerCancelUntil,
     merchantResponseDeadlineAt,
+    suggestedPrepMinutes: order.suggestedPrepMinutes,
   });
 };
+
+async function buildHubOrderSummary(order: {
+  id: string;
+  orderNumber: string;
+  storeId: string;
+  status: string;
+  paymentStatus: string;
+  paymentMethod: string;
+  fulfillmentType: string;
+  source: string;
+  totalAmount: unknown;
+  currency: string;
+  placedAt: Date;
+  prepTimeMinutes: number | null;
+  store?: StoreAcceptanceContext | null;
+}): Promise<OrderSummary> {
+  let suggestedPrepMinutes: number | undefined;
+  if (String(order.status).toLowerCase() === "pending" && order.store) {
+    suggestedPrepMinutes = await suggestPrepMinutesForPendingOrder(order, order.store);
+  }
+
+  return buildOrderSummaryForClient({ ...order, suggestedPrepMinutes });
+}
 
 const buildOrderNumber = () => `HE-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 90) + 10}`;
 
@@ -660,21 +749,40 @@ export const persistCheckoutOrder = async (
       console.error(`Failed to notify hub for new order ${order.orderNumber}`, error);
     });
 
-  if (store.autoAcceptOrders) {
-    const prep = Math.min(store.etaMinutes ?? 25, store.autoAcceptMaxPrepMinutes ?? 60);
+  const { mode, settings } = resolveStoreOrderAcceptance(store);
+  if (orderAcceptanceUsesAutoAccept(mode)) {
+    const activeOrdersInWindow = await countActiveOrdersInWindow(store.id, settings.smartPrepWindowMinutes);
+    const prep = computeQuotedPrepMinutes({
+      mode,
+      etaMinutes: store.etaMinutes ?? 25,
+      settings,
+      activeOrdersInWindow: Math.max(1, activeOrdersInWindow),
+    });
     await updateMerchantOrder(store.merchantId, order.id, {
       status: "ACCEPTED",
-      note: `Auto-accepted (hub setting). Quoted ${prep} minutes prep.`,
+      note:
+        mode === "smart_auto"
+          ? `Smart auto-accepted (${activeOrdersInWindow} active in ${settings.smartPrepWindowMinutes} min). Quoted ${prep} minutes prep.`
+          : `Auto-accepted (standard). Quoted ${prep} minutes prep.`,
       prepTimeMinutes: prep,
     });
   }
 
   const latest = await prisma.order.findUnique({
     where: { id: order.id },
-    include: { store: { select: { autoAcceptOrders: true } } },
+    include: {
+      store: {
+        select: {
+          autoAcceptOrders: true,
+          autoAcceptMaxPrepMinutes: true,
+          etaMinutes: true,
+          deliveryConfig: true,
+        },
+      },
+    },
   });
 
-  return buildOrderSummaryForClient(latest!);
+  return buildHubOrderSummary(latest!);
 };
 
 export const listMerchantOrders = async (hubId: string): Promise<OrderSummary[]> => {
@@ -689,6 +797,9 @@ export const listMerchantOrders = async (hubId: string): Promise<OrderSummary[]>
       store: {
         select: {
           autoAcceptOrders: true,
+          autoAcceptMaxPrepMinutes: true,
+          etaMinutes: true,
+          deliveryConfig: true,
         },
       },
     },
@@ -696,7 +807,7 @@ export const listMerchantOrders = async (hubId: string): Promise<OrderSummary[]>
     take: 100,
   });
 
-  return orders.map((row) => buildOrderSummaryForClient(row));
+  return Promise.all(orders.map((row) => buildHubOrderSummary(row)));
 };
 
 export const listMerchantOrderHistory = async (hubId: string): Promise<OrderSummary[]> => {
@@ -711,6 +822,9 @@ export const listMerchantOrderHistory = async (hubId: string): Promise<OrderSumm
       store: {
         select: {
           autoAcceptOrders: true,
+          autoAcceptMaxPrepMinutes: true,
+          etaMinutes: true,
+          deliveryConfig: true,
         },
       },
     },
@@ -718,7 +832,7 @@ export const listMerchantOrderHistory = async (hubId: string): Promise<OrderSumm
     take: 100,
   });
 
-  return orders.map((row) => buildOrderSummaryForClient(row));
+  return Promise.all(orders.map((row) => buildHubOrderSummary(row)));
 };
 
 export const listAdminOrders = async () => {
@@ -1124,11 +1238,14 @@ export const updateMerchantOrder = async (
     throw new BadRequestException("Only pending orders can be rejected.");
   }
 
+  const prepTimeMinutes =
+    input.prepTimeMinutes != null ? roundPrepToStep(input.prepTimeMinutes) : existingOrder.prepTimeMinutes;
+
   const order = await prisma.order.update({
     where: { id: existingOrder.id },
     data: {
       status: input.status as any,
-      prepTimeMinutes: input.prepTimeMinutes ?? existingOrder.prepTimeMinutes,
+      prepTimeMinutes,
       acceptedAt: input.status === "ACCEPTED" ? new Date() : existingOrder.acceptedAt,
       rejectedAt: input.status === "REJECTED" ? new Date() : existingOrder.rejectedAt,
       statusHistory: {
@@ -1156,10 +1273,19 @@ export const updateMerchantOrder = async (
 
   const latest = await prisma.order.findUnique({
     where: { id: order.id },
-    include: { store: { select: { autoAcceptOrders: true } } },
+    include: {
+      store: {
+        select: {
+          autoAcceptOrders: true,
+          autoAcceptMaxPrepMinutes: true,
+          etaMinutes: true,
+          deliveryConfig: true,
+        },
+      },
+    },
   });
 
-  return buildOrderSummaryForClient(latest!);
+  return buildHubOrderSummary(latest!);
 };
 
 export const buildMerchantOrderReceipt = async (hubId: string, orderId: string) => {
@@ -1238,10 +1364,7 @@ export const buildMerchantOrderReceipt = async (hubId: string, orderId: string) 
 
   return {
     payload,
-    preview: formatKitchenTicketPreview("delivery", kitchenTicket, ticketPayload, order, {
-      hubLogoUrl: order.store.logoAssetId ?? "",
-    }),
-    kitchenPreview: formatKitchenTicketPreview("kitchen", kitchenTicket, ticketPayload, order, {
+    preview: formatOrderTicketPreview(kitchenTicket, ticketPayload, order, {
       hubLogoUrl: order.store.logoAssetId ?? "",
     }),
     hasConfiguredPrinter: order.store.printers.length > 0,

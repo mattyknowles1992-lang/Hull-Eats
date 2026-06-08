@@ -2712,12 +2712,72 @@ textarea {
   font-weight: 700;
 }
 
-.hub-kitchen-ticket-settings__mode {
+.hub-kitchen-ticket-settings__examples {
   display: grid;
-  gap: 10px;
+  gap: 12px;
   border: none;
   margin: 0;
   padding: 0;
+}
+
+.hub-kitchen-ticket-settings__example-grid {
+  display: grid;
+  gap: 14px;
+}
+
+@media (min-width: 720px) {
+  .hub-kitchen-ticket-settings__example-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.hub-kitchen-ticket-settings__example {
+  position: relative;
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 12px;
+  border-radius: 14px;
+  border: 2px solid rgba(15, 17, 21, 0.12);
+  background: rgba(255, 255, 255, 0.96);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+}
+
+.hub-kitchen-ticket-settings__example:hover {
+  border-color: rgba(7, 155, 200, 0.45);
+  box-shadow: 0 8px 24px rgba(7, 155, 200, 0.1);
+}
+
+.hub-kitchen-ticket-settings__example--selected {
+  border-color: rgba(7, 155, 200, 0.85);
+  box-shadow: 0 10px 28px rgba(7, 155, 200, 0.16);
+}
+
+.hub-kitchen-ticket-settings__example-label {
+  font-size: 0.88rem;
+  font-weight: 900;
+  color: #064f68;
+}
+
+.hub-kitchen-ticket-settings__example-copy {
+  font-size: 0.8rem;
+  color: #5b6470;
+  line-height: 1.4;
+}
+
+.hub-kitchen-ticket-settings__example-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--he-blue-light), var(--he-blue));
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
 }
 
 .hub-kitchen-ticket-settings__legend {
@@ -2727,7 +2787,6 @@ textarea {
   margin-bottom: 4px;
 }
 
-.hub-kitchen-ticket-settings__radio,
 .hub-kitchen-ticket-settings__toggle {
   display: flex;
   gap: 10px;
@@ -2736,21 +2795,294 @@ textarea {
   line-height: 1.4;
 }
 
-.hub-kitchen-ticket-settings__field {
+.hub-ticket-logo-field {
   display: grid;
-  gap: 6px;
+  gap: 10px;
+}
+
+.hub-ticket-logo-field__label {
   font-size: 0.78rem;
   font-weight: 800;
   color: #3d4652;
 }
 
-.hub-kitchen-ticket-settings__field input {
-  min-height: 44px;
-  padding: 10px 12px;
+.hub-ticket-logo-field__hint {
+  margin: 0;
+  font-size: 0.84rem;
+  color: #5b6470;
+  line-height: 1.45;
+}
+
+.hub-ticket-logo-field__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.hub-ticket-logo-field__preview {
+  position: relative;
+  width: 120px;
+  height: 72px;
   border-radius: 10px;
+  border: 1px dashed rgba(15, 17, 21, 0.18);
+  background: #fafbfc;
+  display: grid;
+  place-items: center;
+  padding: 8px;
+}
+
+.hub-ticket-logo-field__img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.hub-ticket-logo-field__placeholder-tag {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  bottom: 4px;
+  padding: 2px 4px;
+  border-radius: 6px;
+  background: rgba(7, 155, 200, 0.12);
+  color: #064f68;
+  font-size: 0.58rem;
+  font-weight: 800;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.hub-ticket-logo-field__actions {
+  display: grid;
+  gap: 8px;
+  min-width: 180px;
+}
+
+.hub-ticket-logo-field__file {
+  display: none;
+}
+
+.hub-ticket-logo-field__upload {
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(7, 155, 200, 0.35);
+  background: rgba(7, 155, 200, 0.1);
+  color: #064f68;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.hub-ticket-logo-field__clear {
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  color: #8a2121;
+  font-weight: 800;
+  cursor: pointer;
+  text-align: left;
+}
+
+.hub-ticket-logo-field__error {
+  margin: 0;
+  color: #8a2121;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.hub-ticket-mockup {
+  width: 100%;
+  max-width: 280px;
+  margin: 0 auto;
+  padding: 14px 12px 16px;
+  border-radius: 8px;
   border: 1px solid rgba(15, 17, 21, 0.14);
-  font: inherit;
-  font-weight: 400;
+  background: #fff;
+  box-shadow:
+    0 1px 0 rgba(15, 17, 21, 0.06),
+    0 8px 20px rgba(15, 17, 21, 0.06);
+  font-family: ui-monospace, "Cascadia Code", "Segoe UI Mono", monospace;
+  font-size: 0.68rem;
+  line-height: 1.35;
+  color: #101216;
+  text-align: center;
+}
+
+.hub-ticket-mockup--compact {
+  max-width: none;
+  padding: 10px 8px 12px;
+  font-size: 0.58rem;
+  pointer-events: none;
+}
+
+.hub-ticket-mockup__logo-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+.hub-ticket-mockup__logo {
+  max-width: 88px;
+  max-height: 44px;
+  object-fit: contain;
+}
+
+.hub-ticket-mockup--compact .hub-ticket-mockup__logo {
+  max-width: 64px;
+  max-height: 32px;
+}
+
+.hub-ticket-mockup__logo--placeholder {
+  opacity: 0.92;
+}
+
+.hub-ticket-mockup__brand-name,
+.hub-ticket-mockup__title,
+.hub-ticket-mockup__checklist-title,
+.hub-ticket-mockup__paid {
+  margin: 0;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.hub-ticket-mockup__brand-tag,
+.hub-ticket-mockup__store,
+.hub-ticket-mockup__meta,
+.hub-ticket-mockup__order,
+.hub-ticket-mockup__prep,
+.hub-ticket-mockup__notes,
+.hub-ticket-mockup__item-meta,
+.hub-ticket-mockup__section-label {
+  margin: 2px 0;
+}
+
+.hub-ticket-mockup__rule {
+  border: none;
+  border-top: 1px dashed rgba(15, 17, 21, 0.22);
+  margin: 8px 0;
+}
+
+.hub-ticket-mockup__item {
+  text-align: left;
+  margin: 6px 0;
+}
+
+.hub-ticket-mockup__item-head {
+  margin: 0 0 4px;
+  font-weight: 800;
+  text-align: left;
+}
+
+.hub-ticket-mockup__line-num {
+  font-weight: 800;
+}
+
+.hub-ticket-mockup__check {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 2px 0;
+  padding-left: 12px;
+  text-align: left;
+}
+
+.hub-ticket-mockup__box {
+  flex: 0 0 10px;
+  width: 10px;
+  height: 10px;
+  margin-top: 2px;
+  border: 1px solid #101216;
+  border-radius: 2px;
+  background: #fff;
+}
+
+.hub-ticket-mockup__box--on {
+  background: #101216;
+}
+
+.hub-ticket-mockup--compact .hub-ticket-mockup__box {
+  flex: 0 0 8px;
+  width: 8px;
+  height: 8px;
+}
+
+.hub-ticket-mockup__build {
+  margin-top: 4px;
+}
+
+.hub-ticket-mockup__build-title {
+  margin: 4px 0 2px;
+  padding-left: 12px;
+  font-weight: 800;
+  text-align: left;
+}
+
+.hub-ticket-mockup__flow {
+  margin: 2px 0 6px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #5b6470;
+  letter-spacing: 0.02em;
+}
+
+.hub-ticket-mockup__flow--compact {
+  font-size: 0.55rem;
+}
+
+.hub-ticket-mockup__qr {
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  padding: 8px;
+  border: 2px solid #101216;
+  border-radius: 8px;
+}
+
+.hub-ticket-mockup__qr-box {
+  width: 56px;
+  height: 56px;
+  background:
+    linear-gradient(90deg, #101216 40%, transparent 40%, transparent 60%, #101216 60%),
+    linear-gradient(#101216 40%, transparent 40%, transparent 60%, #101216 60%);
+  background-size: 8px 8px;
+  opacity: 0.85;
+}
+
+.hub-ticket-mockup--compact .hub-ticket-mockup__qr-box {
+  width: 40px;
+  height: 40px;
+}
+
+.hub-ticket-mockup__qr-label {
+  margin: 0;
+  font-size: 0.62rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.hub-ticket-mockup__totals,
+.hub-ticket-mockup__customer,
+.hub-ticket-mockup__address,
+.hub-ticket-mockup__payment {
+  text-align: left;
+}
+
+.hub-ticket-mockup__totals p,
+.hub-ticket-mockup__customer p,
+.hub-ticket-mockup__address p {
+  margin: 2px 0;
+}
+
+.hub-kitchen-ticket-preview__paper--sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .hub-kitchen-ticket-settings__ticket-panel {
@@ -2758,25 +3090,19 @@ textarea {
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.92);
   overflow: hidden;
+  padding: 14px;
 }
 
-.hub-kitchen-ticket-settings__ticket-panel summary {
-  cursor: pointer;
-  padding: 12px 14px;
-  font-weight: 800;
+.hub-kitchen-ticket-settings__ticket-panel-title {
+  margin: 0 0 12px;
+  font-size: 0.92rem;
+  font-weight: 900;
   color: #064f68;
-  list-style: none;
-}
-
-.hub-kitchen-ticket-settings__ticket-panel summary::-webkit-details-marker {
-  display: none;
 }
 
 .hub-kitchen-ticket-settings__ticket-body {
   display: grid;
   gap: 16px;
-  padding: 0 14px 14px;
-  border-top: 1px solid rgba(15, 17, 21, 0.08);
 }
 
 @media (min-width: 900px) {
@@ -2820,17 +3146,6 @@ textarea {
 
 .hub-kitchen-ticket-preview__paper {
   margin: 0;
-  padding: 14px 12px;
-  border-radius: 12px;
-  border: 1px dashed rgba(15, 17, 21, 0.18);
-  background: #fafbfc;
-  font-family: ui-monospace, "Cascadia Code", "Segoe UI Mono", monospace;
-  font-size: 0.72rem;
-  line-height: 1.35;
-  white-space: pre-wrap;
-  word-break: break-word;
-  max-height: 480px;
-  overflow: auto;
 }
 
 .hub-kitchen-ticket-preview__meta {
@@ -3116,6 +3431,335 @@ textarea {
   overflow: visible;
 }
 
+.he-store-operations-grid {
+  display: grid;
+  gap: 18px;
+}
+
+@media (min-width: 900px) {
+  .he-store-operations-grid {
+    grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+.he-order-acceptance-settings {
+  display: grid;
+  gap: 14px;
+}
+
+.he-order-acceptance-settings__legend {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #3d4652;
+  margin-bottom: 4px;
+}
+
+.he-order-acceptance-settings__modes {
+  border: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.he-order-acceptance-settings__grid {
+  display: grid;
+  gap: 10px;
+}
+
+@media (min-width: 900px) {
+  .he-order-acceptance-settings__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.he-order-acceptance-settings__card {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 12px;
+  border-radius: 14px;
+  border: 2px solid rgba(15, 17, 21, 0.12);
+  background: rgba(255, 255, 255, 0.96);
+  text-align: left;
+  cursor: pointer;
+}
+
+.he-order-acceptance-settings__card--selected {
+  border-color: rgba(7, 155, 200, 0.85);
+  box-shadow: 0 10px 28px rgba(7, 155, 200, 0.14);
+}
+
+.he-order-acceptance-settings__card-title {
+  font-size: 0.88rem;
+  font-weight: 900;
+  color: #064f68;
+}
+
+.he-order-acceptance-settings__card-copy {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #101216;
+  line-height: 1.35;
+}
+
+.he-order-acceptance-settings__card-detail {
+  font-size: 0.74rem;
+  color: #5b6470;
+  line-height: 1.4;
+}
+
+.he-order-acceptance-settings__badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--he-blue-light), var(--he-blue));
+  color: #fff;
+  font-size: 0.64rem;
+  font-weight: 800;
+}
+
+.he-order-acceptance-settings__smart-grid {
+  display: grid;
+  gap: 10px;
+}
+
+@media (min-width: 560px) {
+  .he-order-acceptance-settings__smart-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.he-order-acceptance-settings__field {
+  display: grid;
+  gap: 6px;
+}
+
+.he-order-acceptance-settings__field-label {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #3d4652;
+}
+
+.he-order-acceptance-settings__input {
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(15, 17, 21, 0.14);
+  width: 100%;
+}
+
+.he-order-acceptance-settings__hint {
+  font-size: 0.72rem;
+  color: #5b6470;
+  line-height: 1.35;
+}
+
+.he-order-prep-picker {
+  display: grid;
+  gap: 6px;
+  min-width: 180px;
+}
+
+.he-order-prep-picker__label {
+  font-size: 0.74rem;
+  font-weight: 800;
+  color: #3d4652;
+}
+
+.he-order-prep-picker__controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.he-order-prep-picker__step {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid rgba(15, 17, 21, 0.14);
+  background: #fff;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.he-order-prep-picker__select {
+  flex: 1;
+  min-height: 34px;
+  border-radius: 10px;
+  border: 1px solid rgba(15, 17, 21, 0.14);
+  padding: 0 8px;
+  font-weight: 800;
+}
+
+.he-order-accept-actions {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+}
+
+.he-order-accept-actions__hint {
+  margin: 0;
+  font-size: 0.74rem;
+  color: #5b6470;
+  font-weight: 700;
+}
+
+.he-order-accept-actions__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.he-postcode-zone-fees {
+  display: grid;
+  gap: 10px;
+  padding: 0 12px 10px;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 560px) {
+  .he-postcode-zone-fees {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 12px;
+  }
+}
+
+.he-postcode-zone-fees__field {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  min-width: 0;
+}
+
+.he-postcode-zone-fees__label {
+  font-size: 0.74rem;
+  font-weight: 800;
+  color: #3d4652;
+  line-height: 1.25;
+}
+
+.he-postcode-zone-fees__input {
+  min-height: 34px;
+  padding: 6px 9px;
+  border-radius: 8px;
+  border: 1px solid rgba(15, 17, 21, 0.14);
+  font-size: 0.84rem;
+  width: 100%;
+}
+
+.he-postcode-zone-fees__hint {
+  margin: 0;
+  font-size: 0.68rem;
+  line-height: 1.32;
+  color: #5b6470;
+}
+
+.he-postcode-sector-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 0 12px 8px;
+}
+
+.he-postcode-sector-toolbar__label {
+  font-size: 0.74rem;
+  font-weight: 800;
+  color: #5d6775;
+}
+
+.he-postcode-sector-panel {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 6px;
+  padding: 0 12px 12px;
+}
+
+@media (min-width: 560px) {
+  .he-postcode-sector-panel {
+    grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  }
+}
+
+.he-postcode-sector-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(15, 17, 21, 0.12);
+  background: rgba(248, 250, 252, 0.98);
+  font-weight: 700;
+  font-size: 0.74rem;
+  color: #4a5560;
+  cursor: pointer;
+  transition:
+    border-color 0.22s ease,
+    background 0.22s ease,
+    color 0.22s ease,
+    box-shadow 0.22s ease;
+}
+
+.he-postcode-sector-chip.is-on {
+  border-color: rgba(7, 155, 200, 0.65);
+  background: linear-gradient(180deg, rgba(35, 205, 255, 0.22), rgba(7, 155, 200, 0.1));
+  color: #0a4d66;
+  box-shadow: 0 4px 12px rgba(7, 155, 200, 0.12);
+}
+
+.he-postcode-sector-chip input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.he-postcode-zones-workspace {
+  display: grid;
+  gap: 16px;
+  align-items: start;
+}
+
+.he-postcode-zones-workspace__list {
+  min-width: 0;
+}
+
+@media (min-width: 961px) {
+  .he-postcode-zones-workspace {
+    grid-template-columns: minmax(280px, 40%) minmax(0, 1fr);
+    gap: 18px;
+  }
+
+  .he-delivery-map-anchor--zone-workspace {
+    position: sticky;
+    top: 12px;
+    z-index: 24;
+    align-self: start;
+  }
+
+  .he-delivery-map-anchor--zone-workspace .he-delivery-map-sticky {
+    position: static;
+    top: auto;
+    margin-bottom: 0;
+    padding-bottom: 0;
+    background: transparent;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .he-delivery-map-anchor--zone-workspace .he-delivery-map-frame {
+    height: min(78vh, 560px);
+    min-height: 340px;
+  }
+}
+
 .he-delivery-map-anchor {
   position: relative;
 }
@@ -3165,7 +3809,7 @@ textarea {
 
 @media (min-width: 961px) {
   :root {
-    --hub-map-sticky-top: 0px;
+    --hub-map-sticky-top: 12px;
   }
 }
 

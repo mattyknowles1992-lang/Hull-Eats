@@ -121,65 +121,20 @@ const outwardHeaderActiveStyle: CSSProperties = {
   background: "linear-gradient(180deg, rgba(35, 205, 255, 0.14), rgba(7, 155, 200, 0.06))",
 };
 
-const sectorPanelStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fill, minmax(108px, 1fr))",
-  gap: 8,
-  padding: "0 14px 14px",
-};
-
-const sectorToolbarStyle: CSSProperties = {
-  display: "flex",
-  flexWrap: "wrap",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: 8,
-  padding: "0 14px 10px",
-};
-
 const sectorToolbarButtonStyle: CSSProperties = {
-  padding: "6px 12px",
-  borderRadius: 10,
+  padding: "5px 10px",
+  borderRadius: 8,
   border: "1px solid rgba(7, 155, 200, 0.45)",
   background: "linear-gradient(180deg, rgba(35, 205, 255, 0.18), rgba(7, 155, 200, 0.08))",
   fontWeight: 800,
-  fontSize: "0.78rem",
+  fontSize: "0.72rem",
   color: "#0a4d66",
   cursor: "pointer",
-};
-
-const sectorCheckboxLabelStyle: CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 8,
-  padding: "8px 10px",
-  borderRadius: 10,
-  border: "1px solid rgba(15, 17, 21, 0.12)",
-  background: "rgba(248, 250, 252, 0.98)",
-  fontWeight: 700,
-  fontSize: "0.82rem",
-  color: "#4a5560",
-  cursor: "pointer",
-  transition: "border-color 0.22s ease, background 0.22s ease, color 0.22s ease, box-shadow 0.22s ease, transform 0.18s ease",
-};
-
-const sectorCheckboxLabelOnStyle: CSSProperties = {
-  borderColor: "rgba(7, 155, 200, 0.65)",
-  background: "linear-gradient(180deg, rgba(35, 205, 255, 0.22), rgba(7, 155, 200, 0.1))",
-  color: "#0a4d66",
-  boxShadow: "0 6px 16px rgba(7, 155, 200, 0.14)",
-  transform: "translateY(-1px)",
 };
 
 const outwardRowExpandedStyle: CSSProperties = {
   boxShadow: "0 10px 28px rgba(7, 155, 200, 0.1)",
   transition: "box-shadow 0.28s ease",
-};
-
-const postcodeFeeRowStyle: CSSProperties = {
-  display: "grid",
-  gap: 8,
-  padding: "0 14px 14px",
 };
 
 const distanceRangeListStyle: CSSProperties = {
@@ -916,7 +871,15 @@ export function HubDeliveryConfig({
     const connect = () => {
       observer?.disconnect();
       observer = null;
-      if (!mobileQuery.matches) {
+
+      const desktopSplit =
+        window.matchMedia("(min-width: 961px)").matches && settings.deliveryMode === "postcode_zones";
+      if (desktopSplit) {
+        setMapPinned(false);
+        return;
+      }
+
+      if (!mobileQuery.matches && settings.deliveryMode !== "postcode_zones") {
         setMapPinned(false);
         return;
       }
@@ -940,7 +903,25 @@ export function HubDeliveryConfig({
       mobileQuery.removeEventListener("change", connect);
       observer?.disconnect();
     };
-  }, [mapReady]);
+  }, [mapReady, settings.deliveryMode]);
+
+  useEffect(() => {
+    if (!mapReady) {
+      return;
+    }
+    const map = mapRef.current;
+    if (!map) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      try {
+        map.invalidateSize();
+      } catch {
+        // Leaflet can throw if the map was torn down mid-resize.
+      }
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [mapReady, settings.deliveryMode]);
 
   useEffect(() => {
     if (!mapPinned) {
@@ -959,6 +940,174 @@ export function HubDeliveryConfig({
     }, 60);
     return () => window.clearTimeout(timer);
   }, [mapPinned]);
+
+  const isPostcodeZones = settings.deliveryMode === "postcode_zones";
+
+  const deliveryMapBlock = (
+    <div
+      className={`he-delivery-map-anchor${isPostcodeZones ? " he-delivery-map-anchor--zone-workspace" : ""}`}
+    >
+      <div ref={mapSentinelRef} className="he-delivery-map-sentinel" aria-hidden />
+      {mapPinned ? (
+        <div className="he-delivery-map-sticky-placeholder" style={{ height: mapStickyHeight }} aria-hidden />
+      ) : null}
+      <div ref={mapStickyRef} className={`he-delivery-map-sticky${mapPinned ? " is-pinned" : ""}`}>
+        <div ref={mapHostRef} className="he-delivery-map-frame" aria-label={t("delivery.hullDeliveryMap")} />
+        {pinGeocodeNote ? <p style={{ ...styles.subtleInfo, margin: "8px 0 0" }}>{pinGeocodeNote}</p> : null}
+      </div>
+    </div>
+  );
+
+  const postcodeZonesPanel = (
+    <div className="he-postcode-zones-workspace__list" style={{ display: "grid", gap: 14 }}>
+      <p style={styles.subtleInfo}>
+        The map uses official open UK postcode sector boundaries (ONS / Royal Mail, via postcodes-mapit). Tick a sector to
+        deliver there, then set the price for that outward block. On desktop the map stays beside this list while you scroll.
+      </p>
+      {boundariesError ? (
+        <p style={{ ...styles.subtleInfo, color: "#9b1c1c", margin: 0 }}>
+          Map boundaries could not be loaded: {boundariesError}. Run{" "}
+          <code style={{ fontSize: "0.85em" }}>pnpm geo:build-hull-sectors</code> after downloading the boundary archive
+          (see scripts/build-hull-sector-boundaries.mjs).
+        </p>
+      ) : null}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+        <button
+          type="button"
+          style={hasAnySectorSelected ? styles.modeButton : { ...styles.modeButton, opacity: 0.45, cursor: "not-allowed" }}
+          disabled={!hasAnySectorSelected || readOnly}
+          onClick={deselectAllSectors}
+        >
+          Deselect all sectors
+        </button>
+        {!hasAnySectorSelected ? (
+          <span style={{ ...styles.subtleInfo, margin: 0 }}>No sectors selected yet.</span>
+        ) : null}
+      </div>
+      <div style={outwardListStyle}>
+        {listKnownHullOutwardCodes().map((code) => {
+          const zone = zones.find((entry) => entry.code === code)!;
+          const expanded = expandedOutward === code;
+          const availableSectors = listHullSectorsForOutward(code);
+          const selectedCount = getHullZoneEnabledSectors(zone).length;
+          const isActive = activeZoneCode === code;
+
+          return (
+            <div
+              key={code}
+              style={{
+                ...outwardRowStyle,
+                ...(expanded || isActive ? outwardRowExpandedStyle : {}),
+              }}
+            >
+              <button
+                type="button"
+                style={{
+                  ...outwardHeaderButtonStyle,
+                  ...(expanded || isActive ? outwardHeaderActiveStyle : {}),
+                }}
+                aria-expanded={expanded}
+                onClick={() => {
+                  if (expanded) {
+                    setExpandedOutward(null);
+                    setActiveZoneCode(null);
+                    setMapFocus(null);
+                    requestOverviewRef.current = true;
+                  } else {
+                    focusOutward(code);
+                  }
+                }}
+              >
+                <span>{code}</span>
+                <span style={{ fontSize: "0.78rem", fontWeight: 800, color: "#5d6775" }}>
+                  {selectedCount > 0 ? `${selectedCount} sector${selectedCount === 1 ? "" : "s"} on` : "None selected"}
+                  {zone.fee != null ? ` / £${zone.fee.toFixed(2)}` : " / flat fee"}
+                  {expanded ? " ▲" : " ▼"}
+                </span>
+              </button>
+              {expanded ? (
+                <>
+                  <div className="he-postcode-zone-fees">
+                    <label className="he-postcode-zone-fees__field">
+                      <span className="he-postcode-zone-fees__label">Delivery fee for {code} (£)</span>
+                      <HubFreeTypeNumberInput
+                        nullable
+                        min={0}
+                        className="he-postcode-zone-fees__input"
+                        value={zone.fee}
+                        disabled={readOnly}
+                        placeholder={settings.deliveryFee > 0 ? settings.deliveryFee.toFixed(2) : "Uses flat fee"}
+                        onCommit={(fee) => setZoneFee(code, fee)}
+                      />
+                      <p className="he-postcode-zone-fees__hint">
+                        Blank = hub flat fee. <code>0</code> = free for this block.
+                      </p>
+                    </label>
+                    <label className="he-postcode-zone-fees__field">
+                      <span className="he-postcode-zone-fees__label">Minimum order for {code} (£)</span>
+                      <HubFreeTypeNumberInput
+                        nullable
+                        min={0}
+                        className="he-postcode-zone-fees__input"
+                        value={zone.minimumOrderAmount}
+                        disabled={readOnly}
+                        placeholder={
+                          settings.minimumOrderAmount > 0 ? settings.minimumOrderAmount.toFixed(2) : "Uses flat minimum"
+                        }
+                        onCommit={(minimumOrderAmount) => setZoneMinimumOrder(code, minimumOrderAmount)}
+                      />
+                      <p className="he-postcode-zone-fees__hint">Blank = hub flat minimum for this block.</p>
+                    </label>
+                  </div>
+                  <div className="he-postcode-sector-toolbar">
+                    <span className="he-postcode-sector-toolbar__label">Sectors for {code}</span>
+                    <button
+                      type="button"
+                      style={sectorToolbarButtonStyle}
+                      disabled={readOnly}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        const allOn = availableSectors.length > 0 && selectedCount === availableSectors.length;
+                        setOutwardSectorsAll(code, !allOn);
+                      }}
+                    >
+                      {availableSectors.length > 0 && selectedCount === availableSectors.length
+                        ? `Deselect all ${code}`
+                        : `Select all ${code}`}
+                    </button>
+                  </div>
+                  <div className="he-postcode-sector-panel">
+                    {availableSectors.length === 0 ? (
+                      <p style={{ ...styles.subtleInfo, margin: 0, gridColumn: "1 / -1", fontSize: "0.72rem" }}>
+                        No sector boundaries in map data for {code}.
+                      </p>
+                    ) : null}
+                    {availableSectors.map((digit) => {
+                      const checked = isHullZoneSectorEnabled(zone, digit);
+                      return (
+                        <label
+                          key={`${code}-${digit}`}
+                          className={checked ? "he-postcode-sector-chip is-on" : "he-postcode-sector-chip"}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            disabled={readOnly}
+                            onChange={() => toggleSector(code, digit)}
+                          />
+                          {formatHullSectorLabel(code, digit)}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 
   return (
     <div className="he-delivery-config-panel" style={{ display: "grid", gap: 18 }}>
@@ -1017,17 +1166,14 @@ export function HubDeliveryConfig({
       </div>
       <p style={{ ...styles.subtleInfo, margin: "0 0 4px" }}>{t("delivery.deliveryModeLockHint")}</p>
 
-      <div className="he-delivery-map-anchor">
-        <div ref={mapSentinelRef} className="he-delivery-map-sentinel" aria-hidden />
-        {mapPinned ? (
-          <div className="he-delivery-map-sticky-placeholder" style={{ height: mapStickyHeight }} aria-hidden />
-        ) : null}
-        <div ref={mapStickyRef} className={`he-delivery-map-sticky${mapPinned ? " is-pinned" : ""}`}>
-          <div ref={mapHostRef} className="he-delivery-map-frame" aria-label={t("delivery.hullDeliveryMap")} />
-          {pinGeocodeNote ? <p style={{ ...styles.subtleInfo, margin: "8px 0 0" }}>{pinGeocodeNote}</p> : null}
+      {isPostcodeZones ? (
+        <div className="he-postcode-zones-workspace">
+          {deliveryMapBlock}
+          {postcodeZonesPanel}
         </div>
-      </div>
-
+      ) : (
+        <>
+          {deliveryMapBlock}
       {settings.deliveryMode === "business_radius" ? (
         <div style={{ display: "grid", gap: 14 }}>
           <label style={styles.field}>
@@ -1139,158 +1285,8 @@ export function HubDeliveryConfig({
             </div>
           </div>
         </div>
-      ) : (
-        <div style={{ display: "grid", gap: 14 }}>
-          <p style={styles.subtleInfo}>
-            The map uses official open UK postcode sector boundaries (ONS / Royal Mail, via postcodes-mapit). Tick a sector
-            to deliver there, then set the price for that outward block. Clicking the map now keeps focus on the map instead
-            of jumping the page down the postcode list.
-          </p>
-          {boundariesError ? (
-            <p style={{ ...styles.subtleInfo, color: "#9b1c1c", margin: 0 }}>
-              Map boundaries could not be loaded: {boundariesError}. Run{" "}
-              <code style={{ fontSize: "0.85em" }}>pnpm geo:build-hull-sectors</code> after downloading the boundary archive
-              (see scripts/build-hull-sector-boundaries.mjs).
-            </p>
-          ) : null}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
-            <button
-              type="button"
-              style={hasAnySectorSelected ? styles.modeButton : { ...styles.modeButton, opacity: 0.45, cursor: "not-allowed" }}
-              disabled={!hasAnySectorSelected || readOnly}
-              onClick={deselectAllSectors}
-            >
-              Deselect all sectors
-            </button>
-            {!hasAnySectorSelected ? (
-              <span style={{ ...styles.subtleInfo, margin: 0 }}>No sectors selected yet.</span>
-            ) : null}
-          </div>
-          <div style={outwardListStyle}>
-            {listKnownHullOutwardCodes().map((code) => {
-              const zone = zones.find((entry) => entry.code === code)!;
-              const expanded = expandedOutward === code;
-              const availableSectors = listHullSectorsForOutward(code);
-              const selectedCount = getHullZoneEnabledSectors(zone).length;
-              const isActive = activeZoneCode === code;
-
-              return (
-                <div
-                  key={code}
-                  style={{
-                    ...outwardRowStyle,
-                    ...(expanded || isActive ? outwardRowExpandedStyle : {}),
-                  }}
-                >
-                  <button
-                    type="button"
-                    style={{
-                      ...outwardHeaderButtonStyle,
-                      ...(expanded || isActive ? outwardHeaderActiveStyle : {}),
-                    }}
-                    aria-expanded={expanded}
-                    onClick={() => {
-                      if (expanded) {
-                        setExpandedOutward(null);
-                        setActiveZoneCode(null);
-                        setMapFocus(null);
-                        requestOverviewRef.current = true;
-                      } else {
-                        focusOutward(code);
-                      }
-                    }}
-                  >
-                    <span>{code}</span>
-                    <span style={{ fontSize: "0.78rem", fontWeight: 800, color: "#5d6775" }}>
-                      {selectedCount > 0 ? `${selectedCount} sector${selectedCount === 1 ? "" : "s"} on` : "None selected"}
-                      {zone.fee != null ? ` / £${zone.fee.toFixed(2)}` : " / flat fee"}
-                      {expanded ? " ▲" : " ▼"}
-                    </span>
-                  </button>
-                  {expanded ? (
-                    <>
-                      <div style={postcodeFeeRowStyle}>
-                        <label style={styles.field}>
-                          <span style={styles.darkFieldLabel}>Delivery fee for {code} (£)</span>
-                          <HubFreeTypeNumberInput
-                            nullable
-                            min={0}
-                            style={styles.lightInput}
-                            value={zone.fee}
-                            disabled={readOnly}
-                            placeholder={settings.deliveryFee > 0 ? settings.deliveryFee.toFixed(2) : "Uses flat fee"}
-                            onCommit={(fee) => setZoneFee(code, fee)}
-                          />
-                          <p style={styles.subtleInfo}>
-                            Leave blank to fall back to the hub flat delivery fee. Enter `0` if this postcode block should be free.
-                          </p>
-                        </label>
-                        <label style={styles.field}>
-                          <span style={styles.darkFieldLabel}>Minimum order for {code} (£)</span>
-                          <HubFreeTypeNumberInput
-                            nullable
-                            min={0}
-                            style={styles.lightInput}
-                            value={zone.minimumOrderAmount}
-                            disabled={readOnly}
-                            placeholder={
-                              settings.minimumOrderAmount > 0 ? settings.minimumOrderAmount.toFixed(2) : "Uses flat minimum"
-                            }
-                            onCommit={(minimumOrderAmount) => setZoneMinimumOrder(code, minimumOrderAmount)}
-                          />
-                          <p style={styles.subtleInfo}>Leave blank to use the hub flat minimum order for this postcode block.</p>
-                        </label>
-                      </div>
-                      <div style={sectorToolbarStyle}>
-                        <span style={{ fontSize: "0.78rem", fontWeight: 800, color: "#5d6775" }}>
-                          Sectors for {code}
-                        </span>
-                        <button
-                          type="button"
-                          style={sectorToolbarButtonStyle}
-                          disabled={readOnly}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            const allOn = availableSectors.length > 0 && selectedCount === availableSectors.length;
-                            setOutwardSectorsAll(code, !allOn);
-                          }}
-                        >
-                          {availableSectors.length > 0 && selectedCount === availableSectors.length
-                            ? `Deselect all ${code}`
-                            : `Select all ${code}`}
-                        </button>
-                      </div>
-                      <div style={sectorPanelStyle}>
-                      {availableSectors.length === 0 ? (
-                        <p style={{ ...styles.subtleInfo, margin: 0, gridColumn: "1 / -1" }}>
-                          No sector boundaries in map data for {code}.
-                        </p>
-                      ) : null}
-                      {availableSectors.map((digit) => {
-                        const checked = isHullZoneSectorEnabled(zone, digit);
-                        return (
-                          <label
-                            key={`${code}-${digit}`}
-                            style={checked ? sectorCheckboxLabelOnStyle : sectorCheckboxLabelStyle}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              disabled={readOnly}
-                              onChange={() => toggleSector(code, digit)}
-                            />
-                            {formatHullSectorLabel(code, digit)}
-                          </label>
-                        );
-                      })}
-                      </div>
-                    </>
-                  ) : null}
-                </div>
-              );
-            })}
-          </div>
-        </div>
+      ) : null}
+        </>
       )}
     </div>
   );

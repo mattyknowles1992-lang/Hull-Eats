@@ -22,8 +22,11 @@ import {
   normalizeKitchenTicketSettings,
   normalizeOpeningHours,
   readHubMenuTemplateFromDeliveryConfig,
+  deriveOrderAcceptanceModeFromLegacy,
+  orderAcceptanceUsesAutoAccept,
   readKitchenTicketFromDeliveryConfig,
   readMarketplaceCategorySlugFromDeliveryConfig,
+  readOrderAcceptanceFromDeliveryConfig,
   readStorefrontHeroCropFromDeliveryConfig,
   sanitizeHubMenuSectionMoneyFields,
   sanitizeMenuItemMoneyFields,
@@ -843,8 +846,8 @@ export class HubRegistryService {
       deliveryConfig: this.deliveryJsonFromHubSettings(settings),
       minimumOrderAmount: settings.minimumOrderAmount,
       isActive: settings.acceptingOrders,
-      autoAcceptOrders: settings.autoAcceptOrders,
-      autoAcceptMaxPrepMinutes: settings.autoAcceptMaxPrepMinutes,
+      autoAcceptOrders: orderAcceptanceUsesAutoAccept(settings.orderAcceptanceMode),
+      autoAcceptMaxPrepMinutes: settings.orderAcceptanceMaxPrepMinutes,
     };
   }
 
@@ -886,10 +889,15 @@ export class HubRegistryService {
     if (patch.acceptingOrders !== undefined) {
       result.isActive = full.isActive;
     }
-    if (patch.autoAcceptOrders !== undefined) {
+    if (
+      patch.autoAcceptOrders !== undefined ||
+      patch.autoAcceptMaxPrepMinutes !== undefined ||
+      patch.orderAcceptanceMode !== undefined ||
+      patch.orderAcceptanceMaxPrepMinutes !== undefined ||
+      patch.smartPrepBaselineMinutes !== undefined ||
+      patch.smartPrepWindowMinutes !== undefined
+    ) {
       result.autoAcceptOrders = full.autoAcceptOrders;
-    }
-    if (patch.autoAcceptMaxPrepMinutes !== undefined) {
       result.autoAcceptMaxPrepMinutes = full.autoAcceptMaxPrepMinutes;
     }
 
@@ -906,6 +914,10 @@ export class HubRegistryService {
       "menuTemplate",
       "marketplaceCategorySlug",
       "heroImageCrop",
+      "orderAcceptanceMode",
+      "orderAcceptanceMaxPrepMinutes",
+      "smartPrepBaselineMinutes",
+      "smartPrepWindowMinutes",
     ];
     if (deliveryConfigKeys.some((key) => patch[key] !== undefined)) {
       result.deliveryConfig = full.deliveryConfig;
@@ -2094,8 +2106,7 @@ export class HubRegistryService {
       isOpen: store.storefrontStatus === "LIVE",
       logoImageUrl: store.logoAssetId ?? "",
       heroImageUrl: store.heroImageUrl ?? "",
-      autoAcceptOrders: Boolean(store.autoAcceptOrders),
-      autoAcceptMaxPrepMinutes: store.autoAcceptMaxPrepMinutes ?? 60,
+      ...this.mapOrderAcceptanceFromStore(store),
       openingHours: this.mapStoreOpeningHours(store.storeHours ?? []),
       menuTemplate: readHubMenuTemplateFromDeliveryConfig(store.deliveryConfig),
       marketplaceCategorySlug: readMarketplaceCategorySlugFromDeliveryConfig(store.deliveryConfig),
@@ -2123,6 +2134,43 @@ export class HubRegistryService {
       menuTemplate: settings.menuTemplate ?? "full_food",
       marketplaceCategorySlug: settings.marketplaceCategorySlug?.trim() || null,
       heroImageCrop: settings.heroImageCrop ?? { focusX: 50, focusY: 50, zoom: 1 },
+      orderAcceptance: {
+        mode: settings.orderAcceptanceMode,
+        standardMaxPrepMinutes: settings.orderAcceptanceMaxPrepMinutes,
+        smartPrepBaselineMinutes: settings.smartPrepBaselineMinutes,
+        smartPrepWindowMinutes: settings.smartPrepWindowMinutes,
+      },
+    };
+  }
+
+  private mapOrderAcceptanceFromStore(store: {
+    autoAcceptOrders?: boolean | null;
+    autoAcceptMaxPrepMinutes?: number | null;
+    deliveryConfig?: unknown;
+  }): Pick<
+    HubSettings,
+    | "autoAcceptOrders"
+    | "autoAcceptMaxPrepMinutes"
+    | "orderAcceptanceMode"
+    | "orderAcceptanceMaxPrepMinutes"
+    | "smartPrepBaselineMinutes"
+    | "smartPrepWindowMinutes"
+  > {
+    const raw = store.deliveryConfig as { orderAcceptance?: { mode?: string } } | null | undefined;
+    const stored = readOrderAcceptanceFromDeliveryConfig(store.deliveryConfig);
+    const mode =
+      raw?.orderAcceptance?.mode != null
+        ? stored.mode
+        : deriveOrderAcceptanceModeFromLegacy(Boolean(store.autoAcceptOrders));
+    const maxPrep = store.autoAcceptMaxPrepMinutes ?? stored.standardMaxPrepMinutes;
+
+    return {
+      orderAcceptanceMode: mode,
+      orderAcceptanceMaxPrepMinutes: maxPrep,
+      smartPrepBaselineMinutes: stored.smartPrepBaselineMinutes,
+      smartPrepWindowMinutes: stored.smartPrepWindowMinutes,
+      autoAcceptOrders: orderAcceptanceUsesAutoAccept(mode),
+      autoAcceptMaxPrepMinutes: maxPrep,
     };
   }
 

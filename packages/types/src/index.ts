@@ -26,6 +26,7 @@ export * from "./hub-menu-subgroups";
 export * from "./kitchen-ticket";
 export * from "./merchant-drivers";
 export * from "./marketplace-resale";
+export * from "./order-acceptance";
 export * from "./orders";
 export * from "./payments";
 export * from "./promotions";

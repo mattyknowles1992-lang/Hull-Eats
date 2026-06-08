@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   encodeLineCustomisationMarker,
-  formatKitchenTicketPreview,
+  formatOrderTicketPreview,
   mergeLineFromOrderNotes,
   normalizeKitchenTicketSettings,
   parseLineCustomisationFromNotes,
@@ -25,13 +25,16 @@ describe("kitchen ticket", () => {
     expect(line.components).toBeUndefined();
     expect(line.selectedOptions?.length).toBe(1);
 
-    const preview = formatKitchenTicketPreview(
-      "kitchen",
-      settings,
-      { orderNumber: "HE-1", customerName: "Test", placedAtIso: new Date().toISOString(), lines: [line] },
-    );
+    const preview = formatOrderTicketPreview(settings, {
+      orderNumber: "HE-1",
+      customerName: "Test",
+      placedAtIso: new Date().toISOString(),
+      lines: [line],
+    });
     expect(preview).not.toContain("BUILD:");
     expect(preview).toContain("Cheese");
+    expect(preview).toContain("CHECKLIST");
+    expect(preview).toContain("courier tracking");
   });
 
   it("shows build parts in in-depth mode and can split quantities", () => {
@@ -47,11 +50,12 @@ describe("kitchen ticket", () => {
       settings,
     );
 
-    const preview = formatKitchenTicketPreview(
-      "kitchen",
-      settings,
-      { orderNumber: "HE-2", customerName: "Test", placedAtIso: new Date().toISOString(), lines: [line] },
-    );
+    const preview = formatOrderTicketPreview(settings, {
+      orderNumber: "HE-2",
+      customerName: "Test",
+      placedAtIso: new Date().toISOString(),
+      lines: [line],
+    });
     expect(preview).toContain("BUILD:");
     expect(preview).toContain("[x] 3oz smash patty x1");
     expect((preview.match(/3oz smash patty/g) ?? []).length).toBeGreaterThanOrEqual(2);
